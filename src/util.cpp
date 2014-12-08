@@ -394,7 +394,7 @@ boost::filesystem::path GetDefaultDataDir()
     return pathRet / "Bitcoin";
 #else
     // Unix
-    return pathRet / ".bitcoin";
+    return pathRet / ".newcc";
 #endif
 #endif
 }
