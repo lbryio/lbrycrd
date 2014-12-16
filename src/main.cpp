@@ -67,6 +67,13 @@ map<uint256, COrphanTx> mapOrphanTransactions;
 map<uint256, set<uint256> > mapOrphanTransactionsByPrev;
 void EraseOrphansFor(NodeId peer);
 
+/**
+ * Returns true if there are nRequired or more blocks of minVersion or above
+ * in the last Params().ToCheckBlockUpgradeMajority() blocks, starting at pstart 
+ * and going backwards.
+ */
+static bool IsSuperMajority(int minVersion, const CBlockIndex* pstart, unsigned int nRequired);
+
 /** Constant stuff for coinbase transactions we create: */
 CScript COINBASE_FLAGS;
 
@@ -1018,7 +1025,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
                                       hash.ToString(), nFees, txMinFee),
                              REJECT_INSUFFICIENTFEE, "insufficient fee");
 
-        // Continuously rate-limit free (really, very-low-fee)transactions
+        // Continuously rate-limit free (really, very-low-fee) transactions
         // This mitigates 'penny-flooding' -- sending thousands of free transactions just to
         // be annoying or make others' transactions take longer to confirm.
         if (fLimitFree && nFees < ::minRelayTxFee.GetFee(nSize))
@@ -1043,7 +1050,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
         }
 
         if (fRejectInsaneFee && nFees > ::minRelayTxFee.GetFee(nSize) * 10000)
-            return error("AcceptToMemoryPool: : insane fees %s, %d > %d",
+            return error("AcceptToMemoryPool: insane fees %s, %d > %d",
                          hash.ToString(),
                          nFees, ::minRelayTxFee.GetFee(nSize) * 10000);
 
@@ -1051,7 +1058,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
         // This is done last to help prevent CPU exhaustion denial-of-service attacks.
         if (!CheckInputs(tx, state, view, true, STANDARD_SCRIPT_VERIFY_FLAGS, true))
         {
-            return error("AcceptToMemoryPool: : ConnectInputs failed %s", hash.ToString());
+            return error("AcceptToMemoryPool: ConnectInputs failed %s", hash.ToString());
         }
         // Store transaction in memory
         pool.addUnchecked(hash, entry);
@@ -1792,24 +1799,23 @@ bool static FlushStateToDisk(CValidationState &state, FlushStateMode mode) {
         // First make sure all block and undo data is flushed to disk.
         FlushBlockFile();
         // Then update all block file information (which may refer to block and undo files).
-        bool fileschanged = false;
-        for (set<int>::iterator it = setDirtyFileInfo.begin(); it != setDirtyFileInfo.end(); ) {
-            if (!pblocktree->WriteBlockFileInfo(*it, vinfoBlockFile[*it])) {
-                return state.Abort("Failed to write to block index");
+        {
+            std::vector<std::pair<int, const CBlockFileInfo*> > vFiles;
+            vFiles.reserve(setDirtyFileInfo.size());
+            for (set<int>::iterator it = setDirtyFileInfo.begin(); it != setDirtyFileInfo.end(); ) {
+                vFiles.push_back(make_pair(*it, &vinfoBlockFile[*it]));
+                setDirtyFileInfo.erase(it++);
             }
-            fileschanged = true;
-            setDirtyFileInfo.erase(it++);
+            std::vector<const CBlockIndex*> vBlocks;
+            vBlocks.reserve(setDirtyBlockIndex.size());
+            for (set<CBlockIndex*>::iterator it = setDirtyBlockIndex.begin(); it != setDirtyBlockIndex.end(); ) {
+                vBlocks.push_back(*it);
+                setDirtyBlockIndex.erase(it++);
+            }
+            if (!pblocktree->WriteBatchSync(vFiles, nLastBlockFile, vBlocks)) {
+                return state.Abort("Files to write to block index database");
+            }
         }
-        if (fileschanged && !pblocktree->WriteLastBlockFile(nLastBlockFile)) {
-            return state.Abort("Failed to write to block index");
-        }
-        for (set<CBlockIndex*>::iterator it = setDirtyBlockIndex.begin(); it != setDirtyBlockIndex.end(); ) {
-             if (!pblocktree->WriteBlockIndex(CDiskBlockIndex(*it))) {
-                 return state.Abort("Failed to write to block index");
-             }
-             setDirtyBlockIndex.erase(it++);
-        }
-        pblocktree->Sync();
         // Finally flush the chainstate (which may refer to block index entries).
         if (!pcoinsTip->Flush())
             return state.Abort("Failed to write to coin database");
@@ -1892,10 +1898,10 @@ bool static DisconnectTip(CValidationState &state) {
         // ignore validation errors in resurrected transactions
         list<CTransaction> removed;
         CValidationState stateDummy;
-        if (!tx.IsCoinBase())
-            if (!AcceptToMemoryPool(mempool, stateDummy, tx, false, NULL))
-                mempool.remove(tx, removed, true);
+        if (tx.IsCoinBase() || !AcceptToMemoryPool(mempool, stateDummy, tx, false, NULL))
+            mempool.remove(tx, removed, true);
     }
+    mempool.removeCoinbaseSpends(pcoinsTip, pindexDelete->nHeight);
     mempool.check(pcoinsTip);
     // Update chainActive and related variables.
     UpdateTip(pindexDelete->pprev);
@@ -2480,8 +2486,7 @@ bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationState& sta
         return state.DoS(100, error("%s : forked chain older than last checkpoint (height %d)", __func__, nHeight));
 
     // Reject block.nVersion=1 blocks when 95% (75% on testnet) of the network has upgraded:
-    if (block.nVersion < 2 && 
-        CBlockIndex::IsSuperMajority(2, pindexPrev, Params().RejectBlockOutdatedMajority()))
+    if (block.nVersion < 2 && IsSuperMajority(2, pindexPrev, Params().RejectBlockOutdatedMajority()))
     {
         return state.Invalid(error("%s : rejected nVersion=1 block", __func__),
                              REJECT_OBSOLETE, "bad-version");
@@ -2502,8 +2507,7 @@ bool ContextualCheckBlock(const CBlock& block, CValidationState& state, CBlockIn
 
     // Enforce block.nVersion=2 rule that the coinbase starts with serialized block height
     // if 750 of the last 1,000 blocks are version 2 or greater (51/100 if testnet):
-    if (block.nVersion >= 2 && 
-        CBlockIndex::IsSuperMajority(2, pindexPrev, Params().EnforceBlockUpgradeMajority()))
+    if (block.nVersion >= 2 && IsSuperMajority(2, pindexPrev, Params().EnforceBlockUpgradeMajority()))
     {
         CScript expect = CScript() << nHeight;
         if (block.vtx[0].vin[0].scriptSig.size() < expect.size() ||
@@ -2601,7 +2605,7 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
     return true;
 }
 
-bool CBlockIndex::IsSuperMajority(int minVersion, const CBlockIndex* pstart, unsigned int nRequired)
+static bool IsSuperMajority(int minVersion, const CBlockIndex* pstart, unsigned int nRequired)
 {
     unsigned int nToCheck = Params().ToCheckBlockUpgradeMajority();
     unsigned int nFound = 0;
@@ -2614,54 +2618,6 @@ bool CBlockIndex::IsSuperMajority(int minVersion, const CBlockIndex* pstart, uns
     return (nFound >= nRequired);
 }
 
-/** Turn the lowest '1' bit in the binary representation of a number into a '0'. */
-int static inline InvertLowestOne(int n) { return n & (n - 1); }
-
-/** Compute what height to jump back to with the CBlockIndex::pskip pointer. */
-int static inline GetSkipHeight(int height) {
-    if (height < 2)
-        return 0;
-
-    // Determine which height to jump back to. Any number strictly lower than height is acceptable,
-    // but the following expression seems to perform well in simulations (max 110 steps to go back
-    // up to 2**18 blocks).
-    return (height & 1) ? InvertLowestOne(InvertLowestOne(height - 1)) + 1 : InvertLowestOne(height);
-}
-
-CBlockIndex* CBlockIndex::GetAncestor(int height)
-{
-    if (height > nHeight || height < 0)
-        return NULL;
-
-    CBlockIndex* pindexWalk = this;
-    int heightWalk = nHeight;
-    while (heightWalk > height) {
-        int heightSkip = GetSkipHeight(heightWalk);
-        int heightSkipPrev = GetSkipHeight(heightWalk - 1);
-        if (heightSkip == height ||
-            (heightSkip > height && !(heightSkipPrev < heightSkip - 2 &&
-                                      heightSkipPrev >= height))) {
-            // Only follow pskip if pprev->pskip isn't better than pskip->pprev.
-            pindexWalk = pindexWalk->pskip;
-            heightWalk = heightSkip;
-        } else {
-            pindexWalk = pindexWalk->pprev;
-            heightWalk--;
-        }
-    }
-    return pindexWalk;
-}
-
-const CBlockIndex* CBlockIndex::GetAncestor(int height) const
-{
-    return const_cast<CBlockIndex*>(this)->GetAncestor(height);
-}
-
-void CBlockIndex::BuildSkip()
-{
-    if (pprev)
-        pskip = pprev->GetAncestor(GetSkipHeight(nHeight));
-}
 
 bool ProcessNewBlock(CValidationState &state, CNode* pfrom, CBlock* pblock, CDiskBlockPos *dbp)
 {
@@ -3032,7 +2988,7 @@ bool InitBlockIndex() {
                 return error("LoadBlockIndex() : genesis block not accepted");
             if (!ActivateBestChain(state, &block))
                 return error("LoadBlockIndex() : genesis block cannot be activated");
-            // Force a chainstate write so that when we VerifyDB in a moment, it doesnt check stale data
+            // Force a chainstate write so that when we VerifyDB in a moment, it doesn't check stale data
             return FlushStateToDisk(state, FLUSH_STATE_ALWAYS);
         } catch(std::runtime_error &e) {
             return error("LoadBlockIndex() : failed to initialize block database: %s", e.what());

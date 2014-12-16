@@ -95,7 +95,7 @@ enum BlockStatus {
 class CBlockIndex
 {
 public:
-    //! pointer to the hash of the block, if any. memory is owned by this CBlockIndex
+    //! pointer to the hash of the block, if any. Memory is owned by this CBlockIndex
     const uint256* phashBlock;
 
     //! pointer to the index of the predecessor of this block
@@ -236,14 +236,6 @@ public:
         return pbegin[(pend - pbegin)/2];
     }
 
-    /**
-     * Returns true if there are nRequired or more blocks of minVersion or above
-     * in the last Params().ToCheckBlockUpgradeMajority() blocks, starting at pstart 
-     * and going backwards.
-     */
-    static bool IsSuperMajority(int minVersion, const CBlockIndex* pstart,
-                                unsigned int nRequired);
-
     std::string ToString() const
     {
         return strprintf("CBlockIndex(pprev=%p, nHeight=%d, merkle=%s, hashBlock=%s)",
@@ -293,7 +285,7 @@ public:
         hashPrev = 0;
     }
 
-    explicit CDiskBlockIndex(CBlockIndex* pindex) : CBlockIndex(*pindex) {
+    explicit CDiskBlockIndex(const CBlockIndex* pindex) : CBlockIndex(*pindex) {
         hashPrev = (pprev ? pprev->GetBlockHash() : 0);
     }
 
