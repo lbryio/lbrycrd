@@ -310,6 +310,74 @@ Value getaddressesbyaccount(const Array& params, bool fHelp)
     return ret;
 }
 
+void ClaimName(const std::vector<unsigned char> vchName, const std::vector<unsigned char> vchValue, CAmount nAmount, CWalletTx& wtxNew)
+{
+    // Check amount
+    if (nAmount <= 0)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid amount");
+
+    if (nAmount > pwalletMain->GetBalance())
+        throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Insufficient funds");
+
+    string strError;
+    if (pwalletMain->IsLocked())
+    {
+        strError = "Error: Wallet locked, unable to create transaction!";
+        LogPrintf("SendMoney() : %s", strError);
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+
+    //Get new address
+    CPubKey newKey;
+    if (!pwalletMain->GetKeyFromPool(newKey))
+        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
+
+    CScript scriptPubKey = GetScriptForDestination(CTxDestination(newKey.GetID()));
+    CScript claimScript = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP << scriptPubKey;
+
+    CReserveKey reservekey(pwalletMain);
+    CAmount nFeeRequired;
+    if (!pwalletMain->CreateTransaction(claimScript, nAmount, wtxNew, reservekey, nFeeRequired, strError))
+    {
+        if (nAmount + nFeeRequired > pwalletMain->GetBalance())
+            strError = strprintf("Error: This transaction requires a transaction fee of at least %s because if its amount, complexity, or use of recently received funds!", FormatMoney(nFeeRequired));
+        LogPrintf("ClaimName() : %s\n", strError);
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+    if (!pwalletMain->CommitTransaction(wtxNew, reservekey))
+        throw JSONRPCError(RPC_WALLET_ERROR, "Error: The transaction was rejected! This might hapen if some of the coins in your wallet were already spent, such as if you used a copy of wallet.dat and coins were spent in the copy but not marked as spent here.");
+}
+
+Value claimname(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 3)
+        throw runtime_error(
+            "claimname \"name\" \"value\" amount\n"
+            "\nCreate a transaction which issues a claim assigning a value to a name. The claim will be authoritative if the transaction amount is greater than the transaction amount of all other unspent transactions which issue a claim over the same name, and it will remain authoritative as long as it remains unspent. The amount is a real and is rounded to the nearest 0.00000001\n"
+            + HelpRequiringPassphrase() +
+            "\nArguments:\n"
+            "1. \"name\"  (string, required) The name to be assigned the value.\n"
+            "2. \"value\"  (string, required) The value to assign to the name.\n"
+            "3. \"amount\n  (numeric, required) The amount in ncc to send. eg 0.1\n"
+            "\nResult:\n"
+            "\"transactionid\"  (string) The transaction id.\n"
+        );
+    string sName = params[0].get_str();
+    string sValue = params[1].get_str();
+    std::vector<unsigned char> vchName (sName.begin(), sName.end());
+    std::vector<unsigned char> vchValue (sValue.begin(), sValue.end());
+    CAmount nAmount = AmountFromValue(params[2]);
+
+    CWalletTx wtx;
+
+    EnsureWalletIsUnlocked();
+
+    ClaimName(vchName, vchValue, nAmount, wtx);
+
+    return wtx.GetHash().GetHex();
+}
+    
+
 void SendMoney(const CTxDestination &address, CAmount nValue, CWalletTx& wtxNew)
 {
     // Check amount

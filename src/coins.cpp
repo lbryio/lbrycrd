@@ -6,6 +6,8 @@
 
 #include "random.h"
 
+#include "util.h"
+
 #include <assert.h>
 
 /**
@@ -36,6 +38,7 @@ bool CCoins::Spend(const COutPoint &out, CTxInUndo &undo) {
         return false;
     if (vout[out.n].IsNull())
         return false;
+    LogPrintf("In CCoins::Spend for output %d in transaction %s\n", out.n, out.hash.GetHex().c_str());
     undo = CTxInUndo(vout[out.n]);
     vout[out.n].SetNull();
     Cleanup();

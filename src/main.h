@@ -304,6 +304,11 @@ bool IsStandardTx(const CTransaction& tx, std::string& reason);
 
 bool IsFinalTx(const CTransaction &tx, int nBlockHeight = 0, int64_t nBlockTime = 0);
 
+bool DecodeNCCScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams);
+bool DecodeNCCScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams, CScript::const_iterator& pc);
+CScript StripNCCScriptPrefix(const CScript& scriptIn);
+
+
 /** Undo information for a CBlock */
 class CBlockUndo
 {

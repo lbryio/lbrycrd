@@ -29,6 +29,7 @@ enum opcodetype
     // push value
     OP_0 = 0x00,
     OP_FALSE = OP_0,
+    OP_CLAIM_NAME = OP_0,
     OP_PUSHDATA1 = 0x4c,
     OP_PUSHDATA2 = 0x4d,
     OP_PUSHDATA4 = 0x4e,

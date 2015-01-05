@@ -120,12 +120,12 @@ public:
         vAlertPubKey = ParseHex("04fc9702847840aaf195de8442ebecedf5b095cdbb9bc716bda9110971b28a49e0ead8564ff0db22209e0374782c093bb899692d524e9d6a6956e7c5ecbcd68284");
         nDefaultPort = 8333;
         bnProofOfWorkLimit = ~uint256(0) >> 1;
-        nSubsidyHalvingInterval = 210000;
+        nSubsidyHalvingInterval = 2100000;
         nEnforceBlockUpgradeMajority = 750;
         nRejectBlockOutdatedMajority = 950;
         nToCheckBlockUpgradeMajority = 1000;
         nMinerThreads = 2;
-        nTargetTimespan = 30 * 60;//14 * 24 * 60 * 60; // two weeks
+        nTargetTimespan = 30 * 60 * 10;//14 * 24 * 60 * 60; // two weeks
         nTargetSpacing = 30;
 
         /**
@@ -170,10 +170,10 @@ public:
         }*/
 
         hashGenesisBlock = genesis.GetHash();
-        printf("%s\n", hashGenesisBlock.GetHex().c_str());
+        //printf("%s\n", hashGenesisBlock.GetHex().c_str());
         //assert(hashGenesisBlock == uint256("0x000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"));
         assert(hashGenesisBlock == uint256("0x008c55867210a8154af697b7776c6b6cdb26972381eac9f84d18a491374464a3"));
-        printf("%s\n", genesis.hashMerkleRoot.GetHex().c_str());
+        //printf("%s\n", genesis.hashMerkleRoot.GetHex().c_str());
         //assert(genesis.hashMerkleRoot == uint256("0x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"));
         assert(genesis.hashMerkleRoot == uint256("0xa7d51d407092059a2beeffab22e65d6176cfb3c33b93515109480aa7c81c9141"));
 

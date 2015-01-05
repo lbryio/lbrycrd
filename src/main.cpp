@@ -616,11 +616,76 @@ unsigned int LimitOrphanTxSize(unsigned int nMaxOrphans)
 
 
 
+bool DecodeNCCScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams)
+{
+    CScript::const_iterator pc = scriptIn.begin();
+    return DecodeNCCScript(scriptIn, op, vvchParams, pc);
+}
+
+bool DecodeNCCScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams, CScript::const_iterator& pc)
+{
+    opcodetype opcode;
+    if (!scriptIn.GetOp(pc, opcode))
+    {
+        return false;
+    }
+    if (opcode != OP_CLAIM_NAME)
+    {
+        return false;
+    }
+
+    op = opcode;
+
+    std::vector<unsigned char> vchName;
+    std::vector<unsigned char> vchValue;
+
+    // The correct format is:
+    // OP_CLAIM_NAME vchName vchValue OP_DROP2 OP_DROP pubkeyscript
+    // All others are invalid.
+
+    if (!scriptIn.GetOp(pc, opcode, vchName) || opcode < 0 || opcode > OP_PUSHDATA4)
+    {
+        return false;
+    }
+    if (!scriptIn.GetOp(pc, opcode, vchValue) || opcode < 0 || opcode > OP_PUSHDATA4)
+    {
+        return false;
+    }
+    if (!scriptIn.GetOp(pc, opcode) || opcode != OP_2DROP)
+    {
+        return false;
+    }
+    if (!scriptIn.GetOp(pc, opcode) || opcode != OP_DROP)
+    {
+        return false;
+    }
+
+    vvchParams.push_back(vchName);
+    vvchParams.push_back(vchValue);
+
+    return true;
+}
+
+CScript StripNCCScriptPrefix(const CScript& scriptIn)
+{
+    int op;
+    std::vector<std::vector<unsigned char> > vvchParams;
+    CScript::const_iterator pc = scriptIn.begin();
+
+    if (!DecodeNCCScript(scriptIn, op, vvchParams, pc))
+    {
+        return scriptIn;
+    }
+
+    return CScript(pc, scriptIn.end());
+}
+
 
 
 bool IsStandardTx(const CTransaction& tx, string& reason)
 {
     AssertLockHeld(cs_main);
+    // TODO: We may have a different version here
     if (tx.nVersion > CTransaction::CURRENT_VERSION || tx.nVersion < 1) {
         reason = "version";
         return false;
@@ -680,7 +745,10 @@ bool IsStandardTx(const CTransaction& tx, string& reason)
     unsigned int nDataOut = 0;
     txnouttype whichType;
     BOOST_FOREACH(const CTxOut& txout, tx.vout) {
-        if (!::IsStandard(txout.scriptPubKey, whichType)) {
+
+        const CScript& scriptPubKey = StripNCCScriptPrefix(txout.scriptPubKey);
+
+        if (!::IsStandard(scriptPubKey, whichType)) {
             reason = "scriptpubkey";
             return false;
         }
@@ -744,7 +812,8 @@ bool AreInputsStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs)
         vector<vector<unsigned char> > vSolutions;
         txnouttype whichType;
         // get the scriptPubKey corresponding to this input:
-        const CScript& prevScript = prev.scriptPubKey;
+        const CScript& prevScript = StripNCCScriptPrefix(prev.scriptPubKey);
+
         if (!Solver(prevScript, whichType, vSolutions))
             return false;
         int nArgsExpected = ScriptSigArgsExpected(whichType, vSolutions);
@@ -814,8 +883,9 @@ unsigned int GetP2SHSigOpCount(const CTransaction& tx, const CCoinsViewCache& in
     for (unsigned int i = 0; i < tx.vin.size(); i++)
     {
         const CTxOut &prevout = inputs.GetOutputFor(tx.vin[i]);
-        if (prevout.scriptPubKey.IsPayToScriptHash())
-            nSigOps += prevout.scriptPubKey.GetSigOpCount(tx.vin[i].scriptSig);
+        const CScript& scriptPubKey = StripNCCScriptPrefix(prevout.scriptPubKey);
+        if (scriptPubKey.IsPayToScriptHash())
+            nSigOps += scriptPubKey.GetSigOpCount(tx.vin[i].scriptSig);
     }
     return nSigOps;
 }
@@ -1712,6 +1782,9 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         }
         UpdateCoins(tx, state, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
 
+        // TODO: This seems like a good place to actually change the
+        // TODO: tree of NCCs and make the CUndo vector for those changes.
+
         vPos.push_back(std::make_pair(tx.GetHash(), pos));
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
@@ -2515,6 +2588,9 @@ bool ContextualCheckBlock(const CBlock& block, CValidationState& state, CBlockIn
             return state.DoS(100, error("%s : block height mismatch in coinbase", __func__), REJECT_INVALID, "bad-cb-height");
         }
     }
+
+    // TODO: This looks like a good place to check the "merkle" root of the
+    // TODO: NCC tree that will result from applying this block
 
     return true;
 }

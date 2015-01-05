@@ -15,10 +15,14 @@
 using namespace std;
 
 void static BatchWriteCoins(CLevelDBBatch &batch, const uint256 &hash, const CCoins &coins) {
-    if (coins.IsPruned())
+    if (coins.IsPruned()) {
+        LogPrintf("BatchWriteCoins erasing %s\n", hash.GetHex().c_str());
         batch.Erase(make_pair('c', hash));
-    else
+    }
+    else {
+        LogPrintf("BatchWriteCoins writing %s\n", hash.GetHex().c_str());
         batch.Write(make_pair('c', hash), coins);
+    }
 }
 
 void static BatchWriteHashBestChain(CLevelDBBatch &batch, const uint256 &hash) {

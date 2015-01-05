@@ -373,6 +373,18 @@ BOOST_AUTO_TEST_CASE(test_IsStandard)
     t.vout[0].scriptPubKey = CScript() << OP_RETURN;
     t.vout[1].scriptPubKey = CScript() << OP_RETURN;
     BOOST_CHECK(!IsStandardTx(t, reason));
+
+    // NCC transactions
+
+    t.vout.resize(1);
+    string sName = "testname";
+    string sValue = "testvalue";
+    std::vector<unsigned char> vchName (sName.begin(), sName.end());
+    std::vector<unsigned char> vchValue (sValue.begin(), sValue.end());
+    CScript scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
+    t.vout[0].scriptPubKey = scriptPubKey + GetScriptForDestination(key.GetPubKey().GetID());
+    t.vout[0].nValue = 10*COIN;
+    BOOST_CHECK(IsStandardTx(t, reason));
 }
 
 BOOST_AUTO_TEST_SUITE_END()
