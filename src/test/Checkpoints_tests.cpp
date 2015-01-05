@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2013 The Bitcoin Core developers
-// Distributed under the MIT/X11 software license, see the accompanying
+// Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 //
@@ -22,7 +22,6 @@ BOOST_AUTO_TEST_CASE(sanity)
 //    uint256 p134444 = uint256("0x00000000000005b12ffd4cd315cd34ffd4a594f430ac814c91184a0d42d2b0fe");
 //    BOOST_CHECK(Checkpoints::CheckBlock(11111, p11111));
 //    BOOST_CHECK(Checkpoints::CheckBlock(134444, p134444));
-
     
     // Wrong hashes at checkpoints should fail:
 //    BOOST_CHECK(!Checkpoints::CheckBlock(11111, p134444));

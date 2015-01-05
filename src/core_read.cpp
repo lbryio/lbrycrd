@@ -1,5 +1,5 @@
-// Copyright (c) 2009-2014 The Bitcoin developers
-// Distributed under the MIT/X11 software license, see the accompanying
+// Copyright (c) 2009-2014 The Bitcoin Core developers
+// Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "core_io.h"
@@ -102,7 +102,7 @@ bool DecodeHexTx(CTransaction& tx, const std::string& strHexTx)
     try {
         ssData >> tx;
     }
-    catch (const std::exception &) {
+    catch (const std::exception&) {
         return false;
     }
 
@@ -119,7 +119,7 @@ bool DecodeHexBlk(CBlock& block, const std::string& strHexBlk)
     try {
         ssBlock >> block;
     }
-    catch (const std::exception &) {
+    catch (const std::exception&) {
         return false;
     }
 
@@ -131,6 +131,11 @@ uint256 ParseHashUV(const UniValue& v, const string& strName)
     string strHex;
     if (v.isStr())
         strHex = v.getValStr();
+    return ParseHashStr(strHex, strName);  // Note: ParseHashStr("") throws a runtime_error
+}
+
+uint256 ParseHashStr(const std::string& strHex, const std::string& strName)
+{
     if (!IsHex(strHex)) // Note: IsHex("") is false
         throw runtime_error(strName+" must be hexadecimal string (not '"+strHex+"')");
 

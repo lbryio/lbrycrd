@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2014 The Bitcoin developers
+// Copyright (c) 2009-2014 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -91,22 +91,32 @@ public:
      * Used as belt-and-suspenders check when reading to detect
      * file corruption
      */
-    bool AreSane(const std::vector<CFeeRate>& vecFee, const CFeeRate& minRelayFee)
+    static bool AreSane(const CFeeRate fee, const CFeeRate& minRelayFee)
+    {
+        if (fee < CFeeRate(0))
+            return false;
+        if (fee.GetFeePerK() > minRelayFee.GetFeePerK() * 10000)
+            return false;
+        return true;
+    }
+    static bool AreSane(const std::vector<CFeeRate>& vecFee, const CFeeRate& minRelayFee)
     {
         BOOST_FOREACH(CFeeRate fee, vecFee)
         {
-            if (fee < CFeeRate(0))
-                return false;
-            if (fee.GetFeePerK() > minRelayFee.GetFeePerK() * 10000)
+            if (!AreSane(fee, minRelayFee))
                 return false;
         }
         return true;
     }
-    bool AreSane(const std::vector<double> vecPriority)
+    static bool AreSane(const double priority)
+    {
+        return priority >= 0;
+    }
+    static bool AreSane(const std::vector<double> vecPriority)
     {
         BOOST_FOREACH(double priority, vecPriority)
         {
-            if (priority < 0)
+            if (!AreSane(priority))
                 return false;
         }
         return true;
@@ -167,12 +177,12 @@ private:
         bool sufficientFee = (feeRate > minRelayFee);
         bool sufficientPriority = AllowFree(dPriority);
         const char* assignedTo = "unassigned";
-        if (sufficientFee && !sufficientPriority)
+        if (sufficientFee && !sufficientPriority && CBlockAverage::AreSane(feeRate, minRelayFee))
         {
             history[nBlocksTruncated].RecordFee(feeRate);
             assignedTo = "fee";
         }
-        else if (sufficientPriority && !sufficientFee)
+        else if (sufficientPriority && !sufficientFee && CBlockAverage::AreSane(dPriority))
         {
             history[nBlocksTruncated].RecordPriority(dPriority);
             assignedTo = "priority";
@@ -575,9 +585,9 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins) const
         if (fDependsWait)
             waitingOnDependants.push_back(&it->second);
         else {
-            CValidationState state; CTxUndo undo;
+            CValidationState state;
             assert(CheckInputs(tx, state, mempoolDuplicate, false, 0, false, NULL));
-            UpdateCoins(tx, state, mempoolDuplicate, undo, 1000000);
+            UpdateCoins(tx, state, mempoolDuplicate, 1000000);
         }
     }
     unsigned int stepsSinceLastRemove = 0;
@@ -591,8 +601,7 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins) const
             assert(stepsSinceLastRemove < waitingOnDependants.size());
         } else {
             assert(CheckInputs(entry->GetTx(), state, mempoolDuplicate, false, 0, false, NULL));
-            CTxUndo undo;
-            UpdateCoins(entry->GetTx(), state, mempoolDuplicate, undo, 1000000);
+            UpdateCoins(entry->GetTx(), state, mempoolDuplicate, 1000000);
             stepsSinceLastRemove = 0;
         }
     }
@@ -648,7 +657,7 @@ CTxMemPool::WriteFeeEstimates(CAutoFile& fileout) const
         fileout << CLIENT_VERSION; // version that wrote the file
         minerPolicyEstimator->Write(fileout);
     }
-    catch (const std::exception &) {
+    catch (const std::exception&) {
         LogPrintf("CTxMemPool::WriteFeeEstimates() : unable to write policy estimator data (non-fatal)");
         return false;
     }
@@ -667,7 +676,7 @@ CTxMemPool::ReadFeeEstimates(CAutoFile& filein)
         LOCK(cs);
         minerPolicyEstimator->Read(filein, minRelayFee);
     }
-    catch (const std::exception &) {
+    catch (const std::exception&) {
         LogPrintf("CTxMemPool::ReadFeeEstimates() : unable to read policy estimator data (non-fatal)");
         return false;
     }

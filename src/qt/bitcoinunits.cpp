@@ -1,5 +1,5 @@
-// Copyright (c) 2011-2013 The Bitcoin developers
-// Distributed under the MIT/X11 software license, see the accompanying
+// Copyright (c) 2011-2013 The Bitcoin Core developers
+// Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "bitcoinunits.h"
@@ -33,17 +33,6 @@ bool BitcoinUnits::valid(int unit)
         return true;
     default:
         return false;
-    }
-}
-
-QString BitcoinUnits::id(int unit)
-{
-    switch(unit)
-    {
-    case BTC: return QString("btc");
-    case mBTC: return QString("mbtc");
-    case uBTC: return QString("ubtc");
-    default: return QString("???");
     }
 }
 
