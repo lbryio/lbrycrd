@@ -92,6 +92,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "updatename", 2},
     { "abandonname", 2},
     { "listnameclaims", 0},
+    { "listnameclaims", 1},
 };
 
 class CRPCConvertTable

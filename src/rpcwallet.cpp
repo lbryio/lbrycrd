@@ -612,12 +612,13 @@ void ListNameClaims(const CWalletTx& wtx, const string& strAccount, int nMinDept
 
 Value listnameclaims(const Array& params, bool fHelp)
 {
-    if (fHelp || params.size() > 1)
+    if (fHelp || params.size() > 2)
         throw runtime_error(
-            "listnameclaims activeonly\n"
+            "listnameclaims activeonly minconf\n"
             "Return a list of all transactions claiming names.\n"
             "\nArguments\n"
             "1. activeonly    (bool, optional, not implemented) Whether to only include transactions which are still active, i.e. have not been spent. Default is false.\n"
+            "2. minconf       (numeric, optional, default=1) Only include transactions confirmed at least this many time.\n"
             "\nResult:\n"
             "[\n"
             "  {\n"
@@ -649,6 +650,11 @@ Value listnameclaims(const Array& params, bool fHelp)
         fListSpent = !params[0].get_bool();
     isminefilter ncc_filter = ISMINE_NCC;
 
+    // Minimum confirmations
+    int nMinDepth = 1;
+    if (params.size() > 1)
+        nMinDepth = params[1].get_int();
+    
     Array ret;
 
     std::list<CAccountingEntry> acentries;
@@ -657,7 +663,7 @@ Value listnameclaims(const Array& params, bool fHelp)
     for (CWallet::TxItems::reverse_iterator it = txOrdered.rbegin(); it != txOrdered.rend(); ++it)
     {
         CWalletTx *const pwtx = (*it).second.first;
-        if (pwtx != 0)
+        if (pwtx != 0 && pwtx->GetDepthInMainChain() >= nMinDepth)
             ListNameClaims(*pwtx, strAccount, 0, ret, ncc_filter, fListSpent);
     }
 
