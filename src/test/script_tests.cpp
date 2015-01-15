@@ -875,6 +875,49 @@ BOOST_AUTO_TEST_CASE(script_combineSigs)
     BOOST_CHECK(combined == partial3c);
 }
 
+BOOST_AUTO_TEST_CASE(script_nccScript)
+{
+    // Test the NCC scripts
+    // Outline:
+    // Spend normal tx to make NCC claim
+    // Spend NCC claim to update NCC claim
+    // Spend NCC updated claim to abandon name
+    CBasicKeyStore keystore;
+    vector<CKey> keys;
+    vector<CPubKey> pubkeys;
+    for (int i = 0; i < 4; i++)
+    {
+        CKey key;
+        key.MakeNewKey(false);
+        keys.push_back(key);
+        pubkeys.push_back(key.GetPubKey());
+        keystore.AddKey(key);
+    }
+
+    string sName = "testname";
+    string sValue = "testvalue";
+    std::vector<unsigned char> vchName(sName.begin(), sName.end());
+    std::vector<unsigned char> vchValue(sValue.begin(), sValue.end());
+
+    CMutableTransaction txOrig = BuildCreditingTransaction(GetScriptForDestination(keys[0].GetPubKey().GetID()));
+    
+    CMutableTransaction txNCC0 = BuildSpendingTransaction(CScript(), txOrig);
+    CScript txNCCOut0 = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
+    txNCCOut0 = txNCCOut0 + GetScriptForDestination(keys[1].GetPubKey().GetID());
+    txNCC0.vout[0].scriptPubKey = txNCCOut0;
+    SignSignature(keystore, txOrig, txNCC0, 0);
+
+    CMutableTransaction txNCC1 = BuildSpendingTransaction(CScript(), txNCC0);
+    CScript txNCCOut1 = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
+    txNCCOut1 = txNCCOut1 + GetScriptForDestination(keys[2].GetPubKey().GetID());
+    txNCC1.vout[0].scriptPubKey = txNCCOut1;
+    SignSignature(keystore, txNCC0, txNCC1, 0);
+
+    CMutableTransaction txFinal = BuildSpendingTransaction(CScript(), txNCC1);
+    txFinal.vout[0].scriptPubKey = GetScriptForDestination(keys[3].GetPubKey().GetID());
+    SignSignature(keystore, txNCC1, txFinal, 0);
+}
+
 BOOST_AUTO_TEST_CASE(script_standard_push)
 {
     ScriptError err;
