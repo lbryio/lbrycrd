@@ -9,6 +9,7 @@
 #include "keystore.h"
 #include "script/script.h"
 #include "script/standard.h"
+#include "ncc.h"
 
 #include <boost/foreach.hpp>
 
@@ -38,8 +39,17 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
 {
     vector<valtype> vSolutions;
     txnouttype whichType;
-    if (!Solver(scriptPubKey, whichType, vSolutions)) {
-        if (keystore.HaveWatchOnly(scriptPubKey))
+    isminetype spendable_type = ISMINE_SPENDABLE;
+    
+    CScript strippedScriptPubKey = StripNCCScriptPrefix(scriptPubKey);
+    if (strippedScriptPubKey != scriptPubKey)
+    {
+        spendable_type = ISMINE_NCC;
+    }
+
+
+    if (!Solver(strippedScriptPubKey, whichType, vSolutions)) {
+        if (keystore.HaveWatchOnly(strippedScriptPubKey))
             return ISMINE_WATCH_ONLY;
         return ISMINE_NO;
     }
@@ -53,12 +63,12 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
     case TX_PUBKEY:
         keyID = CPubKey(vSolutions[0]).GetID();
         if (keystore.HaveKey(keyID))
-            return ISMINE_SPENDABLE;
+            return spendable_type;
         break;
     case TX_PUBKEYHASH:
         keyID = CKeyID(uint160(vSolutions[0]));
         if (keystore.HaveKey(keyID))
-            return ISMINE_SPENDABLE;
+            return spendable_type;
         break;
     case TX_SCRIPTHASH:
     {
@@ -67,7 +77,7 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
         if (keystore.GetCScript(scriptID, subscript)) {
             isminetype ret = IsMine(keystore, subscript);
             if (ret == ISMINE_SPENDABLE)
-                return ret;
+                return spendable_type;
         }
         break;
     }
@@ -80,7 +90,7 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
         // in shared-wallet situations.
         vector<valtype> keys(vSolutions.begin()+1, vSolutions.begin()+vSolutions.size()-1);
         if (HaveKeys(keys, keystore) == keys.size())
-            return ISMINE_SPENDABLE;
+            return spendable_type;
         break;
     }
     }

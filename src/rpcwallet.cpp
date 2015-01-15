@@ -15,6 +15,7 @@
 #include "utilmoneystr.h"
 #include "wallet.h"
 #include "walletdb.h"
+#include "ncc.h"
 
 #include <stdint.h>
 
@@ -333,7 +334,8 @@ void ClaimName(const std::vector<unsigned char> vchName, const std::vector<unsig
         throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
 
     CScript scriptPubKey = GetScriptForDestination(CTxDestination(newKey.GetID()));
-    CScript claimScript = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP << scriptPubKey;
+    CScript claimScript = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
+    claimScript = claimScript + scriptPubKey;
 
     CReserveKey reservekey(pwalletMain);
     CAmount nFeeRequired;
@@ -353,7 +355,7 @@ Value claimname(const Array& params, bool fHelp)
     if (fHelp || params.size() != 3)
         throw runtime_error(
             "claimname \"name\" \"value\" amount\n"
-            "\nCreate a transaction which issues a claim assigning a value to a name. The claim will be authoritative if the transaction amount is greater than the transaction amount of all other unspent transactions which issue a claim over the same name, and it will remain authoritative as long as it remains unspent. The amount is a real and is rounded to the nearest 0.00000001\n"
+            "\nCreate a transaction which issues a claim assigning a value to a name. The claim will be authoritative if the transaction amount is greater than the transaction amount of all other unspent transactions which issue a claim over the same name, and it will remain authoritative as long as it remains unspent and there are no other greater unspent transactions issuing a claim over the same name. The amount is a real and is rounded to the nearest 0.00000001\n"
             + HelpRequiringPassphrase() +
             "\nArguments:\n"
             "1. \"name\"  (string, required) The name to be assigned the value.\n"
@@ -376,7 +378,299 @@ Value claimname(const Array& params, bool fHelp)
 
     return wtx.GetHash().GetHex();
 }
+
+
+void UpdateName(const std::vector<unsigned char> vchName, const std::vector<unsigned char> vchValue, CAmount nAmount, CWalletTx& wtxNew, CWalletTx wtxIn, unsigned int nTxOut)
+{
+    // Check amount
+    if (nAmount <= 0)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid amount");
+
+    if (nAmount - wtxIn.vout[nTxOut].nValue > pwalletMain->GetBalance())
+        throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Insufficient funds");
+
+    string strError;
+    if (pwalletMain->IsLocked())
+    {
+        strError = "Error: Wallet locked, unable to create transaction!";
+        LogPrintf("UpdateName() : %s", strError);
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+
+    //Get new address
+    CPubKey newKey;
+    if (!pwalletMain->GetKeyFromPool(newKey))
+        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
+
+    CScript scriptPubKey = GetScriptForDestination(CTxDestination(newKey.GetID()));
+    CScript claimScript = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
+    claimScript = claimScript + scriptPubKey;
+
+    CReserveKey reservekey(pwalletMain);
+    CAmount nFeeRequired;
+    if (!pwalletMain->CreateTransaction(claimScript, nAmount, wtxNew, reservekey, nFeeRequired, strError, NULL, &wtxIn, nTxOut))
+    {
+        if (nAmount + nFeeRequired - wtxIn.vout[nTxOut].nValue > pwalletMain->GetBalance())
+            strError = strprintf("Error: This transaction requires a transaction fee of at leaste %s because of its amount, complexity, or use of recently received funds!", FormatMoney(nFeeRequired));
+        LogPrintf("ClaimName() : %s\n", strError);
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+    if (!pwalletMain->CommitTransaction(wtxNew, reservekey))
+        throw JSONRPCError(RPC_WALLET_ERROR, "Error: The transaction was rejected! This might happen if some of the coins in your wallet were already spent, such as if you used a copy of wallet.dat and coins were spent in the copy but not marked as spent here.");
+}
+
+
+Value updatename(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 3)
+        throw runtime_error(
+            "updatename \"txid\" \"value\" amount\n"
+            "Create a transaction which issues a claim assigning a value to a name, spending the previous txout which issued a claim over the same name and therefore superseding that claim. The claim will be authoritative if the transaction amount is greater than the transaction amount of all other unspent transactions which issue a claim over the same name, and it will remain authoritative as long as it remains unspent and there are no greater unspent transactions issuing a claim over the same name.\n"
+            + HelpRequiringPassphrase() +
+            "\nArguments:\n"
+            "1.  \"txid\"  (string, required) The transaction containing the unspent txout which should be spent.\n"
+            "2.  \"value\"  (string, required) The value to assign to the name.\n"
+            "3.  \"amount\"  (numeric, required) The amount in ncc to send. eg 0.1\n"
+            "\nResult:\n"
+            "\"transactionid\"  (string) The new transaction id.\n"
+        );
     
+    uint256 hash;
+    hash.SetHex(params[0].get_str());
+    
+    std::vector<unsigned char> vchName;
+    string sValue = params[1].get_str();
+    std::vector<unsigned char> vchValue (sValue.begin(), sValue.end());
+    CAmount nAmount = AmountFromValue(params[2]);
+     
+    isminefilter filter = ISMINE_NCC;
+
+    Object entry;
+    if (!pwalletMain->mapWallet.count(hash))
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid or non-wallet transaction id");
+
+    const CWalletTx& wtx = pwalletMain->mapWallet[hash];
+    int op;
+    std::vector<std::vector<unsigned char> > vvchParams;
+    CWalletTx wtxNew;
+    bool fFound = false;
+    for (unsigned int i = 0; !fFound && i < wtx.vout.size(); i++)
+    {
+        if ((filter & pwalletMain->IsMine(wtx.vout[i])))
+        {
+            if (DecodeNCCScript(wtx.vout[i].scriptPubKey, op, vvchParams))
+            {
+                vchName = vvchParams[0];
+                EnsureWalletIsUnlocked();
+                UpdateName(vchName, vchValue, nAmount, wtxNew, wtx, i);
+                fFound = true;
+            }
+        }
+    }
+    if (!fFound)
+        throw runtime_error("Error: The given transaction contains no NCC scripts owned by this wallet");
+    return wtxNew.GetHash().GetHex();
+}
+
+
+void AbandonName(const CTxDestination &address, CAmount nAmount, CWalletTx& wtxNew, CWalletTx wtxIn, unsigned int nTxOut)
+{
+    // Check amount
+    if (nAmount <= 0)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid amount");
+
+    if (nAmount - wtxIn.vout[nTxOut].nValue > pwalletMain->GetBalance())
+        throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Insufficient funds");
+
+    string strError;
+    if (pwalletMain->IsLocked())
+    {
+        strError = "Error: Wallet locked, unable to create transaction!";
+        LogPrintf("AbandonName() : %s", strError);
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+
+    CScript scriptPubKey = GetScriptForDestination(address);
+    
+    CReserveKey reservekey(pwalletMain);
+    CAmount nFeeRequired;
+    if (!pwalletMain->CreateTransaction(scriptPubKey, nAmount, wtxNew, reservekey, nFeeRequired, strError, NULL, &wtxIn, nTxOut))
+    {
+        if (nAmount + nFeeRequired - wtxIn.vout[nTxOut].nValue > pwalletMain->GetBalance())
+            strError = strprintf("Error: This transaction requires a transaction fee of a least %s because of its amount, complexity, or use of recently received funds!", FormatMoney(nFeeRequired));
+        LogPrintf("AbandonName() : %s\n", strError);
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+    if (!pwalletMain->CommitTransaction(wtxNew, reservekey))
+        throw JSONRPCError(RPC_WALLET_ERROR, "Error: The transaction was rejected! This might happen if some of the coins in your wallet were already spent, such as if you used a copy of a wallet.dat and coins were spent in the copy but not marked as spent here.");
+}
+
+Value abandonname(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 3)
+        throw runtime_error(
+            "abandonname \"txid\" \"bitcoinaddress\" \"amount\"\n"
+            "Create a transaction which spends a txout which assigned a value to a name, effectively abandoning that claim.\n"
+            + HelpRequiringPassphrase() +
+            "\nArguments:\n"
+            "1. \"txid\"  (string, required) The transaction containing the unspent txout which should be spent.\n"
+            "2. \"bitcoinaddress\"  (string, required) The bitcoin address to send to.\n"
+            "3. \"amount\"  (numeric, required) The amount to send to the bitcoin address. eg 0.1\n"
+            "\nResult:\n"
+            "\"transactionid\"  (string) The new transaction id.\n"
+        );
+
+    uint256 hash;
+    hash.SetHex(params[0].get_str());
+
+    CBitcoinAddress address(params[1].get_str());
+    if (!address.IsValid())
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Bitcoin address");
+
+    CAmount nAmount = AmountFromValue(params[2]);
+
+    isminefilter filter = ISMINE_NCC;
+
+    Object entry;
+    if (!pwalletMain->mapWallet.count(hash))
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid or non-wallet transaction id");
+
+    const CWalletTx& wtx = pwalletMain->mapWallet[hash];
+    int op;
+    std::vector<std::vector<unsigned char> > vvchParams;
+    CWalletTx wtxNew;
+    bool fFound = false;
+    for (unsigned int i = 0; !fFound && i < wtx.vout.size(); i++)
+    {
+        if ((filter & pwalletMain->IsMine(wtx.vout[i])))
+        {
+            if (DecodeNCCScript(wtx.vout[i].scriptPubKey, op, vvchParams))
+            {
+                EnsureWalletIsUnlocked();
+                AbandonName(address.Get(), nAmount, wtxNew, wtx, i);
+                fFound = true;
+            }
+        }
+    }
+    if (!fFound)
+        throw runtime_error("Error: The given transaction contains no NCC scripts owned by this wallet");
+    return wtxNew.GetHash().GetHex();
+}
+
+
+static void MaybePushAddress(Object & entry, const CTxDestination &dest);
+
+
+void ListNameClaims(const CWalletTx& wtx, const string& strAccount, int nMinDepth, Array& ret, const isminefilter& filter, bool list_spent)
+{
+    CAmount nFee;
+    string strSentAccount;
+    list<COutputEntry> listSent;
+    list<COutputEntry> listReceived;
+
+    wtx.GetAmounts(listReceived, listSent, nFee, strSentAccount, filter);
+
+    bool fAllAccounts = (strAccount == string("*"));
+
+    // Only care about sent
+    if ((!listSent.empty() || nFee != 0) && (fAllAccounts || strAccount == strSentAccount))
+    {
+        BOOST_FOREACH(const COutputEntry& s, listSent)
+        {
+            if (list_spent || !pwalletMain->IsSpent(wtx.GetHash(), s.vout))
+            {
+                Object entry;
+                const CScript& scriptPubKey = wtx.vout[s.vout].scriptPubKey;
+                int op;
+                vector<vector<unsigned char> > vvchParams;
+                if (!DecodeNCCScript(scriptPubKey, op, vvchParams))
+                {
+                    LogPrintf("ListNameClaims(): Txout classified as NCC could not be decoded. Txid: %s", wtx.GetHash().ToString());
+                    continue;
+                }
+                else if (vvchParams.size() != 2)
+                {
+                    LogPrintf("ListNameClaims(): Wrong number of params to name claim script. Got %d, expected 2. Txid: %s", vvchParams.size(), wtx.GetHash().ToString());
+                    continue;
+                }
+                string sName (vvchParams[0].begin(), vvchParams[0].end());
+                string sValue (vvchParams[1].begin(), vvchParams[1].end());
+                entry.push_back(Pair("name", sName));
+                entry.push_back(Pair("value", sValue));
+                entry.push_back(Pair("txid", wtx.GetHash().ToString()));
+                entry.push_back(Pair("account", strSentAccount));
+                MaybePushAddress(entry, s.destination);
+                entry.push_back(Pair("category", "ncc"));
+                entry.push_back(Pair("amount", ValueFromAmount(s.amount)));
+                entry.push_back(Pair("vout", s.vout));
+                entry.push_back(Pair("fee", ValueFromAmount(nFee)));
+                ret.push_back(entry);
+            }
+        }
+    }
+}
+            
+
+
+Value listnameclaims(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() > 1)
+        throw runtime_error(
+            "listnameclaims activeonly\n"
+            "Return a list of all transactions claiming names.\n"
+            "\nArguments\n"
+            "1. activeonly    (bool, optional, not implemented) Whether to only include transactions which are still active, i.e. have not been spent. Default is false.\n"
+            "\nResult:\n"
+            "[\n"
+            "  {\n"
+            "    \"name\":\"claimedname\",        (string) The name that is claimed.\n"
+            "    \"value\":\"value\"              (string) The value assigned to the name.\n"
+            "    \"account\":\"accountname\",     (string) The account name associated with the transaction. \n"
+            "                                              It will be \"\" for the default account.\n"
+            "    \"address\":\"bitcoinaddress\",  (string) The bitcoin address of the transaction.\n"
+            "    \"category\":\"ncc\"             (string) Always ncc\n"
+            "    \"amount\": x.xxx,               (numeric) The amount in btc.\n"
+            "    \"vout\": n,                     (numeric) The vout value\n"
+            "    \"fee\": x.xxx,                  (numeric) The amount of the fee in btc.\n"
+            "    \"confirmations\": n,            (numeric) The number of confirmations for the transaction\n"
+            "    \"blockhash\": \"hashvalue\",    (string) The block hash containing the transaction.\n"
+            "    \"blockindex\": n,               (numeric) The block index containing the transaction.\n"
+            "    \"txid\": \"transactionid\",     (string) The transaction id.\n"
+            "    \"time\": xxx,                   (numeric) The transaction time in seconds since epoch (midnight Jan 1 1970 GMT).\n"
+            "    \"timereceived\": xxx,           (numeric) The time received in seconds since epoch (midnight Jan 1 1970 GMT).\n"
+            "    \"comment\": \"...\",            (string) If a comment is associated with the transaction.\n"
+            "  }\n"
+            "]\n"
+
+        );
+
+    string strAccount = "*";
+    
+    bool fListSpent = true;
+    if (params.size() > 0)
+        fListSpent = !params[0].get_bool();
+    isminefilter ncc_filter = ISMINE_NCC;
+
+    Array ret;
+
+    std::list<CAccountingEntry> acentries;
+    CWallet::TxItems txOrdered = pwalletMain->OrderedTxItems(acentries, strAccount);
+
+    for (CWallet::TxItems::reverse_iterator it = txOrdered.rbegin(); it != txOrdered.rend(); ++it)
+    {
+        CWalletTx *const pwtx = (*it).second.first;
+        if (pwtx != 0)
+            ListNameClaims(*pwtx, strAccount, 0, ret, ncc_filter, fListSpent);
+    }
+
+    std::reverse(ret.begin(), ret.end());
+
+    return ret;
+
+}
+
+
+
 
 void SendMoney(const CTxDestination &address, CAmount nValue, CWalletTx& wtxNew)
 {

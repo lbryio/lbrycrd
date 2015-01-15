@@ -14,6 +14,7 @@
 #include "timedata.h"
 #include "util.h"
 #include "utilmoneystr.h"
+#include "ncc.h"
 
 #include <assert.h>
 
@@ -770,11 +771,14 @@ bool CWallet::IsChange(const CTxOut& txout) const
     if (::IsMine(*this, txout.scriptPubKey))
     {
         CTxDestination address;
-        if (!ExtractDestination(txout.scriptPubKey, address))
+
+        const CScript& scriptPubKey = StripNCCScriptPrefix(txout.scriptPubKey);
+
+        if (!ExtractDestination(scriptPubKey, address))
             return true;
 
         LOCK(cs_wallet);
-        if (!mapAddressBook.count(address))
+        if (!mapAddressBook.count(address) && (scriptPubKey == txout.scriptPubKey))
             return true;
     }
     return false;
@@ -860,7 +864,8 @@ void CWalletTx::GetAmounts(list<COutputEntry>& listReceived,
 
         // In either case, we need to get the destination address
         CTxDestination address;
-        if (!ExtractDestination(txout.scriptPubKey, address))
+        const CScript& scriptPubKey = StripNCCScriptPrefix(txout.scriptPubKey);
+        if (!ExtractDestination(scriptPubKey, address))
         {
             LogPrintf("CWalletTx::GetAmounts: Unknown transaction type found, txid %s\n",
                      this->GetHash().ToString());
@@ -870,7 +875,7 @@ void CWalletTx::GetAmounts(list<COutputEntry>& listReceived,
         COutputEntry output = {address, txout.nValue, (int)i};
 
         // If we are debited by the transaction, add the output as a "sent" entry
-        if (nDebit > 0)
+        if (nDebit > 0 || filter == ISMINE_NCC)
             listSent.push_back(output);
 
         // If we are receiving the output, add it as a "received" entry
@@ -1360,7 +1365,9 @@ bool CWallet::SelectCoins(const CAmount& nTargetValue, set<pair<const CWalletTx*
 
 
 bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
-                                CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, std::string& strFailReason, const CCoinControl* coinControl)
+                                CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet,
+                                std::string& strFailReason, const CCoinControl* coinControl,
+                                const CWalletTx* pwtxIn, unsigned int nTxOut)
 {
     CAmount nValue = 0;
     BOOST_FOREACH (const PAIRTYPE(CScript, CAmount)& s, vecSend)
@@ -1381,6 +1388,8 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
     wtxNew.fTimeReceivedIsTxTime = true;
     wtxNew.BindWallet(this);
     CMutableTransaction txNew;
+
+    bool fUsingWtxIn = (pwtxIn != NULL);
 
     // Discourage fee sniping.
     //
@@ -1428,13 +1437,22 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                     txNew.vout.push_back(txout);
                 }
 
+                CAmount nValueNeeded = nTotalValue;
+                if (fUsingWtxIn)
+                {
+                    nValueNeeded = nValueNeeded - pwtxIn->vout[nTxOut].nValue;
+                }
+
                 // Choose coins to use
                 set<pair<const CWalletTx*,unsigned int> > setCoins;
                 CAmount nValueIn = 0;
-                if (!SelectCoins(nTotalValue, setCoins, nValueIn, coinControl))
+                if (!fUsingWtxIn || nValueNeeded > 0)
                 {
-                    strFailReason = _("Insufficient funds");
-                    return false;
+                    if (!SelectCoins(nValueNeeded, setCoins, nValueIn, coinControl))
+                    {
+                        strFailReason = _("Insufficient funds");
+                        return false;
+                    }
                 }
                 BOOST_FOREACH(PAIRTYPE(const CWalletTx*, unsigned int) pcoin, setCoins)
                 {
@@ -1443,6 +1461,12 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                     //reflecting an assumption the user would accept a bit more delay for
                     //a chance at a free transaction.
                     dPriority += (double)nCredit * (pcoin.first->GetDepthInMainChain()+1);
+                }
+
+                if (fUsingWtxIn)
+                {
+                    nValueIn += pwtxIn->vout[nTxOut].nValue;
+                    setCoins.insert(make_pair(pwtxIn, nTxOut));
                 }
 
                 CAmount nChange = nValueIn - nValue - nFeeRet;
@@ -1562,11 +1586,11 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
 }
 
 bool CWallet::CreateTransaction(CScript scriptPubKey, const CAmount& nValue,
-                                CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, std::string& strFailReason, const CCoinControl* coinControl)
+                                CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, std::string& strFailReason, const CCoinControl* coinControl, const CWalletTx* pwtxIn, unsigned int nTxOut)
 {
     vector< pair<CScript, CAmount> > vecSend;
     vecSend.push_back(make_pair(scriptPubKey, nValue));
-    return CreateTransaction(vecSend, wtxNew, reservekey, nFeeRet, strFailReason, coinControl);
+    return CreateTransaction(vecSend, wtxNew, reservekey, nFeeRet, strFailReason, coinControl, pwtxIn, nTxOut);
 }
 
 /**

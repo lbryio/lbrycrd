@@ -88,6 +88,10 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "estimatepriority", 0 },
     { "prioritisetransaction", 1 },
     { "prioritisetransaction", 2 },
+    { "claimname", 2},
+    { "updatename", 2},
+    { "abandonname", 2},
+    { "listnameclaims", 0},
 };
 
 class CRPCConvertTable

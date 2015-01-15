@@ -289,9 +289,9 @@ public:
     CAmount GetUnconfirmedWatchOnlyBalance() const;
     CAmount GetImmatureWatchOnlyBalance() const;
     bool CreateTransaction(const std::vector<std::pair<CScript, CAmount> >& vecSend,
-                           CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, std::string& strFailReason, const CCoinControl *coinControl = NULL);
+                           CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, std::string& strFailReason, const CCoinControl *coinControl = NULL, const CWalletTx* pwtxIn = NULL, unsigned int nTxOut = -1);
     bool CreateTransaction(CScript scriptPubKey, const CAmount& nValue,
-                           CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, std::string& strFailReason, const CCoinControl *coinControl = NULL);
+                           CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, std::string& strFailReason, const CCoinControl *coinControl = NULL, const CWalletTx* pwtxIn = NULL, unsigned int nTxOut = -1);
     bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey);
 
     static CFeeRate minTxFee;

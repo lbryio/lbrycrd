@@ -6,8 +6,6 @@
 
 #include "random.h"
 
-#include "util.h"
-
 #include <assert.h>
 
 /**

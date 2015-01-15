@@ -10,7 +10,7 @@
 #include "keystore.h"
 #include "script/standard.h"
 #include "uint256.h"
-
+#include "ncc.h"
 #include <boost/foreach.hpp>
 
 using namespace std;
@@ -57,8 +57,10 @@ bool Solver(const CKeyStore& keystore, const CScript& scriptPubKey, uint256 hash
 {
     scriptSigRet.clear();
 
+    const CScript& strippedScriptPubKey = StripNCCScriptPrefix(scriptPubKey);
+
     vector<valtype> vSolutions;
-    if (!Solver(scriptPubKey, whichTypeRet, vSolutions))
+    if (!Solver(strippedScriptPubKey, whichTypeRet, vSolutions))
         return false;
 
     CKeyID keyID;
