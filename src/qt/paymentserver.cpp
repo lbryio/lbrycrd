@@ -124,19 +124,22 @@ void PaymentServer::LoadRootCAs(X509_STORE* _store)
     // and get 'I don't like X.509 certificates, don't trust anybody' behavior:
     QString certFile = QString::fromStdString(GetArg("-rootcertificates", "-system-"));
 
-    if (certFile.isEmpty())
-        return; // Empty store
+    // Empty store
+    if (certFile.isEmpty()) {
+        qDebug() << QString("PaymentServer::%1: Payment request authentication via X.509 certificates disabled.").arg(__func__);
+        return;
+    }
 
     QList<QSslCertificate> certList;
 
-    if (certFile != "-system-")
-    {
+    if (certFile != "-system-") {
+            qDebug() << QString("PaymentServer::%1: Using \"%2\" as trusted root certificate.").arg(__func__).arg(certFile);
+
         certList = QSslCertificate::fromPath(certFile);
         // Use those certificates when fetching payment requests, too:
         QSslSocket::setDefaultCaCertificates(certList);
-    }
-    else
-        certList = QSslSocket::systemCaCertificates ();
+    } else
+        certList = QSslSocket::systemCaCertificates();
 
     int nRootCerts = 0;
     const QDateTime currentTime = QDateTime::currentDateTime();
@@ -518,8 +521,6 @@ bool PaymentServer::processPaymentRequest(PaymentRequestPlus& request, SendCoins
         return false;
 
     if (request.IsInitialized()) {
-        const payments::PaymentDetails& details = request.getDetails();
-
         // Payment request network matches client network?
         if (!verifyNetwork(request.getDetails())) {
             emit message(tr("Payment request rejected"), tr("Payment request network doesn't match client network."),
@@ -528,16 +529,15 @@ bool PaymentServer::processPaymentRequest(PaymentRequestPlus& request, SendCoins
             return false;
         }
 
-        // Expired payment request?
-        if (details.has_expires() && (int64_t)details.expires() < GetTime())
-        {
-            emit message(tr("Payment request rejected"), tr("Payment request has expired."),
+        // Make sure any payment requests involved are still valid.
+        // This is re-checked just before sending coins in WalletModel::sendCoins().
+        if (verifyExpired(request.getDetails())) {
+            emit message(tr("Payment request rejected"), tr("Payment request expired."),
                 CClientUIInterface::MSG_ERROR);
 
             return false;
         }
-    }
-    else {
+    } else {
         emit message(tr("Payment request error"), tr("Payment request is not initialized."),
             CClientUIInterface::MSG_ERROR);
 
@@ -753,6 +753,18 @@ bool PaymentServer::verifyNetwork(const payments::PaymentDetails& requestDetails
             .arg(__func__)
             .arg(QString::fromStdString(requestDetails.network()))
             .arg(QString::fromStdString(Params().NetworkIDString()));
+    }
+    return fVerified;
+}
+
+bool PaymentServer::verifyExpired(const payments::PaymentDetails& requestDetails)
+{
+    bool fVerified = (requestDetails.has_expires() && (int64_t)requestDetails.expires() < GetTime());
+    if (fVerified) {
+        const QString requestExpires = QString::fromStdString(DateTimeStrFormat("%Y-%m-%d %H:%M:%S", (int64_t)requestDetails.expires()));
+        qWarning() << QString("PaymentServer::%1: Payment request expired \"%2\".")
+            .arg(__func__)
+            .arg(requestExpires);
     }
     return fVerified;
 }

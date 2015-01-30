@@ -281,7 +281,6 @@ static const CRPCCommand vRPCCommands[] =
 #ifdef ENABLE_WALLET
     /* Coin generation */
     { "generating",         "getgenerate",            &getgenerate,            true,      false,      false },
-    { "generating",         "gethashespersec",        &gethashespersec,        true,      false,      false },
     { "generating",         "setgenerate",            &setgenerate,            true,      true,       false },
 #endif
 
@@ -957,7 +956,7 @@ void ServiceConnection(AcceptedConnection *conn)
         ReadHTTPMessage(conn->stream(), mapHeaders, strRequest, nProto, MAX_SIZE);
 
         // HTTP Keep-Alive is false; close connection immediately
-        if ((mapHeaders["connection"] == "close") || (!GetBoolArg("-rpckeepalive", false)))
+        if ((mapHeaders["connection"] == "close") || (!GetBoolArg("-rpckeepalive", true)))
             fRun = false;
 
         // Process via JSON-RPC API
