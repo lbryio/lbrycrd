@@ -3,8 +3,9 @@
 // file COPYING or http://opensource.org/licenses/mit-license.php
 
 #include "primitives/transaction.h"
-#include "ncc.h"
+#include "ncctrie.h"
 #include "coins.h"
+#include "streams.h"
 #include <boost/test/unit_test.hpp>
 #include <iostream>
 
@@ -72,7 +73,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remov)
     ntState.insertName(std::string("testtesttesttest"), tx5.GetHash(), 0, 50, 100);
     ntState.removeName(std::string("testtesttesttest"), tx5.GetHash(), 0, 50, 100);
     BOOST_CHECK(ntState.getMerkleHash() == hash2);
-    ntState.Flush();
+    ntState.flush();
 
     BOOST_CHECK(!trie.empty());
     BOOST_CHECK(trie.getMerkleHash() == hash2);
@@ -83,7 +84,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remov)
 
     BOOST_CHECK(ntState2.getMerkleHash() == hash3);
 
-    ntState2.Flush();
+    ntState2.flush();
 
     BOOST_CHECK(!trie.empty());
     BOOST_CHECK(trie.getMerkleHash() == hash3);
@@ -92,7 +93,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remov)
     CNCCTrieCache ntState3(&trie);
     ntState3.insertName(std::string("test"), tx1.GetHash(), 0, 50, 100);
     BOOST_CHECK(ntState3.getMerkleHash() == hash4);
-    ntState3.Flush();
+    ntState3.flush();
     BOOST_CHECK(!trie.empty());
     BOOST_CHECK(trie.getMerkleHash() == hash4);
     BOOST_CHECK(trie.checkConsistency());
@@ -100,7 +101,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remov)
     CNCCTrieCache ntState4(&trie);
     ntState4.removeName(std::string("abab"), tx6.GetHash(), 0, 50, 100);
     BOOST_CHECK(ntState4.getMerkleHash() == hash2);
-    ntState4.Flush();
+    ntState4.flush();
     BOOST_CHECK(!trie.empty());
     BOOST_CHECK(trie.getMerkleHash() == hash2);
     BOOST_CHECK(trie.checkConsistency());
@@ -109,7 +110,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remov)
     ntState5.removeName(std::string("test"), tx3.GetHash(), 0, 50, 101);
 
     BOOST_CHECK(ntState5.getMerkleHash() == hash2);
-    ntState5.Flush();
+    ntState5.flush();
     BOOST_CHECK(!trie.empty());
     BOOST_CHECK(trie.getMerkleHash() == hash2);
     BOOST_CHECK(trie.checkConsistency());
@@ -118,10 +119,61 @@ BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remov)
     ntState6.insertName(std::string("test"), tx3.GetHash(), 0, 50, 101);
 
     BOOST_CHECK(ntState6.getMerkleHash() == hash2);
-    ntState6.Flush();
+    ntState6.flush();
     BOOST_CHECK(!trie.empty());
     BOOST_CHECK(trie.getMerkleHash() == hash2);
     BOOST_CHECK(trie.checkConsistency());
+}
+
+BOOST_AUTO_TEST_CASE(ncctrienode_serialize_unserialize)
+{
+    CDataStream ss(SER_DISK, 0);
+
+    CNCCTrieNode n1;
+    CNCCTrieNode n2;
+    
+    ss << n1;
+    ss >> n2;
+    BOOST_CHECK(n1 == n2);
+
+    n1.hash.SetHex("0000000000000000000000000000000000000000000000000000000000000001");
+    BOOST_CHECK(n1 != n2);
+    ss << n1;
+    ss >> n2;
+    BOOST_CHECK(n1 == n2);
+
+    n1.hash.SetHex("a79e8a5b28f7fa5e8836a4b48da9988bdf56ce749f81f413cb754f963a516200");
+    BOOST_CHECK(n1 != n2);
+    ss << n1;
+    ss >> n2;
+    BOOST_CHECK(n1 == n2);
+
+    CNodeValue v1(uint256S("0000000000000000000000000000000000000000000000000000000000000001"), 0, 50, 0);
+    CNodeValue v2(uint256S("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"), 1, 100, 1);
+
+    n1.insertValue(v1);
+    BOOST_CHECK(n1 != n2);
+    ss << n1;
+    ss >> n2;
+    BOOST_CHECK(n1 == n2);
+
+    n1.insertValue(v2);
+    BOOST_CHECK(n1 != n2);
+    ss << n1;
+    ss >> n2;
+    BOOST_CHECK(n1 == n2);
+
+    n1.removeValue(v1);
+    BOOST_CHECK(n1 != n2);
+    ss << n1;
+    ss >> n2;
+    BOOST_CHECK(n1 == n2);
+
+    n1.removeValue(v2);
+    BOOST_CHECK(n1 != n2);
+    ss << n1;
+    ss >> n2;
+    BOOST_CHECK(n1 == n2);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

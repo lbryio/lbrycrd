@@ -104,6 +104,7 @@ BITCOIN_CORE_H = \
   miner.h \
   mruset.h \
   ncc.h \
+  ncctrie.h \
   netbase.h \
   net.h \
   noui.h \
@@ -173,6 +174,7 @@ libbitcoin_server_a_SOURCES = \
   main.cpp \
   merkleblock.cpp \
   miner.cpp \
+  ncctrie.cpp \
   net.cpp \
   noui.cpp \
   pow.cpp \
