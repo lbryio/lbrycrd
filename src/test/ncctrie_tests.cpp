@@ -51,10 +51,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remov)
     uint256 hash4;
     hash4.SetHex("a79e8a5b28f7fa5e8836a4b48da9988bdf56ce749f81f413cb754f963a516200");
 
-    CCoinsView coinsDummy;
-    CCoinsViewCache coins(&coinsDummy);
-    
-    CNCCTrie trie(&coins);
+    CNCCTrie trie;
 
     BOOST_CHECK(trie.empty());
 
@@ -71,7 +68,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remov)
     ntState.insertName(std::string("tes"), tx4.GetHash(), 0, 50, 100);
     BOOST_CHECK(ntState.getMerkleHash() == hash2);
     ntState.insertName(std::string("testtesttesttest"), tx5.GetHash(), 0, 50, 100);
-    ntState.removeName(std::string("testtesttesttest"), tx5.GetHash(), 0, 50, 100);
+    ntState.removeName(std::string("testtesttesttest"), tx5.GetHash(), 0);
     BOOST_CHECK(ntState.getMerkleHash() == hash2);
     ntState.flush();
 
@@ -80,7 +77,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remov)
     BOOST_CHECK(trie.checkConsistency());
     CNCCTrieCache ntState2(&trie);
     ntState2.insertName(std::string("abab"), tx6.GetHash(), 0, 50, 100);
-    ntState2.removeName(std::string("test"), tx1.GetHash(), 0, 50, 100);
+    ntState2.removeName(std::string("test"), tx1.GetHash(), 0);
 
     BOOST_CHECK(ntState2.getMerkleHash() == hash3);
 
@@ -99,7 +96,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remov)
     BOOST_CHECK(trie.checkConsistency());
 
     CNCCTrieCache ntState4(&trie);
-    ntState4.removeName(std::string("abab"), tx6.GetHash(), 0, 50, 100);
+    ntState4.removeName(std::string("abab"), tx6.GetHash(), 0);
     BOOST_CHECK(ntState4.getMerkleHash() == hash2);
     ntState4.flush();
     BOOST_CHECK(!trie.empty());
@@ -107,7 +104,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remov)
     BOOST_CHECK(trie.checkConsistency());
 
     CNCCTrieCache ntState5(&trie);
-    ntState5.removeName(std::string("test"), tx3.GetHash(), 0, 50, 101);
+    ntState5.removeName(std::string("test"), tx3.GetHash(), 0);
 
     BOOST_CHECK(ntState5.getMerkleHash() == hash2);
     ntState5.flush();

@@ -9,6 +9,8 @@
 #include "primitives/transaction.h"
 #include "hash.h"
 #include "main.h"
+#include "ncc.h"
+#include "ncctrie.h"
 #include "net.h"
 #include "pow.h"
 #include "timedata.h"
@@ -135,6 +137,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         CBlockIndex* pindexPrev = chainActive.Tip();
         const int nHeight = pindexPrev->nHeight + 1;
         CCoinsViewCache view(pcoinsTip);
+        CNCCTrieCache trieCache(pnccTrie);
 
         // Priority order to process transactions
         list<COrphan> vOrphan; // list memory doesn't move
@@ -280,6 +283,43 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 
             UpdateCoins(tx, state, view, nHeight);
 
+            BOOST_FOREACH(const CTxIn& txin, tx.vin)
+            {
+                const CCoins* coins = view.AccessCoins(txin.prevout.hash);
+                // This seems to happen during testing, and should never happen otherwise
+                if (!coins || txin.prevout.n >= coins->vout.size())
+                {
+                    LogPrintf("!coins || txin.prevout.n >= coins->vout.size()");
+                    continue;
+                }
+
+                std::vector<std::vector<unsigned char> > vvchParams;
+                int op;
+
+                if (DecodeNCCScript(coins->vout[txin.prevout.n].scriptPubKey, op, vvchParams))
+                {
+                    assert(vvchParams.size() == 2);
+                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                    if (!trieCache.removeName(name, txin.prevout.hash, txin.prevout.n))
+                        LogPrintf("Something went wrong removing the name");
+                }
+            }
+            
+            for (unsigned int i = 0; i < tx.vout.size(); ++i)
+            {
+                const CTxOut& txout = tx.vout[i];
+            
+                std::vector<std::vector<unsigned char> > vvchParams;
+                int op;
+                if (DecodeNCCScript(txout.scriptPubKey, op, vvchParams))
+                {
+                    assert(vvchParams.size() == 2);
+                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                    if (!trieCache.insertName(name, tx.GetHash(), i, txout.nValue, nHeight))
+                        LogPrintf("Something went wrong inserting the name");
+                }
+            }
+
             // Added
             pblock->vtx.push_back(tx);
             pblocktemplate->vTxFees.push_back(nTxFees);
@@ -329,6 +369,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         pblock->nBits          = GetNextWorkRequired(pindexPrev, pblock);
         pblock->nNonce         = 0;
         pblocktemplate->vTxSigOps[0] = GetLegacySigOpCount(pblock->vtx[0]);
+        pblock->hashNCCTrie = trieCache.getMerkleHash();
 
         CValidationState state;
         if (!TestBlockValidity(state, *pblock, pindexPrev, false, false))

@@ -1,5 +1,5 @@
 #ifndef BITCOIN_NCCTRIE_H
-#define BITCOIN_NCC_H
+#define BITCOIN_NCCTRIE_H
 
 #include "amount.h"
 #include "serialize.h"
@@ -23,6 +23,7 @@ public:
     CAmount nAmount;
     int nHeight;
     CNodeValue() {};
+    CNodeValue(uint256 txhash, uint32_t nOut) : txhash(txhash), nOut(nOut), nAmount(0), nHeight(0) {}
     CNodeValue(uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight) : txhash(txhash), nOut(nOut), nAmount(nAmount), nHeight(nHeight) {}
     std::string ToString();
     
@@ -57,7 +58,7 @@ public:
     }
     bool operator==(const CNodeValue& other) const
     {
-        return txhash == other.txhash && nOut == other.nOut && nAmount == other.nAmount && nHeight == other.nHeight;
+        return txhash == other.txhash && nOut == other.nOut;
     }
     bool operator!=(const CNodeValue& other) const
     {
@@ -122,20 +123,21 @@ class CNCCTrieCache;
 class CNCCTrie
 {
 public:
-    CNCCTrie(CCoinsViewCache* coins) : db(GetDataDir() / "ncctrie", 100, false, false), coins(coins), root(uint256S("0000000000000000000000000000000000000000000000000000000000000001")) {}
+    CNCCTrie() : db(GetDataDir() / "ncctrie", 100, false, false), root(uint256S("0000000000000000000000000000000000000000000000000000000000000001")) {}
     uint256 getMerkleHash();
     CLevelDBWrapper db;
     bool empty() const;
     bool checkConsistency();
+    bool ReadFromDisk(bool check = false);
     friend class CNCCTrieCache;
 private:
-    CCoinsViewCache* coins;
     bool update(nodeCacheType& cache, hashMapType& hashes);
     bool updateName(const std::string& name, CNCCTrieNode* updatedNode, std::vector<std::string>& deletedNames);
     bool updateHash(const std::string& name, uint256& hash, CNCCTrieNode** pNodeRet);
     bool recursiveNullify(CNCCTrieNode* node, std::string& name, std::vector<std::string>& deletedNames);
     bool recursiveCheckConsistency(CNCCTrieNode* node);
     bool BatchWrite(nodeCacheType& changedNodes, std::vector<std::string>& deletedNames);
+    bool InsertFromDisk(const std::string& name, CNCCTrieNode* node);
     CNCCTrieNode root;
 };
 
@@ -148,7 +150,7 @@ public:
     bool flush();
     bool dirty() const { return !dirtyHashes.empty(); }
     bool insertName (const std::string name, uint256 txhash, int nOut, CAmount nAmount, int nDepth) const;
-    bool removeName (const std::string name, uint256 txhash, int nOut, CAmount nAmount, int nDepth) const;
+    bool removeName (const std::string name, uint256 txhash, int nOut) const;
     ~CNCCTrieCache() { clear(); }
 private:
     CNCCTrie* base;

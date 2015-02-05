@@ -181,6 +181,8 @@ void Shutdown()
         pcoinsdbview = NULL;
         delete pblocktree;
         pblocktree = NULL;
+        delete pnccTrie;
+        pnccTrie = NULL;
     }
 #ifdef ENABLE_WALLET
     if (pwalletMain)
@@ -1016,11 +1018,13 @@ bool AppInit2(boost::thread_group& threadGroup)
                 delete pcoinsdbview;
                 delete pcoinscatcher;
                 delete pblocktree;
+                delete pnccTrie;
 
                 pblocktree = new CBlockTreeDB(nBlockTreeDBCache, false, fReindex);
                 pcoinsdbview = new CCoinsViewDB(nCoinDBCache, false, fReindex);
                 pcoinscatcher = new CCoinsViewErrorCatcher(pcoinsdbview);
                 pcoinsTip = new CCoinsViewCache(pcoinscatcher);
+                pnccTrie = new CNCCTrie();
 
                 if (fReindex)
                     pblocktree->WriteReindexing(true);
@@ -1051,6 +1055,11 @@ bool AppInit2(boost::thread_group& threadGroup)
                 if (!CVerifyDB().VerifyDB(pcoinsdbview, GetArg("-checklevel", 3),
                               GetArg("-checkblocks", 288))) {
                     strLoadError = _("Corrupted block database detected");
+                    break;
+                }
+                if (!pnccTrie->ReadFromDisk(true))
+                {
+                    strLoadError = _("Error loading the ncc trie from disk");
                     break;
                 }
             } catch (const std::exception& e) {

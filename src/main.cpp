@@ -13,6 +13,7 @@
 #include "checkqueue.h"
 #include "init.h"
 #include "merkleblock.h"
+#include "ncc.h"
 #include "net.h"
 #include "pow.h"
 #include "txdb.h"
@@ -538,6 +539,7 @@ CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& loc
 }
 
 CCoinsViewCache *pcoinsTip = NULL;
+CNCCTrie *pnccTrie = NULL;
 CBlockTreeDB *pblocktree = NULL;
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1590,7 +1592,7 @@ bool UndoReadFromDisk(CBlockUndo& blockundo, const CDiskBlockPos& pos, const uin
 
 } // anon namespace
 
-bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, bool* pfClean)
+bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, CNCCTrieCache& trieCache, bool* pfClean)
 {
     assert(pindex->GetBlockHash() == view.GetBestBlock());
 
@@ -1632,6 +1634,22 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         if (*outs != outsBlock)
             fClean = fClean && error("DisconnectBlock() : added transaction mismatch? database corrupted");
 
+        // remove any NCC claims
+        for (unsigned int i = 0; i < tx.vout.size(); ++i)
+        {
+            const CTxOut& txout = tx.vout[i];
+
+            int op;
+            std::vector<std::vector<unsigned char> > vvchParams;
+            if (DecodeNCCScript(txout.scriptPubKey, op, vvchParams))
+            {
+                assert(vvchParams.size() == 2);
+                std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                if (!trieCache.removeName(name, hash, i))
+                    LogPrintf("Something went wrong removing the name");
+            }
+        }
+
         // remove outputs
         outs->Clear();
         }
@@ -1661,6 +1679,18 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                     fClean = fClean && error("DisconnectBlock() : undo data overwriting existing output");
                 if (coins->vout.size() < out.n+1)
                     coins->vout.resize(out.n+1);
+
+                // restore NCC claim if applicable
+                int op;
+                std::vector<std::vector<unsigned char> > vvchParams;
+                if (DecodeNCCScript(undo.txout.scriptPubKey, op, vvchParams))
+                {
+                    assert(vvchParams.size() == 2);
+                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                    if (!trieCache.insertName(name, out.hash, out.n, undo.txout.nValue, undo.nHeight))
+                        LogPrintf("Something went wrong inserting the name");
+                }
+
                 coins->vout[out.n] = undo.txout;
             }
         }
@@ -1715,7 +1745,7 @@ static int64_t nTimeIndex = 0;
 static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 
-bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, bool fJustCheck)
+bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, CNCCTrieCache& trieCache, bool fJustCheck)
 {
     AssertLockHeld(cs_main);
     // Check it again in case a previous version let a bad block in
@@ -1811,6 +1841,37 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             if (!CheckInputs(tx, state, view, fScriptChecks, flags, false, nScriptCheckThreads ? &vChecks : NULL))
                 return false;
             control.Add(vChecks);
+            
+            BOOST_FOREACH(const CTxIn& txin, tx.vin)
+            {
+                const CCoins* coins = view.AccessCoins(txin.prevout.hash);
+                assert(coins);
+
+                int op;
+                std::vector<std::vector<unsigned char> > vvchParams;
+                if (DecodeNCCScript(coins->vout[txin.prevout.n].scriptPubKey, op, vvchParams))
+                {
+                    assert(vvchParams.size() == 1);
+                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                    if (!trieCache.removeName(name, txin.prevout.hash, txin.prevout.n))
+                        LogPrintf("Something went wrong removing the name");
+                }
+            }
+            
+            for (unsigned int i = 0; i < tx.vout.size(); ++i)
+            {
+                const CTxOut& txout = tx.vout[i];
+
+                int op;
+                std::vector<std::vector<unsigned char> > vvchParams;
+                if (DecodeNCCScript(txout.scriptPubKey, op, vvchParams))
+                {
+                    assert(vvchParams.size() == 2);
+                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                    if (!trieCache.insertName(name, tx.GetHash(), i, txout.nValue, pindex->nHeight))
+                        LogPrintf("Something went wrong inserting the name");
+                }
+            }
         }
 
         CTxUndo undoDummy;
@@ -1819,12 +1880,22 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         }
         UpdateCoins(tx, state, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
 
-        // TODO: This seems like a good place to actually change the
-        // TODO: tree of NCCs and make the CUndo vector for those changes.
+        // The CUndo vector contains all of the
+        // necessary information for putting NCC claims
+        // removed by this block back into the trie.
+        // (As long as the coinbase can't remove any
+        // NCC claims from the trie.)
 
         vPos.push_back(std::make_pair(tx.GetHash(), pos));
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
+
+    if (trieCache.getMerkleHash() != block.hashNCCTrie)
+        return state.DoS(100,
+                         error("ConnectBlock() : the merkle root of the NCC trie does not match "
+                               "(actual=%s vs block=%s)", trieCache.getMerkleHash().GetHex(),
+                               block.hashNCCTrie.GetHex()), REJECT_INVALID, "bad-ncc-merkle-hash");
+
     int64_t nTime1 = GetTimeMicros(); nTimeConnect += nTime1 - nTimeStart;
     LogPrint("bench", "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs]\n", (unsigned)block.vtx.size(), 0.001 * (nTime1 - nTimeStart), 0.001 * (nTime1 - nTimeStart) / block.vtx.size(), nInputs <= 1 ? 0 : 0.001 * (nTime1 - nTimeStart) / (nInputs-1), nTimeConnect * 0.000001);
 
@@ -1999,9 +2070,11 @@ bool static DisconnectTip(CValidationState &state) {
     int64_t nStart = GetTimeMicros();
     {
         CCoinsViewCache view(pcoinsTip);
-        if (!DisconnectBlock(block, state, pindexDelete, view))
+        CNCCTrieCache trieCache(pnccTrie);
+        if (!DisconnectBlock(block, state, pindexDelete, view, trieCache))
             return error("DisconnectTip() : DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
         assert(view.Flush());
+        assert(trieCache.flush());
     }
     LogPrint("bench", "- Disconnect block: %.2fms\n", (GetTimeMicros() - nStart) * 0.001);
     // Write the chain state to disk, if necessary.
@@ -2054,8 +2127,9 @@ bool static ConnectTip(CValidationState &state, CBlockIndex *pindexNew, CBlock *
     LogPrint("bench", "  - Load block from disk: %.2fms [%.2fs]\n", (nTime2 - nTime1) * 0.001, nTimeReadFromDisk * 0.000001);
     {
         CCoinsViewCache view(pcoinsTip);
+        CNCCTrieCache trieCache(pnccTrie);
         CInv inv(MSG_BLOCK, pindexNew->GetBlockHash());
-        bool rv = ConnectBlock(*pblock, state, pindexNew, view);
+        bool rv = ConnectBlock(*pblock, state, pindexNew, view, trieCache);
         g_signals.BlockChecked(*pblock, state);
         if (!rv) {
             if (state.IsInvalid())
@@ -2066,6 +2140,7 @@ bool static ConnectTip(CValidationState &state, CBlockIndex *pindexNew, CBlock *
         nTime3 = GetTimeMicros(); nTimeConnectTotal += nTime3 - nTime2;
         LogPrint("bench", "  - Connect total: %.2fms [%.2fs]\n", (nTime3 - nTime2) * 0.001, nTimeConnectTotal * 0.000001);
         assert(view.Flush());
+        assert(trieCache.flush());
     }
     int64_t nTime4 = GetTimeMicros(); nTimeFlush += nTime4 - nTime3;
     LogPrint("bench", "  - Flush: %.2fms [%.2fs]\n", (nTime4 - nTime3) * 0.001, nTimeFlush * 0.000001);
@@ -2630,9 +2705,13 @@ bool ContextualCheckBlock(const CBlock& block, CValidationState& state, CBlockIn
         }
     }
 
-    // TODO: This looks like a good place to check the "merkle" root of the
-    // TODO: NCC tree that will result from applying this block
-
+    // TODO: ~~This looks like a good place to check the "merkle" root of the
+    // TODO: NCC tree that will result from applying this block.~~
+    // TODO: Actually, it's not, because the merkle root needs access to
+    // TODO: all of the coins spent by the new transactions, to check if
+    // TODO: they're NCC transactions. So the better place is in
+    // TODO: ConnectBlock, where inputs are checked against the coins
+    // TODO: they are spending.
     return true;
 }
 
@@ -2772,6 +2851,7 @@ bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex
     assert(pindexPrev == chainActive.Tip());
 
     CCoinsViewCache viewNew(pcoinsTip);
+    CNCCTrieCache trieCache(pnccTrie);
     CBlockIndex indexDummy(block);
     indexDummy.pprev = pindexPrev;
     indexDummy.nHeight = pindexPrev->nHeight + 1;
@@ -2783,7 +2863,7 @@ bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex
         return false;
     if (!ContextualCheckBlock(block, state, pindexPrev))
         return false;
-    if (!ConnectBlock(block, state, &indexDummy, viewNew, true))
+    if (!ConnectBlock(block, state, &indexDummy, viewNew, trieCache, true))
         return false;
     assert(state.IsValid());
 
@@ -3000,6 +3080,7 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
     nCheckLevel = std::max(0, std::min(4, nCheckLevel));
     LogPrintf("Verifying last %i blocks at level %i\n", nCheckDepth, nCheckLevel);
     CCoinsViewCache coins(coinsview);
+    CNCCTrieCache trieCache(pnccTrie);
     CBlockIndex* pindexState = chainActive.Tip();
     CBlockIndex* pindexFailure = NULL;
     int nGoodTransactions = 0;
@@ -3029,7 +3110,7 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
         // check level 3: check for inconsistencies during memory-only disconnect of tip blocks
         if (nCheckLevel >= 3 && pindex == pindexState && (coins.GetCacheSize() + pcoinsTip->GetCacheSize()) <= nCoinCacheSize) {
             bool fClean = true;
-            if (!DisconnectBlock(block, state, pindex, coins, &fClean))
+            if (!DisconnectBlock(block, state, pindex, coins, trieCache, &fClean))
                 return error("VerifyDB() : *** irrecoverable inconsistency in block data at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
             pindexState = pindex->pprev;
             if (!fClean) {
@@ -3054,7 +3135,7 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
             CBlock block;
             if (!ReadBlockFromDisk(block, pindex))
                 return error("VerifyDB() : *** ReadBlockFromDisk failed at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
-            if (!ConnectBlock(block, state, pindex, coins))
+            if (!ConnectBlock(block, state, pindex, coins, trieCache))
                 return error("VerifyDB() : *** found unconnectable block at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
         }
     }

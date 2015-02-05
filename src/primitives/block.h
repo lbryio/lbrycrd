@@ -28,6 +28,7 @@ public:
     int32_t nVersion;
     uint256 hashPrevBlock;
     uint256 hashMerkleRoot;
+    uint256 hashNCCTrie;
     uint32_t nTime;
     uint32_t nBits;
     uint32_t nNonce;
@@ -48,6 +49,7 @@ public:
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
+        READWRITE(hashNCCTrie);
     }
 
     void SetNull()
@@ -55,6 +57,7 @@ public:
         nVersion = CBlockHeader::CURRENT_VERSION;
         hashPrevBlock.SetNull();
         hashMerkleRoot.SetNull();
+        hashNCCTrie.SetNull();
         nTime = 0;
         nBits = 0;
         nNonce = 0;
@@ -118,6 +121,7 @@ public:
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
+        block.hashNCCTrie    = hashNCCTrie;
         return block;
     }
 

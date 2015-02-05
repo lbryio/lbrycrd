@@ -1,4 +1,7 @@
 #include "ncctrie.h"
+#include "leveldbwrapper.h"
+
+#include <boost/scoped_ptr.hpp>
 
 std::string CNodeValue::ToString()
 {
@@ -79,6 +82,8 @@ bool CNCCTrie::empty() const
 
 bool CNCCTrie::checkConsistency()
 {
+    if (empty())
+        return true;
     return recursiveCheckConsistency(&root);
 }
 
@@ -114,11 +119,6 @@ bool CNCCTrie::recursiveCheckConsistency(CNCCTrieNode* node)
     return calculatedHash == node->hash;
 }
 
-/*bool cachesort (std::pair<std::string, CNCCTrieNode*>& i, std::pair<std::string, CNCCTrieNode*>& j)
-{
-    return i.first.size() < j.first.size();
-}*/
-
 bool CNCCTrie::update(nodeCacheType& cache, hashMapType& hashes)
 {
     // General strategy: the cache is ordered by length, ensuring child
@@ -144,7 +144,6 @@ bool CNCCTrie::update(nodeCacheType& cache, hashMapType& hashes)
     {
         return true;
     }
-    //std::sort(cache.begin(), cache.end(), cachesort);
     bool success = true;
     std::vector<std::string> deletedNames;
     for (nodeCacheType::iterator itcache = cache.begin(); itcache != cache.end(); ++itcache)
@@ -263,6 +262,54 @@ bool CNCCTrie::BatchWrite(nodeCacheType& changedNodes, std::vector<std::string>&
     return db.WriteBatch(batch);
 }
 
+bool CNCCTrie::InsertFromDisk(const std::string& name, CNCCTrieNode* node)
+{
+    if (name.size() == 0)
+        root = *node;
+        return true;
+    CNCCTrieNode* current = &root;
+    for (std::string::const_iterator itname = name.begin(); itname + 1 != name.end(); ++itname)
+    {
+        nodeMapType::iterator itchild = current->children.find(*itname);
+        if (itchild == current->children.end())
+            return false;
+        current = itchild->second;
+    }
+    current->children[name[name.size()-1]] = node;
+    return true;
+}
+
+bool CNCCTrie::ReadFromDisk(bool check)
+{
+    boost::scoped_ptr<leveldb::Iterator> pcursor(const_cast<CLevelDBWrapper*>(&db)->NewIterator());
+    pcursor->SeekToFirst();
+    
+    while (pcursor->Valid())
+    {
+        //TODO: make try statement here
+        {
+            leveldb::Slice slKey = pcursor->key();
+            CDataStream ssKey(slKey.data(), slKey.data()+slKey.size(), SER_DISK, CLIENT_VERSION);
+            char chType;
+            ssKey >> chType;
+            if (chType == 'n')
+            {
+                leveldb::Slice slValue = pcursor->value();
+                std::string name;
+                ssKey >> name;
+                CDataStream ssValue(slValue.data(), slValue.data()+slValue.size(), SER_DISK, CLIENT_VERSION);
+                CNCCTrieNode* node = new CNCCTrieNode();
+                ssValue >> *node;
+                if (!InsertFromDisk(name, node))
+                    return false;
+            }
+        }
+    }
+    if (check)
+        return checkConsistency();
+    return true;
+}
+
 bool CNCCTrieCache::recursiveComputeMerkleHash(CNCCTrieNode* tnCurrent, std::string sPos) const
 {
     std::string stringToHash;
@@ -334,11 +381,12 @@ uint256 CNCCTrieCache::getMerkleHash() const
 
 bool CNCCTrieCache::empty() const
 {
-    return base->empty() && cache.empty();
+    return !base || (base->empty() && cache.empty());
 }
 
 bool CNCCTrieCache::insertName(const std::string name, uint256 txhash, int nOut, CAmount nAmount, int nHeight) const
 {
+    assert(base);
     CNCCTrieNode* currentNode = &(base->root);
     nodeCacheType::iterator cachedNode;
     cachedNode = cache.find("");
@@ -416,15 +464,16 @@ bool CNCCTrieCache::insertName(const std::string name, uint256 txhash, int nOut,
     return true;
 }
 
-bool CNCCTrieCache::removeName(const std::string name, uint256 txhash, int nOut, CAmount nAmount, int nHeight) const
+bool CNCCTrieCache::removeName(const std::string name, uint256 txhash, int nOut) const
 {
-   CNCCTrieNode* currentNode = &(base->root);
-   nodeCacheType::iterator cachedNode;
-   cachedNode = cache.find("");
-   if (cachedNode != cache.end())
-       currentNode = cachedNode->second;
-   assert(currentNode != NULL); // If there is no root in either the trie or the cache, how can there be any names to remove?
-   for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
+    assert(base);
+    CNCCTrieNode* currentNode = &(base->root);
+    nodeCacheType::iterator cachedNode;
+    cachedNode = cache.find("");
+    if (cachedNode != cache.end())
+        currentNode = cachedNode->second;
+    assert(currentNode != NULL); // If there is no root in either the trie or the cache, how can there be any names to remove?
+    for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
     {
         std::string sCurrentSubstring(name.begin(), itCur);
         std::string sNextSubstring(name.begin(), itCur + 1);
@@ -456,7 +505,7 @@ bool CNCCTrieCache::removeName(const std::string name, uint256 txhash, int nOut,
     }
     bool fChanged = false;
     assert(currentNode != NULL);
-    bool success = currentNode->removeValue(CNodeValue(txhash, nOut, nAmount, nHeight), &fChanged);
+    bool success = currentNode->removeValue(CNodeValue(txhash, nOut), &fChanged);
     assert(success);
     if (fChanged)
     {
@@ -562,6 +611,8 @@ bool CNCCTrieCache::flush()
 {
     if (dirty())
         getMerkleHash();
+    if (!base)
+        return true;
     bool success = base->update(cache, cacheHashes);
     if (success)
     {
