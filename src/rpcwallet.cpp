@@ -83,13 +83,15 @@ Value getnewaddress(const Array& params, bool fHelp)
             "If 'account' is specified (DEPRECATED), it is added to the address book \n"
             "so payments received with the address will be credited to 'account'.\n"
             "\nArguments:\n"
-            "1. \"account\"        (string, optional) DEPRECATED. The account name for the address to be linked to. if not provided, the default account \"\" is used. It can also be set to the empty string \"\" to represent the default account. The account does not need to exist, it will be created if there is no account by the given name.\n"
+            "1. \"account\"        (string, optional) DEPRECATED. The account name for the address to be linked to. If not provided, the default account \"\" is used. It can also be set to the empty string \"\" to represent the default account. The account does not need to exist, it will be created if there is no account by the given name.\n"
             "\nResult:\n"
             "\"bitcoinaddress\"    (string) The new bitcoin address\n"
             "\nExamples:\n"
             + HelpExampleCli("getnewaddress", "")
             + HelpExampleRpc("getnewaddress", "")
         );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
 
     // Parse the account first so we don't generate a key if there's an error
     string strAccount;
@@ -165,13 +167,14 @@ Value getaccountaddress(const Array& params, bool fHelp)
             + HelpExampleRpc("getaccountaddress", "\"myaccount\"")
         );
 
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
     // Parse the account first so we don't generate a key if there's an error
     string strAccount = AccountFromValue(params[0]);
 
     Value ret;
 
     ret = GetAccountAddress(strAccount).ToString();
-
     return ret;
 }
 
@@ -189,6 +192,8 @@ Value getrawchangeaddress(const Array& params, bool fHelp)
             + HelpExampleCli("getrawchangeaddress", "")
             + HelpExampleRpc("getrawchangeaddress", "")
        );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
 
     if (!pwalletMain->IsLocked())
         pwalletMain->TopUpKeyPool();
@@ -220,10 +225,11 @@ Value setaccount(const Array& params, bool fHelp)
             + HelpExampleRpc("setaccount", "\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\", \"tabby\"")
         );
 
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
     CBitcoinAddress address(params[0].get_str());
     if (!address.IsValid())
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Bitcoin address");
-
 
     string strAccount;
     if (params.size() > 1)
@@ -263,6 +269,8 @@ Value getaccount(const Array& params, bool fHelp)
             + HelpExampleRpc("getaccount", "\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\"")
         );
 
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
     CBitcoinAddress address(params[0].get_str());
     if (!address.IsValid())
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Bitcoin address");
@@ -292,6 +300,8 @@ Value getaddressesbyaccount(const Array& params, bool fHelp)
             + HelpExampleCli("getaddressesbyaccount", "\"tabby\"")
             + HelpExampleRpc("getaddressesbyaccount", "\"tabby\"")
         );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
 
     string strAccount = AccountFromValue(params[0]);
 
@@ -687,7 +697,7 @@ void SendMoney(const CTxDestination &address, CAmount nValue, CWalletTx& wtxNew)
     if (pwalletMain->IsLocked())
     {
         strError = "Error: Wallet locked, unable to create transaction!";
-        LogPrintf("SendMoney() : %s", strError);
+        LogPrintf("SendMoney(): %s", strError);
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
 
@@ -701,7 +711,7 @@ void SendMoney(const CTxDestination &address, CAmount nValue, CWalletTx& wtxNew)
     {
         if (nValue + nFeeRequired > pwalletMain->GetBalance())
             strError = strprintf("Error: This transaction requires a transaction fee of at least %s because of its amount, complexity, or use of recently received funds!", FormatMoney(nFeeRequired));
-        LogPrintf("SendMoney() : %s\n", strError);
+        LogPrintf("SendMoney(): %s\n", strError);
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
     if (!pwalletMain->CommitTransaction(wtxNew, reservekey))
@@ -730,6 +740,8 @@ Value sendtoaddress(const Array& params, bool fHelp)
             + HelpExampleCli("sendtoaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 0.1 \"donation\" \"seans outpost\"")
             + HelpExampleRpc("sendtoaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\", 0.1, \"donation\", \"seans outpost\"")
         );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
 
     CBitcoinAddress address(params[0].get_str());
     if (!address.IsValid())
@@ -777,6 +789,8 @@ Value listaddressgroupings(const Array& params, bool fHelp)
             + HelpExampleRpc("listaddressgroupings", "")
         );
 
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
     Array jsonGroupings;
     map<CTxDestination, CAmount> balances = pwalletMain->GetAddressBalances();
     BOOST_FOREACH(set<CTxDestination> grouping, pwalletMain->GetAddressGroupings())
@@ -821,6 +835,8 @@ Value signmessage(const Array& params, bool fHelp)
             "\nAs json rpc\n"
             + HelpExampleRpc("signmessage", "\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\", \"my message\"")
         );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
 
     EnsureWalletIsUnlocked();
 
@@ -871,6 +887,8 @@ Value getreceivedbyaddress(const Array& params, bool fHelp)
             "\nAs a json rpc call\n"
             + HelpExampleRpc("getreceivedbyaddress", "\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\", 6")
        );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
 
     // Bitcoin address
     CBitcoinAddress address = CBitcoinAddress(params[0].get_str());
@@ -924,6 +942,8 @@ Value getreceivedbyaccount(const Array& params, bool fHelp)
             "\nAs a json rpc call\n"
             + HelpExampleRpc("getreceivedbyaccount", "\"tabby\", 6")
         );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
 
     // Minimum confirmations
     int nMinDepth = 1;
@@ -1011,6 +1031,8 @@ Value getbalance(const Array& params, bool fHelp)
             + HelpExampleRpc("getbalance", "\"*\", 6")
         );
 
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
     if (params.size() == 0)
         return  ValueFromAmount(pwalletMain->GetBalance());
 
@@ -1063,6 +1085,9 @@ Value getunconfirmedbalance(const Array &params, bool fHelp)
         throw runtime_error(
                 "getunconfirmedbalance\n"
                 "Returns the server's total unconfirmed balance\n");
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
     return ValueFromAmount(pwalletMain->GetUnconfirmedBalance());
 }
 
@@ -1088,6 +1113,8 @@ Value movecmd(const Array& params, bool fHelp)
             "\nAs a json rpc call\n"
             + HelpExampleRpc("move", "\"timotei\", \"akiko\", 0.01, 6, \"happy birthday!\"")
         );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
 
     string strFrom = AccountFromValue(params[0]);
     string strTo = AccountFromValue(params[1]);
@@ -1161,6 +1188,8 @@ Value sendfrom(const Array& params, bool fHelp)
             + HelpExampleRpc("sendfrom", "\"tabby\", \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\", 0.01, 6, \"donation\", \"seans outpost\"")
         );
 
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
     string strAccount = AccountFromValue(params[0]);
     CBitcoinAddress address(params[1].get_str());
     if (!address.IsValid())
@@ -1217,6 +1246,8 @@ Value sendmany(const Array& params, bool fHelp)
             "\nAs a json rpc call\n"
             + HelpExampleRpc("sendmany", "\"\", \"{\\\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\\\":0.01,\\\"1353tsE8YMTA4EuV7dgUXGjNFf9KpVvKHz\\\":0.02}\", 6, \"testing\"")
         );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
 
     string strAccount = AccountFromValue(params[0]);
     Object sendTo = params[1].get_obj();
@@ -1302,6 +1333,8 @@ Value addmultisigaddress(const Array& params, bool fHelp)
         ;
         throw runtime_error(msg);
     }
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
 
     string strAccount;
     if (params.size() > 2)
@@ -1478,6 +1511,8 @@ Value listreceivedbyaddress(const Array& params, bool fHelp)
             + HelpExampleRpc("listreceivedbyaddress", "6, true, true")
         );
 
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
     return ListReceived(params, false);
 }
 
@@ -1508,6 +1543,8 @@ Value listreceivedbyaccount(const Array& params, bool fHelp)
             + HelpExampleCli("listreceivedbyaccount", "6 true")
             + HelpExampleRpc("listreceivedbyaccount", "6, true, true")
         );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
 
     return ListReceived(params, true);
 }
@@ -1660,6 +1697,8 @@ Value listtransactions(const Array& params, bool fHelp)
             + HelpExampleRpc("listtransactions", "\"*\", 20, 100")
         );
 
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
     string strAccount = "*";
     if (params.size() > 0)
         strAccount = params[0].get_str();
@@ -1739,6 +1778,8 @@ Value listaccounts(const Array& params, bool fHelp)
             "\nAs json rpc call\n"
             + HelpExampleRpc("listaccounts", "6")
         );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
 
     int nMinDepth = 1;
     if (params.size() > 0)
@@ -1828,6 +1869,8 @@ Value listsinceblock(const Array& params, bool fHelp)
             + HelpExampleRpc("listsinceblock", "\"000000000000000bacf66f7497b7dc45ef753ee9a7d38571037cdb1a57f663ad\", 6")
         );
 
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
     CBlockIndex *pindex = NULL;
     int target_confirms = 1;
     isminefilter filter = ISMINE_SPENDABLE;
@@ -1914,6 +1957,8 @@ Value gettransaction(const Array& params, bool fHelp)
             + HelpExampleRpc("gettransaction", "\"1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d\"")
         );
 
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
     uint256 hash;
     hash.SetHex(params[0].get_str());
 
@@ -1962,6 +2007,8 @@ Value backupwallet(const Array& params, bool fHelp)
             + HelpExampleRpc("backupwallet", "\"backup.dat\"")
         );
 
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
     string strDest = params[0].get_str();
     if (!BackupWallet(*pwalletMain, strDest))
         throw JSONRPCError(RPC_WALLET_ERROR, "Error: Wallet backup failed!");
@@ -1983,6 +2030,8 @@ Value keypoolrefill(const Array& params, bool fHelp)
             + HelpExampleCli("keypoolrefill", "")
             + HelpExampleRpc("keypoolrefill", "")
         );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
 
     // 0 is interpreted by TopUpKeyPool() as the default keypool size given by -keypool
     unsigned int kpSize = 0;
@@ -2031,6 +2080,8 @@ Value walletpassphrase(const Array& params, bool fHelp)
             + HelpExampleRpc("walletpassphrase", "\"my pass phrase\", 60")
         );
 
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
     if (fHelp)
         return true;
     if (!pwalletMain->IsCrypted())
@@ -2078,6 +2129,8 @@ Value walletpassphrasechange(const Array& params, bool fHelp)
             + HelpExampleRpc("walletpassphrasechange", "\"old one\", \"new one\"")
         );
 
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
     if (fHelp)
         return true;
     if (!pwalletMain->IsCrypted())
@@ -2124,6 +2177,8 @@ Value walletlock(const Array& params, bool fHelp)
             + HelpExampleRpc("walletlock", "")
         );
 
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
     if (fHelp)
         return true;
     if (!pwalletMain->IsCrypted())
@@ -2164,6 +2219,8 @@ Value encryptwallet(const Array& params, bool fHelp)
             "\nAs a json rpc call\n"
             + HelpExampleRpc("encryptwallet", "\"my pass phrase\"")
         );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
 
     if (fHelp)
         return true;
@@ -2228,6 +2285,8 @@ Value lockunspent(const Array& params, bool fHelp)
             "\nAs a json rpc call\n"
             + HelpExampleRpc("lockunspent", "false, \"[{\\\"txid\\\":\\\"a08e6907dbbd3d809776dbfc5d82e371b764ed838b5655e72f463568df1aadf0\\\",\\\"vout\\\":1}]\"")
         );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
 
     if (params.size() == 1)
         RPCTypeCheck(params, boost::assign::list_of(bool_type));
@@ -2298,6 +2357,8 @@ Value listlockunspent(const Array& params, bool fHelp)
             + HelpExampleRpc("listlockunspent", "")
         );
 
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
     vector<COutPoint> vOutpts;
     pwalletMain->ListLockedCoins(vOutpts);
 
@@ -2329,6 +2390,8 @@ Value settxfee(const Array& params, bool fHelp)
             + HelpExampleRpc("settxfee", "0.00001")
         );
 
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
     // Amount
     CAmount nAmount = 0;
     if (params[0].get_real() != 0.0)
@@ -2359,6 +2422,8 @@ Value getwalletinfo(const Array& params, bool fHelp)
             + HelpExampleCli("getwalletinfo", "")
             + HelpExampleRpc("getwalletinfo", "")
         );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
 
     Object obj;
     obj.push_back(Pair("walletversion", pwalletMain->GetVersion()));

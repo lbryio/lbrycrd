@@ -89,7 +89,7 @@ CPubKey CWallet::GenerateNewKey()
         nTimeFirstKey = nCreationTime;
 
     if (!AddKeyPubKey(secret, pubkey))
-        throw std::runtime_error("CWallet::GenerateNewKey() : AddKey failed");
+        throw std::runtime_error("CWallet::GenerateNewKey(): AddKey failed");
     return pubkey;
 }
 
@@ -620,7 +620,7 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFromLoadWallet, CWalletD
                     wtx.nTimeSmart = std::max(latestEntry, std::min(blocktime, latestNow));
                 }
                 else
-                    LogPrintf("AddToWallet() : found %s in block %s not in index\n",
+                    LogPrintf("AddToWallet(): found %s in block %s not in index\n",
                              wtxIn.GetHash().ToString(),
                              wtxIn.hashBlock.ToString());
             }
@@ -1018,6 +1018,193 @@ set<uint256> CWalletTx::GetConflicts() const
         result.erase(myHash);
     }
     return result;
+}
+
+CAmount CWalletTx::GetDebit(const isminefilter& filter) const
+{
+    if (vin.empty())
+        return 0;
+
+    CAmount debit = 0;
+    if(filter & ISMINE_SPENDABLE)
+    {
+        if (fDebitCached)
+            debit += nDebitCached;
+        else
+        {
+            nDebitCached = pwallet->GetDebit(*this, ISMINE_SPENDABLE);
+            fDebitCached = true;
+            debit += nDebitCached;
+        }
+    }
+    if(filter & ISMINE_WATCH_ONLY)
+    {
+        if(fWatchDebitCached)
+            debit += nWatchDebitCached;
+        else
+        {
+            nWatchDebitCached = pwallet->GetDebit(*this, ISMINE_WATCH_ONLY);
+            fWatchDebitCached = true;
+            debit += nWatchDebitCached;
+        }
+    }
+    return debit;
+}
+
+CAmount CWalletTx::GetCredit(const isminefilter& filter) const
+{
+    // Must wait until coinbase is safely deep enough in the chain before valuing it
+    if (IsCoinBase() && GetBlocksToMaturity() > 0)
+        return 0;
+
+    int64_t credit = 0;
+    if (filter & ISMINE_SPENDABLE)
+    {
+        // GetBalance can assume transactions in mapWallet won't change
+        if (fCreditCached)
+            credit += nCreditCached;
+        else
+        {
+            nCreditCached = pwallet->GetCredit(*this, ISMINE_SPENDABLE);
+            fCreditCached = true;
+            credit += nCreditCached;
+        }
+    }
+    if (filter & ISMINE_WATCH_ONLY)
+    {
+        if (fWatchCreditCached)
+            credit += nWatchCreditCached;
+        else
+        {
+            nWatchCreditCached = pwallet->GetCredit(*this, ISMINE_WATCH_ONLY);
+            fWatchCreditCached = true;
+            credit += nWatchCreditCached;
+        }
+    }
+    return credit;
+}
+
+CAmount CWalletTx::GetImmatureCredit(bool fUseCache) const
+{
+    if (IsCoinBase() && GetBlocksToMaturity() > 0 && IsInMainChain())
+    {
+        if (fUseCache && fImmatureCreditCached)
+            return nImmatureCreditCached;
+        nImmatureCreditCached = pwallet->GetCredit(*this, ISMINE_SPENDABLE);
+        fImmatureCreditCached = true;
+        return nImmatureCreditCached;
+    }
+
+    return 0;
+}
+
+CAmount CWalletTx::GetAvailableCredit(bool fUseCache) const
+{
+    if (pwallet == 0)
+        return 0;
+
+    // Must wait until coinbase is safely deep enough in the chain before valuing it
+    if (IsCoinBase() && GetBlocksToMaturity() > 0)
+        return 0;
+
+    if (fUseCache && fAvailableCreditCached)
+        return nAvailableCreditCached;
+
+    CAmount nCredit = 0;
+    uint256 hashTx = GetHash();
+    for (unsigned int i = 0; i < vout.size(); i++)
+    {
+        if (!pwallet->IsSpent(hashTx, i))
+        {
+            const CTxOut &txout = vout[i];
+            nCredit += pwallet->GetCredit(txout, ISMINE_SPENDABLE);
+            if (!MoneyRange(nCredit))
+                throw std::runtime_error("CWalletTx::GetAvailableCredit() : value out of range");
+        }
+    }
+
+    nAvailableCreditCached = nCredit;
+    fAvailableCreditCached = true;
+    return nCredit;
+}
+
+CAmount CWalletTx::GetImmatureWatchOnlyCredit(const bool& fUseCache) const
+{
+    if (IsCoinBase() && GetBlocksToMaturity() > 0 && IsInMainChain())
+    {
+        if (fUseCache && fImmatureWatchCreditCached)
+            return nImmatureWatchCreditCached;
+        nImmatureWatchCreditCached = pwallet->GetCredit(*this, ISMINE_WATCH_ONLY);
+        fImmatureWatchCreditCached = true;
+        return nImmatureWatchCreditCached;
+    }
+
+    return 0;
+}
+
+CAmount CWalletTx::GetAvailableWatchOnlyCredit(const bool& fUseCache) const
+{
+    if (pwallet == 0)
+        return 0;
+
+    // Must wait until coinbase is safely deep enough in the chain before valuing it
+    if (IsCoinBase() && GetBlocksToMaturity() > 0)
+        return 0;
+
+    if (fUseCache && fAvailableWatchCreditCached)
+        return nAvailableWatchCreditCached;
+
+    CAmount nCredit = 0;
+    for (unsigned int i = 0; i < vout.size(); i++)
+    {
+        if (!pwallet->IsSpent(GetHash(), i))
+        {
+            const CTxOut &txout = vout[i];
+            nCredit += pwallet->GetCredit(txout, ISMINE_WATCH_ONLY);
+            if (!MoneyRange(nCredit))
+                throw std::runtime_error("CWalletTx::GetAvailableCredit() : value out of range");
+        }
+    }
+
+    nAvailableWatchCreditCached = nCredit;
+    fAvailableWatchCreditCached = true;
+    return nCredit;
+}
+
+CAmount CWalletTx::GetChange() const
+{
+    if (fChangeCached)
+        return nChangeCached;
+    nChangeCached = pwallet->GetChange(*this);
+    fChangeCached = true;
+    return nChangeCached;
+}
+
+bool CWalletTx::IsTrusted() const
+{
+    // Quick answer in most cases
+    if (!IsFinalTx(*this))
+        return false;
+    int nDepth = GetDepthInMainChain();
+    if (nDepth >= 1)
+        return true;
+    if (nDepth < 0)
+        return false;
+    if (!bSpendZeroConfChange || !IsFromMe(ISMINE_ALL)) // using wtx's cached debit
+        return false;
+
+    // Trusted if all inputs are from us and are in the mempool:
+    BOOST_FOREACH(const CTxIn& txin, vin)
+    {
+        // Transactions not sent by us: not trusted
+        const CWalletTx* parent = pwallet->GetWalletTx(txin.prevout.hash);
+        if (parent == NULL)
+            return false;
+        const CTxOut& parentOut = parent->vout[txin.prevout.n];
+        if (pwallet->IsMine(parentOut) != ISMINE_SPENDABLE)
+            return false;
+    }
+    return true;
 }
 
 void CWallet::ResendWalletTransactions()
@@ -1463,10 +1650,14 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, CAmount> >& vecSend,
                 BOOST_FOREACH(PAIRTYPE(const CWalletTx*, unsigned int) pcoin, setCoins)
                 {
                     CAmount nCredit = pcoin.first->vout[pcoin.second].nValue;
-                    //The priority after the next block (depth+1) is used instead of the current,
+                    //The coin age after the next block (depth+1) is used instead of the current,
                     //reflecting an assumption the user would accept a bit more delay for
                     //a chance at a free transaction.
-                    dPriority += (double)nCredit * (pcoin.first->GetDepthInMainChain()+1);
+                    //But mempool inputs might still be in the mempool, so their age stays 0
+                    int age = pcoin.first->GetDepthInMainChain();
+                    if (age != 0)
+                        age += 1;
+                    dPriority += (double)nCredit * age;
                 }
 
                 if (fUsingWtxIn)
@@ -1640,7 +1831,7 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
         if (!wtxNew.AcceptToMemoryPool(false))
         {
             // This must not fail. The transaction has already been signed and recorded.
-            LogPrintf("CommitTransaction() : Error: Transaction not valid");
+            LogPrintf("CommitTransaction(): Error: Transaction not valid");
             return false;
         }
         wtxNew.RelayWalletTransaction();
@@ -1833,7 +2024,7 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize)
             if (!setKeyPool.empty())
                 nEnd = *(--setKeyPool.end()) + 1;
             if (!walletdb.WritePool(nEnd, CKeyPool(GenerateNewKey())))
-                throw runtime_error("TopUpKeyPool() : writing generated key failed");
+                throw runtime_error("TopUpKeyPool(): writing generated key failed");
             setKeyPool.insert(nEnd);
             LogPrintf("keypool added key %d, size=%u\n", nEnd, setKeyPool.size());
         }
@@ -1860,9 +2051,9 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool)
         nIndex = *(setKeyPool.begin());
         setKeyPool.erase(setKeyPool.begin());
         if (!walletdb.ReadPool(nIndex, keypool))
-            throw runtime_error("ReserveKeyFromKeyPool() : read failed");
+            throw runtime_error("ReserveKeyFromKeyPool(): read failed");
         if (!HaveKey(keypool.vchPubKey.GetID()))
-            throw runtime_error("ReserveKeyFromKeyPool() : unknown key in key pool");
+            throw runtime_error("ReserveKeyFromKeyPool(): unknown key in key pool");
         assert(keypool.vchPubKey.IsValid());
         LogPrintf("keypool reserve %d\n", nIndex);
     }
@@ -2110,11 +2301,11 @@ void CWallet::GetAllReserveKeys(set<CKeyID>& setAddress) const
     {
         CKeyPool keypool;
         if (!walletdb.ReadPool(id, keypool))
-            throw runtime_error("GetAllReserveKeyHashes() : read failed");
+            throw runtime_error("GetAllReserveKeyHashes(): read failed");
         assert(keypool.vchPubKey.IsValid());
         CKeyID keyID = keypool.vchPubKey.GetID();
         if (!HaveKey(keyID))
-            throw runtime_error("GetAllReserveKeyHashes() : unknown key in key pool");
+            throw runtime_error("GetAllReserveKeyHashes(): unknown key in key pool");
         setAddress.insert(keyID);
     }
 }
@@ -2327,7 +2518,7 @@ int CMerkleTx::SetMerkleBranch(const CBlock& block)
     {
         vMerkleBranch.clear();
         nIndex = -1;
-        LogPrintf("ERROR: SetMerkleBranch() : couldn't find tx in block\n");
+        LogPrintf("ERROR: SetMerkleBranch(): couldn't find tx in block\n");
         return 0;
     }
 
@@ -2389,9 +2580,9 @@ int CMerkleTx::GetBlocksToMaturity() const
 }
 
 
-bool CMerkleTx::AcceptToMemoryPool(bool fLimitFree, bool fRejectInsaneFee)
+bool CMerkleTx::AcceptToMemoryPool(bool fLimitFree, bool fRejectAbsurdFee)
 {
     CValidationState state;
-    return ::AcceptToMemoryPool(mempool, state, *this, fLimitFree, NULL, fRejectInsaneFee);
+    return ::AcceptToMemoryPool(mempool, state, *this, fLimitFree, NULL, fRejectAbsurdFee);
 }
 
