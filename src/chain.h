@@ -135,6 +135,7 @@ public:
     //! block header
     int nVersion;
     uint256 hashMerkleRoot;
+    uint256 hashNCCTrie;
     unsigned int nTime;
     unsigned int nBits;
     unsigned int nNonce;
@@ -159,6 +160,7 @@ public:
 
         nVersion       = 0;
         hashMerkleRoot = uint256();
+        hashNCCTrie    = uint256();
         nTime          = 0;
         nBits          = 0;
         nNonce         = 0;
@@ -175,6 +177,7 @@ public:
 
         nVersion       = block.nVersion;
         hashMerkleRoot = block.hashMerkleRoot;
+        hashNCCTrie    = block.hashNCCTrie;
         nTime          = block.nTime;
         nBits          = block.nBits;
         nNonce         = block.nNonce;
@@ -205,6 +208,7 @@ public:
         if (pprev)
             block.hashPrevBlock = pprev->GetBlockHash();
         block.hashMerkleRoot = hashMerkleRoot;
+        block.hashNCCTrie    = hashNCCTrie;
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
@@ -239,9 +243,10 @@ public:
 
     std::string ToString() const
     {
-        return strprintf("CBlockIndex(pprev=%p, nHeight=%d, merkle=%s, hashBlock=%s)",
+        return strprintf("CBlockIndex(pprev=%p, nHeight=%d, merkle=%s, ncctrie=%s, hashBlock=%s)",
             pprev, nHeight,
             hashMerkleRoot.ToString(),
+            hashNCCTrie.ToString(),
             GetBlockHash().ToString());
     }
 
@@ -311,6 +316,7 @@ public:
         READWRITE(this->nVersion);
         READWRITE(hashPrev);
         READWRITE(hashMerkleRoot);
+        READWRITE(hashNCCTrie);
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
@@ -322,6 +328,7 @@ public:
         block.nVersion        = nVersion;
         block.hashPrevBlock   = hashPrev;
         block.hashMerkleRoot  = hashMerkleRoot;
+        block.hashNCCTrie     = hashNCCTrie;
         block.nTime           = nTime;
         block.nBits           = nBits;
         block.nNonce          = nNonce;

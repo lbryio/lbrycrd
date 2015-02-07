@@ -59,7 +59,7 @@ bool CNCCTrieNode::removeValue(CNodeValue val, bool * pfChanged)
     return true;
 }
 
-bool CNCCTrieNode::getValue(CNodeValue& value)
+bool CNCCTrieNode::getValue(CNodeValue& value) const
 {
     if (values.empty())
         return false;
@@ -78,6 +78,62 @@ uint256 CNCCTrie::getMerkleHash()
 bool CNCCTrie::empty() const
 {
     return root.empty();
+}
+
+bool CNCCTrie::recursiveDumpToJSON(const std::string& name, const CNCCTrieNode* current, json_spirit::Array& ret) const
+{
+    using namespace json_spirit;
+    Object objNode;
+    objNode.push_back(Pair("name", name));
+    objNode.push_back(Pair("hash", current->hash.GetHex()));
+    CNodeValue val;
+    if (current->getValue(val))
+    {
+        objNode.push_back(Pair("txid", val.txhash.GetHex()));
+        objNode.push_back(Pair("n", (int)val.nOut));
+        objNode.push_back(Pair("value", val.nAmount));
+        objNode.push_back(Pair("height", val.nHeight));
+    }
+    ret.push_back(objNode);
+    for (nodeMapType::const_iterator it = current->children.begin(); it != current->children.end(); ++it)
+    {
+        std::stringstream ss;
+        ss << name << it->first;
+        if (!recursiveDumpToJSON(ss.str(), it->second, ret))
+            return false;
+    }
+    return true;
+}
+
+json_spirit::Array CNCCTrie::dumpToJSON() const
+{
+    json_spirit::Array ret;
+    if (!recursiveDumpToJSON("", &root, ret))
+        LogPrintf("Something went wrong dumping to JSON");
+    return ret;
+}
+
+json_spirit::Object CNCCTrie::getInfoForName(const std::string& name) const
+{
+    using namespace json_spirit;
+    Object ret;
+    const CNCCTrieNode* current = &root;
+    for (std::string::const_iterator itname = name.begin(); itname != name.end(); ++itname)
+    {
+        nodeMapType::const_iterator itchildren = current->children.find(*itname);
+        if (itchildren == current->children.end())
+            return ret;
+        current = itchildren->second;
+    }
+    CNodeValue val;
+    if (current->getValue(val))
+    {
+        ret.push_back(Pair("txid", val.txhash.GetHex()));
+        ret.push_back(Pair("n", (int)val.nOut));
+        ret.push_back(Pair("value", val.nAmount));
+        ret.push_back(Pair("height", val.nHeight));
+    }
+    return ret;
 }
 
 bool CNCCTrie::checkConsistency()

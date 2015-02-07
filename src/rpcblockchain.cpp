@@ -64,6 +64,7 @@ Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool txDe
     result.push_back(Pair("height", blockindex->nHeight));
     result.push_back(Pair("version", block.nVersion));
     result.push_back(Pair("merkleroot", block.hashMerkleRoot.GetHex()));
+    result.push_back(Pair("nccroot", block.hashNCCTrie.GetHex()));
     Array txs;
     BOOST_FOREACH(const CTransaction&tx, block.vtx)
     {
@@ -266,6 +267,7 @@ Value getblock(const Array& params, bool fHelp)
             "  \"height\" : n,          (numeric) The block height or index\n"
             "  \"version\" : n,         (numeric) The block version\n"
             "  \"merkleroot\" : \"xxxx\", (string) The merkle root\n"
+            "  \"nccroot\" : \"xxxx\",  (string) The hash of the root of the NCC trie\n"
             "  \"tx\" : [               (array of string) The transaction ids\n"
             "     \"transactionid\"     (string) The transaction id\n"
             "     ,...\n"

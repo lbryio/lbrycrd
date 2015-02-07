@@ -182,6 +182,7 @@ libbitcoin_server_a_SOURCES = \
   rpcblockchain.cpp \
   rpcmining.cpp \
   rpcmisc.cpp \
+  rpcncctrie.cpp \
   rpcnet.cpp \
   rpcrawtransaction.cpp \
   rpcserver.cpp \

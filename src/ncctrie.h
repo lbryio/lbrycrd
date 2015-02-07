@@ -13,7 +13,7 @@
 #include <string>
 #include <algorithm>
 #include <vector>
-
+#include "json/json_spirit_value.h"
 
 class CNodeValue
 {
@@ -82,7 +82,7 @@ public:
     std::vector<CNodeValue> values;
     bool insertValue(CNodeValue val, bool * fChanged = NULL);
     bool removeValue(CNodeValue val, bool * fChanged = NULL);
-    bool getValue(CNodeValue& val);
+    bool getValue(CNodeValue& val) const;
     bool empty() const {return children.empty() && values.empty();}
 
     ADD_SERIALIZE_METHODS;
@@ -129,6 +129,8 @@ public:
     bool empty() const;
     bool checkConsistency();
     bool ReadFromDisk(bool check = false);
+    json_spirit::Array dumpToJSON() const;
+    json_spirit::Object getInfoForName(const std::string& name) const;
     friend class CNCCTrieCache;
 private:
     bool update(nodeCacheType& cache, hashMapType& hashes);
@@ -138,6 +140,7 @@ private:
     bool recursiveCheckConsistency(CNCCTrieNode* node);
     bool BatchWrite(nodeCacheType& changedNodes, std::vector<std::string>& deletedNames);
     bool InsertFromDisk(const std::string& name, CNCCTrieNode* node);
+    bool recursiveDumpToJSON(const std::string& name, const CNCCTrieNode* current, json_spirit::Array& ret) const;
     CNCCTrieNode root;
 };
 

@@ -380,6 +380,10 @@ static const CRPCCommand vRPCCommands[] =
     { "wallet",             "walletpassphrasechange", &walletpassphrasechange, true,      true },
     { "wallet",             "walletpassphrase",       &walletpassphrase,       true,      true },
 #endif // ENABLE_WALLET
+
+    /* NCC trie */
+    { "ncctrie",            "getncctrie",                &getncctrie,             true,      false},
+    { "ncctrie",            "gettxinfoforname",       &gettxinfoforname,       true,      false},
 };
 
 CRPCTable::CRPCTable()

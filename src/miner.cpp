@@ -412,12 +412,12 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& 
 //
 bool static ScanHash(const CBlockHeader *pblock, uint32_t& nNonce, uint256 *phash)
 {
-    // Write the first 76 bytes of the block header to a double-SHA256 state.
+    // Write the first 108 bytes of the block header to a double-SHA256 state.
     CHash256 hasher;
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
     ss << *pblock;
-    assert(ss.size() == 80);
-    hasher.Write((unsigned char*)&ss[0], 76);
+    assert(ss.size() == 112);
+    hasher.Write((unsigned char*)&ss[0], 108);
 
     while (true) {
         nNonce++;
