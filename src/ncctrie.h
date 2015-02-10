@@ -130,7 +130,7 @@ public:
     bool checkConsistency();
     bool ReadFromDisk(bool check = false);
     json_spirit::Array dumpToJSON() const;
-    json_spirit::Object getInfoForName(const std::string& name) const;
+    bool getInfoForName(const std::string& name, CNodeValue& val) const;
     friend class CNCCTrieCache;
 private:
     bool update(nodeCacheType& cache, hashMapType& hashes, const uint256& hashBlock);

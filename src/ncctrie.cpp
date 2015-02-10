@@ -113,27 +113,17 @@ json_spirit::Array CNCCTrie::dumpToJSON() const
     return ret;
 }
 
-json_spirit::Object CNCCTrie::getInfoForName(const std::string& name) const
+bool CNCCTrie::getInfoForName(const std::string& name, CNodeValue& val) const
 {
-    using namespace json_spirit;
-    Object ret;
     const CNCCTrieNode* current = &root;
     for (std::string::const_iterator itname = name.begin(); itname != name.end(); ++itname)
     {
         nodeMapType::const_iterator itchildren = current->children.find(*itname);
         if (itchildren == current->children.end())
-            return ret;
+            return false;
         current = itchildren->second;
     }
-    CNodeValue val;
-    if (current->getValue(val))
-    {
-        ret.push_back(Pair("txid", val.txhash.GetHex()));
-        ret.push_back(Pair("n", (int)val.nOut));
-        ret.push_back(Pair("value", val.nAmount));
-        ret.push_back(Pair("height", val.nHeight));
-    }
-    return ret;
+    return current->getValue(val);
 }
 
 bool CNCCTrie::checkConsistency()
