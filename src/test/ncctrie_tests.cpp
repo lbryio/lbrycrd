@@ -2,6 +2,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://opensource.org/licenses/mit-license.php
 
+#include "main.h"
 #include "primitives/transaction.h"
 #include "ncctrie.h"
 #include "coins.h"
@@ -52,15 +53,13 @@ BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remove)
     uint256 hash4;
     hash4.SetHex("a79e8a5b28f7fa5e8836a4b48da9988bdf56ce749f81f413cb754f963a516200");
 
-    CNCCTrie trie;
+    BOOST_CHECK(pnccTrie->empty());
 
-    BOOST_CHECK(trie.empty());
-
-    CNCCTrieCache ntState(&trie);
+    CNCCTrieCache ntState(pnccTrie);
     ntState.insertName(std::string("test"), tx1.GetHash(), 0, 50, 100);
     ntState.insertName(std::string("test2"), tx2.GetHash(), 0, 50, 100);
 
-    BOOST_CHECK(trie.empty());
+    BOOST_CHECK(pnccTrie->empty());
     BOOST_CHECK(!ntState.empty());
     BOOST_CHECK(ntState.getMerkleHash() == hash1);
 
@@ -73,11 +72,11 @@ BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remove)
     BOOST_CHECK(ntState.getMerkleHash() == hash2);
     ntState.flush();
 
-    BOOST_CHECK(!trie.empty());
-    BOOST_CHECK(trie.getMerkleHash() == hash2);
-    BOOST_CHECK(trie.checkConsistency());
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->getMerkleHash() == hash2);
+    BOOST_CHECK(pnccTrie->checkConsistency());
 
-    CNCCTrieCache ntState1(&trie);
+    CNCCTrieCache ntState1(pnccTrie);
     ntState1.removeName(std::string("test"), tx1.GetHash(), 0);
     ntState1.removeName(std::string("test2"), tx2.GetHash(), 0);
     ntState1.removeName(std::string("test"), tx3.GetHash(), 0);
@@ -85,7 +84,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remove)
 
     BOOST_CHECK(ntState1.getMerkleHash() == hash0);
 
-    CNCCTrieCache ntState2(&trie);
+    CNCCTrieCache ntState2(pnccTrie);
     ntState2.insertName(std::string("abab"), tx6.GetHash(), 0, 50, 100);
     ntState2.removeName(std::string("test"), tx1.GetHash(), 0);
 
@@ -93,43 +92,43 @@ BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remove)
 
     ntState2.flush();
 
-    BOOST_CHECK(!trie.empty());
-    BOOST_CHECK(trie.getMerkleHash() == hash3);
-    BOOST_CHECK(trie.checkConsistency());
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->getMerkleHash() == hash3);
+    BOOST_CHECK(pnccTrie->checkConsistency());
 
-    CNCCTrieCache ntState3(&trie);
+    CNCCTrieCache ntState3(pnccTrie);
     ntState3.insertName(std::string("test"), tx1.GetHash(), 0, 50, 100);
     BOOST_CHECK(ntState3.getMerkleHash() == hash4);
     ntState3.flush();
-    BOOST_CHECK(!trie.empty());
-    BOOST_CHECK(trie.getMerkleHash() == hash4);
-    BOOST_CHECK(trie.checkConsistency());
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->getMerkleHash() == hash4);
+    BOOST_CHECK(pnccTrie->checkConsistency());
 
-    CNCCTrieCache ntState4(&trie);
+    CNCCTrieCache ntState4(pnccTrie);
     ntState4.removeName(std::string("abab"), tx6.GetHash(), 0);
     BOOST_CHECK(ntState4.getMerkleHash() == hash2);
     ntState4.flush();
-    BOOST_CHECK(!trie.empty());
-    BOOST_CHECK(trie.getMerkleHash() == hash2);
-    BOOST_CHECK(trie.checkConsistency());
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->getMerkleHash() == hash2);
+    BOOST_CHECK(pnccTrie->checkConsistency());
 
-    CNCCTrieCache ntState5(&trie);
+    CNCCTrieCache ntState5(pnccTrie);
     ntState5.removeName(std::string("test"), tx3.GetHash(), 0);
 
     BOOST_CHECK(ntState5.getMerkleHash() == hash2);
     ntState5.flush();
-    BOOST_CHECK(!trie.empty());
-    BOOST_CHECK(trie.getMerkleHash() == hash2);
-    BOOST_CHECK(trie.checkConsistency());
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->getMerkleHash() == hash2);
+    BOOST_CHECK(pnccTrie->checkConsistency());
 
-    CNCCTrieCache ntState6(&trie);
+    CNCCTrieCache ntState6(pnccTrie);
     ntState6.insertName(std::string("test"), tx3.GetHash(), 0, 50, 101);
 
     BOOST_CHECK(ntState6.getMerkleHash() == hash2);
     ntState6.flush();
-    BOOST_CHECK(!trie.empty());
-    BOOST_CHECK(trie.getMerkleHash() == hash2);
-    BOOST_CHECK(trie.checkConsistency());
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->getMerkleHash() == hash2);
+    BOOST_CHECK(pnccTrie->checkConsistency());
 }
 
 BOOST_AUTO_TEST_CASE(ncctrienode_serialize_unserialize)

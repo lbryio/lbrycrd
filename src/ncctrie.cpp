@@ -175,7 +175,7 @@ bool CNCCTrie::recursiveCheckConsistency(CNCCTrieNode* node)
     return calculatedHash == node->hash;
 }
 
-bool CNCCTrie::update(nodeCacheType& cache, hashMapType& hashes)
+bool CNCCTrie::update(nodeCacheType& cache, hashMapType& hashes, const uint256& hashBlockIn)
 {
     // General strategy: the cache is ordered by length, ensuring child
     // nodes are always inserted after their parents. Insert each node
@@ -196,10 +196,6 @@ bool CNCCTrie::update(nodeCacheType& cache, hashMapType& hashes)
     // appending extra data to the normal txundo, which will call the
     // normal insert/remove names, but obviously the opposite and in
     // reverse order (though the order shouldn't ever matter).
-    if (cache.empty())
-    {
-        return true;
-    }
     bool success = true;
     std::vector<std::string> deletedNames;
     for (nodeCacheType::iterator itcache = cache.begin(); itcache != cache.end(); ++itcache)
@@ -217,7 +213,8 @@ bool CNCCTrie::update(nodeCacheType& cache, hashMapType& hashes)
             return false;
         changedNodes[ithash->first] = pNode;
     }
-    BatchWrite(changedNodes, deletedNames);
+    BatchWrite(changedNodes, deletedNames, hashBlockIn);
+    hashBlock = hashBlockIn;
     return true;
 }
 
@@ -308,13 +305,14 @@ void BatchEraseNode(CLevelDBBatch& batch, const std::string& name)
     batch.Erase(std::make_pair('n', name));
 }
 
-bool CNCCTrie::BatchWrite(nodeCacheType& changedNodes, std::vector<std::string>& deletedNames)
+bool CNCCTrie::BatchWrite(nodeCacheType& changedNodes, std::vector<std::string>& deletedNames, const uint256& hashBlockIn)
 {
     CLevelDBBatch batch;
     for (nodeCacheType::iterator itcache = changedNodes.begin(); itcache != changedNodes.end(); ++itcache)
         BatchWriteNode(batch, itcache->first, itcache->second);
     for (std::vector<std::string>::iterator itname = deletedNames.begin(); itname != deletedNames.end(); ++itname)
         BatchEraseNode(batch, *itname);
+    batch.Write('h', hashBlockIn);
     return db.WriteBatch(batch);
 }
 
@@ -339,6 +337,9 @@ bool CNCCTrie::InsertFromDisk(const std::string& name, CNCCTrieNode* node)
 
 bool CNCCTrie::ReadFromDisk(bool check)
 {
+    if (!db.Read('h', hashBlock))
+        LogPrintf("%s: Couldn't read the best block's hash\n", __func__);
+    
     boost::scoped_ptr<leveldb::Iterator> pcursor(const_cast<CLevelDBWrapper*>(&db)->NewIterator());
     pcursor->SeekToFirst();
     
@@ -459,7 +460,7 @@ uint256 CNCCTrieCache::getMerkleHash() const
 
 bool CNCCTrieCache::empty() const
 {
-    return !base || (base->empty() && cache.empty());
+    return base->empty() && cache.empty();
 }
 
 bool CNCCTrieCache::insertName(const std::string name, uint256 txhash, int nOut, CAmount nAmount, int nHeight) const
@@ -673,6 +674,19 @@ bool CNCCTrieCache::recursivePruneName(CNCCTrieNode* tnCurrent, unsigned int nPo
     return true;
 }
 
+uint256 CNCCTrieCache::getBestBlock()
+{
+    if (hashBlock.IsNull())
+        if (base != NULL)
+            hashBlock = base->hashBlock;
+    return hashBlock;
+}
+
+void CNCCTrieCache::setBestBlock(const uint256& hashBlockIn)
+{
+    hashBlock = hashBlockIn;
+}
+
 bool CNCCTrieCache::clear() const
 {
     for (nodeCacheType::iterator itcache = cache.begin(); itcache != cache.end(); ++itcache)
@@ -689,9 +703,7 @@ bool CNCCTrieCache::flush()
 {
     if (dirty())
         getMerkleHash();
-    if (!base)
-        return true;
-    bool success = base->update(cache, cacheHashes);
+    bool success = base->update(cache, cacheHashes, hashBlock);
     if (success)
     {
         success = clear();

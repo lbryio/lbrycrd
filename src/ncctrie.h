@@ -133,27 +133,30 @@ public:
     json_spirit::Object getInfoForName(const std::string& name) const;
     friend class CNCCTrieCache;
 private:
-    bool update(nodeCacheType& cache, hashMapType& hashes);
+    bool update(nodeCacheType& cache, hashMapType& hashes, const uint256& hashBlock);
     bool updateName(const std::string& name, CNCCTrieNode* updatedNode, std::vector<std::string>& deletedNames);
     bool updateHash(const std::string& name, uint256& hash, CNCCTrieNode** pNodeRet);
     bool recursiveNullify(CNCCTrieNode* node, std::string& name, std::vector<std::string>& deletedNames);
     bool recursiveCheckConsistency(CNCCTrieNode* node);
-    bool BatchWrite(nodeCacheType& changedNodes, std::vector<std::string>& deletedNames);
+    bool BatchWrite(nodeCacheType& changedNodes, std::vector<std::string>& deletedNames, const uint256& hashBlock);
     bool InsertFromDisk(const std::string& name, CNCCTrieNode* node);
     bool recursiveDumpToJSON(const std::string& name, const CNCCTrieNode* current, json_spirit::Array& ret) const;
     CNCCTrieNode root;
+    uint256 hashBlock;
 };
 
 class CNCCTrieCache
 {
 public:
-    CNCCTrieCache(CNCCTrie* base): base(base) {}
+    CNCCTrieCache(CNCCTrie* base): base(base) {assert(base);}
     uint256 getMerkleHash() const;
     bool empty() const;
     bool flush();
     bool dirty() const { return !dirtyHashes.empty(); }
     bool insertName (const std::string name, uint256 txhash, int nOut, CAmount nAmount, int nDepth) const;
     bool removeName (const std::string name, uint256 txhash, int nOut) const;
+    uint256 getBestBlock();
+    void setBestBlock(const uint256& hashBlock);
     ~CNCCTrieCache() { clear(); }
 private:
     CNCCTrie* base;
@@ -164,6 +167,7 @@ private:
     bool recursiveComputeMerkleHash(CNCCTrieNode* tnCurrent, std::string sPos) const;
     bool recursivePruneName(CNCCTrieNode* tnCurrent, unsigned int nPos, std::string sName, bool* pfNullified = NULL) const;
     bool clear() const;
+    uint256 hashBlock;
 };
 
 #endif // BITCOIN_NCCTRIE_H

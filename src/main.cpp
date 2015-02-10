@@ -1641,6 +1641,7 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CNCCTrie
 bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, CNCCTrieCache& trieCache, bool* pfClean)
 {
     assert(pindex->GetBlockHash() == view.GetBestBlock());
+    assert(pindex->GetBlockHash() == trieCache.getBestBlock());
 
     if (pfClean)
         *pfClean = false;
@@ -1714,6 +1715,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
 
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
+    trieCache.setBestBlock(pindex->pprev->GetBlockHash());
     assert(trieCache.getMerkleHash() == pindex->pprev->hashNCCTrie);
 
     if (pfClean) {
@@ -1773,11 +1775,17 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     uint256 hashPrevBlock = pindex->pprev == NULL ? uint256() : pindex->pprev->GetBlockHash();
     assert(hashPrevBlock == view.GetBestBlock());
 
+    // also verify that the trie cache's current state corresponds to the previous block
+    assert(hashPrevBlock == trieCache.getBestBlock());
+
     // Special case for the genesis block, skipping connection of its transactions
     // (its coinbase is unspendable)
     if (block.GetHash() == Params().HashGenesisBlock()) {
         if (!fJustCheck)
+        {
             view.SetBestBlock(pindex->GetBlockHash());
+            trieCache.setBestBlock(pindex->GetBlockHash());
+        }
         return true;
     }
 
@@ -1960,6 +1968,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
+    trieCache.setBestBlock(pindex->GetBlockHash());
 
     int64_t nTime3 = GetTimeMicros(); nTimeIndex += nTime3 - nTime2;
     LogPrint("bench", "    - Index writing: %.2fms [%.2fs]\n", 0.001 * (nTime3 - nTime2), nTimeIndex * 0.000001);

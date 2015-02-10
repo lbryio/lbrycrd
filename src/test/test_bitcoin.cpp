@@ -42,6 +42,7 @@ struct TestingSetup {
         pblocktree = new CBlockTreeDB(1 << 20, true);
         pcoinsdbview = new CCoinsViewDB(1 << 23, true);
         pcoinsTip = new CCoinsViewCache(pcoinsdbview);
+        pnccTrie = new CNCCTrie();
         InitBlockIndex();
 #ifdef ENABLE_WALLET
         bool fFirstRun;
@@ -63,6 +64,7 @@ struct TestingSetup {
         delete pwalletMain;
         pwalletMain = NULL;
 #endif
+        delete pnccTrie;
         delete pcoinsTip;
         delete pcoinsdbview;
         delete pblocktree;
