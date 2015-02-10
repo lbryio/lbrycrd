@@ -30,9 +30,10 @@ CMutableTransaction BuildTransaction(const uint256& prevhash)
     return tx;
 }
 
-BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remov)
+BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remove)
 {
-    CMutableTransaction tx1 = BuildTransaction(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
+    uint256 hash0(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
+    CMutableTransaction tx1 = BuildTransaction(hash0);
     CMutableTransaction tx2 = BuildTransaction(tx1.GetHash());
     CMutableTransaction tx3 = BuildTransaction(tx2.GetHash());
     CMutableTransaction tx4 = BuildTransaction(tx3.GetHash());
@@ -75,6 +76,15 @@ BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remov)
     BOOST_CHECK(!trie.empty());
     BOOST_CHECK(trie.getMerkleHash() == hash2);
     BOOST_CHECK(trie.checkConsistency());
+
+    CNCCTrieCache ntState1(&trie);
+    ntState1.removeName(std::string("test"), tx1.GetHash(), 0);
+    ntState1.removeName(std::string("test2"), tx2.GetHash(), 0);
+    ntState1.removeName(std::string("test"), tx3.GetHash(), 0);
+    ntState1.removeName(std::string("tes"), tx4.GetHash(), 0);
+
+    BOOST_CHECK(ntState1.getMerkleHash() == hash0);
+
     CNCCTrieCache ntState2(&trie);
     ntState2.insertName(std::string("abab"), tx6.GetHash(), 0, 50, 100);
     ntState2.removeName(std::string("test"), tx1.GetHash(), 0);

@@ -281,15 +281,15 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
             if (!CheckInputs(tx, state, view, true, MANDATORY_SCRIPT_VERIFY_FLAGS, true))
                 continue;
 
-            UpdateCoins(tx, state, view, nHeight);
-
             BOOST_FOREACH(const CTxIn& txin, tx.vin)
             {
                 const CCoins* coins = view.AccessCoins(txin.prevout.hash);
                 // This seems to happen during testing, and should never happen otherwise
                 if (!coins || txin.prevout.n >= coins->vout.size())
                 {
-                    LogPrintf("!coins || txin.prevout.n >= coins->vout.size()");
+                    LogPrintf("%s: !coins || txin.prevout.n >= coins->vout.size(). txin.prevout.hash = %s\n", __func__, txin.prevout.hash.GetHex());
+                    if (coins)
+                        LogPrintf("coins is not null. txin.prevout.n = %d, coins->vout.size() = %d\n", txin.prevout.n, coins->vout.size());
                     continue;
                 }
 
@@ -301,9 +301,11 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                     assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     if (!trieCache.removeName(name, txin.prevout.hash, txin.prevout.n))
-                        LogPrintf("Something went wrong removing the name");
+                        LogPrintf("%s: Something went wrong removing the name\n", __func__);
                 }
             }
+            
+            UpdateCoins(tx, state, view, nHeight);
             
             for (unsigned int i = 0; i < tx.vout.size(); ++i)
             {
@@ -316,7 +318,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                     assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     if (!trieCache.insertName(name, tx.GetHash(), i, txout.nValue, nHeight))
-                        LogPrintf("Something went wrong inserting the name");
+                        LogPrintf("%s: Something went wrong inserting the name\n", __func__);
                 }
             }
 

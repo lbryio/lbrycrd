@@ -1628,8 +1628,9 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CNCCTrie
     {
         assert(vvchParams.size() == 2);
         std::string name(vvchParams[0].begin(), vvchParams[0].end());
+        LogPrintf("%s: Restoring %s to the NCC trie due to a block being disconnected\n", __func__, name.c_str());
         if (!trieCache.insertName(name, out.hash, out.n, undo.txout.nValue, undo.nHeight))
-            LogPrintf("Something went wrong inserting the name");
+            LogPrintf("%s: Something went wrong inserting the name\n", __func__);
     }
 
     coins->vout[out.n] = undo.txout;
@@ -1687,8 +1688,9 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
             {
                 assert(vvchParams.size() == 2);
                 std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                LogPrintf("%s: Removing %s from the ncc trie due to its block being disconnected\n", __func__, name.c_str());
                 if (!trieCache.removeName(name, hash, i))
-                    LogPrintf("Something went wrong removing the name");
+                    LogPrintf("%s: Something went wrong removing the name %s in hash %s\n", __func__, name.c_str(), hash.GetHex());
             }
         }
 
@@ -1712,6 +1714,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
 
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
+    assert(trieCache.getMerkleHash() == pindex->pprev->hashNCCTrie);
 
     if (pfClean) {
         *pfClean = fClean;
@@ -1870,10 +1873,10 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                 std::vector<std::vector<unsigned char> > vvchParams;
                 if (DecodeNCCScript(coins->vout[txin.prevout.n].scriptPubKey, op, vvchParams))
                 {
-                    assert(vvchParams.size() == 1);
+                    assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     if (!trieCache.removeName(name, txin.prevout.hash, txin.prevout.n))
-                        LogPrintf("Something went wrong removing the name");
+                        LogPrintf("%s: Something went wrong removing the name\n", __func__);
                 }
             }
             
@@ -1888,7 +1891,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                     assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     if (!trieCache.insertName(name, tx.GetHash(), i, txout.nValue, pindex->nHeight))
-                        LogPrintf("Something went wrong inserting the name");
+                        LogPrintf("%s: Something went wrong inserting the name\n", __func__);
                 }
             }
         }
@@ -2094,6 +2097,7 @@ bool static DisconnectTip(CValidationState &state) {
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
         assert(view.Flush());
         assert(trieCache.flush());
+        assert(pindexDelete->pprev->hashNCCTrie == trieCache.getMerkleHash());
     }
     LogPrint("bench", "- Disconnect block: %.2fms\n", (GetTimeMicros() - nStart) * 0.001);
     // Write the chain state to disk, if necessary.

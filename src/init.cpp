@@ -1072,16 +1072,17 @@ bool AppInit2(boost::thread_group& threadGroup)
                     strLoadError = _("You need to rebuild the database using -reindex to change -txindex");
                     break;
                 }
+                
+                if (!pnccTrie->ReadFromDisk(true))
+                {
+                    strLoadError = _("Error loading the ncc trie from disk");
+                    break;
+                }
 
                 uiInterface.InitMessage(_("Verifying blocks..."));
                 if (!CVerifyDB().VerifyDB(pcoinsdbview, GetArg("-checklevel", 3),
                               GetArg("-checkblocks", 288))) {
                     strLoadError = _("Corrupted block database detected");
-                    break;
-                }
-                if (!pnccTrie->ReadFromDisk(true))
-                {
-                    strLoadError = _("Error loading the ncc trie from disk");
                     break;
                 }
             } catch (const std::exception& e) {

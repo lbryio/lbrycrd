@@ -109,7 +109,7 @@ json_spirit::Array CNCCTrie::dumpToJSON() const
 {
     json_spirit::Array ret;
     if (!recursiveDumpToJSON("", &root, ret))
-        LogPrintf("Something went wrong dumping to JSON");
+        LogPrintf("%s: Something went wrong dumping to JSON", __func__);
     return ret;
 }
 
@@ -321,8 +321,10 @@ bool CNCCTrie::BatchWrite(nodeCacheType& changedNodes, std::vector<std::string>&
 bool CNCCTrie::InsertFromDisk(const std::string& name, CNCCTrieNode* node)
 {
     if (name.size() == 0)
+    {
         root = *node;
         return true;
+    }
     CNCCTrieNode* current = &root;
     for (std::string::const_iterator itname = name.begin(); itname + 1 != name.end(); ++itname)
     {
@@ -342,7 +344,7 @@ bool CNCCTrie::ReadFromDisk(bool check)
     
     while (pcursor->Valid())
     {
-        //TODO: make try statement here
+        try
         {
             leveldb::Slice slKey = pcursor->key();
             CDataStream ssKey(slKey.data(), slKey.data()+slKey.size(), SER_DISK, CLIENT_VERSION);
@@ -359,15 +361,35 @@ bool CNCCTrie::ReadFromDisk(bool check)
                 if (!InsertFromDisk(name, node))
                     return false;
             }
+            pcursor->Next();
         }
+        catch (const std::exception& e)
+        {
+            return error("%s: Deserialize or I/O error - %s", __func__, e.what());
+        }
+
     }
     if (check)
-        return checkConsistency();
+    {
+        LogPrintf("Checking NCC trie consistency...");
+        if( checkConsistency())
+        {
+            LogPrintf("consistent\n");
+            return true;
+        }
+        LogPrintf("inconsistent!\n");
+        return false;
+    }
     return true;
 }
 
 bool CNCCTrieCache::recursiveComputeMerkleHash(CNCCTrieNode* tnCurrent, std::string sPos) const
 {
+    if (sPos == "" && tnCurrent->empty())
+    {
+        cacheHashes[""] = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
+        return true;
+    }
     std::string stringToHash;
 
     CNodeValue val;
@@ -547,7 +569,7 @@ bool CNCCTrieCache::removeName(const std::string name, uint256 txhash, int nOut)
             continue;
         }
 
-        // The name doesn't exist in either the trie or the cache, so how can we remove it?
+        LogPrintf("%s: The name %s does not exist in the trie\n", __func__, name.c_str());
         return false;
     }
 
