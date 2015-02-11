@@ -366,7 +366,7 @@ Value claimname(const Array& params, bool fHelp)
             "\nArguments:\n"
             "1. \"name\"  (string, required) The name to be assigned the value.\n"
             "2. \"value\"  (string, required) The value to assign to the name.\n"
-            "3. \"amount\n  (numeric, required) The amount in ncc to send. eg 0.1\n"
+            "3. \"amount\"  (numeric, required) The amount in ncc to send. eg 0.1\n"
             "\nResult:\n"
             "\"transactionid\"  (string) The transaction id.\n"
         );
