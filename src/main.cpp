@@ -2744,13 +2744,6 @@ bool ContextualCheckBlock(const CBlock& block, CValidationState& state, CBlockIn
         }
     }
 
-    // TODO: ~~This looks like a good place to check the "merkle" root of the
-    // TODO: NCC tree that will result from applying this block.~~
-    // TODO: Actually, it's not, because the merkle root needs access to
-    // TODO: all of the coins spent by the new transactions, to check if
-    // TODO: they're NCC transactions. So the better place is in
-    // TODO: ConnectBlock, where inputs are checked against the coins
-    // TODO: they are spending.
     return true;
 }
 
