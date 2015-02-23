@@ -42,16 +42,16 @@ BOOST_AUTO_TEST_CASE(ncctrie_create_insert_remove)
     CMutableTransaction tx6 = BuildTransaction(tx5.GetHash());
 
     uint256 hash1;
-    hash1.SetHex("81727ef4dd44787941b9bba2c143a3607d92ee1f0d1d24d0da5aac6aa44ae12f");
+    hash1.SetHex("2f3ae25e923dfa6fc24f0ff5d4367239425effaf47b703857436947a2dbfdda1");
     
     uint256 hash2;
-    hash2.SetHex("653304cb35e66280b52ee6c52fcf2b8b1032ced6fea7a6e1548f24c47b1a3910");
+    hash2.SetHex("833c0a897d1e32b16a7988c574dbcd750ed6695b947dea7b16e7782eac070a5d");
     
     uint256 hash3;
-    hash3.SetHex("48c0f04ab06338b25c66a6f237084eec49a5d761b5bfbe125d213fce33948242");
+    hash3.SetHex("5ea4c62fb56bbca0cdf6fe4b2668c737641b4f48af8ef5041faa42df12aa3078");
     
     uint256 hash4;
-    hash4.SetHex("a79e8a5b28f7fa5e8836a4b48da9988bdf56ce749f81f413cb754f963a516200");
+    hash4.SetHex("47ae7f3ab9c0e9b13d08d5535a76fd36cecad0529baca390cea77b5bd3d99290");
 
     BOOST_CHECK(pnccTrie->empty());
 

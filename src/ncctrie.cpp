@@ -137,14 +137,6 @@ bool CNCCTrie::recursiveCheckConsistency(CNCCTrieNode* node)
 {
     std::string stringToHash;
 
-    CNodeValue val;
-    bool hasValue = node->getValue(val);
-
-    if (hasValue)
-    {
-        stringToHash += val.ToString();
-    }
-
     for (nodeMapType::iterator it = node->children.begin(); it != node->children.end(); ++it)
     {
         std::stringstream ss;
@@ -157,6 +149,20 @@ bool CNCCTrie::recursiveCheckConsistency(CNCCTrieNode* node)
         else
             return false;
     }
+    
+    CNodeValue val;
+    bool hasValue = node->getValue(val);
+
+    if (hasValue)
+    {
+        CHash256 valHasher;
+        std::vector<unsigned char> vchValHash(valHasher.OUTPUT_SIZE);
+        valHasher.Write((const unsigned char*) val.ToString().data(), val.ToString().size());
+        valHasher.Finalize(&(vchValHash[0]));
+        uint256 valHash(vchValHash);
+        stringToHash += valHash.ToString();
+    }
+
     CHash256 hasher;
     std::vector<unsigned char> vchHash(hasher.OUTPUT_SIZE);
     hasher.Write((const unsigned char*) stringToHash.data(), stringToHash.size());
@@ -383,14 +389,6 @@ bool CNCCTrieCache::recursiveComputeMerkleHash(CNCCTrieNode* tnCurrent, std::str
     }
     std::string stringToHash;
 
-    CNodeValue val;
-    bool hasValue = tnCurrent->getValue(val);
-
-    if (hasValue)
-    {
-        stringToHash += val.ToString();
-    }
-
     nodeCacheType::iterator cachedNode;
 
 
@@ -415,6 +413,20 @@ bool CNCCTrieCache::recursiveComputeMerkleHash(CNCCTrieNode* tnCurrent, std::str
         else
             stringToHash += it->second->hash.ToString();
     }
+    
+    CNodeValue val;
+    bool hasValue = tnCurrent->getValue(val);
+
+    if (hasValue)
+    {
+        CHash256 valHasher;
+        std::vector<unsigned char> vchValHash(valHasher.OUTPUT_SIZE);
+        valHasher.Write((const unsigned char*) val.ToString().data(), val.ToString().size());
+        valHasher.Finalize(&(vchValHash[0]));
+        uint256 valHash(vchValHash);
+        stringToHash += valHash.ToString();
+    }
+
     CHash256 hasher;
     std::vector<unsigned char> vchHash(hasher.OUTPUT_SIZE);
     hasher.Write((const unsigned char*) stringToHash.data(), stringToHash.size());
