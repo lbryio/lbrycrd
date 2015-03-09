@@ -12,6 +12,7 @@ std::string CNodeValue::ToString()
 
 bool CNCCTrieNode::insertValue(CNodeValue val, bool * pfChanged)
 {
+    LogPrintf("%s: Inserting %s:%d (amount: %d)  into the ncc trie\n", __func__, val.txhash.ToString(), val.nOut, val.nAmount);
     bool fChanged = false;
     
     if (values.empty())
@@ -34,6 +35,7 @@ bool CNCCTrieNode::insertValue(CNodeValue val, bool * pfChanged)
 
 bool CNCCTrieNode::removeValue(CNodeValue val, bool * pfChanged)
 {
+    LogPrintf("%s: Removing %s from the ncc trie\n", __func__, val.ToString());
     bool fChanged = false;
 
     CNodeValue currentTop = values.front();
@@ -43,7 +45,13 @@ bool CNCCTrieNode::removeValue(CNodeValue val, bool * pfChanged)
         values.erase(position);
     else
     {
-        LogPrintf("CNCCTrieNode::removeValue() : asked to remove a value that doesn't exist");
+        LogPrintf("CNCCTrieNode::removeValue() : asked to remove a value that doesn't exist\n");
+        LogPrintf("CNCCTrieNode::removeValue() : value that doesn't exist: %s.\n", val.ToString());
+        LogPrintf("CNCCTrieNode::removeValue() : values that do exist:\n");
+        for (unsigned int i = 0; i < values.size(); i++)
+        {
+            LogPrintf("%s\n", values[i].ToString());
+        }
         return false;
     }
     if (!values.empty())
@@ -194,13 +202,15 @@ bool CNCCTrie::update(nodeCacheType& cache, hashMapType& hashes, const uint256& 
     // reverse order (though the order shouldn't ever matter).
     bool success = true;
     std::vector<std::string> deletedNames;
+    nodeCacheType changedNodes;
     for (nodeCacheType::iterator itcache = cache.begin(); itcache != cache.end(); ++itcache)
     {
-        success = updateName(itcache->first, itcache->second, deletedNames);
+        CNCCTrieNode* pNode;
+        success = updateName(itcache->first, itcache->second, deletedNames, &pNode);
         if (!success)
             return false;
+        changedNodes[itcache->first] = pNode;
     }
-    nodeCacheType changedNodes;
     for (hashMapType::iterator ithash = hashes.begin(); ithash != hashes.end(); ++ithash)
     {
         CNCCTrieNode* pNode;
@@ -214,7 +224,7 @@ bool CNCCTrie::update(nodeCacheType& cache, hashMapType& hashes, const uint256& 
     return true;
 }
 
-bool CNCCTrie::updateName(const std::string &name, CNCCTrieNode* updatedNode, std::vector<std::string>& deletedNames)
+bool CNCCTrie::updateName(const std::string &name, CNCCTrieNode* updatedNode, std::vector<std::string>& deletedNames, CNCCTrieNode** pNodeRet)
 {
     CNCCTrieNode* current = &root;
     for (std::string::const_iterator itname = name.begin(); itname != name.end(); ++itname)
@@ -238,6 +248,7 @@ bool CNCCTrie::updateName(const std::string &name, CNCCTrieNode* updatedNode, st
     }
     assert(current != NULL);
     current->values.swap(updatedNode->values);
+    *pNodeRet = current;
     for (nodeMapType::iterator itchild = current->children.begin(); itchild != current->children.end();)
     {
         nodeMapType::iterator itupdatechild = updatedNode->children.find(itchild->first);
@@ -293,6 +304,7 @@ bool CNCCTrie::updateHash(const std::string& name, uint256& hash, CNCCTrieNode**
 
 void BatchWriteNode(CLevelDBBatch& batch, const std::string& name, const CNCCTrieNode* pNode)
 {
+    LogPrintf("%s: Writing %s to disk with %d values\n", __func__, name, pNode->values.size());
     batch.Write(std::make_pair('n', name), *pNode);
 }
 
@@ -587,6 +599,10 @@ bool CNCCTrieCache::removeName(const std::string name, uint256 txhash, int nOut)
     bool fChanged = false;
     assert(currentNode != NULL);
     bool success = currentNode->removeValue(CNodeValue(txhash, nOut), &fChanged);
+    if (!success)
+    {
+        LogPrintf("%s: Removing a value was unsuccessful. name = %s, txhash = %s, nOut = %d", __func__, name.c_str(), txhash.GetHex(), nOut);
+    }
     assert(success);
     if (fChanged)
     {

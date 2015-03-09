@@ -134,7 +134,7 @@ public:
     friend class CNCCTrieCache;
 private:
     bool update(nodeCacheType& cache, hashMapType& hashes, const uint256& hashBlock);
-    bool updateName(const std::string& name, CNCCTrieNode* updatedNode, std::vector<std::string>& deletedNames);
+    bool updateName(const std::string& name, CNCCTrieNode* updatedNode, std::vector<std::string>& deletedNames, CNCCTrieNode** pNodeRet);
     bool updateHash(const std::string& name, uint256& hash, CNCCTrieNode** pNodeRet);
     bool recursiveNullify(CNCCTrieNode* node, std::string& name, std::vector<std::string>& deletedNames);
     bool recursiveCheckConsistency(CNCCTrieNode* node);

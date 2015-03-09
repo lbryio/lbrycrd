@@ -1884,6 +1884,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                 {
                     assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                    LogPrintf("%s: Removing %s from the ncc trie. Tx: %s, nOut: %d\n", __func__, name, txin.prevout.hash.GetHex(), txin.prevout.n);
                     if (!trieCache.removeName(name, txin.prevout.hash, txin.prevout.n))
                         LogPrintf("%s: Something went wrong removing the name\n", __func__);
                 }
@@ -1899,6 +1900,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                 {
                     assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                    LogPrintf("%s: Inserting %s into the ncc trie. Tx: %s, nOut: %d\n", __func__, name, tx.GetHash().GetHex(), i);
                     if (!trieCache.insertName(name, tx.GetHash(), i, txout.nValue, pindex->nHeight))
                         LogPrintf("%s: Something went wrong inserting the name\n", __func__);
                 }
