@@ -300,7 +300,8 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                 {
                     assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                    if (!trieCache.removeName(name, txin.prevout.hash, txin.prevout.n))
+                    int throwaway;
+                    if (!trieCache.spendClaim(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, throwaway))
                         LogPrintf("%s: Something went wrong removing the name\n", __func__);
                 }
             }
@@ -317,7 +318,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                 {
                     assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                    if (!trieCache.insertName(name, tx.GetHash(), i, txout.nValue, nHeight))
+                    if (!trieCache.addClaim(name, tx.GetHash(), i, txout.nValue, nHeight))
                         LogPrintf("%s: Something went wrong inserting the name\n", __func__);
                 }
             }

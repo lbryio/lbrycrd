@@ -1630,7 +1630,9 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CNCCTrie
         assert(vvchParams.size() == 2);
         std::string name(vvchParams[0].begin(), vvchParams[0].end());
         LogPrintf("%s: Restoring %s to the NCC trie due to a block being disconnected\n", __func__, name.c_str());
-        if (!trieCache.insertName(name, out.hash, out.n, undo.txout.nValue, undo.nHeight))
+        int nValidHeight = undo.nNCCValidHeight;
+        assert(nValidHeight > 0 && nValidHeight >= coins->nHeight);
+        if (!trieCache.undoSpendClaim(name, out.hash, out.n, undo.txout.nValue, coins->nHeight, nValidHeight))
             LogPrintf("%s: Something went wrong inserting the name\n", __func__);
     }
 
@@ -1658,6 +1660,8 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
 
     if (blockUndo.vtxundo.size() + 1 != block.vtx.size())
         return error("DisconnectBlock(): block and undo data inconsistent");
+
+    assert(trieCache.decrementBlock(blockUndo.queueUndo));
 
     // undo transactions in reverse order
     for (int i = block.vtx.size() - 1; i >= 0; i--) {
@@ -1691,7 +1695,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                 assert(vvchParams.size() == 2);
                 std::string name(vvchParams[0].begin(), vvchParams[0].end());
                 LogPrintf("%s: Removing %s from the ncc trie due to its block being disconnected\n", __func__, name.c_str());
-                if (!trieCache.removeName(name, hash, i))
+                if (!trieCache.undoAddClaim(name, hash, i, pindex->nHeight))
                     LogPrintf("%s: Something went wrong removing the name %s in hash %s\n", __func__, name.c_str(), hash.GetHex());
             }
         }
@@ -1849,6 +1853,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             return state.DoS(100, error("ConnectBlock(): too many sigops"),
                              REJECT_INVALID, "bad-blk-sigops");
 
+        std::map<unsigned int, unsigned int> mNCCUndoHeights;
+
         if (!tx.IsCoinBase())
         {
             if (!view.HaveInputs(tx))
@@ -1884,8 +1890,9 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                 {
                     assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                    int nValidAtHeight;
                     LogPrintf("%s: Removing %s from the ncc trie. Tx: %s, nOut: %d\n", __func__, name, txin.prevout.hash.GetHex(), txin.prevout.n);
-                    if (!trieCache.removeName(name, txin.prevout.hash, txin.prevout.n))
+                    if (!trieCache.spendClaim(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, nValidAtHeight))
                         LogPrintf("%s: Something went wrong removing the name\n", __func__);
                 }
             }
@@ -1901,27 +1908,37 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                     assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     LogPrintf("%s: Inserting %s into the ncc trie. Tx: %s, nOut: %d\n", __func__, name, tx.GetHash().GetHex(), i);
-                    if (!trieCache.insertName(name, tx.GetHash(), i, txout.nValue, pindex->nHeight))
+                    if (!trieCache.addClaim(name, tx.GetHash(), i, txout.nValue, pindex->nHeight))
                         LogPrintf("%s: Something went wrong inserting the name\n", __func__);
                 }
             }
         }
 
         CTxUndo undoDummy;
-        if (i > 0) {
+        if (i > 0)
+        {
             blockundo.vtxundo.push_back(CTxUndo());
         }
         UpdateCoins(tx, state, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
-
-        // The CUndo vector contains all of the
-        // necessary information for putting NCC claims
-        // removed by this block back into the trie.
-        // (As long as the coinbase can't remove any
-        // NCC claims from the trie.)
+        if (i > 0 && !mNCCUndoHeights.empty())
+        {
+            std::vector<CTxInUndo>& txinUndos = blockundo.vtxundo.back().vprevout;
+            for (std::map<unsigned int, unsigned int>::iterator itHeight = mNCCUndoHeights.begin(); itHeight != mNCCUndoHeights.end(); ++itHeight)
+            {
+                txinUndos[itHeight->first].nNCCValidHeight = itHeight->second;
+            }
+        }
+        // The CTxUndo vector contains the heights at which NCC claims should be put into the trie.
+        // This is necessary because some NCC claims are inserted immediately into the trie, and
+        // others are inserted after a delay, depending on the state of the NCC trie at the time
+        // that the claim was originally inserted into the blockchain. That state will not be
+        // available when and if this block is disconnected.
 
         vPos.push_back(std::make_pair(tx.GetHash(), pos));
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
+
+    assert(trieCache.incrementBlock(blockundo.queueUndo));
 
     if (trieCache.getMerkleHash() != block.hashNCCTrie)
         return state.DoS(100,

@@ -33,14 +33,23 @@ bool CNCCTrieNode::insertValue(CNodeValue val, bool * pfChanged)
     return true;
 }
 
-bool CNCCTrieNode::removeValue(CNodeValue val, bool * pfChanged)
+bool CNCCTrieNode::removeValue(uint256& txhash, uint32_t nOut, CNodeValue& val, bool * pfChanged)
 {
     LogPrintf("%s: Removing %s from the ncc trie\n", __func__, val.ToString());
     bool fChanged = false;
 
     CNodeValue currentTop = values.front();
 
-    std::vector<CNodeValue>::iterator position = std::find(values.begin(), values.end(), val);
+    //std::vector<CNodeValue>::iterator position = std::find(values.begin(), values.end(), val);
+    std::vector<CNodeValue>::iterator position;
+    for (position = values.begin(); position != values.end(); ++position)
+    {
+        if (position->txhash == txhash && position->nOut == nOut)
+        {
+            std::swap(val, *position);
+            break;
+        }
+    }
     if (position != values.end())
         values.erase(position);
     else
@@ -67,7 +76,7 @@ bool CNCCTrieNode::removeValue(CNodeValue val, bool * pfChanged)
     return true;
 }
 
-bool CNCCTrieNode::getValue(CNodeValue& value) const
+bool CNCCTrieNode::getBestValue(CNodeValue& value) const
 {
     if (values.empty())
         return false;
@@ -88,6 +97,11 @@ bool CNCCTrie::empty() const
     return root.empty();
 }
 
+bool CNCCTrie::queueEmpty() const
+{
+    return valueQueue.empty();
+}
+
 bool CNCCTrie::recursiveDumpToJSON(const std::string& name, const CNCCTrieNode* current, json_spirit::Array& ret) const
 {
     using namespace json_spirit;
@@ -95,7 +109,7 @@ bool CNCCTrie::recursiveDumpToJSON(const std::string& name, const CNCCTrieNode* 
     objNode.push_back(Pair("name", name));
     objNode.push_back(Pair("hash", current->hash.GetHex()));
     CNodeValue val;
-    if (current->getValue(val))
+    if (current->getBestValue(val))
     {
         objNode.push_back(Pair("txid", val.txhash.GetHex()));
         objNode.push_back(Pair("n", (int)val.nOut));
@@ -131,7 +145,7 @@ bool CNCCTrie::getInfoForName(const std::string& name, CNodeValue& val) const
             return false;
         current = itchildren->second;
     }
-    return current->getValue(val);
+    return current->getBestValue(val);
 }
 
 bool CNCCTrie::checkConsistency()
@@ -157,9 +171,9 @@ bool CNCCTrie::recursiveCheckConsistency(CNCCTrieNode* node)
         else
             return false;
     }
-    
+
     CNodeValue val;
-    bool hasValue = node->getValue(val);
+    bool hasValue = node->getBestValue(val);
 
     if (hasValue)
     {
@@ -179,7 +193,30 @@ bool CNCCTrie::recursiveCheckConsistency(CNCCTrieNode* node)
     return calculatedHash == node->hash;
 }
 
-bool CNCCTrie::update(nodeCacheType& cache, hashMapType& hashes, const uint256& hashBlockIn)
+valueQueueType::iterator CNCCTrie::getQueueRow(int nHeight)
+{
+    valueQueueType::iterator itQueueRow = valueQueue.find(nHeight);
+    if (itQueueRow == valueQueue.end())
+    {
+        std::vector<CValueQueueEntry> queueRow;
+        std::pair<valueQueueType::iterator, bool> ret;
+        ret = valueQueue.insert(std::pair<int, std::vector<CValueQueueEntry> >(nHeight, queueRow));
+        assert(ret.second);
+        itQueueRow = ret.first;
+    }
+    return itQueueRow;
+}
+
+void CNCCTrie::deleteQueueRow(int nHeight)
+{
+    valueQueueType::iterator itQueueRow = valueQueue.find(nHeight);
+    if (itQueueRow != valueQueue.end())
+    {
+        valueQueue.erase(itQueueRow);
+    }
+}
+
+bool CNCCTrie::update(nodeCacheType& cache, hashMapType& hashes, const uint256& hashBlockIn, valueQueueType& queueCache, int nNewHeight)
 {
     // General strategy: the cache is ordered by length, ensuring child
     // nodes are always inserted after their parents. Insert each node
@@ -219,8 +256,25 @@ bool CNCCTrie::update(nodeCacheType& cache, hashMapType& hashes, const uint256& 
             return false;
         changedNodes[ithash->first] = pNode;
     }
-    BatchWrite(changedNodes, deletedNames, hashBlockIn);
+    std::vector<int> vChangedQueueRows;
+    std::vector<int> vDeletedQueueRows;
+    for (valueQueueType::iterator itQueueCacheRow = queueCache.begin(); itQueueCacheRow != queueCache.end(); ++itQueueCacheRow)
+    {
+        if (itQueueCacheRow->second.empty())
+        {
+            vDeletedQueueRows.push_back(itQueueCacheRow->first);
+            deleteQueueRow(itQueueCacheRow->first);
+        }
+        else
+        {
+            vChangedQueueRows.push_back(itQueueCacheRow->first);
+            valueQueueType::iterator itQueueRow = getQueueRow(itQueueCacheRow->first);
+            itQueueRow->second.swap(itQueueCacheRow->second);
+        }
+    }
+    BatchWrite(changedNodes, deletedNames, hashBlockIn, vChangedQueueRows, vDeletedQueueRows, nNewHeight);
     hashBlock = hashBlockIn;
+    nCurrentHeight = nNewHeight;
     return true;
 }
 
@@ -302,25 +356,41 @@ bool CNCCTrie::updateHash(const std::string& name, uint256& hash, CNCCTrieNode**
     return true;
 }
 
-void BatchWriteNode(CLevelDBBatch& batch, const std::string& name, const CNCCTrieNode* pNode)
+void CNCCTrie::BatchWriteNode(CLevelDBBatch& batch, const std::string& name, const CNCCTrieNode* pNode) const
 {
     LogPrintf("%s: Writing %s to disk with %d values\n", __func__, name, pNode->values.size());
     batch.Write(std::make_pair('n', name), *pNode);
 }
 
-void BatchEraseNode(CLevelDBBatch& batch, const std::string& name)
+void CNCCTrie::BatchEraseNode(CLevelDBBatch& batch, const std::string& name) const
 {
     batch.Erase(std::make_pair('n', name));
 }
 
-bool CNCCTrie::BatchWrite(nodeCacheType& changedNodes, std::vector<std::string>& deletedNames, const uint256& hashBlockIn)
+void CNCCTrie::BatchWriteQueueRow(CLevelDBBatch& batch, int nRowNum)
+{
+    valueQueueType::iterator itQueueRow = getQueueRow(nRowNum);
+    batch.Write(std::make_pair('r', nRowNum), itQueueRow->second);
+}
+
+void CNCCTrie::BatchEraseQueueRow(CLevelDBBatch& batch, int nRowNum)
+{
+    batch.Erase(std::make_pair('r', nRowNum));
+}
+
+bool CNCCTrie::BatchWrite(nodeCacheType& changedNodes, std::vector<std::string>& deletedNames, const uint256& hashBlockIn, std::vector<int> vChangedQueueRows, std::vector<int> vDeletedQueueRows, int nNewHeight)
 {
     CLevelDBBatch batch;
     for (nodeCacheType::iterator itcache = changedNodes.begin(); itcache != changedNodes.end(); ++itcache)
         BatchWriteNode(batch, itcache->first, itcache->second);
     for (std::vector<std::string>::iterator itname = deletedNames.begin(); itname != deletedNames.end(); ++itname)
         BatchEraseNode(batch, *itname);
+    for (std::vector<int>::iterator itRowNum = vChangedQueueRows.begin(); itRowNum != vChangedQueueRows.end(); ++itRowNum)
+        BatchWriteQueueRow(batch, *itRowNum);
+    for (std::vector<int>::iterator itRowNum = vDeletedQueueRows.begin(); itRowNum != vDeletedQueueRows.end(); ++itRowNum)
+        BatchEraseQueueRow(batch, *itRowNum);
     batch.Write('h', hashBlockIn);
+    batch.Write('t', nNewHeight);
     return db.WriteBatch(batch);
 }
 
@@ -370,6 +440,15 @@ bool CNCCTrie::ReadFromDisk(bool check)
                 if (!InsertFromDisk(name, node))
                     return false;
             }
+            else if (chType == 'r')
+            {
+                leveldb::Slice slValue = pcursor->value();
+                int nHeight;
+                ssKey >> nHeight;
+                CDataStream ssValue(slValue.data(), slValue.data()+slValue.size(), SER_DISK, CLIENT_VERSION);
+                valueQueueType::iterator itQueueRow = getQueueRow(nHeight);
+                ssValue >> itQueueRow->second;
+            }
             pcursor->Next();
         }
         catch (const std::exception& e)
@@ -381,7 +460,7 @@ bool CNCCTrie::ReadFromDisk(bool check)
     if (check)
     {
         LogPrintf("Checking NCC trie consistency...");
-        if( checkConsistency())
+        if (checkConsistency())
         {
             LogPrintf("consistent\n");
             return true;
@@ -427,7 +506,7 @@ bool CNCCTrieCache::recursiveComputeMerkleHash(CNCCTrieNode* tnCurrent, std::str
     }
     
     CNodeValue val;
-    bool hasValue = tnCurrent->getValue(val);
+    bool hasValue = tnCurrent->getBestValue(val);
 
     if (hasValue)
     {
@@ -477,7 +556,7 @@ bool CNCCTrieCache::empty() const
     return base->empty() && cache.empty();
 }
 
-bool CNCCTrieCache::insertName(const std::string name, uint256 txhash, int nOut, CAmount nAmount, int nHeight) const
+bool CNCCTrieCache::insertClaimIntoTrie(const std::string name, CNodeValue val) const
 {
     assert(base);
     CNCCTrieNode* currentNode = &(base->root);
@@ -544,7 +623,7 @@ bool CNCCTrieCache::insertName(const std::string name, uint256 txhash, int nOut,
         cache[name] = currentNode;
     }
     bool fChanged = false;
-    currentNode->insertValue(CNodeValue(txhash, nOut, nAmount, nHeight), &fChanged);
+    currentNode->insertValue(val, &fChanged);
     if (fChanged)
     {
         for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
@@ -557,7 +636,7 @@ bool CNCCTrieCache::insertName(const std::string name, uint256 txhash, int nOut,
     return true;
 }
 
-bool CNCCTrieCache::removeName(const std::string name, uint256 txhash, int nOut) const
+bool CNCCTrieCache::removeClaimFromTrie(const std::string name, uint256 txhash, uint32_t nOut, int& nValidAtHeight) const
 {
     assert(base);
     CNCCTrieNode* currentNode = &(base->root);
@@ -583,7 +662,6 @@ bool CNCCTrieCache::removeName(const std::string name, uint256 txhash, int nOut)
             currentNode = childNode->second;
             continue;
         }
-
         LogPrintf("%s: The name %s does not exist in the trie\n", __func__, name.c_str());
         return false;
     }
@@ -598,10 +676,15 @@ bool CNCCTrieCache::removeName(const std::string name, uint256 txhash, int nOut)
     }
     bool fChanged = false;
     assert(currentNode != NULL);
-    bool success = currentNode->removeValue(CNodeValue(txhash, nOut), &fChanged);
+    CNodeValue val;
+    bool success = currentNode->removeValue(txhash, nOut, val, &fChanged);
     if (!success)
     {
         LogPrintf("%s: Removing a value was unsuccessful. name = %s, txhash = %s, nOut = %d", __func__, name.c_str(), txhash.GetHex(), nOut);
+    }
+    else
+    {
+        nValidAtHeight = val.nValidAtHeight;
     }
     assert(success);
     if (fChanged)
@@ -692,6 +775,167 @@ bool CNCCTrieCache::recursivePruneName(CNCCTrieNode* tnCurrent, unsigned int nPo
     return true;
 }
 
+valueQueueType::iterator CNCCTrieCache::getQueueCacheRow(int nHeight, bool createIfNotExists) const
+{
+    valueQueueType::iterator itQueueRow = valueQueueCache.find(nHeight);
+    if (itQueueRow == valueQueueCache.end())
+    {
+        // Have to make a new row it put in the cache, if createIfNotExists is true
+        std::vector<CValueQueueEntry> queueRow;
+        // If the row exists in the base, copy its values into the new row.
+        valueQueueType::iterator itBaseQueueRow = base->valueQueue.find(nHeight);
+        if (itBaseQueueRow == base->valueQueue.end())
+        {
+            if (!createIfNotExists)
+                return itQueueRow;
+        }
+        else
+            queueRow = itBaseQueueRow->second;
+        // Stick the new row in the cache
+        std::pair<valueQueueType::iterator, bool> ret;
+        ret = valueQueueCache.insert(std::pair<int, std::vector<CValueQueueEntry> >(nHeight, queueRow));
+        assert(ret.second);
+        itQueueRow = ret.first;
+    }
+    return itQueueRow;
+}
+
+bool CNCCTrieCache::getInfoForName(const std::string name, CNodeValue& val) const
+{
+    nodeCacheType::iterator itcache = cache.find(name);
+    if (itcache != cache.end())
+    {
+        return itcache->second->getBestValue(val);
+    }
+    else
+    {
+        return base->getInfoForName(name, val);
+    }
+}
+
+bool CNCCTrieCache::addClaim(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight) const
+{
+    assert(nHeight == nCurrentHeight);
+    return addClaimToQueue(name, txhash, nOut, nAmount, nHeight, nHeight + DEFAULT_DELAY);
+}
+
+bool CNCCTrieCache::addClaim(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight, uint256 prevTxhash, uint32_t nPrevOut) const
+{
+    assert(nHeight == nCurrentHeight);
+    CNodeValue val;
+    if (getInfoForName(name, val))
+    {
+        if (val.txhash == prevTxhash && val.nOut == nPrevOut)
+            return addClaimToQueue(name, txhash, nOut, nAmount, nHeight, nHeight);
+    }
+    return addClaim(name, txhash, nOut, nAmount, nHeight);
+}
+
+bool CNCCTrieCache::undoSpendClaim(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight, int nValidAtHeight) const
+{
+    if (nValidAtHeight < nCurrentHeight)
+    {
+        CNodeValue val(txhash, nOut, nAmount, nHeight, nValidAtHeight);
+        CValueQueueEntry entry(name, val);
+        insertClaimIntoTrie(name, CNodeValue(txhash, nOut, nAmount, nHeight, nValidAtHeight));
+    }
+    else
+    {
+        addClaimToQueue(name, txhash, nOut, nAmount, nHeight, nValidAtHeight);
+    }
+    return true;
+}
+
+bool CNCCTrieCache::addClaimToQueue(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight, int nValidAtHeight) const
+{
+    CNodeValue val(txhash, nOut, nAmount, nHeight, nValidAtHeight);
+    CValueQueueEntry entry(name, val);
+    valueQueueType::iterator itQueueRow = getQueueCacheRow(nValidAtHeight, true);
+    itQueueRow->second.push_back(entry);
+    return true;
+}
+
+bool CNCCTrieCache::removeClaimFromQueue(const std::string name, uint256 txhash, uint32_t nOut, int nHeightToCheck, int& nValidAtHeight) const
+{
+    valueQueueType::iterator itQueueRow = getQueueCacheRow(nHeightToCheck, false);
+    if (itQueueRow == valueQueueCache.end())
+    {
+        return false;
+    }
+    std::vector<CValueQueueEntry>::iterator itQueue;
+    for (itQueue = itQueueRow->second.begin(); itQueue != itQueueRow->second.end(); ++itQueue)
+    {
+        CNodeValue& val = itQueue->val;
+        if (name == itQueue->name && val.txhash == txhash && val.nOut == nOut)
+        {
+            nValidAtHeight = val.nValidAtHeight;
+            break;
+        }
+    }
+    if (itQueue != itQueueRow->second.end())
+    {
+        itQueueRow->second.erase(itQueue);
+        return true;
+    }
+    return false;
+}
+
+bool CNCCTrieCache::undoAddClaim(const std::string name, uint256 txhash, uint32_t nOut, int nHeight) const
+{
+    int throwaway;
+    return removeClaim(name, txhash, nOut, nHeight, throwaway);
+}
+
+bool CNCCTrieCache::spendClaim(const std::string name, uint256 txhash, uint32_t nOut, int nHeight, int& nValidAtHeight) const
+{
+    return removeClaim(name, txhash, nOut, nHeight, nValidAtHeight);
+}
+
+bool CNCCTrieCache::removeClaim(const std::string name, uint256 txhash, uint32_t nOut, int nHeight, int& nValidAtHeight) const
+{
+    if (nHeight + DEFAULT_DELAY >= nCurrentHeight)
+    {
+        if (removeClaimFromQueue(name, txhash, nOut, nHeight + DEFAULT_DELAY, nValidAtHeight))
+            return true;
+        if (removeClaimFromQueue(name, txhash, nOut, nHeight, nValidAtHeight))
+            return true;
+    }
+    if (removeClaimFromQueue(name, txhash, nOut, nHeight, nCurrentHeight))
+        return true;
+    return removeClaimFromTrie(name, txhash, nOut, nValidAtHeight);
+}
+
+bool CNCCTrieCache::incrementBlock(CNCCTrieQueueUndo& undo) const
+{
+    valueQueueType::iterator itQueueRow = getQueueCacheRow(nCurrentHeight, false);
+    nCurrentHeight++;
+    if (itQueueRow == valueQueueCache.end())
+    {
+        return true;
+    }
+    for (std::vector<CValueQueueEntry>::iterator itEntry = itQueueRow->second.begin(); itEntry != itQueueRow->second.end(); ++itEntry)
+    {
+        insertClaimIntoTrie(itEntry->name, itEntry->val);
+        undo.push_back(*itEntry);
+    }
+    itQueueRow->second.clear();
+    return true;
+}
+
+bool CNCCTrieCache::decrementBlock(CNCCTrieQueueUndo& undo) const
+{
+    nCurrentHeight--;
+    valueQueueType::iterator itQueueRow = getQueueCacheRow(nCurrentHeight, true);
+    for (CNCCTrieQueueUndo::iterator itUndo = undo.begin(); itUndo != undo.end(); ++itUndo)
+    {
+        int nValidHeightInTrie;
+        assert(removeClaimFromTrie(itUndo->name, itUndo->val.txhash, itUndo->val.nOut, nValidHeightInTrie));
+        assert(nValidHeightInTrie == itUndo->val.nValidAtHeight);
+        itQueueRow->second.push_back(*itUndo);
+    }
+    return true;
+}
+
 uint256 CNCCTrieCache::getBestBlock()
 {
     if (hashBlock.IsNull())
@@ -714,6 +958,7 @@ bool CNCCTrieCache::clear() const
     cache.clear();
     dirtyHashes.clear();
     cacheHashes.clear();
+    valueQueueCache.clear();
     return true;
 }
 
@@ -721,7 +966,7 @@ bool CNCCTrieCache::flush()
 {
     if (dirty())
         getMerkleHash();
-    bool success = base->update(cache, cacheHashes, hashBlock);
+    bool success = base->update(cache, cacheHashes, hashBlock, valueQueueCache, nCurrentHeight);
     if (success)
     {
         success = clear();

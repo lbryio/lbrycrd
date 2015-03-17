@@ -246,8 +246,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     delete pblocktemplate;
     mempool.clear();
 
-/* This has been removed because we don't have that many blocks in the active chain yet.
-   It should be returned when we do.
+/* TODO: fix this
     // subsidy changing
     int nHeight = chainActive.Height();
     chainActive.Tip()->nHeight = 209999;
