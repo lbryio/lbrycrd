@@ -4,6 +4,7 @@
 
 #include "main.h"
 #include "primitives/transaction.h"
+#include "miner.h"
 #include "ncctrie.h"
 #include "coins.h"
 #include "streams.h"
@@ -31,18 +32,69 @@ CMutableTransaction BuildTransaction(const uint256& prevhash)
     return tx;
 }
 
-void AttachBlock(CNCCTrieCache& cache, std::vector<CNCCTrieQueueUndo>& block_undos)
+CMutableTransaction BuildTransaction(const CMutableTransaction& prev)
 {
-    CNCCTrieQueueUndo undo;
-    cache.incrementBlock(undo);
-    block_undos.push_back(undo);
+    CMutableTransaction tx;
+    tx.nVersion = 1;
+    tx.nLockTime = 0;
+    tx.vin.resize(1);
+    tx.vout.resize(1);
+    tx.vin[0].prevout.hash = prev.GetHash();
+    tx.vin[0].prevout.n = 0;
+    tx.vin[0].scriptSig = CScript();
+    tx.vin[0].nSequence = std::numeric_limits<unsigned int>::max();
+    tx.vout[0].scriptPubKey = CScript();
+    tx.vout[0].nValue = prev.vout[0].nValue;
+
+    return tx;
 }
 
-void DetachBlock(CNCCTrieCache& cache, std::vector<CNCCTrieQueueUndo>& block_undos)
+CMutableTransaction BuildTransaction(const CTransaction& prev)
 {
-    CNCCTrieQueueUndo& undo = block_undos.back();
-    cache.decrementBlock(undo);
-    block_undos.pop_back();
+    return BuildTransaction(CMutableTransaction(prev));
+}
+
+void AddToMempool(CMutableTransaction& tx)
+{
+    mempool.addUnchecked(tx.GetHash(), CTxMemPoolEntry(tx, 0, GetTime(), 111.0, chainActive.Height()));
+}
+
+bool CreateBlock(CBlockTemplate* pblocktemplate, bool f = false)
+{
+    static int unique_block_counter = 0;
+    CBlock* pblock = &pblocktemplate->block;
+    pblock->nVersion = 1;
+    pblock->nTime = chainActive.Tip()->GetMedianTimePast()+1;
+    CMutableTransaction txCoinbase(pblock->vtx[0]);
+    txCoinbase.vin[0].scriptSig = CScript() << CScriptNum(unique_block_counter++) << CScriptNum(chainActive.Height());
+    txCoinbase.vout[0].nValue = GetBlockValue(chainActive.Height(), 0);
+    pblock->vtx[0] = CTransaction(txCoinbase);
+    pblock->hashMerkleRoot = pblock->BuildMerkleTree();
+    for (int i = 0; ; ++i)
+    {
+        pblock->nNonce = i;
+        if (CheckProofOfWork(pblock->GetHash(), pblock->nBits))
+            break;
+    }
+    CValidationState state;
+    bool success = (ProcessNewBlock(state, NULL, pblock) && state.IsValid() && pblock->GetHash() == chainActive.Tip()->GetBlockHash());
+    pblock->hashPrevBlock = pblock->GetHash();
+    return success;
+}
+
+bool RemoveBlock(uint256& blockhash)
+{
+    CValidationState state;
+    if (mapBlockIndex.count(blockhash) == 0)
+        return false;
+    CBlockIndex* pblockindex = mapBlockIndex[blockhash];
+    InvalidateBlock(state, pblockindex);
+    if (state.IsValid())
+    {
+        ActivateBestChain(state);
+    }
+    return state.IsValid();
+
 }
 
 BOOST_AUTO_TEST_CASE(ncctrie_merkle_hash)
@@ -160,357 +212,497 @@ BOOST_AUTO_TEST_CASE(ncctrie_merkle_hash)
 
 BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
 {
-    std::vector<CNCCTrieQueueUndo> block_undos;
-    int start_block = pnccTrie->nCurrentHeight;
-    int current_block = start_block;
+    BOOST_CHECK(pnccTrie->nCurrentHeight == chainActive.Height() + 1);
+    
+    CBlockTemplate *pblocktemplate;
+    LOCK(cs_main);
+    Checkpoints::fEnabled = false;
+
+    CScript scriptPubKey = CScript() << OP_TRUE;
+
+    std::string sName1("atest");
+    std::string sName2("btest");
+    std::string sValue1("testa");
+    std::string sValue2("testb");
+
+    std::vector<unsigned char> vchName1(sName1.begin(), sName1.end());
+    std::vector<unsigned char> vchName2(sName2.begin(), sName2.end());
+    std::vector<unsigned char> vchValue1(sValue1.begin(), sValue1.end());
+    std::vector<unsigned char> vchValue2(sValue2.begin(), sValue2.end());
+    
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    std::vector<CTransaction> coinbases;
+
+    for (unsigned int i = 0; i < 103; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate));
+        if (coinbases.size() < 3)
+            coinbases.push_back(CTransaction(pblocktemplate->block.vtx[0]));
+    }
+
+    delete pblocktemplate;
 
     uint256 hash0(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
-    CMutableTransaction tx1 = BuildTransaction(hash0);
-    CMutableTransaction tx2 = BuildTransaction(tx1.GetHash());
-    CMutableTransaction tx3 = BuildTransaction(tx2.GetHash());
-    CMutableTransaction tx4 = BuildTransaction(tx3.GetHash());
-    int tx1_height, tx2_height, tx3_height, tx4_height, tx1_undo_height, tx3_undo_height;
-
     BOOST_CHECK(pnccTrie->getMerkleHash() == hash0);
-
-    CNCCTrieCache ntState(pnccTrie);
-
-    tx1_height = current_block;
-    ntState.addClaim(std::string("atest"), tx1.GetHash(), 0, 50, tx1_height);
-    tx3_height = current_block;
-    ntState.addClaim(std::string("btest"), tx3.GetHash(), 0, 50, tx3_height);
-    AttachBlock(ntState, block_undos);
-    current_block++;
-    ntState.flush();
-    for (; current_block < start_block + 100; ++current_block)
-    {
-        CNCCTrieCache s(pnccTrie);
-        AttachBlock(s, block_undos);
-        s.flush();
-    }
-    CNodeValue v;
-    BOOST_CHECK(!pnccTrie->getInfoForName(std::string("atest"), v));
-    BOOST_CHECK(!pnccTrie->getInfoForName(std::string("btest"), v));
     
-    CNCCTrieCache ntState1(pnccTrie);
-    AttachBlock(ntState1, block_undos);
-    ntState1.flush();
-    current_block++;
+    CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
+    tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName1 << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
+    CMutableTransaction tx2 = BuildTransaction(coinbases[1]);
+    tx2.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName2 << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
+    CMutableTransaction tx3 = BuildTransaction(tx1);
+    tx3.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName1 << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
+    CMutableTransaction tx4 = BuildTransaction(tx2);
+    tx4.vout[0].scriptPubKey = CScript() << OP_TRUE;
+    CMutableTransaction tx5 = BuildTransaction(coinbases[2]);
+    tx5.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName2 << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
+    CMutableTransaction tx6 = BuildTransaction(tx3);
+    tx6.vout[0].scriptPubKey = CScript() << OP_TRUE;
 
-    CNCCTrieCache ntState2(pnccTrie);
-    BOOST_CHECK(pnccTrie->getInfoForName(std::string("atest"), v));
-    BOOST_CHECK(pnccTrie->getInfoForName(std::string("btest"), v));
-    
-    BOOST_CHECK(ntState2.spendClaim(std::string("atest"), tx1.GetHash(), 0, tx1_height, tx1_undo_height));
-    BOOST_CHECK(ntState2.spendClaim(std::string("btest"), tx3.GetHash(), 0, tx3_height, tx3_undo_height));
-
-    tx2_height = current_block;
-    ntState2.addClaim(std::string("atest"), tx2.GetHash(), 0, 50, tx2_height, tx1.GetHash(), 0);
-    tx4_height = current_block;
-    ntState2.addClaim(std::string("btest"), tx4.GetHash(), 0, 50, tx4_height);
-
-    AttachBlock(ntState2, block_undos);
-    current_block++;
-    ntState2.flush();
-
-    BOOST_CHECK(pnccTrie->getInfoForName(std::string("atest"), v));
-    BOOST_CHECK(!pnccTrie->getInfoForName(std::string("btest"), v));
-    BOOST_CHECK(v.txhash == tx2.GetHash());
-
-    CNCCTrieCache ntState3(pnccTrie);
-    DetachBlock(ntState3, block_undos);
-    current_block--;
-    BOOST_CHECK(ntState3.undoAddClaim(std::string("atest"), tx2.GetHash(), 0, tx2_height));
-    BOOST_CHECK(ntState3.undoAddClaim(std::string("btest"), tx4.GetHash(), 0, tx4_height));
-    ntState3.undoSpendClaim(std::string("atest"), tx1.GetHash(), 0, 50, tx1_height, tx1_undo_height);
-    ntState3.undoSpendClaim(std::string("btest"), tx3.GetHash(), 0, 50, tx3_height, tx3_undo_height);
-    ntState3.flush();
-    
-    for (; current_block > start_block; --current_block)
-    {
-        CNCCTrieCache s(pnccTrie);
-        DetachBlock(s, block_undos);
-        s.flush();
-    }
-    CNCCTrieCache ntState4(pnccTrie);
-    BOOST_CHECK(ntState4.undoAddClaim(std::string("atest"), tx1.GetHash(), 0, tx1_height));
-    BOOST_CHECK(ntState4.undoAddClaim(std::string("btest"), tx3.GetHash(), 0, tx3_height));
-    ntState4.flush();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->getMerkleHash() == hash0);
-    BOOST_CHECK(pnccTrie->queueEmpty());
-}
-
-BOOST_AUTO_TEST_CASE(ncctrie_undo)
-{
-    std::vector<CNCCTrieQueueUndo> block_undos;
-    int start_block = pnccTrie->nCurrentHeight;
-    int current_block = start_block;
     CNodeValue val;
-    
-    uint256 hash0(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
-    CMutableTransaction tx1 = BuildTransaction(hash0);
-    CMutableTransaction tx2 = BuildTransaction(tx1.GetHash());
-    int tx1_height, tx2_height;
-    int tx1_undo_height, tx2_undo_height;
 
+    std::vector<uint256> blocks_to_invalidate;
+    
+    // Verify updates to the best claim get inserted immediately, and others don't.
+    
+    // Put tx1 and tx2 into the blockchain, and then advance 100 blocks to put them in the trie
+    
+    AddToMempool(tx1);
+    AddToMempool(tx2);
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 3);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(pcoinsTip->HaveCoins(tx1.GetHash()));
+    BOOST_CHECK(pcoinsTip->HaveCoins(tx2.GetHash()));
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 1; i < 100; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate));
+    }
+    delete pblocktemplate;
+    
+    BOOST_CHECK(!pnccTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(!pnccTrie->getInfoForName(sName2, val));
+    
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate));
+    delete pblocktemplate;
+    
+    // Verify tx1 and tx2 are in the trie
+
+    BOOST_CHECK(pnccTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(pnccTrie->getInfoForName(sName2, val));
+
+    // Spend tx1 with tx3, tx2 with tx4, and put in tx5.
+    
+    AddToMempool(tx3);
+    AddToMempool(tx4);
+    AddToMempool(tx5);
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 4);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    // Verify tx1, tx2, and tx5 are not in the trie, but tx3 is in the trie.
+
+    BOOST_CHECK(pnccTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(val.txhash == tx3.GetHash());
+    BOOST_CHECK(!pnccTrie->getInfoForName(sName2, val));
+
+    // Roll back the last block, make sure tx1 and tx2 are put back in the trie
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(pnccTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(pnccTrie->getInfoForName(sName2, val));
+    BOOST_CHECK(val.txhash == tx2.GetHash());
+
+    // Roll all the way back, make sure all txs are out of the trie
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(!pnccTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(!pnccTrie->getInfoForName(sName2, val));
+    mempool.clear();
+    
+    BOOST_CHECK(pnccTrie->empty());
     BOOST_CHECK(pnccTrie->getMerkleHash() == hash0);
     BOOST_CHECK(pnccTrie->queueEmpty());
 
-    CNCCTrieCache ntState(pnccTrie);
+    // Test undoing a claim before the claim gets into the trie
 
-    std::string name("a");
-
-    /* Test undoing a claim before the claim gets into the trie */
+    // Put tx1 in the chain, and then undo that block.
     
-    // make claim at start_block
-    tx1_height = current_block;
-    ntState.addClaim(name, tx1.GetHash(), 0, 50, tx1_height);
-    AttachBlock(ntState, block_undos);
-    current_block++;
-    ntState.flush();
+    AddToMempool(tx1);
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, true));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+
+    // Make sure it's not in the queue
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    mempool.clear();
+
+    // Test undoing a claim that has gotten into the trie
+
+    // Put tx1 in the chain, and then advance until it's in the trie
+
+    AddToMempool(tx1);
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
     BOOST_CHECK(!pnccTrie->queueEmpty());
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 1; i < 100; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate));
+    }
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(!pnccTrie->queueEmpty());
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate));
+    delete pblocktemplate;
+       
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pnccTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+
+    // Remove it from the trie
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    mempool.clear();
+
+    // Test undoing a spend which involves a claim just inserted into the queue
+
+    // Immediately spend tx2 with tx4, verify nothing gets put in the trie
+
+    AddToMempool(tx2);
+    AddToMempool(tx4);
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 3);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    mempool.clear();
+
+    // Test undoing a spend which involves a claim inserted into the queue by a previous block
     
-    // undo block and remove claim
-    DetachBlock(ntState, block_undos);
-    current_block--;
-    ntState.undoAddClaim(name, tx1.GetHash(), 0, tx1_height);
-    ntState.flush();
-    BOOST_CHECK(pnccTrie->queueEmpty());
+    // Put tx2 into the chain, and then advance a few blocks but not far enough for it to get into the trie
 
-    /* Test undoing a claim that has gotten into the trie */
+    AddToMempool(tx2);
 
-    // make claim at start_block
-    tx1_height = current_block;
-    ntState.addClaim(name, tx1.GetHash(), 0, 50, tx1_height);
-    AttachBlock(ntState, block_undos);
-    current_block++;
-    ntState.flush();
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+    BOOST_CHECK(pnccTrie->empty());
     BOOST_CHECK(!pnccTrie->queueEmpty());
 
-    // move to block start_block + 101
-    for (; current_block < start_block + 101; ++current_block)
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 1; i < 50; ++i)
     {
-        AttachBlock(ntState, block_undos);
-        ntState.flush();
+        BOOST_CHECK(CreateBlock(pblocktemplate));
     }
+    delete pblocktemplate;
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(!pnccTrie->queueEmpty());
+
+    // Spend tx2 with tx4, and then advance to where tx2 would be inserted into the trie and verify it hasn't happened
+
+    AddToMempool(tx4);
+    
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 1; i < 51; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate));
+    }
+    delete pblocktemplate;
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+
+    // Undo spending tx2 with tx4, and then advance and verify tx2 is inserted into the trie when it should be
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(!pnccTrie->queueEmpty());
+
+    mempool.clear();
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 0; i < 50; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate));
+    }
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(!pnccTrie->queueEmpty());
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate));
+    delete pblocktemplate;
     BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pnccTrie->getInfoForName(sName2, val));
+    BOOST_CHECK(val.txhash == tx2.GetHash());
+
+    // Test undoing a spend which involves a claim in the trie
+
+    // spend tx2, which is in the trie, with tx4
+    
+    AddToMempool(tx4);
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+
+    // undo spending tx2 with tx4, and verify tx2 is back in the trie
+    
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    mempool.clear();
+
+    // roll back to the beginning
+    
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    mempool.clear();
+
+    // Test undoing a spent update which updated a claim still in the queue
+
+    // Create the original claim (tx1)
+
+    AddToMempool(tx1);
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, true));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(!pnccTrie->queueEmpty());
+
+    // move forward some, but not far enough for the claim to get into the trie
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 1; i < 50; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate));
+    }
+    delete pblocktemplate;
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(!pnccTrie->queueEmpty());
+
+    // update the original claim (tx3 spends tx1)
+
+    AddToMempool(tx3);
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(!pnccTrie->queueEmpty());
+
+    // spend the update (tx6 spends tx3)
+
+    AddToMempool(tx6);
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+
+    // undo spending the update (undo tx6 spending tx3)
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(!pnccTrie->queueEmpty());
+    mempool.clear();
+
+    // make sure the update (tx3) still goes into effect in 100 blocks
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 1; i < 100; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate, true));
+    }
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(!pnccTrie->queueEmpty());
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate));
+    delete pblocktemplate;
+
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+
+    // undo updating the original claim (tx3 spends tx1)
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(!pnccTrie->queueEmpty());
+    mempool.clear();
+
+    // Test undoing an spent update which updated the best claim to a name
+
+    // move forward until the original claim is inserted into the trie
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 0; i < 50; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate));
+    }
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(!pnccTrie->queueEmpty());
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate));
+    delete pblocktemplate;
+
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pnccTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+
+    // update the original claim (tx3 spends tx1)
+    
+    AddToMempool(tx3);
+    
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate));
+    delete pblocktemplate;
+    
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pnccTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(val.txhash == tx3.GetHash());
+    
+    // spend the update (tx6 spends tx3)
+    
+    AddToMempool(tx6);
+    
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+    
+    BOOST_CHECK(pnccTrie->empty());
     BOOST_CHECK(pnccTrie->queueEmpty());
     
-    // undo block and remove claim
-    for (; current_block > start_block; --current_block)
-    {
-        DetachBlock(ntState, block_undos);
-        ntState.flush();
-    }
-    ntState.undoAddClaim(name, tx1.GetHash(), 0, tx1_height);
-    ntState.flush();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-
-    /* Test undoing a spend which involves a claim just inserted into the queue */
-
-    // make and spend claim at start_block
-    tx1_height = current_block;
-    ntState.addClaim(name, tx1.GetHash(), 0, 50, tx1_height);
-    ntState.spendClaim(name, tx1.GetHash(), 0, tx1_height, tx1_undo_height);
-    AttachBlock(ntState, block_undos);
-    current_block++;
-    ntState.flush();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-
-    // roll back the block
-    DetachBlock(ntState, block_undos);
-    current_block--;
-    ntState.undoSpendClaim(name, tx1.GetHash(), 0, 50, tx1_height, tx1_undo_height);
-    ntState.undoAddClaim(name, tx1.GetHash(), 0, tx1_height);
-    ntState.flush();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-
-    /* Test undoing a spend which involves a claim inserted into the queue by a previous block*/
+    // undo spending the update (undo tx6 spending tx3)
     
-    // make claim at block start_block
-    tx1_height = current_block;
-    ntState.addClaim(name, tx1.GetHash(), 0, 50, tx1_height);
-    AttachBlock(ntState, block_undos);
-    current_block++;
-    ntState.flush();
-    
-    // spend the claim in block start_block + 50
-    for (; current_block < start_block + 50; ++current_block)
-    {
-        AttachBlock(ntState, block_undos);
-        ntState.flush();
-    }
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
-    ntState.spendClaim(name, tx1.GetHash(), 0, tx1_height, tx1_undo_height);
-    AttachBlock(ntState, block_undos);
-    ++current_block;
-    ntState.flush();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    
-    // attach block start_block + 100 and make sure nothing is inserted
-    for (; current_block < start_block + 101; ++current_block)
-    {
-        AttachBlock(ntState, block_undos);
-        ntState.flush();
-    }
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-
-    // roll back to block start_block + 50 and undo the spend
-    for (; current_block > start_block + 50; --current_block)
-    {
-        DetachBlock(ntState, block_undos);
-        ntState.flush();
-    }
-    ntState.undoSpendClaim(name, tx1.GetHash(), 0, 50, tx1_height, tx1_undo_height);
-    ntState.flush();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
-
-    // make sure it still gets inserted at block start_block + 100
-    for (; current_block < start_block + 100; ++current_block)
-    {
-        AttachBlock(ntState, block_undos);
-        ntState.flush();
-    }
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
-    AttachBlock(ntState, block_undos);
-    ++current_block;
-    ntState.flush();
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
     BOOST_CHECK(!pnccTrie->empty());
     BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pnccTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(val.txhash == tx3.GetHash());
 
-    /* Test undoing a spend which involves a claim in the trie */
+    // roll all the way back
 
-    // spend the claim at block start_block + 150
-    for (; current_block < start_block + 150; ++current_block)
-    {
-        AttachBlock(ntState, block_undos);
-        ntState.flush();
-    }
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    ntState.spendClaim(name, tx1.GetHash(), 0, tx1_height, tx1_undo_height);
-    AttachBlock(ntState, block_undos);
-    ++current_block;
-    ntState.flush();
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
     BOOST_CHECK(pnccTrie->empty());
     BOOST_CHECK(pnccTrie->queueEmpty());
-
-    // roll back the block
-    DetachBlock(ntState, block_undos);
-    --current_block;
-    ntState.undoSpendClaim(name, tx1.GetHash(), 0, 50, tx1_height, tx1_undo_height);
-    ntState.flush();
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-
-    /* Test undoing an spent update which updated the best claim to a name*/
-
-    // update the claim at block start_block + 150
-    tx2_height = current_block;
-    ntState.spendClaim(name, tx1.GetHash(), 0, tx1_height, tx1_undo_height);
-    ntState.addClaim(name, tx2.GetHash(), 0, 75, tx2_height, tx1.GetHash(), 0);
-    AttachBlock(ntState, block_undos);
-    ++current_block;
-    ntState.flush();
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-
-    // move forward a bit
-    for (; current_block < start_block + 200; ++current_block)
-    {
-        AttachBlock(ntState, block_undos);
-        ntState.flush();
-    }
-
-    // spend the update
-    ntState.spendClaim(name, tx2.GetHash(), 0, tx2_height, tx2_undo_height);
-    AttachBlock(ntState, block_undos);
-    ++current_block;
-    ntState.flush();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-
-    // undo the spend
-    DetachBlock(ntState, block_undos);
-    --current_block;
-    ntState.undoSpendClaim(name, tx2.GetHash(), 0, 75, tx2_height, tx2_undo_height);
-    ntState.flush();
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-
-    /* Test undoing a spent update which updated a claim still in the queue */
-
-    // roll everything back to block start_block + 50
-    for (; current_block > start_block + 151; --current_block)
-    {
-        DetachBlock(ntState, block_undos);
-        ntState.flush();
-    }
-    DetachBlock(ntState, block_undos);
-    --current_block;
-    ntState.undoAddClaim(name, tx2.GetHash(), 0, tx2_height);
-    ntState.undoSpendClaim(name, tx1.GetHash(), 0, 50, tx1_height, tx1_undo_height);
-    ntState.flush();
-    for (; current_block > start_block + 50; --current_block)
-    {
-        DetachBlock(ntState, block_undos);
-        ntState.flush();
-    }
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
-
-    // update the claim at block start_block + 50
-    tx2_height = current_block;
-    ntState.spendClaim(name, tx1.GetHash(), 0, tx1_height, tx1_undo_height);
-    ntState.addClaim(name, tx2.GetHash(), 0, 75, tx2_height, tx1.GetHash(), 0);
-    AttachBlock(ntState, block_undos);
-    ++current_block;
-    ntState.flush();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
-
-    // check that it gets inserted at block start_block + 150
-    for (; current_block < start_block + 150; ++current_block)
-    {
-        AttachBlock(ntState, block_undos);
-        ntState.flush();
-    }
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
-    AttachBlock(ntState, block_undos);
-    ++current_block;
-    ntState.flush();
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-
-    // roll back to start_block
-    for (; current_block > start_block + 50; --current_block)
-    {
-        DetachBlock(ntState, block_undos);
-        ntState.flush();
-    }
-    ntState.undoAddClaim(name, tx2.GetHash(), 0, tx2_height);
-    ntState.undoSpendClaim(name, tx1.GetHash(), 0, 75, tx1_height, tx1_undo_height);
-    ntState.flush();
-    for (; current_block > start_block; --current_block)
-    {
-        DetachBlock(ntState, block_undos);
-        ntState.flush();
-    }
-    ntState.undoAddClaim(name, tx1.GetHash(), 0, tx1_height);
-    ntState.flush();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(pnccTrie->nCurrentHeight == start_block);
 }
 
 BOOST_AUTO_TEST_CASE(ncctrienode_serialize_unserialize)

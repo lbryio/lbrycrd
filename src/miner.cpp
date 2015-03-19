@@ -281,6 +281,9 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
             if (!CheckInputs(tx, state, view, true, MANDATORY_SCRIPT_VERIFY_FLAGS, true))
                 continue;
 
+            typedef std::map<std::string, std::pair<uint256, unsigned int> > spentClaimsType;
+            spentClaimsType spentClaims;
+
             BOOST_FOREACH(const CTxIn& txin, tx.vin)
             {
                 const CCoins* coins = view.AccessCoins(txin.prevout.hash);
@@ -303,6 +306,9 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                     int throwaway;
                     if (!trieCache.spendClaim(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, throwaway))
                         LogPrintf("%s: Something went wrong removing the name\n", __func__);
+                    std::pair<uint256, unsigned int> val(txin.prevout.hash, txin.prevout.n);
+                    std::pair<std::string, std::pair<uint256, unsigned int> >entry(name, val);
+                    spentClaims.insert(entry);
                 }
             }
             
@@ -318,7 +324,16 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                 {
                     assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                    if (!trieCache.addClaim(name, tx.GetHash(), i, txout.nValue, nHeight))
+                    spentClaimsType::iterator itSpent = spentClaims.find(name);
+                    bool success;
+                    if (itSpent != spentClaims.end())
+                    {
+                        success = trieCache.addClaim(name, tx.GetHash(), i, txout.nValue, nHeight, itSpent->second.first, itSpent->second.second);
+                        spentClaims.erase(itSpent);
+                    }
+                    else
+                        success = trieCache.addClaim(name, tx.GetHash(), i, txout.nValue, nHeight);
+                    if (!success)
                         LogPrintf("%s: Something went wrong inserting the name\n", __func__);
                 }
             }
@@ -372,6 +387,8 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         pblock->nBits          = GetNextWorkRequired(pindexPrev, pblock);
         pblock->nNonce         = 0;
         pblocktemplate->vTxSigOps[0] = GetLegacySigOpCount(pblock->vtx[0]);
+        CNCCTrieQueueUndo dummyundo;
+        trieCache.incrementBlock(dummyundo);
         pblock->hashNCCTrie = trieCache.getMerkleHash();
 
         CValidationState state;

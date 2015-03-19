@@ -149,7 +149,7 @@ class CNCCTrieCache;
 class CNCCTrie
 {
 public:
-    CNCCTrie() : db(GetDataDir() / "ncctrie", 100, false, false), root(uint256S("0000000000000000000000000000000000000000000000000000000000000001")) {}
+    CNCCTrie() : db(GetDataDir() / "ncctrie", 100, false, false), nCurrentHeight(1), root(uint256S("0000000000000000000000000000000000000000000000000000000000000001")) {}
     uint256 getMerkleHash();
     CLevelDBWrapper db;
     bool empty() const;
@@ -207,7 +207,8 @@ private:
     mutable std::set<std::string> dirtyHashes;
     mutable hashMapType cacheHashes;
     mutable valueQueueType valueQueueCache;
-    mutable int nCurrentHeight;
+    mutable int nCurrentHeight; // Height of the block that is being worked on, which is
+                                // one greater than the height of the chain's tip
     uint256 computeHash() const;
     bool recursiveComputeMerkleHash(CNCCTrieNode* tnCurrent, std::string sPos) const;
     bool recursivePruneName(CNCCTrieNode* tnCurrent, unsigned int nPos, std::string sName, bool* pfNullified = NULL) const;

@@ -417,7 +417,8 @@ bool CNCCTrie::ReadFromDisk(bool check)
 {
     if (!db.Read('h', hashBlock))
         LogPrintf("%s: Couldn't read the best block's hash\n", __func__);
-    
+    if (!db.Read('t', nCurrentHeight))
+        LogPrintf("%s: Couldn't read the current height\n", __func__);
     boost::scoped_ptr<leveldb::Iterator> pcursor(const_cast<CLevelDBWrapper*>(&db)->NewIterator());
     pcursor->SeekToFirst();
     
@@ -815,24 +816,30 @@ bool CNCCTrieCache::getInfoForName(const std::string name, CNodeValue& val) cons
 
 bool CNCCTrieCache::addClaim(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight) const
 {
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, nAmount, nHeight, nCurrentHeight);
     assert(nHeight == nCurrentHeight);
     return addClaimToQueue(name, txhash, nOut, nAmount, nHeight, nHeight + DEFAULT_DELAY);
 }
 
 bool CNCCTrieCache::addClaim(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight, uint256 prevTxhash, uint32_t nPrevOut) const
 {
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, nAmount, nHeight, nCurrentHeight);
     assert(nHeight == nCurrentHeight);
     CNodeValue val;
     if (getInfoForName(name, val))
     {
         if (val.txhash == prevTxhash && val.nOut == nPrevOut)
+        {
+            LogPrintf("%s: This is an update to a best claim. Previous claim txhash: %s, nOut: %d\n", __func__, prevTxhash.GetHex(), nPrevOut);
             return addClaimToQueue(name, txhash, nOut, nAmount, nHeight, nHeight);
+        }
     }
     return addClaim(name, txhash, nOut, nAmount, nHeight);
 }
 
 bool CNCCTrieCache::undoSpendClaim(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight, int nValidAtHeight) const
 {
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, nHeight: %d, nValidAtHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, nAmount, nHeight, nValidAtHeight, nCurrentHeight);
     if (nValidAtHeight < nCurrentHeight)
     {
         CNodeValue val(txhash, nOut, nAmount, nHeight, nValidAtHeight);
@@ -848,6 +855,7 @@ bool CNCCTrieCache::undoSpendClaim(const std::string name, uint256 txhash, uint3
 
 bool CNCCTrieCache::addClaimToQueue(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight, int nValidAtHeight) const
 {
+    LogPrintf("%s: nValidAtHeight: %d\n", __func__, nValidAtHeight);
     CNodeValue val(txhash, nOut, nAmount, nHeight, nValidAtHeight);
     CValueQueueEntry entry(name, val);
     valueQueueType::iterator itQueueRow = getQueueCacheRow(nValidAtHeight, true);
@@ -893,6 +901,7 @@ bool CNCCTrieCache::spendClaim(const std::string name, uint256 txhash, uint32_t 
 
 bool CNCCTrieCache::removeClaim(const std::string name, uint256 txhash, uint32_t nOut, int nHeight, int& nValidAtHeight) const
 {
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %s, nHeight: %s, nCurrentHeight: %s\n", __func__, name, txhash.GetHex(), nOut, nHeight, nCurrentHeight);
     if (nHeight + DEFAULT_DELAY >= nCurrentHeight)
     {
         if (removeClaimFromQueue(name, txhash, nOut, nHeight + DEFAULT_DELAY, nValidAtHeight))
@@ -907,6 +916,7 @@ bool CNCCTrieCache::removeClaim(const std::string name, uint256 txhash, uint32_t
 
 bool CNCCTrieCache::incrementBlock(CNCCTrieQueueUndo& undo) const
 {
+    LogPrintf("%s: nCurrentHeight (before increment): %d\n", __func__, nCurrentHeight);
     valueQueueType::iterator itQueueRow = getQueueCacheRow(nCurrentHeight, false);
     nCurrentHeight++;
     if (itQueueRow == valueQueueCache.end())
@@ -924,6 +934,7 @@ bool CNCCTrieCache::incrementBlock(CNCCTrieQueueUndo& undo) const
 
 bool CNCCTrieCache::decrementBlock(CNCCTrieQueueUndo& undo) const
 {
+    LogPrintf("%s: nCurrentHeight (before decrement): %d\n", __func__, nCurrentHeight);
     nCurrentHeight--;
     valueQueueType::iterator itQueueRow = getQueueCacheRow(nCurrentHeight, true);
     for (CNCCTrieQueueUndo::iterator itUndo = undo.begin(); itUndo != undo.end(); ++itUndo)
@@ -966,7 +977,7 @@ bool CNCCTrieCache::flush()
 {
     if (dirty())
         getMerkleHash();
-    bool success = base->update(cache, cacheHashes, hashBlock, valueQueueCache, nCurrentHeight);
+    bool success = base->update(cache, cacheHashes, getBestBlock(), valueQueueCache, nCurrentHeight);
     if (success)
     {
         success = clear();

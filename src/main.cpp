@@ -1878,9 +1878,26 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             if (!CheckInputs(tx, state, view, fScriptChecks, flags, false, nScriptCheckThreads ? &vChecks : NULL))
                 return false;
             control.Add(vChecks);
+
+            // To handle NCC updates, stick all NCC claims found in the inputs into a map of
+            // name: (txhash, nOut). When running through the outputs, if any NCC claim's
+            // name is found in the map, send the name's txhash and nOut to the trie cache,
+            // and then remove the name: (txhash, nOut) mapping from the map.
+            // If there are two or more NCC claims in the inputs with the same name, only
+            // use the first.
+            // TODO: before releasing, see if it's a better idea to make an explicit
+            // operation for updating, like OP_UPDATE_NAME, which directly references
+            // the claim to be updated. It would only be necessary to add a single extra
+            // parameter to the operation, the input number, to exactly specify which
+            // claim is being updated. Then here it would just need to be checked if that
+            // input number was already used by an earlier tx.vout in the transaction.
+
+            typedef std::map<std::string, std::pair<uint256, unsigned int> > spentClaimsType;
+            spentClaimsType spentClaims;
             
-            BOOST_FOREACH(const CTxIn& txin, tx.vin)
+            for (unsigned int i = 0; i < tx.vin.size(); ++i)
             {
+                const CTxIn& txin = tx.vin[i];
                 const CCoins* coins = view.AccessCoins(txin.prevout.hash);
                 assert(coins);
 
@@ -1894,6 +1911,10 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                     LogPrintf("%s: Removing %s from the ncc trie. Tx: %s, nOut: %d\n", __func__, name, txin.prevout.hash.GetHex(), txin.prevout.n);
                     if (!trieCache.spendClaim(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, nValidAtHeight))
                         LogPrintf("%s: Something went wrong removing the name\n", __func__);
+                    mNCCUndoHeights[i] = nValidAtHeight;
+                    std::pair<uint256, unsigned int> val(txin.prevout.hash, txin.prevout.n);
+                    std::pair<std::string, std::pair<uint256, unsigned int> > entry(name, val);
+                    spentClaims.insert(entry);
                 }
             }
             
@@ -1908,7 +1929,17 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                     assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     LogPrintf("%s: Inserting %s into the ncc trie. Tx: %s, nOut: %d\n", __func__, name, tx.GetHash().GetHex(), i);
-                    if (!trieCache.addClaim(name, tx.GetHash(), i, txout.nValue, pindex->nHeight))
+                    spentClaimsType::iterator itSpent = spentClaims.find(name);
+                    bool success;
+                    if (itSpent != spentClaims.end())
+                    {
+                        LogPrintf("%s: Updating a previous transaction. Old tx: %s, old nOut: %d\n", __func__, itSpent->second.first.GetHex(), itSpent->second.second);
+                        success = trieCache.addClaim(name, tx.GetHash(), i, txout.nValue, pindex->nHeight, itSpent->second.first, itSpent->second.second);
+                        spentClaims.erase(itSpent);
+                    }
+                    else
+                        success = trieCache.addClaim(name, tx.GetHash(), i, txout.nValue, pindex->nHeight);
+                    if (!success)
                         LogPrintf("%s: Something went wrong inserting the name\n", __func__);
                 }
             }
