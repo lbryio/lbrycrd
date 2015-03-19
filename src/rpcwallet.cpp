@@ -610,6 +610,9 @@ void ListNameClaims(const CWalletTx& wtx, const string& strAccount, int nMinDept
                 entry.push_back(Pair("amount", ValueFromAmount(s.amount)));
                 entry.push_back(Pair("vout", s.vout));
                 entry.push_back(Pair("fee", ValueFromAmount(nFee)));
+                entry.push_back(Pair("confirmations", wtx.GetDepthInMainChain()));
+                entry.push_back(Pair("is spent", pwalletMain->IsSpent(wtx.GetHash(), s.vout)));
+                entry.push_back(Pair("is in ncc trie", pnccTrie->haveClaim(sName, wtx.GetHash(), s.vout)));
                 ret.push_back(entry);
             }
         }

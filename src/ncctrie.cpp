@@ -87,6 +87,14 @@ bool CNCCTrieNode::getBestValue(CNodeValue& value) const
     }
 }
 
+bool CNCCTrieNode::haveValue(const uint256& txhash, uint32_t nOut) const
+{
+    for (std::vector<CNodeValue>::const_iterator itval = values.begin(); itval != values.end(); ++itval)
+        if (itval->txhash == txhash && itval->nOut == nOut)
+            return true;
+    return false;
+}
+
 uint256 CNCCTrie::getMerkleHash()
 {
     return root.hash;
@@ -100,6 +108,19 @@ bool CNCCTrie::empty() const
 bool CNCCTrie::queueEmpty() const
 {
     return valueQueue.empty();
+}
+
+bool CNCCTrie::haveClaim(const std::string& name, const uint256& txhash, uint32_t nOut) const
+{
+    const CNCCTrieNode* current = &root;
+    for (std::string::const_iterator itname = name.begin(); itname != name.end(); ++itname)
+    {
+        nodeMapType::const_iterator itchildren = current->children.find(*itname);
+        if (itchildren == current->children.end())
+            return false;
+        current = itchildren->second;
+    }
+    return current->haveValue(txhash, nOut);
 }
 
 bool CNCCTrie::recursiveDumpToJSON(const std::string& name, const CNCCTrieNode* current, json_spirit::Array& ret) const

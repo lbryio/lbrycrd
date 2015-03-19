@@ -88,7 +88,7 @@ public:
     bool removeValue(uint256& txhash, uint32_t nOut, CNodeValue& val, bool * fChanged = NULL);
     bool getBestValue(CNodeValue& val) const;
     bool empty() const {return children.empty() && values.empty();}
-
+    bool haveValue(const uint256& txhash, uint32_t nOut) const;
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
@@ -159,6 +159,7 @@ public:
     bool getInfoForName(const std::string& name, CNodeValue& val) const;
     int nCurrentHeight;
     bool queueEmpty() const;
+    bool haveClaim(const std::string& name, const uint256& txhash, uint32_t nOut) const;
     friend class CNCCTrieCache;
 private:
     bool update(nodeCacheType& cache, hashMapType& hashes, const uint256& hashBlock, valueQueueType& queueCache, int nNewHeight);
