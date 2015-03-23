@@ -26,7 +26,6 @@ public:
     int nHeight;
     int nValidAtHeight;
     CNodeValue() {};
-    //CNodeValue(uint256 txhash, uint32_t nOut) : txhash(txhash), nOut(nOut), nAmount(0), nHeight(0), nValidAtHeight(0) {}
     CNodeValue(uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight, int nValidAtHeight) : txhash(txhash), nOut(nOut), nAmount(nAmount), nHeight(nHeight), nValidAtHeight(nValidAtHeight) {}
     std::string ToString();
     
@@ -149,11 +148,12 @@ class CNCCTrieCache;
 class CNCCTrie
 {
 public:
-    CNCCTrie() : db(GetDataDir() / "ncctrie", 100, false, false), nCurrentHeight(1), root(uint256S("0000000000000000000000000000000000000000000000000000000000000001")) {}
+    CNCCTrie(bool fMemory = false, bool fWipe = false) : db(GetDataDir() / "ncctrie", 100, fMemory, fWipe), nCurrentHeight(1), root(uint256S("0000000000000000000000000000000000000000000000000000000000000001")) {}
     uint256 getMerkleHash();
     CLevelDBWrapper db;
     bool empty() const;
     bool checkConsistency();
+    bool WriteToDisk();
     bool ReadFromDisk(bool check = false);
     json_spirit::Array dumpToJSON() const;
     bool getInfoForName(const std::string& name, CNodeValue& val) const;
@@ -163,17 +163,20 @@ public:
     friend class CNCCTrieCache;
 private:
     bool update(nodeCacheType& cache, hashMapType& hashes, const uint256& hashBlock, valueQueueType& queueCache, int nNewHeight);
-    bool updateName(const std::string& name, CNCCTrieNode* updatedNode, std::vector<std::string>& deletedNames, CNCCTrieNode** pNodeRet);
-    bool updateHash(const std::string& name, uint256& hash, CNCCTrieNode** pNodeRet);
-    bool recursiveNullify(CNCCTrieNode* node, std::string& name, std::vector<std::string>& deletedNames);
+    bool updateName(const std::string& name, CNCCTrieNode* updatedNode);
+    bool updateHash(const std::string& name, uint256& hash);
+    bool recursiveNullify(CNCCTrieNode* node, std::string& name);
     bool recursiveCheckConsistency(CNCCTrieNode* node);
-    bool BatchWrite(nodeCacheType& changedNodes, std::vector<std::string>& deletedNames, const uint256& hashBlock, std::vector<int> vChangedQueueRows, std::vector<int> vDeletedQueueRows, int nNewHeight);
     bool InsertFromDisk(const std::string& name, CNCCTrieNode* node);
     bool recursiveDumpToJSON(const std::string& name, const CNCCTrieNode* current, json_spirit::Array& ret) const;
     CNCCTrieNode root;
     uint256 hashBlock;
     valueQueueType valueQueue;
-    valueQueueType::iterator getQueueRow(int nHeight);
+    valueQueueType::iterator getQueueRow(int nHeight, bool deleteIfNotExists);
+    
+    nodeCacheType dirtyNodes;
+    std::vector<int> vDirtyQueueRows;
+    void markNodeDirty(const std::string& name, CNCCTrieNode* node);
     void deleteQueueRow(int nHeight);
     void BatchWriteNode(CLevelDBBatch& batch, const std::string& name, const CNCCTrieNode* pNode) const;
     void BatchEraseNode(CLevelDBBatch& batch, const std::string& nome) const;

@@ -1046,7 +1046,7 @@ bool AppInit2(boost::thread_group& threadGroup)
                 pcoinsdbview = new CCoinsViewDB(nCoinDBCache, false, fReindex);
                 pcoinscatcher = new CCoinsViewErrorCatcher(pcoinsdbview);
                 pcoinsTip = new CCoinsViewCache(pcoinscatcher);
-                pnccTrie = new CNCCTrie();
+                pnccTrie = new CNCCTrie(false, fReindex);
 
                 if (fReindex)
                     pblocktree->WriteReindexing(true);

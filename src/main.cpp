@@ -2081,6 +2081,8 @@ bool static FlushStateToDisk(CValidationState &state, FlushStateMode mode) {
             }
         }
         // Finally flush the chainstate (which may refer to block index entries).
+        if (!pnccTrie->WriteToDisk())
+            return state.Abort("Failed to write to ncc trie database");
         if (!pcoinsTip->Flush())
             return state.Abort("Failed to write to coin database");
         // Update best block in wallet (so we can detect restored wallets).

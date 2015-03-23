@@ -42,7 +42,7 @@ struct TestingSetup {
         pblocktree = new CBlockTreeDB(1 << 20, true);
         pcoinsdbview = new CCoinsViewDB(1 << 23, true);
         pcoinsTip = new CCoinsViewCache(pcoinsdbview);
-        pnccTrie = new CNCCTrie();
+        pnccTrie = new CNCCTrie(true);
         InitBlockIndex();
 #ifdef ENABLE_WALLET
         bool fFirstRun;

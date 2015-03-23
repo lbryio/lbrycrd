@@ -40,7 +40,6 @@ bool CNCCTrieNode::removeValue(uint256& txhash, uint32_t nOut, CNodeValue& val, 
 
     CNodeValue currentTop = values.front();
 
-    //std::vector<CNodeValue>::iterator position = std::find(values.begin(), values.end(), val);
     std::vector<CNodeValue>::iterator position;
     for (position = values.begin(); position != values.end(); ++position)
     {
@@ -214,11 +213,13 @@ bool CNCCTrie::recursiveCheckConsistency(CNCCTrieNode* node)
     return calculatedHash == node->hash;
 }
 
-valueQueueType::iterator CNCCTrie::getQueueRow(int nHeight)
+valueQueueType::iterator CNCCTrie::getQueueRow(int nHeight, bool createIfNotExists)
 {
     valueQueueType::iterator itQueueRow = valueQueue.find(nHeight);
     if (itQueueRow == valueQueue.end())
     {
+        if (!createIfNotExists)
+            return itQueueRow;
         std::vector<CValueQueueEntry> queueRow;
         std::pair<valueQueueType::iterator, bool> ret;
         ret = valueQueue.insert(std::pair<int, std::vector<CValueQueueEntry> >(nHeight, queueRow));
@@ -250,56 +251,54 @@ bool CNCCTrie::update(nodeCacheType& cache, hashMapType& hashes, const uint256& 
     // This can probably be optimized by checking each substring against
     // the caches each time, but that will come after this is shown to
     // work correctly.
-    // As far as saving to disk goes, the idea is to use the list of
-    // hashes to construct a list of (pointers to) nodes that have been
-    // altered in the update, and to construct a list of names of nodes
-    // that have been deleted, and to use a leveldb batch to write them
-    // all to disk. As of right now, txundo stuff will be handled by
-    // appending extra data to the normal txundo, which will call the
-    // normal insert/remove names, but obviously the opposite and in
-    // reverse order (though the order shouldn't ever matter).
+    // Disk strategy: keep a map of <string: dirty node>, where
+    // any nodes that are changed get put into the map, and any nodes
+    // to be deleted will simply be empty (no value, no children). Nodes
+    // whose hashes change will also be inserted into the map.
+    // As far as the queue goes, just keep a list of dirty queue entries.
+    // When the time comes, send all of that to disk in one batch, and
+    // empty the map/list.
+    
     bool success = true;
-    std::vector<std::string> deletedNames;
-    nodeCacheType changedNodes;
     for (nodeCacheType::iterator itcache = cache.begin(); itcache != cache.end(); ++itcache)
     {
-        CNCCTrieNode* pNode;
-        success = updateName(itcache->first, itcache->second, deletedNames, &pNode);
+        success = updateName(itcache->first, itcache->second);
         if (!success)
             return false;
-        changedNodes[itcache->first] = pNode;
     }
     for (hashMapType::iterator ithash = hashes.begin(); ithash != hashes.end(); ++ithash)
     {
-        CNCCTrieNode* pNode;
-        success = updateHash(ithash->first, ithash->second, &pNode);
+        success = updateHash(ithash->first, ithash->second);
         if (!success)
             return false;
-        changedNodes[ithash->first] = pNode;
     }
-    std::vector<int> vChangedQueueRows;
-    std::vector<int> vDeletedQueueRows;
     for (valueQueueType::iterator itQueueCacheRow = queueCache.begin(); itQueueCacheRow != queueCache.end(); ++itQueueCacheRow)
     {
         if (itQueueCacheRow->second.empty())
         {
-            vDeletedQueueRows.push_back(itQueueCacheRow->first);
             deleteQueueRow(itQueueCacheRow->first);
         }
         else
         {
-            vChangedQueueRows.push_back(itQueueCacheRow->first);
-            valueQueueType::iterator itQueueRow = getQueueRow(itQueueCacheRow->first);
+            valueQueueType::iterator itQueueRow = getQueueRow(itQueueCacheRow->first, true);
             itQueueRow->second.swap(itQueueCacheRow->second);
         }
+        vDirtyQueueRows.push_back(itQueueCacheRow->first);
     }
-    BatchWrite(changedNodes, deletedNames, hashBlockIn, vChangedQueueRows, vDeletedQueueRows, nNewHeight);
     hashBlock = hashBlockIn;
     nCurrentHeight = nNewHeight;
     return true;
 }
 
-bool CNCCTrie::updateName(const std::string &name, CNCCTrieNode* updatedNode, std::vector<std::string>& deletedNames, CNCCTrieNode** pNodeRet)
+void CNCCTrie::markNodeDirty(const std::string &name, CNCCTrieNode* node)
+{
+    std::pair<nodeCacheType::iterator, bool> ret;
+    ret = dirtyNodes.insert(std::pair<std::string, CNCCTrieNode*>(name, node));
+    if (ret.second == false)
+        ret.first->second = node;
+}
+
+bool CNCCTrie::updateName(const std::string &name, CNCCTrieNode* updatedNode)
 {
     CNCCTrieNode* current = &root;
     for (std::string::const_iterator itname = name.begin(); itname != name.end(); ++itname)
@@ -323,7 +322,7 @@ bool CNCCTrie::updateName(const std::string &name, CNCCTrieNode* updatedNode, st
     }
     assert(current != NULL);
     current->values.swap(updatedNode->values);
-    *pNodeRet = current;
+    markNodeDirty(name, current);
     for (nodeMapType::iterator itchild = current->children.begin(); itchild != current->children.end();)
     {
         nodeMapType::iterator itupdatechild = updatedNode->children.find(itchild->first);
@@ -334,7 +333,7 @@ bool CNCCTrie::updateName(const std::string &name, CNCCTrieNode* updatedNode, st
             std::stringstream ss;
             ss << name << itchild->first;
             std::string newName = ss.str();
-            if (!recursiveNullify(itchild->second, newName, deletedNames))
+            if (!recursiveNullify(itchild->second, newName))
                 return false;
             current->children.erase(itchild++);
         }
@@ -344,7 +343,7 @@ bool CNCCTrie::updateName(const std::string &name, CNCCTrieNode* updatedNode, st
     return true;
 }
 
-bool CNCCTrie::recursiveNullify(CNCCTrieNode* node, std::string& name, std::vector<std::string>& deletedNames)
+bool CNCCTrie::recursiveNullify(CNCCTrieNode* node, std::string& name)
 {
     assert(node != NULL);
     for (nodeMapType::iterator itchild = node->children.begin(); itchild != node->children.end(); ++itchild)
@@ -352,16 +351,16 @@ bool CNCCTrie::recursiveNullify(CNCCTrieNode* node, std::string& name, std::vect
         std::stringstream ss;
         ss << name << itchild->first;
         std::string newName = ss.str();
-        if (!recursiveNullify(itchild->second, newName, deletedNames))
+        if (!recursiveNullify(itchild->second, newName))
             return false;
     }
     node->children.clear();
+    markNodeDirty(name, NULL);
     delete node;
-    deletedNames.push_back(name);
     return true;
 }
 
-bool CNCCTrie::updateHash(const std::string& name, uint256& hash, CNCCTrieNode** pNodeRet)
+bool CNCCTrie::updateHash(const std::string& name, uint256& hash)
 {
     CNCCTrieNode* current = &root;
     for (std::string::const_iterator itname = name.begin(); itname != name.end(); ++itname)
@@ -373,45 +372,39 @@ bool CNCCTrie::updateHash(const std::string& name, uint256& hash, CNCCTrieNode**
     }
     assert(current != NULL);
     current->hash = hash;
-    *pNodeRet = current;
+    markNodeDirty(name, current);
     return true;
 }
 
 void CNCCTrie::BatchWriteNode(CLevelDBBatch& batch, const std::string& name, const CNCCTrieNode* pNode) const
 {
     LogPrintf("%s: Writing %s to disk with %d values\n", __func__, name, pNode->values.size());
-    batch.Write(std::make_pair('n', name), *pNode);
-}
-
-void CNCCTrie::BatchEraseNode(CLevelDBBatch& batch, const std::string& name) const
-{
-    batch.Erase(std::make_pair('n', name));
+    if (pNode)
+        batch.Write(std::make_pair('n', name), *pNode);
+    else
+        batch.Erase(std::make_pair('n', name));
 }
 
 void CNCCTrie::BatchWriteQueueRow(CLevelDBBatch& batch, int nRowNum)
 {
-    valueQueueType::iterator itQueueRow = getQueueRow(nRowNum);
-    batch.Write(std::make_pair('r', nRowNum), itQueueRow->second);
+    valueQueueType::iterator itQueueRow = getQueueRow(nRowNum, false);
+    if (itQueueRow != valueQueue.end())
+        batch.Write(std::make_pair('r', nRowNum), itQueueRow->second);
+    else
+        batch.Erase(std::make_pair('r', nRowNum));
 }
 
-void CNCCTrie::BatchEraseQueueRow(CLevelDBBatch& batch, int nRowNum)
-{
-    batch.Erase(std::make_pair('r', nRowNum));
-}
-
-bool CNCCTrie::BatchWrite(nodeCacheType& changedNodes, std::vector<std::string>& deletedNames, const uint256& hashBlockIn, std::vector<int> vChangedQueueRows, std::vector<int> vDeletedQueueRows, int nNewHeight)
+bool CNCCTrie::WriteToDisk()
 {
     CLevelDBBatch batch;
-    for (nodeCacheType::iterator itcache = changedNodes.begin(); itcache != changedNodes.end(); ++itcache)
+    for (nodeCacheType::iterator itcache = dirtyNodes.begin(); itcache != dirtyNodes.end(); ++itcache)
         BatchWriteNode(batch, itcache->first, itcache->second);
-    for (std::vector<std::string>::iterator itname = deletedNames.begin(); itname != deletedNames.end(); ++itname)
-        BatchEraseNode(batch, *itname);
-    for (std::vector<int>::iterator itRowNum = vChangedQueueRows.begin(); itRowNum != vChangedQueueRows.end(); ++itRowNum)
+    dirtyNodes.clear();
+    for (std::vector<int>::iterator itRowNum = vDirtyQueueRows.begin(); itRowNum != vDirtyQueueRows.end(); ++itRowNum)
         BatchWriteQueueRow(batch, *itRowNum);
-    for (std::vector<int>::iterator itRowNum = vDeletedQueueRows.begin(); itRowNum != vDeletedQueueRows.end(); ++itRowNum)
-        BatchEraseQueueRow(batch, *itRowNum);
-    batch.Write('h', hashBlockIn);
-    batch.Write('t', nNewHeight);
+    vDirtyQueueRows.clear();
+    batch.Write('h', hashBlock);
+    batch.Write('t', nCurrentHeight);
     return db.WriteBatch(batch);
 }
 
@@ -468,7 +461,7 @@ bool CNCCTrie::ReadFromDisk(bool check)
                 int nHeight;
                 ssKey >> nHeight;
                 CDataStream ssValue(slValue.data(), slValue.data()+slValue.size(), SER_DISK, CLIENT_VERSION);
-                valueQueueType::iterator itQueueRow = getQueueRow(nHeight);
+                valueQueueType::iterator itQueueRow = getQueueRow(nHeight, true);
                 ssValue >> itQueueRow->second;
             }
             pcursor->Next();
