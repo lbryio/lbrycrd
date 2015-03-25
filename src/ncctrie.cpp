@@ -109,6 +109,20 @@ bool CNCCTrie::queueEmpty() const
     return valueQueue.empty();
 }
 
+void CNCCTrie::clear()
+{
+    clear(&root);
+}
+
+void CNCCTrie::clear(CNCCTrieNode* current)
+{
+    for (nodeMapType::const_iterator itchildren = current->children.begin(); itchildren != current->children.end(); ++itchildren)
+    {
+        clear(itchildren->second);
+        delete itchildren->second;
+    }
+}
+
 bool CNCCTrie::haveClaim(const std::string& name, const uint256& txhash, uint32_t nOut) const
 {
     const CNCCTrieNode* current = &root;

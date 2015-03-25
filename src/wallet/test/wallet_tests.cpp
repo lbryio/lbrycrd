@@ -2,12 +2,14 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "wallet.h"
+#include "wallet/wallet.h"
 
 #include <set>
 #include <stdint.h>
 #include <utility>
 #include <vector>
+
+#include "test/test_bitcoin.h"
 
 #include <boost/foreach.hpp>
 #include <boost/test/unit_test.hpp>
@@ -23,7 +25,7 @@ using namespace std;
 
 typedef set<pair<const CWalletTx*,unsigned int> > CoinSet;
 
-BOOST_AUTO_TEST_SUITE(wallet_tests)
+BOOST_FIXTURE_TEST_SUITE(wallet_tests, TestingSetup)
 
 static CWallet wallet;
 static vector<COutput> vCoins;

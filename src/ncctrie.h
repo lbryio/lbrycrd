@@ -152,6 +152,7 @@ public:
     uint256 getMerkleHash();
     CLevelDBWrapper db;
     bool empty() const;
+    void clear();
     bool checkConsistency();
     bool WriteToDisk();
     bool ReadFromDisk(bool check = false);
@@ -162,6 +163,7 @@ public:
     bool haveClaim(const std::string& name, const uint256& txhash, uint32_t nOut) const;
     friend class CNCCTrieCache;
 private:
+    void clear(CNCCTrieNode* current);
     bool update(nodeCacheType& cache, hashMapType& hashes, const uint256& hashBlock, valueQueueType& queueCache, int nNewHeight);
     bool updateName(const std::string& name, CNCCTrieNode* updatedNode);
     bool updateHash(const std::string& name, uint256& hash);

@@ -10,10 +10,11 @@
 #include "streams.h"
 #include <boost/test/unit_test.hpp>
 #include <iostream>
+#include "test/test_bitcoin.h"
 
 using namespace std;
 
-BOOST_AUTO_TEST_SUITE(ncctrie_tests)
+BOOST_FIXTURE_TEST_SUITE(ncctrie_tests, TestingSetup)
 
 CMutableTransaction BuildTransaction(const uint256& prevhash)
 {
