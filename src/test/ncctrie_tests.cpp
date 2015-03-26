@@ -110,16 +110,16 @@ BOOST_AUTO_TEST_CASE(ncctrie_merkle_hash)
     CMutableTransaction tx6 = BuildTransaction(tx5.GetHash());
 
     uint256 hash1;
-    hash1.SetHex("2f3ae25e923dfa6fc24f0ff5d4367239425effaf47b703857436947a2dbfdda1");
+    hash1.SetHex("09732c6efebb4065a27f184285a6b66280a978cf972b1f41a563f0d3644f3e5c");
     
     uint256 hash2;
-    hash2.SetHex("833c0a897d1e32b16a7988c574dbcd750ed6695b947dea7b16e7782eac070a5d");
+    hash2.SetHex("8db92b76b6b0416d7abda4fd7404ba69e340853dfe9ffc04843c50142b857471");
     
     uint256 hash3;
-    hash3.SetHex("5ea4c62fb56bbca0cdf6fe4b2668c737641b4f48af8ef5041faa42df12aa3078");
+    hash3.SetHex("2e38561067f3e83d6ca0b627861689de72bba77cb5aca69d13b3685b5229525b");
     
     uint256 hash4;
-    hash4.SetHex("47ae7f3ab9c0e9b13d08d5535a76fd36cecad0529baca390cea77b5bd3d99290");
+    hash4.SetHex("6ec84089eb4ca1aeead6cf3538d4def78baebb44715c31be8790e627e0dcbc28");
 
     BOOST_CHECK(pnccTrie->empty());
 

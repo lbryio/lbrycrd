@@ -27,8 +27,7 @@ public:
     int nValidAtHeight;
     CNodeValue() {};
     CNodeValue(uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight, int nValidAtHeight) : txhash(txhash), nOut(nOut), nAmount(nAmount), nHeight(nHeight), nValidAtHeight(nValidAtHeight) {}
-    std::string ToString();
-    
+    uint256 GetHash() const;
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>

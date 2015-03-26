@@ -3,11 +3,29 @@
 
 #include <boost/scoped_ptr.hpp>
 
-std::string CNodeValue::ToString()
+uint256 CNodeValue::GetHash() const
 {
+    CHash256 valTxHasher;
+    valTxHasher.Write(txhash.begin(), txhash.size());
+    std::vector<unsigned char> vchValTxHash(valTxHasher.OUTPUT_SIZE);
+    valTxHasher.Finalize(&(vchValTxHash[0]));
+        
+    CHash256 valnOutHasher;
     std::stringstream ss;
     ss << nOut;
-    return txhash.ToString() + ss.str();
+    std::string snOut = ss.str();
+    valnOutHasher.Write((unsigned char*) snOut.data(), snOut.size());
+    std::vector<unsigned char> vchValnOutHash(valnOutHasher.OUTPUT_SIZE);
+    valnOutHasher.Finalize(&(vchValnOutHash[0]));
+
+    CHash256 valHasher;
+    valHasher.Write(vchValTxHash.data(), vchValTxHash.size());
+    valHasher.Write(vchValnOutHash.data(), vchValnOutHash.size());
+    std::vector<unsigned char> vchValHash(valHasher.OUTPUT_SIZE);
+    valHasher.Finalize(&(vchValHash[0]));
+    
+    uint256 valHash(vchValHash);
+    return valHash;
 }
 
 bool CNCCTrieNode::insertValue(CNodeValue val, bool * pfChanged)
@@ -35,7 +53,7 @@ bool CNCCTrieNode::insertValue(CNodeValue val, bool * pfChanged)
 
 bool CNCCTrieNode::removeValue(uint256& txhash, uint32_t nOut, CNodeValue& val, bool * pfChanged)
 {
-    LogPrintf("%s: Removing %s from the ncc trie\n", __func__, val.ToString());
+    LogPrintf("%s: Removing txid: %s, nOut: %d from the ncc trie\n", __func__, txhash.ToString(), nOut);
     bool fChanged = false;
 
     CNodeValue currentTop = values.front();
@@ -53,12 +71,11 @@ bool CNCCTrieNode::removeValue(uint256& txhash, uint32_t nOut, CNodeValue& val, 
         values.erase(position);
     else
     {
-        LogPrintf("CNCCTrieNode::removeValue() : asked to remove a value that doesn't exist\n");
-        LogPrintf("CNCCTrieNode::removeValue() : value that doesn't exist: %s.\n", val.ToString());
-        LogPrintf("CNCCTrieNode::removeValue() : values that do exist:\n");
+        LogPrintf("CNCCTrieNode::%s() : asked to remove a value that doesn't exist\n", __func__);
+        LogPrintf("CNCCTrieNode::%s() : values that do exist:\n", __func__);
         for (unsigned int i = 0; i < values.size(); i++)
         {
-            LogPrintf("%s\n", values[i].ToString());
+            LogPrintf("\ttxid: %s, nOut: %d\n", values[i].txhash.ToString(), values[i].nOut);
         }
         return false;
     }
@@ -191,16 +208,14 @@ bool CNCCTrie::checkConsistency()
 
 bool CNCCTrie::recursiveCheckConsistency(CNCCTrieNode* node)
 {
-    std::string stringToHash;
+    std::vector<unsigned char> vchToHash;
 
     for (nodeMapType::iterator it = node->children.begin(); it != node->children.end(); ++it)
     {
-        std::stringstream ss;
-        ss << it->first;
         if (recursiveCheckConsistency(it->second))
         {
-            stringToHash += ss.str();
-            stringToHash += it->second->hash.ToString();
+            vchToHash.push_back(it->first);
+            vchToHash.insert(vchToHash.end(), it->second->hash.begin(), it->second->hash.end());
         }
         else
             return false;
@@ -211,17 +226,13 @@ bool CNCCTrie::recursiveCheckConsistency(CNCCTrieNode* node)
 
     if (hasValue)
     {
-        CHash256 valHasher;
-        std::vector<unsigned char> vchValHash(valHasher.OUTPUT_SIZE);
-        valHasher.Write((const unsigned char*) val.ToString().data(), val.ToString().size());
-        valHasher.Finalize(&(vchValHash[0]));
-        uint256 valHash(vchValHash);
-        stringToHash += valHash.ToString();
+        uint256 valHash = val.GetHash();
+        vchToHash.insert(vchToHash.end(), valHash.begin(), valHash.end());
     }
 
     CHash256 hasher;
     std::vector<unsigned char> vchHash(hasher.OUTPUT_SIZE);
-    hasher.Write((const unsigned char*) stringToHash.data(), stringToHash.size());
+    hasher.Write(vchToHash.data(), vchToHash.size());
     hasher.Finalize(&(vchHash[0]));
     uint256 calculatedHash(vchHash);
     return calculatedHash == node->hash;
@@ -507,8 +518,7 @@ bool CNCCTrieCache::recursiveComputeMerkleHash(CNCCTrieNode* tnCurrent, std::str
         cacheHashes[""] = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
         return true;
     }
-    std::string stringToHash;
-
+    std::vector<unsigned char> vchToHash;
     nodeCacheType::iterator cachedNode;
 
 
@@ -526,12 +536,16 @@ bool CNCCTrieCache::recursiveComputeMerkleHash(CNCCTrieNode* tnCurrent, std::str
             else
                 recursiveComputeMerkleHash(it->second, sNextPos);
         }
-        stringToHash += ss.str();
+        vchToHash.push_back(it->first);
         hashMapType::iterator ithash = cacheHashes.find(sNextPos);
         if (ithash != cacheHashes.end())
-            stringToHash += ithash->second.ToString();
+        {
+            vchToHash.insert(vchToHash.end(), ithash->second.begin(), ithash->second.end());
+        }
         else
-            stringToHash += it->second->hash.ToString();
+        {
+            vchToHash.insert(vchToHash.end(), it->second->hash.begin(), it->second->hash.end());
+        }
     }
     
     CNodeValue val;
@@ -539,17 +553,13 @@ bool CNCCTrieCache::recursiveComputeMerkleHash(CNCCTrieNode* tnCurrent, std::str
 
     if (hasValue)
     {
-        CHash256 valHasher;
-        std::vector<unsigned char> vchValHash(valHasher.OUTPUT_SIZE);
-        valHasher.Write((const unsigned char*) val.ToString().data(), val.ToString().size());
-        valHasher.Finalize(&(vchValHash[0]));
-        uint256 valHash(vchValHash);
-        stringToHash += valHash.ToString();
+        uint256 valHash = val.GetHash();
+        vchToHash.insert(vchToHash.end(), valHash.begin(), valHash.end());
     }
 
     CHash256 hasher;
     std::vector<unsigned char> vchHash(hasher.OUTPUT_SIZE);
-    hasher.Write((const unsigned char*) stringToHash.data(), stringToHash.size());
+    hasher.Write(vchToHash.data(), vchToHash.size());
     hasher.Finalize(&(vchHash[0]));
     cacheHashes[sPos] = uint256(vchHash);
     std::set<std::string>::iterator itDirty = dirtyHashes.find(sPos);
