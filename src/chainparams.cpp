@@ -184,7 +184,7 @@ public:
         //vSeeds.push_back(CDNSSeedData("xf2.org", "bitseed.xf2.org"));
 
         vSeeds.clear();
-        //vFixedSeeds.clear();
+        vFixedSeeds.clear();
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,0);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,5);
