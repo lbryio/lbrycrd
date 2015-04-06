@@ -74,7 +74,7 @@ bool CreateBlock(CBlockTemplate* pblocktemplate, bool f = false)
     for (int i = 0; ; ++i)
     {
         pblock->nNonce = i;
-        if (CheckProofOfWork(pblock->GetHash(), pblock->nBits))
+        if (CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus()))
             break;
     }
     CValidationState state;

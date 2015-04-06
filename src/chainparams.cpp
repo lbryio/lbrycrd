@@ -106,6 +106,14 @@ class CMainParams : public CChainParams {
 public:
     CMainParams() {
         strNetworkID = "newcc";
+        consensus.nSubsidyHalvingInterval = 2100000;
+        consensus.nMajorityEnforceBlockUpgrade = 750;
+        consensus.nMajorityRejectBlockOutdated = 950;
+        consensus.nMajorityWindow = 1000;
+        consensus.powLimit = ~arith_uint256(0) >> 1;
+        consensus.nPowTargetTimespan = 30 * 60 * 12;//14 * 24 * 60 * 60; // two weeks
+        consensus.nPowTargetSpacing = 30;
+        consensus.fPowAllowMinDifficultyBlocks = false;
         /** 
          * The message start string is designed to be unlikely to occur in normal data.
          * The characters are rarely used upper ASCII, not valid as UTF-8, and produce
@@ -117,14 +125,7 @@ public:
         pchMessageStart[3] = 0xd9;
         vAlertPubKey = ParseHex("04fc9702847840aaf195de8442ebecedf5b095cdbb9bc716bda9110971b28a49e0ead8564ff0db22209e0374782c093bb899692d524e9d6a6956e7c5ecbcd68284");
         nDefaultPort = 8333;
-        bnProofOfWorkLimit = ~arith_uint256(0) >> 1;
-        nSubsidyHalvingInterval = 2100000;
-        nEnforceBlockUpgradeMajority = 750;
-        nRejectBlockOutdatedMajority = 950;
-        nToCheckBlockUpgradeMajority = 1000;
         nMinerThreads = 2;
-        nTargetTimespan = 30 * 60 * 12;//14 * 24 * 60 * 60; // two weeks
-        nTargetSpacing = 30;
 
         /**
          * Build the genesis block. Note that the output of the genesis coinbase cannot
@@ -168,10 +169,10 @@ public:
             }
         }*/
 
-        hashGenesisBlock = genesis.GetHash();
+        consensus.hashGenesisBlock = genesis.GetHash();
         //printf("%s\n", hashGenesisBlock.GetHex().c_str());
-        //assert(hashGenesisBlock == uint256("0x000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"));
-        assert(hashGenesisBlock == uint256S("0x00ef6ded2b610fc5e4f06d187d12136bd5fba7b932fa0b66bf353c7c1648ec9c"));
+        //assert(consensus.hashGenesisBlock == uint256S("0x000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"));
+        assert(consensus.hashGenesisBlock == uint256S("0x00ef6ded2b610fc5e4f06d187d12136bd5fba7b932fa0b66bf353c7c1648ec9c"));
         //printf("%s\n", genesis.hashMerkleRoot.GetHex().c_str());
         //assert(genesis.hashMerkleRoot == uint256("0x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"));
         assert(genesis.hashMerkleRoot == uint256S("0xa7d51d407092059a2beeffab22e65d6176cfb3c33b93515109480aa7c81c9141"));
@@ -180,7 +181,6 @@ public:
         //vSeeds.push_back(CDNSSeedData("bluematt.me", "dnsseed.bluematt.me"));
         //vSeeds.push_back(CDNSSeedData("dashjr.org", "dnsseed.bitcoin.dashjr.org"));
         //vSeeds.push_back(CDNSSeedData("bitcoinstats.com", "seed.bitcoinstats.com"));
-        //vSeeds.push_back(CDNSSeedData("bitnodes.io", "seed.bitnodes.io"));
         //vSeeds.push_back(CDNSSeedData("xf2.org", "bitseed.xf2.org"));
 
         vSeeds.clear();
@@ -196,8 +196,7 @@ public:
 
         fRequireRPCPassword = true;
         fMiningRequiresPeers = true;
-        fDefaultCheckMemPool = false;
-        fAllowMinDifficultyBlocks = false;
+        fDefaultConsistencyChecks = false;
         fRequireStandard = true;
         fMineBlocksOnDemand = false;
         fTestnetToBeDeprecatedFieldRPC = false;
@@ -217,24 +216,23 @@ class CTestNetParams : public CMainParams {
 public:
     CTestNetParams() {
         strNetworkID = "test";
+        consensus.nMajorityEnforceBlockUpgrade = 51;
+        consensus.nMajorityRejectBlockOutdated = 75;
+        consensus.nMajorityWindow = 100;
+        consensus.fPowAllowMinDifficultyBlocks = true;
         pchMessageStart[0] = 0x0b;
         pchMessageStart[1] = 0x11;
         pchMessageStart[2] = 0x09;
         pchMessageStart[3] = 0x07;
         vAlertPubKey = ParseHex("04302390343f91cc401d56d68b123028bf52e5fca1939df127f63c6467cdf9c8e2c14b61104cf817d0b780da337893ecc4aaff1309e536162dabbdb45200ca2b0a");
         nDefaultPort = 18333;
-        nEnforceBlockUpgradeMajority = 51;
-        nRejectBlockOutdatedMajority = 75;
-        nToCheckBlockUpgradeMajority = 100;
         nMinerThreads = 0;
-        nTargetTimespan = 14 * 24 * 60 * 60; //! two weeks
-        nTargetSpacing = 10 * 60;
 
         //! Modify the testnet genesis block so the timestamp is valid for a later start.
         genesis.nTime = 1296688602;
         genesis.nNonce = 414098458;
-        hashGenesisBlock = genesis.GetHash();
-        //assert(hashGenesisBlock == uint256("0x000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"));
+        consensus.hashGenesisBlock = genesis.GetHash();
+        //assert(consensus.hashGenesisBlock == uint256("0x000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"));
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -253,8 +251,7 @@ public:
 
         fRequireRPCPassword = true;
         fMiningRequiresPeers = true;
-        fDefaultCheckMemPool = false;
-        fAllowMinDifficultyBlocks = true;
+        fDefaultConsistencyChecks = false;
         fRequireStandard = false;
         fMineBlocksOnDemand = false;
         fTestnetToBeDeprecatedFieldRPC = true;
@@ -273,32 +270,29 @@ class CRegTestParams : public CTestNetParams {
 public:
     CRegTestParams() {
         strNetworkID = "regtest";
+        consensus.nSubsidyHalvingInterval = 150;
+        consensus.nMajorityEnforceBlockUpgrade = 750;
+        consensus.nMajorityRejectBlockOutdated = 950;
+        consensus.nMajorityWindow = 1000;
+        consensus.powLimit = ~arith_uint256(0) >> 1;
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xbf;
         pchMessageStart[2] = 0xb5;
         pchMessageStart[3] = 0xda;
-        nSubsidyHalvingInterval = 150;
-        nEnforceBlockUpgradeMajority = 750;
-        nRejectBlockOutdatedMajority = 950;
-        nToCheckBlockUpgradeMajority = 1000;
         nMinerThreads = 1;
-        nTargetTimespan = 14 * 24 * 60 * 60; //! two weeks
-        nTargetSpacing = 10 * 60;
-        bnProofOfWorkLimit = ~arith_uint256(0) >> 1;
         genesis.nTime = 1296688602;
         genesis.nBits = 0x207fffff;
         genesis.nNonce = 2;
-        hashGenesisBlock = genesis.GetHash();
+        consensus.hashGenesisBlock = genesis.GetHash();
         nDefaultPort = 18444;
-        //assert(hashGenesisBlock == uint256("0x0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"));
+        //assert(consensus.hashGenesisBlock == uint256("0x0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"));
 
         vFixedSeeds.clear(); //! Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();  //! Regtest mode doesn't have any DNS seeds.
 
         fRequireRPCPassword = false;
         fMiningRequiresPeers = false;
-        fDefaultCheckMemPool = true;
-        fAllowMinDifficultyBlocks = true;
+        fDefaultConsistencyChecks = true;
         fRequireStandard = false;
         fMineBlocksOnDemand = true;
         fTestnetToBeDeprecatedFieldRPC = false;

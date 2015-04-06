@@ -18,7 +18,6 @@
 #include "primitives/transaction.h"
 #include "ncctrie.h"
 #include "net.h"
-#include "pow.h"
 #include "script/script.h"
 #include "script/sigcache.h"
 #include "script/standard.h"
@@ -117,7 +116,6 @@ extern BlockMap mapBlockIndex;
 extern uint64_t nLastBlockTx;
 extern uint64_t nLastBlockSize;
 extern const std::string strMessageMagic;
-extern int64_t nTimeBestReceived;
 extern CWaitableCriticalSection csBestBlock;
 extern CConditionVariable cvBlockChange;
 extern bool fImporting;
@@ -125,6 +123,7 @@ extern bool fReindex;
 extern int nScriptCheckThreads;
 extern bool fTxIndex;
 extern bool fIsBareMultisigStd;
+extern bool fCheckBlockIndex;
 extern unsigned int nCoinCacheSize;
 extern CFeeRate minRelayTxFee;
 
@@ -169,7 +168,12 @@ bool LoadBlockIndex();
 void UnloadBlockIndex();
 /** Process protocol messages received from a given node */
 bool ProcessMessages(CNode* pfrom);
-/** Send queued protocol messages to be sent to a give node */
+/**
+ * Send queued protocol messages to be sent to a give node.
+ *
+ * @param[in]   pto             The node which we are sending messages to.
+ * @param[in]   fSendTrickle    When true send the trickled data, otherwise trickle the data until true.
+ */
 bool SendMessages(CNode* pto, bool fSendTrickle);
 /** Run an instance of the script checking thread */
 void ThreadScriptCheck();
