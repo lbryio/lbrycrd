@@ -55,7 +55,7 @@ static void convertSeed6(std::vector<CAddress> &vSeedsOut, const SeedSpec6 *data
 
 static Checkpoints::MapCheckpoints mapCheckpoints = 
         boost::assign::map_list_of
-        ( 0, uint256S("0x00ef6ded2b610fc5e4f06d187d12136bd5fba7b932fa0b66bf353c7c1648ec9c")); 
+        ( 0, uint256S("0x0000343f59c49eb433ba3a37ee4b3493ff014ee9b266f610bb3cd1b36927787a")); 
 /*static Checkpoints::MapCheckpoints mapCheckpoints =
         boost::assign::map_list_of
         ( 11111, uint256("0x0000000069e244f73d78e8fd29ba2fd2ed618bd6fa2ee92559f542fdb26e7c1d"))
@@ -110,7 +110,7 @@ public:
         consensus.nMajorityEnforceBlockUpgrade = 750;
         consensus.nMajorityRejectBlockOutdated = 950;
         consensus.nMajorityWindow = 1000;
-        consensus.powLimit = ~arith_uint256(0) >> 1;
+        consensus.powLimit = ~arith_uint256(0) >> 16;
         consensus.nPowTargetTimespan = 30 * 60 * 12;//14 * 24 * 60 * 60; // two weeks
         consensus.nPowTargetSpacing = 30;
         consensus.fPowAllowMinDifficultyBlocks = false;
@@ -145,37 +145,39 @@ public:
         txNew.vout[0].nValue = 50 * COIN;
         //txNew.vout[0].scriptPubKey = CScript() << ParseHex("04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f") << OP_CHECKSIG;
         //txNew.vout[0].scriptPubKey = CScript() << ParseHex("0425caecb9fbf6cf50979644e85c11e3ec9007fd477fab9683648c6539e59b59c3a4d9b9c0b552c37eee6476f3e0d8425ac0346fe69ad61628b8c340d42fbfa3fd") << OP_CHECKSIG;
-        txNew.vout[0].scriptPubKey = CScript() << OP_DUP << OP_HASH160 << ParseHex("e5ff2d9e3a254622ae493573169c0fa94c82fe4f") << OP_EQUALVERIFY << OP_CHECKSIG;
+        //txNew.vout[0].scriptPubKey = CScript() << OP_DUP << OP_HASH160 << ParseHex("e5ff2d9e3a254622ae493573169c0fa94c82fe4f") << OP_EQUALVERIFY << OP_CHECKSIG;
+        txNew.vout[0].scriptPubKey = CScript() << OP_DUP << OP_HASH160 << ParseHex("345991dbf57bfb014b87006acdfafbfc5fe8292f") << OP_EQUALVERIFY << OP_CHECKSIG;
         genesis.vtx.push_back(txNew);
         genesis.hashPrevBlock.SetNull();
         genesis.hashMerkleRoot = genesis.BuildMerkleTree();
         genesis.hashNCCTrie = uint256S("0x0000000000000000000000000000000000000000000000000000000000000001");
         genesis.nVersion = 1;
         genesis.nTime = 1417453734;
-        genesis.nBits    = 0x207fffff;//0x1d00ffff;
-        genesis.nNonce   = 601;
+        genesis.nBits    = 0x1f00ffff;//0x207fffff;//0x1d00ffff;
+        genesis.nNonce   = 7885;
 
         /*bool found = false;
         while (!found)
         {
             genesis.nNonce += 1;
-            hashGenesisBlock = genesis.GetHash();
-            const char * hex = hashGenesisBlock.GetHex().c_str();
-            if (hex[0] == '0' && hex[1] == '0')
+            consensus.hashGenesisBlock = genesis.GetHash();
+            if (CheckProofOfWork2(consensus.hashGenesisBlock, consensus.powLimit.GetCompact(), consensus))
             {
-                printf("nonce: %d\n", genesis.nNonce);
-                printf("hex: %s\n", hex);
+                std::cout << "nonce: " << genesis.nNonce << std::endl;
+                std::cout << "hex: " << consensus.hashGenesisBlock.GetHex() << std::endl;
                 found = true;
             }
         }*/
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        //printf("%s\n", hashGenesisBlock.GetHex().c_str());
+        //printf("hex: %s\n", consensus.hashGenesisBlock.GetHex().c_str());
         //assert(consensus.hashGenesisBlock == uint256S("0x000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"));
-        assert(consensus.hashGenesisBlock == uint256S("0x00ef6ded2b610fc5e4f06d187d12136bd5fba7b932fa0b66bf353c7c1648ec9c"));
+        //assert(consensus.hashGenesisBlock == uint256S("0x00ef6ded2b610fc5e4f06d187d12136bd5fba7b932fa0b66bf353c7c1648ec9c"));
+        assert(consensus.hashGenesisBlock == uint256S("0x0000343f59c49eb433ba3a37ee4b3493ff014ee9b266f610bb3cd1b36927787a"));
         //printf("%s\n", genesis.hashMerkleRoot.GetHex().c_str());
         //assert(genesis.hashMerkleRoot == uint256("0x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"));
-        assert(genesis.hashMerkleRoot == uint256S("0xa7d51d407092059a2beeffab22e65d6176cfb3c33b93515109480aa7c81c9141"));
+        //assert(genesis.hashMerkleRoot == uint256S("0xa7d51d407092059a2beeffab22e65d6176cfb3c33b93515109480aa7c81c9141"));
+        assert(genesis.hashMerkleRoot == uint256S("0x93621531f4de4b27d4ffdf785ef12855f2b18687e2141466ff50e2848d83f551"));
 
         //vSeeds.push_back(CDNSSeedData("bitcoin.sipa.be", "seed.bitcoin.sipa.be"));
         //vSeeds.push_back(CDNSSeedData("bluematt.me", "dnsseed.bluematt.me"));

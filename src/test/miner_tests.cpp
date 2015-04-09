@@ -49,7 +49,7 @@ struct {
     {2, 0xbbbeb305}, {2, 0xfe1c810a},
 };*/
 
-static
+/*static
 struct {
     unsigned char extranonce;
     unsigned int nonce;
@@ -82,6 +82,20 @@ struct {
     {1, 0x00000000}, {1, 0x00000000}, {1, 0x00000000}, {5, 0x00000000}, //100
     {2, 0x00000000}, {1, 0x00000002}, {1, 0x00000000}, {1, 0x00000001}, //104
     {2, 0x00000003}, {2, 0x00000000},                                   //108
+};*/
+
+const unsigned int nonces[] = {
+    114541, 40175, 23379, 121337, 4042, 35872, 42421, 145983, 4319, 8578,
+    41220, 74215, 146557, 50967, 88259, 58152, 268596, 5792, 143361, 44697,
+    43002, 21193, 70268, 162059, 38523, 30695, 138206, 87472, 134523, 57662,
+    9345, 155238, 43247, 16926, 275759, 12455, 28819, 106643, 45302, 60635,
+    154668, 2603, 450823, 53229, 165143, 105432, 165849, 25684, 75902, 56928,
+    14741, 30997, 8054, 37001, 18039, 1756, 121352, 93199, 34162, 30404,
+    40672, 8901, 67062, 36928, 29084, 73141, 61906, 12881, 114189, 47550,
+    9109, 118675, 12945, 190955, 5882, 144237, 38280, 56629, 69485, 32170,
+    51951, 117891, 6592, 22601, 5958, 70998, 193724, 11394, 40056, 14009,
+    8935, 15990, 22127, 13847, 6130, 60578, 13413, 33884, 91806, 44141,
+    24658, 5826, 148899, 32744, 42810, 9978, 54633, 153655, 28932, 73692
 };
 
 // NOTE: These tests rely on CreateNewBlock doing its own self-validation!
@@ -102,32 +116,33 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     // We can't make transactions until we have inputs
     // Therefore, load 100 blocks :)
     std::vector<CTransaction*>txFirst;
-    for (unsigned int i = 0; i < sizeof(blockinfo)/sizeof(*blockinfo); ++i)
+    for (unsigned int i = 0; i < 110; ++i)
     {
         CBlock *pblock = &pblocktemplate->block; // pointer for convenience
         pblock->nVersion = 1;
         pblock->nTime = chainActive.Tip()->GetMedianTimePast()+1;
         CMutableTransaction txCoinbase(pblock->vtx[0]);
         txCoinbase.vin[0].scriptSig = CScript();
-        txCoinbase.vin[0].scriptSig.push_back(blockinfo[i].extranonce);
+        txCoinbase.vin[0].scriptSig.push_back(0);
         txCoinbase.vin[0].scriptSig.push_back(chainActive.Height());
         txCoinbase.vout[0].scriptPubKey = CScript();
         pblock->vtx[0] = CTransaction(txCoinbase);
         if (txFirst.size() < 2)
             txFirst.push_back(new CTransaction(pblock->vtx[0]));
         pblock->hashMerkleRoot = pblock->BuildMerkleTree();
-        pblock->nNonce = blockinfo[i].nonce;
+        pblock->nNonce = nonces[i];
         /*bool fFound = false;
         for (int j = 0; !fFound; j++)
         {
             pblock->nNonce = j;
-            if (CheckProofOfWork(pblock->GetHash(), pblock->nBits))
+            if (CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus()))
             {
                 fFound = true;
-                if (i % 4 == 0)
+                std::cout << pblock->nNonce << ",";
+                if ((i + 1) % 10 == 0)
                     std::cout << std::endl;
-                std::cout << "Block number: " << i << std::endl;
-                std::cout << "Nonce: " << std::hex << pblock->nNonce << std::dec << std::endl;
+                else
+                    std::cout << " ";
             }
         }*/
         CValidationState state;

@@ -1094,7 +1094,7 @@ bool GetTransaction(const uint256 &hash, CTransaction &txOut, uint256 &hashBlock
                 if (coins)
                     nHeight = coins->nHeight;
             }
-            if (nHeight > 0)
+            if (nHeight >= 0)
                 pindexSlow = chainActive[nHeight];
         }
     }
@@ -1358,6 +1358,7 @@ void UpdateCoins(const CTransaction& tx, CValidationState &state, CCoinsViewCach
             coins->Spend(nPos);
             if (coins->vout.size() == 0) {
                 CTxInUndo& undo = txundo.vprevout.back();
+                undo.fLastUnspent = true;
                 undo.nHeight = coins->nHeight;
                 undo.fCoinBase = coins->fCoinBase;
                 undo.nVersion = coins->nVersion;
@@ -1555,8 +1556,8 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CNCCTrie
     bool fClean = true;
 
     CCoinsModifier coins = view.ModifyCoins(out.hash);
-    if (undo.nHeight != 0) {
-        // undo data contains height: this is the last output of the prevout tx being spent
+    if (undo.fLastUnspent) {
+        // this is the last output of the prevout tx being spent
         if (!coins->IsPruned())
             fClean = fClean && error("%s: undo data overwriting existing transaction", __func__);
         coins->Clear();
@@ -1741,7 +1742,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             view.SetBestBlock(pindex->GetBlockHash());
             trieCache.setBestBlock(pindex->GetBlockHash());
         }
-        return true;
+        //return true;
     }
 
     bool fScriptChecks = pindex->nHeight >= Checkpoints::GetTotalBlocksEstimate();
@@ -1945,7 +1946,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         return true;
 
     // Write undo information to disk
-    if (pindex->GetUndoPos().IsNull() || !pindex->IsValid(BLOCK_VALID_SCRIPTS))
+    if (!(block.GetHash() == Params().HashGenesisBlock()) && (pindex->GetUndoPos().IsNull() || !pindex->IsValid(BLOCK_VALID_SCRIPTS)))
     {
         if (pindex->GetUndoPos().IsNull()) {
             CDiskBlockPos pos;

@@ -147,7 +147,7 @@ class CNCCTrieCache;
 class CNCCTrie
 {
 public:
-    CNCCTrie(bool fMemory = false, bool fWipe = false) : db(GetDataDir() / "ncctrie", 100, fMemory, fWipe), nCurrentHeight(1), root(uint256S("0000000000000000000000000000000000000000000000000000000000000001")) {}
+    CNCCTrie(bool fMemory = false, bool fWipe = false) : db(GetDataDir() / "ncctrie", 100, fMemory, fWipe), nCurrentHeight(0), root(uint256S("0000000000000000000000000000000000000000000000000000000000000001")) {}
     uint256 getMerkleHash();
     CLevelDBWrapper db;
     bool empty() const;
@@ -188,7 +188,7 @@ private:
 class CNCCTrieCache
 {
 public:
-    CNCCTrieCache(CNCCTrie* base): base(base), nCurrentHeight(base->nCurrentHeight) {}
+    CNCCTrieCache(CNCCTrie* base): base(base) {assert(base); nCurrentHeight = base->nCurrentHeight;}
     uint256 getMerkleHash() const;
     bool empty() const;
     bool flush();

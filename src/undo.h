@@ -21,25 +21,26 @@ class CTxInUndo
 {
 public:
     CTxOut txout;         // the txout data before being spent
+    bool fLastUnspent;    // whether the outpoint was the last unspent
     bool fCoinBase;       // if the outpoint was the last unspent: whether it belonged to a coinbase
     unsigned int nHeight; // if the outpoint was the last unspent: its height
     int nVersion;         // if the outpoint was the last unspent: its version
     unsigned int nNCCValidHeight;   // If the outpoint was an NCC claim, the height at which the claim should be inserted into the trie
 
-    CTxInUndo() : txout(), fCoinBase(false), nHeight(0), nVersion(0), nNCCValidHeight(0) {}
+    CTxInUndo() : txout(), fLastUnspent(false), fCoinBase(false), nHeight(0), nVersion(0), nNCCValidHeight(0) {}
     CTxInUndo(const CTxOut &txoutIn, bool fCoinBaseIn = false, unsigned int nHeightIn = 0, int nVersionIn = 0, unsigned int nNCCValidHeight = 0) : txout(txoutIn), fCoinBase(fCoinBaseIn), nHeight(nHeightIn), nVersion(nVersionIn), nNCCValidHeight(nNCCValidHeight) { }
 
     unsigned int GetSerializeSize(int nType, int nVersion) const {
-        return ::GetSerializeSize(VARINT(nHeight*2+(fCoinBase ? 1 : 0)), nType, nVersion) +
-               (nHeight > 0 ? ::GetSerializeSize(VARINT(this->nVersion), nType, nVersion) : 0) +
+        return ::GetSerializeSize(VARINT(nHeight*4+(fCoinBase ? 2 : 0)+(fLastUnspent ? 1: 0)), nType, nVersion) +
+               (fLastUnspent ? ::GetSerializeSize(VARINT(this->nVersion), nType, nVersion) : 0) +
                ::GetSerializeSize(CTxOutCompressor(REF(txout)), nType, nVersion) +
                ::GetSerializeSize(VARINT(nNCCValidHeight), nType, nVersion);
     }
 
     template<typename Stream>
     void Serialize(Stream &s, int nType, int nVersion) const {
-        ::Serialize(s, VARINT(nHeight*2+(fCoinBase ? 1 : 0)), nType, nVersion);
-        if (nHeight > 0)
+        ::Serialize(s, VARINT(nHeight*4+(fCoinBase ? 2 : 0)+(fLastUnspent ? 1: 0)), nType, nVersion);
+        if (fLastUnspent)
             ::Serialize(s, VARINT(this->nVersion), nType, nVersion);
         ::Serialize(s, CTxOutCompressor(REF(txout)), nType, nVersion);
         ::Serialize(s, VARINT(nNCCValidHeight), nType, nVersion);
@@ -49,9 +50,10 @@ public:
     void Unserialize(Stream &s, int nType, int nVersion) {
         unsigned int nCode = 0;
         ::Unserialize(s, VARINT(nCode), nType, nVersion);
-        nHeight = nCode / 2;
-        fCoinBase = nCode & 1;
-        if (nHeight > 0)
+        nHeight = nCode / 4;
+        fCoinBase = nCode & 2;
+        fLastUnspent = nCode & 1;
+        if (fLastUnspent)
             ::Unserialize(s, VARINT(this->nVersion), nType, nVersion);
         ::Unserialize(s, REF(CTxOutCompressor(REF(txout))), nType, nVersion);
         ::Unserialize(s, VARINT(nNCCValidHeight), nType, nVersion);

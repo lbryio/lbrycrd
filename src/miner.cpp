@@ -137,6 +137,10 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         CBlockIndex* pindexPrev = chainActive.Tip();
         const int nHeight = pindexPrev->nHeight + 1;
         CCoinsViewCache view(pcoinsTip);
+        if (!pnccTrie)
+        {
+            return NULL;
+        }
         CNCCTrieCache trieCache(pnccTrie);
 
         // Priority order to process transactions
