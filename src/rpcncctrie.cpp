@@ -105,3 +105,78 @@ Value getvalueforname(const Array& params, bool fHelp)
     return ret;
 }
 
+Value gettotalclaimednames(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw std::runtime_error(
+            "gettotalclaimednames\n"
+            "Return the total number of names that have been\n"
+            "successfully claimed, and therefore exist in the trie\n"
+            "Arguments:\n"
+            "Result:\n"
+            "\"total names\"                (numeric) the total number of\n"
+            "                                         names in the trie\n"
+        );
+    LOCK(cs_main);
+    Object ret;
+    if (!pnccTrie)
+    {
+        ret.push_back(Pair("total names", -1));
+        return ret;
+    }       
+    unsigned int num_names = pnccTrie->getTotalNamesInTrie();
+    ret.push_back(Pair("total names", (int)num_names));
+    return ret;
+}
+
+Value gettotalclaims(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw std::runtime_error(
+            "gettotalclaims\n"
+            "Return the total number of active claims in the trie\n"
+            "Arguments:\n"
+            "Result:\n"
+            "\"total claims\"             (numeric) the total number\n"
+            "                                       of active claims\n"
+        );
+    LOCK(cs_main);
+    Object ret;
+    if (!pnccTrie)
+    {
+        ret.push_back(Pair("total claims", -1));
+        return ret;
+    }
+    unsigned int num_claims = pnccTrie->getTotalClaimsInTrie();
+    ret.push_back(Pair("total claims", (int)num_claims));
+    return ret;
+}
+
+Value gettotalvalueofclaims(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() > 1)
+        throw std::runtime_error(
+            "gettotalvalueofclaims\n"
+            "Return the total value of the claims in the trie\n"
+            "Arguments:\n"
+            "1. \"controlling_only\"         (boolean) only include the value\n"
+            "                                          of controlling claims\n"
+            "Result:\n"
+            "\"total value\"                 (numeric) the total value of the\n"
+            "                                          claims in the trie\n"
+        );
+    LOCK(cs_main);
+    Object ret;
+    if (!pnccTrie)
+    {
+        ret.push_back(Pair("total value", -1));
+        return ret;
+    }
+    bool controlling_only = false;
+    if (params.size() == 1)
+        controlling_only = params[0].get_bool();
+    CAmount total_amount = pnccTrie->getTotalValueOfClaimsInTrie(controlling_only);
+    ret.push_back(Pair("total value", total_amount));
+    return ret;
+}
+

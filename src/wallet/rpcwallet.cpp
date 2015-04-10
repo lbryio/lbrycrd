@@ -630,6 +630,13 @@ void ListNameClaims(const CWalletTx& wtx, const string& strAccount, int nMinDept
                 entry.push_back(Pair("amount", ValueFromAmount(s.amount)));
                 entry.push_back(Pair("vout", s.vout));
                 entry.push_back(Pair("fee", ValueFromAmount(nFee)));
+                BlockMap::iterator it = mapBlockIndex.find(wtx.hashBlock);
+                if (it != mapBlockIndex.end())
+                {
+                    CBlockIndex* pindex = it->second;
+                    if (pindex)
+                        entry.push_back(Pair("height", pindex->nHeight));
+                }
                 entry.push_back(Pair("confirmations", wtx.GetDepthInMainChain()));
                 entry.push_back(Pair("is spent", pwalletMain->IsSpent(wtx.GetHash(), s.vout)));
                 entry.push_back(Pair("is in ncc trie", pnccTrie->haveClaim(sName, wtx.GetHash(), s.vout)));
@@ -662,6 +669,7 @@ Value listnameclaims(const Array& params, bool fHelp)
             "    \"amount\": x.xxx,               (numeric) The amount in btc.\n"
             "    \"vout\": n,                     (numeric) The vout value\n"
             "    \"fee\": x.xxx,                  (numeric) The amount of the fee in btc.\n"
+            "    \"height\": n                    (numeric) The height of the block in which this transaction was included.\n"
             "    \"confirmations\": n,            (numeric) The number of confirmations for the transaction\n"
             "    \"blockhash\": \"hashvalue\",    (string) The block hash containing the transaction.\n"
             "    \"blockindex\": n,               (numeric) The block index containing the transaction.\n"

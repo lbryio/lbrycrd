@@ -160,6 +160,9 @@ public:
     int nCurrentHeight;
     bool queueEmpty() const;
     bool haveClaim(const std::string& name, const uint256& txhash, uint32_t nOut) const;
+    unsigned int getTotalNamesInTrie() const;
+    unsigned int getTotalClaimsInTrie() const;
+    CAmount getTotalValueOfClaimsInTrie(bool fControllingOnly) const;
     friend class CNCCTrieCache;
 private:
     void clear(CNCCTrieNode* current);
@@ -169,6 +172,9 @@ private:
     bool recursiveNullify(CNCCTrieNode* node, std::string& name);
     bool recursiveCheckConsistency(CNCCTrieNode* node);
     bool InsertFromDisk(const std::string& name, CNCCTrieNode* node);
+    unsigned int getTotalNamesRecursive(const CNCCTrieNode* current) const;
+    unsigned int getTotalClaimsRecursive(const CNCCTrieNode* current) const;
+    CAmount getTotalValueOfClaimsRecursive(const CNCCTrieNode* current, bool fControllingOnly) const;
     bool recursiveDumpToJSON(const std::string& name, const CNCCTrieNode* current, json_spirit::Array& ret) const;
     CNCCTrieNode root;
     uint256 hashBlock;

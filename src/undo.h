@@ -28,7 +28,7 @@ public:
     unsigned int nNCCValidHeight;   // If the outpoint was an NCC claim, the height at which the claim should be inserted into the trie
 
     CTxInUndo() : txout(), fLastUnspent(false), fCoinBase(false), nHeight(0), nVersion(0), nNCCValidHeight(0) {}
-    CTxInUndo(const CTxOut &txoutIn, bool fCoinBaseIn = false, unsigned int nHeightIn = 0, int nVersionIn = 0, unsigned int nNCCValidHeight = 0) : txout(txoutIn), fCoinBase(fCoinBaseIn), nHeight(nHeightIn), nVersion(nVersionIn), nNCCValidHeight(nNCCValidHeight) { }
+    CTxInUndo(const CTxOut &txoutIn, bool fLastUnspent = false, bool fCoinBaseIn = false, unsigned int nHeightIn = 0, int nVersionIn = 0, unsigned int nNCCValidHeight = 0) : txout(txoutIn), fLastUnspent(fLastUnspent), fCoinBase(fCoinBaseIn), nHeight(nHeightIn), nVersion(nVersionIn), nNCCValidHeight(nNCCValidHeight) { }
 
     unsigned int GetSerializeSize(int nType, int nVersion) const {
         return ::GetSerializeSize(VARINT(nHeight*4+(fCoinBase ? 2 : 0)+(fLastUnspent ? 1: 0)), nType, nVersion) +

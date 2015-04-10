@@ -153,6 +153,68 @@ bool CNCCTrie::haveClaim(const std::string& name, const uint256& txhash, uint32_
     return current->haveValue(txhash, nOut);
 }
 
+unsigned int CNCCTrie::getTotalNamesInTrie() const
+{
+    if (empty())
+        return 0;
+    const CNCCTrieNode* current = &root;
+    return getTotalNamesRecursive(current);
+}
+
+unsigned int CNCCTrie::getTotalNamesRecursive(const CNCCTrieNode* current) const
+{
+    unsigned int names_in_subtrie = 0;
+    if (!(current->values.empty()))
+        names_in_subtrie += 1;
+    for (nodeMapType::const_iterator it = current->children.begin(); it != current->children.end(); ++it)
+    {
+        names_in_subtrie += getTotalNamesRecursive(it->second);
+    }
+    return names_in_subtrie;
+}
+
+unsigned int CNCCTrie::getTotalClaimsInTrie() const
+{
+    if (empty())
+        return 0;
+    const CNCCTrieNode* current = &root;
+    return getTotalClaimsRecursive(current);
+}
+
+unsigned int CNCCTrie::getTotalClaimsRecursive(const CNCCTrieNode* current) const
+{
+    unsigned int claims_in_subtrie = current->values.size();
+    for (nodeMapType::const_iterator it = current->children.begin(); it != current->children.end(); ++it)
+    {
+        claims_in_subtrie += getTotalClaimsRecursive(it->second);
+    }
+    return claims_in_subtrie;
+}
+
+CAmount CNCCTrie::getTotalValueOfClaimsInTrie(bool fControllingOnly) const
+{
+    if (empty())
+        return 0;
+    const CNCCTrieNode* current = &root;
+    return getTotalValueOfClaimsRecursive(current, fControllingOnly);
+}
+
+CAmount CNCCTrie::getTotalValueOfClaimsRecursive(const CNCCTrieNode* current, bool fControllingOnly) const
+{
+    CAmount value_in_subtrie = 0;
+    for (std::vector<CNodeValue>::const_iterator itval = current->values.begin(); itval != current->values.end(); ++itval)
+    {
+        value_in_subtrie += itval->nAmount;
+        if (fControllingOnly)
+            break;
+    }
+    for (nodeMapType::const_iterator itchild = current->children.begin(); itchild != current->children.end(); ++itchild)
+     {
+         value_in_subtrie += getTotalValueOfClaimsRecursive(itchild->second, fControllingOnly);
+     }
+     return value_in_subtrie;
+}
+
 bool CNCCTrie::recursiveDumpToJSON(const std::string& name, const CNCCTrieNode* current, json_spirit::Array& ret) const
 {
     using namespace json_spirit;
