@@ -1,5 +1,6 @@
 #include "main.h"
 #include "ncc.h"
+#include "rpcserver.h"
 
 #include "json/json_spirit_value.h"
 
@@ -118,15 +119,12 @@ Value gettotalclaimednames(const Array& params, bool fHelp)
             "                                         names in the trie\n"
         );
     LOCK(cs_main);
-    Object ret;
     if (!pnccTrie)
     {
-        ret.push_back(Pair("total names", -1));
-        return ret;
+        return -1;
     }       
     unsigned int num_names = pnccTrie->getTotalNamesInTrie();
-    ret.push_back(Pair("total names", (int)num_names));
-    return ret;
+    return int(num_names);
 }
 
 Value gettotalclaims(const Array& params, bool fHelp)
@@ -141,15 +139,12 @@ Value gettotalclaims(const Array& params, bool fHelp)
             "                                       of active claims\n"
         );
     LOCK(cs_main);
-    Object ret;
     if (!pnccTrie)
     {
-        ret.push_back(Pair("total claims", -1));
-        return ret;
+        return -1;
     }
     unsigned int num_claims = pnccTrie->getTotalClaimsInTrie();
-    ret.push_back(Pair("total claims", (int)num_claims));
-    return ret;
+    return int(num_claims);
 }
 
 Value gettotalvalueofclaims(const Array& params, bool fHelp)
@@ -166,17 +161,14 @@ Value gettotalvalueofclaims(const Array& params, bool fHelp)
             "                                          claims in the trie\n"
         );
     LOCK(cs_main);
-    Object ret;
     if (!pnccTrie)
     {
-        ret.push_back(Pair("total value", -1));
-        return ret;
+        return -1;
     }
     bool controlling_only = false;
     if (params.size() == 1)
         controlling_only = params[0].get_bool();
     CAmount total_amount = pnccTrie->getTotalValueOfClaimsInTrie(controlling_only);
-    ret.push_back(Pair("total value", total_amount));
-    return ret;
+    return ValueFromAmount(total_amount);
 }
 

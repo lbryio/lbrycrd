@@ -82,6 +82,11 @@ Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool txDe
     result.push_back(Pair("nonce", (uint64_t)block.nNonce));
     result.push_back(Pair("bits", strprintf("%08x", block.nBits)));
     result.push_back(Pair("difficulty", GetDifficulty(blockindex)));
+    bool fNegative;
+    bool fOverflow;
+    arith_uint256 target;
+    target.SetCompact(block.nBits, &fNegative, &fOverflow);
+    result.push_back(Pair("target", target.ToString()));
     result.push_back(Pair("chainwork", blockindex->nChainWork.GetHex()));
 
     if (blockindex->pprev)
