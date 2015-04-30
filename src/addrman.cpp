@@ -67,9 +67,8 @@ double CAddrInfo::GetChance(int64_t nNow) const
     if (nSinceLastTry < 60 * 10)
         fChance *= 0.01;
 
-    // deprioritize 50% after each failed attempt
-    for (int n = 0; n < nAttempts; n++)
-        fChance /= 1.5;
+    // deprioritize 66% after each failed attempt, but at most 1/28th to avoid the search taking forever or overly penalizing outages.
+    fChance *= pow(0.66, min(nAttempts, 8));
 
     return fChance;
 }
@@ -332,10 +331,10 @@ void CAddrMan::Attempt_(const CService& addr, int64_t nTime)
     info.nAttempts++;
 }
 
-CAddress CAddrMan::Select_()
+CAddrInfo CAddrMan::Select_()
 {
     if (size() == 0)
-        return CAddress();
+        return CAddrInfo();
 
     // Use a 50% chance for choosing between tried and new table entries.
     if (nTried > 0 && (nNew == 0 || GetRandInt(2) == 0)) {

@@ -3,10 +3,9 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CONSENSUS_CONSENSUS_PARAMS_H
-#define BITCOIN_CONSENSUS_CONSENSUS_PARAMS_H
+#ifndef BITCOIN_CONSENSUS_PARAMS_H
+#define BITCOIN_CONSENSUS_PARAMS_H
 
-#include "arith_uint256.h"
 #include "uint256.h"
 
 namespace Consensus {
@@ -21,7 +20,7 @@ struct Params {
     int nMajorityRejectBlockOutdated;
     int nMajorityWindow;
     /** Proof of work parameters */
-    arith_uint256 powLimit;
+    uint256 powLimit;
     bool fPowAllowMinDifficultyBlocks;
     int64_t nPowTargetSpacing;
     int64_t nPowTargetTimespan;
@@ -29,4 +28,4 @@ struct Params {
 };
 } // namespace Consensus
 
-#endif // BITCOIN_CONSENSUS_CONSENSUS_PARAMS_H
+#endif // BITCOIN_CONSENSUS_PARAMS_H
