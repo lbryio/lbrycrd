@@ -137,7 +137,7 @@ bool CreateBlock(CBlockTemplate* pblocktemplate, bool f = false)
     pblock->nTime = chainActive.Tip()->GetMedianTimePast()+1;
     CMutableTransaction txCoinbase(pblock->vtx[0]);
     txCoinbase.vin[0].scriptSig = CScript() << CScriptNum(unique_block_counter++) << CScriptNum(chainActive.Height());
-    txCoinbase.vout[0].nValue = GetBlockValue(chainActive.Height(), 0);
+    txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height(), Params().GetConsensus());
     pblock->vtx[0] = CTransaction(txCoinbase);
     pblock->hashMerkleRoot = pblock->BuildMerkleTree();
     pblock->nNonce = nonces[unique_block_counter - 1];
@@ -294,7 +294,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     
     CBlockTemplate *pblocktemplate;
     LOCK(cs_main);
-    Checkpoints::fEnabled = false;
+    //Checkpoints::fEnabled = false;
 
     CScript scriptPubKey = CScript() << OP_TRUE;
 

@@ -156,10 +156,6 @@
         <translation>Wijzig wachtwoord</translation>
     </message>
     <message>
-        <source>Enter the old and new passphrase to the wallet.</source>
-        <translation>Vul uw oude en nieuwe portemonneewachtwoord in.</translation>
-    </message>
-    <message>
         <source>Confirm wallet encryption</source>
         <translation>Bevestig versleuteling van de portemonnee</translation>
     </message>
@@ -170,6 +166,10 @@
     <message>
         <source>Are you sure you wish to encrypt your wallet?</source>
         <translation>Weet u zeker dat u uw portemonnee wilt versleutelen?</translation>
+    </message>
+    <message>
+        <source>Bitcoin Core will close now to finish the encryption process. Remember that encrypting your wallet cannot fully protect your bitcoins from being stolen by malware infecting your computer.</source>
+        <translation>Bitcoin Core zal nu afsluiten om het versleutelingsproces te voltooien. Hou er rekening mee dat versleuteling van je portemonnee je niet volledig beschermt tegen diefstal van jouw bitcoins door malware op je computer.</translation>
     </message>
     <message>
         <source>IMPORTANT: Any previous backups you have made of your wallet file should be replaced with the newly generated, encrypted wallet file. For security reasons, previous backups of the unencrypted wallet file will become useless as soon as you start using the new, encrypted wallet.</source>
@@ -185,11 +185,11 @@
     </message>
     <message>
         <source>Enter the new passphrase to the wallet.&lt;br/&gt;Please use a passphrase of &lt;b&gt;ten or more random characters&lt;/b&gt;, or &lt;b&gt;eight or more words&lt;/b&gt;.</source>
-        <translation>Voer een nieuw wachtwoord in voor uw portomonee.&lt;br/&gt;Gebruik een wachtwoord van &lt;b&gt;tien of meer willekeurige karakters&lt;/b&gt;, of &lt;b&gt;acht of meer woorden&lt;/b&gt;.</translation>
+        <translation>Voer een nieuw wachtwoord in voor uw portemonnee.&lt;br/&gt;Gebruik een wachtwoord van &lt;b&gt;tien of meer willekeurige karakters&lt;/b&gt;, of &lt;b&gt;acht of meer woorden&lt;/b&gt;.</translation>
     </message>
     <message>
-        <source>Bitcoin will close now to finish the encryption process. Remember that encrypting your wallet cannot fully protect your bitcoins from being stolen by malware infecting your computer.</source>
-        <translation>Bitcoin zal nu afsluiten om het versleutelingsproces te voltooien. Onthoudt dat het versleutelen van uw portemonnee u niet volledig kan beschermen: Malware kan uw computer infecteren en uw bitcoins stelen.</translation>
+        <source>Enter the old passphrase and new passphrase to the wallet.</source>
+        <translation>Voer het oude en nieuwe wachtwoord in voor uw portemonnee.</translation>
     </message>
     <message>
         <source>Wallet encryption failed</source>
@@ -311,10 +311,6 @@
         <translation>Verstuur munten naar een Bitcoinadres</translation>
     </message>
     <message>
-        <source>Modify configuration options for Bitcoin</source>
-        <translation>Wijzig instellingen van Bitcoin</translation>
-    </message>
-    <message>
         <source>Backup wallet to another location</source>
         <translation>Backup portemonnee naar een andere locatie</translation>
     </message>
@@ -431,6 +427,10 @@
         <translation>Geen bron voor blokken beschikbaar...</translation>
     </message>
     <message numerus="yes">
+        <source>Processed %n block(s) of transaction history.</source>
+        <translation><numerusform>%n blok aan transactie geschiedenis verwerkt.</numerusform><numerusform>%n blokken aan transactie geschiedenis verwerkt.</numerusform></translation>
+    </message>
+    <message numerus="yes">
         <source>%n hour(s)</source>
         <translation><numerusform>%n uur</numerusform><numerusform>%n uur</numerusform></translation>
     </message>
@@ -478,13 +478,39 @@
         <source>Up to date</source>
         <translation>Bijgewerkt</translation>
     </message>
-    <message numerus="yes">
-        <source>Processed %n blocks of transaction history.</source>
-        <translation><numerusform>%n Blok transactie geschiedenis verwerkt.</numerusform><numerusform>%n Blokken transactie geschiedenis verwerkt.</numerusform></translation>
-    </message>
     <message>
         <source>Catching up...</source>
         <translation>Aan het bijwerken...</translation>
+    </message>
+    <message>
+        <source>Date: %1
+</source>
+        <translation>Datum: %1
+</translation>
+    </message>
+    <message>
+        <source>Amount: %1
+</source>
+        <translation>Aantal: %1
+</translation>
+    </message>
+    <message>
+        <source>Type: %1
+</source>
+        <translation>Type: %1
+</translation>
+    </message>
+    <message>
+        <source>Label: %1
+</source>
+        <translation>Label: %1
+</translation>
+    </message>
+    <message>
+        <source>Address: %1
+</source>
+        <translation>Adres: %1
+</translation>
     </message>
     <message>
         <source>Sent transaction</source>
@@ -493,18 +519,6 @@
     <message>
         <source>Incoming transaction</source>
         <translation>Binnenkomende transactie</translation>
-    </message>
-    <message>
-        <source>Date: %1
-Amount: %2
-Type: %3
-Address: %4
-</source>
-        <translation>Datum: %1
-Bedrag: %2
-Type: %3
-Adres: %4
-</translation>
     </message>
     <message>
         <source>Wallet is &lt;b&gt;encrypted&lt;/b&gt; and currently &lt;b&gt;unlocked&lt;/b&gt;</source>
@@ -697,6 +711,18 @@ Adres: %4
         <translation>geen</translation>
     </message>
     <message>
+        <source>This label turns red if the transaction size is greater than 1000 bytes.</source>
+        <translation>Dit label wordt rood als de transactie groter is dan 1000 bytes.</translation>
+    </message>
+    <message>
+        <source>This label turns red if the priority is smaller than "medium".</source>
+        <translation>Dit label wordt rood als de prioriteit lager is dan "gemiddeld".</translation>
+    </message>
+    <message>
+        <source>This label turns red if any recipient receives an amount smaller than %1.</source>
+        <translation>Dit label wordt rood wanneer een ontvanger minder dan %1 krijgt.</translation>
+    </message>
+    <message>
         <source>Can vary +/- %1 satoshi(s) per input.</source>
         <translation>Kan per input +/- %1 satoshi(s)  variëren.</translation>
     </message>
@@ -709,10 +735,6 @@ Adres: %4
         <translation>nee</translation>
     </message>
     <message>
-        <source>This label turns red, if the transaction size is greater than 1000 bytes.</source>
-        <translation>Dit label wordt rood, als de transactie grootte meer dan 1000 bytes is.</translation>
-    </message>
-    <message>
         <source>This means a fee of at least %1 per kB is required.</source>
         <translation>Dit betekent dat een vergoeding van minimaal %1 per kB nodig is.</translation>
     </message>
@@ -723,14 +745,6 @@ Adres: %4
     <message>
         <source>Transactions with higher priority are more likely to get included into a block.</source>
         <translation>Transacties met een hogere prioriteit zullen eerder in een block gezet worden.</translation>
-    </message>
-    <message>
-        <source>This label turns red, if the priority is smaller than "medium".</source>
-        <translation>Als dit label rood is, is de prioriteit minder dan "medium".</translation>
-    </message>
-    <message>
-        <source>This label turns red, if any recipient receives an amount smaller than %1.</source>
-        <translation>Dit label wordt rood, als een ontvanger een bedrag van minder dan %1 gekregen heeft.</translation>
     </message>
     <message>
         <source>(no label)</source>
@@ -853,30 +867,6 @@ Adres: %4
         <source>command-line options</source>
         <translation>commandoregel-opties</translation>
     </message>
-    <message>
-        <source>UI options</source>
-        <translation>gebruikersinterfaceopties</translation>
-    </message>
-    <message>
-        <source>Set language, for example "de_DE" (default: system locale)</source>
-        <translation>Stel taal in, bijvoorbeeld ''de_DE" (standaard: systeeminstellingen)</translation>
-    </message>
-    <message>
-        <source>Start minimized</source>
-        <translation>Geminimaliseerd starten</translation>
-    </message>
-    <message>
-        <source>Set SSL root certificates for payment request (default: -system-)</source>
-        <translation>Zet SSL root certificaten voor betalingsverzoek (standaard: -sytem-)</translation>
-    </message>
-    <message>
-        <source>Show splash screen on startup (default: 1)</source>
-        <translation>Laat laadscherm zien bij het opstarten. (standaard: 1)</translation>
-    </message>
-    <message>
-        <source>Choose data directory on startup (default: 0)</source>
-        <translation>Kies de gegevensmap tijdens het opstarten (standaard: 0)</translation>
-    </message>
 </context>
 <context>
     <name>Intro</name>
@@ -959,14 +949,6 @@ Adres: %4
         <translation>&amp;Algemeen</translation>
     </message>
     <message>
-        <source>Automatically start Bitcoin after logging in to the system.</source>
-        <translation>Start Bitcoin automatisch na inloggen in het systeem</translation>
-    </message>
-    <message>
-        <source>&amp;Start Bitcoin on system login</source>
-        <translation>Start &amp;Bitcoin bij het inloggen in het systeem</translation>
-    </message>
-    <message>
         <source>Size of &amp;database cache</source>
         <translation>Grootte van de &amp;database cache</translation>
     </message>
@@ -991,6 +973,10 @@ Adres: %4
         <translation>IP-adres van de proxy (bijv. IPv4: 127.0.0.1 / IPv6: ::1)</translation>
     </message>
     <message>
+        <source>The user interface language can be set here. This setting will take effect after restarting Bitcoin Core.</source>
+        <translation>Stel hier de taal van de applicatie in. Deze instelling zal van kracht worden na het herstarten van de applicatie.</translation>
+    </message>
+    <message>
         <source>Third party URLs (e.g. a block explorer) that appear in the transactions tab as context menu items. %s in the URL is replaced by transaction hash. Multiple URLs are separated by vertical bar |.</source>
         <translation>Derde partijen URL's (bijvoorbeeld block explorer) dat in de transacties tab verschijnen als contextmenu elementen. %s in de URL is vervangen door transactie hash. Verscheidene URL's zijn gescheiden door een verticale streep |.  </translation>
     </message>
@@ -1013,6 +999,14 @@ Adres: %4
     <message>
         <source>&amp;Network</source>
         <translation>&amp;Netwerk</translation>
+    </message>
+    <message>
+        <source>Automatically start Bitcoin Core after logging in to the system.</source>
+        <translation>Bitcoin Kern automatisch starten bij inloggen.</translation>
+    </message>
+    <message>
+        <source>&amp;Start Bitcoin Core on system login</source>
+        <translation>&amp;Start Bitcoin Kern tijdens login.</translation>
     </message>
     <message>
         <source>(0 = auto, &lt;0 = leave that many cores free)</source>
@@ -1079,10 +1073,6 @@ Adres: %4
         <translation>&amp;Minimaliseer naar het systeemvak in plaats van de taakbalk</translation>
     </message>
     <message>
-        <source>Minimize instead of exit the application when the window is closed. When this option is enabled, the application will be closed only after selecting Quit in the menu.</source>
-        <translation>Minimaliseer het venster in de plaats van de applicatie af te sluiten als het venster gesloten wordt. Wanneer deze optie aan staan, kan de applicatie alleen worden afgesloten door Afsluiten te kiezen in het menu.</translation>
-    </message>
-    <message>
         <source>M&amp;inimize on close</source>
         <translation>Minimaliseer bij sluiten van het &amp;venster</translation>
     </message>
@@ -1093,10 +1083,6 @@ Adres: %4
     <message>
         <source>User Interface &amp;language:</source>
         <translation>Taal &amp;Gebruikersinterface:</translation>
-    </message>
-    <message>
-        <source>The user interface language can be set here. This setting will take effect after restarting Bitcoin.</source>
-        <translation>De taal van de gebruikersinterface kan hier ingesteld worden. Deze instelling zal pas van kracht worden nadat Bitcoin herstart wordt.</translation>
     </message>
     <message>
         <source>&amp;Unit to show amounts in:</source>
@@ -1135,8 +1121,8 @@ Adres: %4
         <translation>Herstart van de client is vereist om veranderingen door te voeren.</translation>
     </message>
     <message>
-        <source>Client will be shutdown, do you want to proceed?</source>
-        <translation>De client zal worden afgesloten, wilt u doorgaan?</translation>
+        <source>Client will be shut down. Do you want to proceed?</source>
+        <translation>Applicatie zal worden afgesloten. Wilt u doorgaan?</translation>
     </message>
     <message>
         <source>This change would require a client restart.</source>
@@ -1245,10 +1231,6 @@ Adres: %4
         <translation>Betalingsaanvraagnetwerk komt niet overeen met klantennetwerk.</translation>
     </message>
     <message>
-        <source>Payment request has expired.</source>
-        <translation>Betalingsverzoek is verlopen.</translation>
-    </message>
-    <message>
         <source>Payment request is not initialized.</source>
         <translation>Betalingsaanvraag is niet geïnitialiseerd.</translation>
     </message>
@@ -1324,10 +1306,6 @@ Adres: %4
         <translation>User Agent</translation>
     </message>
     <message>
-        <source>Address/Hostname</source>
-        <translation>Adres/Hostnaam</translation>
-    </message>
-    <message>
         <source>Ping Time</source>
         <translation>Ping tijd</translation>
     </message>
@@ -1357,14 +1335,6 @@ Adres: %4
     <message>
         <source>%1 s</source>
         <translation>%1s</translation>
-    </message>
-    <message>
-        <source>NETWORK</source>
-        <translation>Netwerk</translation>
-    </message>
-    <message>
-        <source>UNKNOWN</source>
-        <translation>ONBEKEND</translation>
     </message>
     <message>
         <source>None</source>
@@ -1565,16 +1535,8 @@ Adres: %4
         <translation>Debug-logbestand</translation>
     </message>
     <message>
-        <source>Open the Bitcoin debug log file from the current data directory. This can take a few seconds for large log files.</source>
-        <translation>Open het Bitcoindebug-logbestand van de huidige datamap. Dit kan een aantal seconden duren voor grote logbestanden.</translation>
-    </message>
-    <message>
         <source>Clear console</source>
         <translation>Maak console leeg</translation>
-    </message>
-    <message>
-        <source>Welcome to the Bitcoin RPC console.</source>
-        <translation>Welkom bij de Bitcoin RPC-console.</translation>
     </message>
     <message>
         <source>Use up and down arrows to navigate history, and &lt;b&gt;Ctrl-L&lt;/b&gt; to clear screen.</source>
@@ -1865,14 +1827,6 @@ Adres: %4
         <translation>Transactiekosteninstellingen verbergen</translation>
     </message>
     <message>
-        <source>Minimize</source>
-        <translation>Minimaliseer</translation>
-    </message>
-    <message>
-        <source>If the custom fee is set to 1000 satoshis and the transaction is only 250 bytes, then "per kilobyte" only pays 250 satoshis in fee, while "at least" pays 1000 satoshis. For transactions bigger than a kilobyte both pay by kilobyte.</source>
-        <translation>Als de aangepaste toeslag is ingesteld op 1000 satoshis en de transactie is maar 250 bytes, dan wordt bij "per kilobyte" 250 satoshis aan toeslag berekend, terwijl er bij "tenminste" 1000 satoshis worden berekend. Voor transacties die groter zijn dan een kilobyte, wordt in beide gevallen per kilobyte de toeslag berekend.</translation>
-    </message>
-    <message>
         <source>per kilobyte</source>
         <translation>per kilobyte</translation>
     </message>
@@ -2001,10 +1955,6 @@ Adres: %4
         <translation>of</translation>
     </message>
     <message>
-        <source>The recipient address is not valid, please recheck.</source>
-        <translation>Het ontvangstadres is niet geldig, controleer uw invoer.</translation>
-    </message>
-    <message>
         <source>The amount to pay must be larger than 0.</source>
         <translation>Het ingevoerde bedrag moet groter zijn dan 0.</translation>
     </message>
@@ -2017,10 +1967,6 @@ Adres: %4
         <translation>Totaal overschrijdt uw huidige saldo wanneer de %1 transactiekosten worden meegerekend</translation>
     </message>
     <message>
-        <source>Duplicate address found, can only send to each address once per send operation.</source>
-        <translation>Dubbel adres gevonden, u kunt slechts eenmaal naar een bepaald adres verzenden per verstuurtransactie</translation>
-    </message>
-    <message>
         <source>Transaction creation failed!</source>
         <translation>Transactie creatie niet gelukt!</translation>
     </message>
@@ -2029,16 +1975,8 @@ Adres: %4
         <translation>De transactie was afgewezen. Dit kan gebeuren als u eerder uitgegeven munten opnieuw wilt versturen, zoals wanneer u een kopie van uw wallet.dat heeft gebruikt en in de kopie deze munten zijn gemarkeerd als uitgegeven, maar in de huidige nog niet.</translation>
     </message>
     <message>
-        <source>A fee higher than %1 is considered an insanely high fee.</source>
-        <translation>Transactiekosten hoger dan %1 worden gezien als waanzinnig hoog.</translation>
-    </message>
-    <message>
         <source>Pay only the minimum fee of %1</source>
         <translation>Betaal alleen de minimale transactiekosten van %1</translation>
-    </message>
-    <message>
-        <source>Estimated to begin confirmation within %1 block(s).</source>
-        <translation>Beginnen van bevesting geschat binnen %1 blok(ken).</translation>
     </message>
     <message>
         <source>Warning: Invalid Bitcoin address</source>
@@ -2116,20 +2054,12 @@ Adres: %4
         <translation>Bericht:</translation>
     </message>
     <message>
-        <source>This is a verified payment request.</source>
-        <translation>Dit is een geverifieerd betalingsverzoek.</translation>
-    </message>
-    <message>
         <source>Enter a label for this address to add it to the list of used addresses</source>
         <translation>Vul een label voor dit adres in om het aan de lijst met gebruikte adressen toe te voegen</translation>
     </message>
     <message>
         <source>A message that was attached to the bitcoin: URI which will be stored with the transaction for your reference. Note: This message will not be sent over the Bitcoin network.</source>
         <translation>Een bericht dat werd toegevoegd aan de bitcoin: URI dewelke wordt opgeslagen met de transactie ter referentie. Opmerking: Dit bericht zal niet worden verzonden over het Bitcoin netwerk.</translation>
-    </message>
-    <message>
-        <source>This is an unverified payment request.</source>
-        <translation>Dit is een ongeverifieerd betalingsverzoek.</translation>
     </message>
     <message>
         <source>Pay To:</source>
@@ -2160,10 +2090,6 @@ Adres: %4
     <message>
         <source>&amp;Sign Message</source>
         <translation>O&amp;nderteken Bericht</translation>
-    </message>
-    <message>
-        <source>You can sign messages with your addresses to prove you own them. Be careful not to sign anything vague, as phishing attacks may try to trick you into signing your identity over to them. Only sign fully-detailed statements you agree to.</source>
-        <translation>U kunt berichten ondertekenen met een van uw adressen om te bewijzen dat u dit adres bezit. Pas op dat u geen onduidelijke dingen ondertekent, want phishingaanvallen zouden u kunnen misleiden om zo uw identiteit te stelen. Onderteken alleen berichten waarmee u het volledig eens bent.</translation>
     </message>
     <message>
         <source>The Bitcoin address to sign the message with</source>
@@ -2216,10 +2142,6 @@ Adres: %4
     <message>
         <source>&amp;Verify Message</source>
         <translation>&amp;Verifiëer Bericht</translation>
-    </message>
-    <message>
-        <source>Enter the signing address, message (ensure you copy line breaks, spaces, tabs, etc. exactly) and signature below to verify the message. Be careful not to read more into the signature than what is in the signed message itself, to avoid being tricked by a man-in-the-middle attack.</source>
-        <translation>Voer het ondertekenende adres, bericht en handtekening hieronder in (let erop dat u nieuwe regels, spaties en tabs juist overneemt) om de handtekening te verifiëren. Let erop dat u niet meer uit het bericht interpreteert dan er daadwerkelijk staat,  om te voorkomen dat u wordt misleid in een man-in-the-middle-aanval.</translation>
     </message>
     <message>
         <source>The Bitcoin address the message was signed with</source>
@@ -2485,10 +2407,6 @@ Adres: %4
         <translation>Type</translation>
     </message>
     <message>
-        <source>Address</source>
-        <translation>Adres</translation>
-    </message>
-    <message>
         <source>Immature (%1 confirmations, will be available after %2)</source>
         <translation>immatuur (%1 bevestigingen, zal beschikbaar zijn na %2)</translation>
     </message>
@@ -2515,6 +2433,10 @@ Adres: %4
     <message>
         <source>Offline</source>
         <translation>Niet verbonden</translation>
+    </message>
+    <message>
+        <source>Label</source>
+        <translation>Label</translation>
     </message>
     <message>
         <source>Unconfirmed</source>
@@ -2571,10 +2493,6 @@ Adres: %4
     <message>
         <source>Whether or not a watch-only address is involved in this transaction.</source>
         <translation>Of er een alleen-bekijken adres is betrokken bij deze transactie.</translation>
-    </message>
-    <message>
-        <source>Destination address of transaction.</source>
-        <translation>Ontvangend adres van transactie.</translation>
     </message>
     <message>
         <source>Amount removed from or added to balance.</source>
@@ -2907,10 +2825,6 @@ Adres: %4
         <translation>Foutopsporing/Testopties:</translation>
     </message>
     <message>
-        <source>Discover own IP address (default: 1 when listening and no -externalip)</source>
-        <translation>Ontdek eigen IP-adres (standaard: 1 als er wordt geluisterd en geen -externalip is opgegeven)</translation>
-    </message>
-    <message>
         <source>Do not load the wallet and disable wallet RPC calls</source>
         <translation>Laad de wallet niet en schakel wallet RPC oproepen uit</translation>
     </message>
@@ -2969,10 +2883,6 @@ Adres: %4
     <message>
         <source>Only connect to nodes in network &lt;net&gt; (ipv4, ipv6 or onion)</source>
         <translation>Verbind alleen met nodes in netwerk &lt;net&gt; (ipv4, ipv6 of onion)</translation>
-    </message>
-    <message>
-        <source>Rebuild block chain index from current blk000??.dat files</source>
-        <translation>Blokketen opnieuw opbouwen met behulp van huidige blk000??.dat-bestanden</translation>
     </message>
     <message>
         <source>Set database cache size in megabytes (%d to %d, default: %d)</source>
@@ -3039,10 +2949,6 @@ Adres: %4
         <translation>Kan geen lock verkrijgen op gegevensmap %s. Bitcoin Core draait waarschijnlijk al.</translation>
     </message>
     <message>
-        <source>Continuously rate-limit free transactions to &lt;n&gt;*1000 bytes per minute (default:%u)</source>
-        <translation>Doorlopend tarief-limiet op gratis transacties toepassen tot &lt;n&gt;*1000 bytes per minuut (standaard: %u)</translation>
-    </message>
-    <message>
         <source>Create new files with system default permissions, instead of umask 077 (only effective with disabled wallet functionality)</source>
         <translation>Creër nieuwe bestanden met standaard systeem bestandsrechten in plaats van umask 077 (alleen effectief met uitgeschakelde portemonnee functionaliteit)</translation>
     </message>
@@ -3080,16 +2986,8 @@ Adres: %4
 (default: %u)</translation>
     </message>
     <message>
-        <source>Maximum total fees to use in a single wallet transaction, setting too low may abort large transactions (default: %s)</source>
-        <translation>Maximale totale kosten om te gebruiken in een enkele portemonnee transactie , vaststellen van een te laag kan grote transacties af te breken (default: %s)</translation>
-    </message>
-    <message>
         <source>Query for peer addresses via DNS lookup, if low on addresses (default: 1 unless -connect)</source>
         <translation>Query voor peer- adressen via DNS- lookup , als laag op adressen  (default: 1 unless -connect)</translation>
-    </message>
-    <message>
-        <source>Require high priority for relaying free or low-fee transactions (default:%u)</source>
-        <translation>Vereisen een hoge prioriteit voor het doorgeven van gratis of tegen lage vergoeding transacties  (default:%u)</translation>
     </message>
     <message>
         <source>Set maximum size of high-priority/low-fee transactions in bytes (default: %d)</source>
@@ -3122,6 +3020,10 @@ Adres: %4
     <message>
         <source>Cannot resolve -whitebind address: '%s'</source>
         <translation>Kan -whitebind adres niet herleiden: '%s'</translation>
+    </message>
+    <message>
+        <source>Choose data directory on startup (default: 0)</source>
+        <translation>Kies de gegevensmap tijdens het opstarten (standaard: 0)</translation>
     </message>
     <message>
         <source>Connect through SOCKS5 proxy</source>
@@ -3220,8 +3122,20 @@ Adres: %4
         <translation>Verstuur transacties zonder verzendkosten indien mogelijk (standaard: %u)</translation>
     </message>
     <message>
+        <source>Set SSL root certificates for payment request (default: -system-)</source>
+        <translation>Zet SSL root certificaten voor betalingsverzoek (standaard: -sytem-)</translation>
+    </message>
+    <message>
+        <source>Set language, for example "de_DE" (default: system locale)</source>
+        <translation>Stel taal in, bijvoorbeeld ''de_DE" (standaard: systeeminstellingen)</translation>
+    </message>
+    <message>
         <source>Show all debugging options (usage: --help -help-debug)</source>
         <translation>Toon alle foutopsporingsopties (gebruik: --help -help-debug)</translation>
+    </message>
+    <message>
+        <source>Show splash screen on startup (default: 1)</source>
+        <translation>Laat laadscherm zien bij het opstarten. (standaard: 1)</translation>
     </message>
     <message>
         <source>Shrink debug.log file on client startup (default: 1 when no -debug)</source>
@@ -3230,6 +3144,10 @@ Adres: %4
     <message>
         <source>Signing transaction failed</source>
         <translation>Ondertekenen van transactie mislukt</translation>
+    </message>
+    <message>
+        <source>Start minimized</source>
+        <translation>Geminimaliseerd starten</translation>
     </message>
     <message>
         <source>This is experimental software.</source>
@@ -3270,10 +3188,6 @@ Adres: %4
     <message>
         <source>Warning</source>
         <translation>Waarschuwing</translation>
-    </message>
-    <message>
-        <source>Warning: This version is obsolete, upgrade required!</source>
-        <translation>Waarschuwing: Deze versie is verouderd, een upgrade is vereist!</translation>
     </message>
     <message>
         <source>Warning: Unsupported argument -benchmark ignored, use -debug=bench.</source>
