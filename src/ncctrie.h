@@ -159,6 +159,7 @@ public:
     bool getInfoForName(const std::string& name, CNodeValue& val) const;
     int nCurrentHeight;
     bool queueEmpty() const;
+    bool getQueueRow(int nHeight, std::vector<CValueQueueEntry>& row);
     bool haveClaim(const std::string& name, const uint256& txhash, uint32_t nOut) const;
     unsigned int getTotalNamesInTrie() const;
     unsigned int getTotalClaimsInTrie() const;
@@ -178,17 +179,15 @@ private:
     bool recursiveDumpToJSON(const std::string& name, const CNCCTrieNode* current, json_spirit::Array& ret) const;
     CNCCTrieNode root;
     uint256 hashBlock;
-    valueQueueType valueQueue;
-    valueQueueType::iterator getQueueRow(int nHeight, bool deleteIfNotExists);
+    valueQueueType dirtyQueueRows;
     
     nodeCacheType dirtyNodes;
-    std::vector<int> vDirtyQueueRows;
     void markNodeDirty(const std::string& name, CNCCTrieNode* node);
     void deleteQueueRow(int nHeight);
+    void updateQueueRow(int nHeight, std::vector<CValueQueueEntry>& row);
     void BatchWriteNode(CLevelDBBatch& batch, const std::string& name, const CNCCTrieNode* pNode) const;
     void BatchEraseNode(CLevelDBBatch& batch, const std::string& nome) const;
-    void BatchWriteQueueRow(CLevelDBBatch& batch, int nRowNum);
-    void BatchEraseQueueRow(CLevelDBBatch& batch, int nRowNum);
+    void BatchWriteQueueRows(CLevelDBBatch& batch);
 };
 
 class CNCCTrieCache

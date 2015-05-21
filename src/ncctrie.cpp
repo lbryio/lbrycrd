@@ -123,7 +123,34 @@ bool CNCCTrie::empty() const
 
 bool CNCCTrie::queueEmpty() const
 {
-    return valueQueue.empty();
+    for (valueQueueType::const_iterator itRow = dirtyQueueRows.begin(); itRow != dirtyQueueRows.end(); ++itRow)
+    {
+        if (!itRow->second.empty())
+            return false;
+    }
+    boost::scoped_ptr<leveldb::Iterator> pcursor(const_cast<CLevelDBWrapper*>(&db)->NewIterator());
+    pcursor->SeekToFirst();
+    
+    while (pcursor->Valid())
+    {
+        try
+        {
+            leveldb::Slice slKey = pcursor->key();
+            CDataStream ssKey(slKey.data(), slKey.data()+slKey.size(), SER_DISK, CLIENT_VERSION);
+            char chType;
+            ssKey >> chType;
+            if (chType == 'r')
+            {
+                return false;
+            }
+        }
+        catch (const std::exception& e)
+        {
+            return error("%s: Deserialize or I/O error - %s", __func__, e.what());
+        }
+        pcursor->Next();
+    }
+    return true;
 }
 
 void CNCCTrie::clear()
@@ -300,29 +327,29 @@ bool CNCCTrie::recursiveCheckConsistency(CNCCTrieNode* node)
     return calculatedHash == node->hash;
 }
 
-valueQueueType::iterator CNCCTrie::getQueueRow(int nHeight, bool createIfNotExists)
+bool CNCCTrie::getQueueRow(int nHeight, std::vector<CValueQueueEntry>& row)
 {
-    valueQueueType::iterator itQueueRow = valueQueue.find(nHeight);
-    if (itQueueRow == valueQueue.end())
+    valueQueueType::iterator itQueueRow = dirtyQueueRows.find(nHeight);
+    if (itQueueRow != dirtyQueueRows.end())
     {
-        if (!createIfNotExists)
-            return itQueueRow;
-        std::vector<CValueQueueEntry> queueRow;
+        row = itQueueRow->second;
+        return true;
+    }
+    return db.Read(std::make_pair('r', nHeight), row);
+}
+
+void CNCCTrie::updateQueueRow(int nHeight, std::vector<CValueQueueEntry>& row)
+{
+    valueQueueType::iterator itQueueRow = dirtyQueueRows.find(nHeight);
+    if (itQueueRow == dirtyQueueRows.end())
+    {
+        std::vector<CValueQueueEntry> newRow;
         std::pair<valueQueueType::iterator, bool> ret;
-        ret = valueQueue.insert(std::pair<int, std::vector<CValueQueueEntry> >(nHeight, queueRow));
+        ret = dirtyQueueRows.insert(std::pair<int, std::vector<CValueQueueEntry> >(nHeight, newRow));
         assert(ret.second);
         itQueueRow = ret.first;
     }
-    return itQueueRow;
-}
-
-void CNCCTrie::deleteQueueRow(int nHeight)
-{
-    valueQueueType::iterator itQueueRow = valueQueue.find(nHeight);
-    if (itQueueRow != valueQueue.end())
-    {
-        valueQueue.erase(itQueueRow);
-    }
+    itQueueRow->second.swap(row);
 }
 
 bool CNCCTrie::update(nodeCacheType& cache, hashMapType& hashes, const uint256& hashBlockIn, valueQueueType& queueCache, int nNewHeight)
@@ -361,16 +388,7 @@ bool CNCCTrie::update(nodeCacheType& cache, hashMapType& hashes, const uint256& 
     }
     for (valueQueueType::iterator itQueueCacheRow = queueCache.begin(); itQueueCacheRow != queueCache.end(); ++itQueueCacheRow)
     {
-        if (itQueueCacheRow->second.empty())
-        {
-            deleteQueueRow(itQueueCacheRow->first);
-        }
-        else
-        {
-            valueQueueType::iterator itQueueRow = getQueueRow(itQueueCacheRow->first, true);
-            itQueueRow->second.swap(itQueueCacheRow->second);
-        }
-        vDirtyQueueRows.push_back(itQueueCacheRow->first);
+        updateQueueRow(itQueueCacheRow->first, itQueueCacheRow->second);
     }
     hashBlock = hashBlockIn;
     nCurrentHeight = nNewHeight;
@@ -472,13 +490,19 @@ void CNCCTrie::BatchWriteNode(CLevelDBBatch& batch, const std::string& name, con
         batch.Erase(std::make_pair('n', name));
 }
 
-void CNCCTrie::BatchWriteQueueRow(CLevelDBBatch& batch, int nRowNum)
+void CNCCTrie::BatchWriteQueueRows(CLevelDBBatch& batch)
 {
-    valueQueueType::iterator itQueueRow = getQueueRow(nRowNum, false);
-    if (itQueueRow != valueQueue.end())
-        batch.Write(std::make_pair('r', nRowNum), itQueueRow->second);
-    else
-        batch.Erase(std::make_pair('r', nRowNum));
+    for (valueQueueType::iterator itQueue = dirtyQueueRows.begin(); itQueue != dirtyQueueRows.end(); ++itQueue)
+    {
+        if (itQueue->second.empty())
+        {
+            batch.Erase(std::make_pair('r', itQueue->first));
+        }
+        else
+        {
+            batch.Write(std::make_pair('r', itQueue->first), itQueue->second);
+        }
+    }
 }
 
 bool CNCCTrie::WriteToDisk()
@@ -487,9 +511,8 @@ bool CNCCTrie::WriteToDisk()
     for (nodeCacheType::iterator itcache = dirtyNodes.begin(); itcache != dirtyNodes.end(); ++itcache)
         BatchWriteNode(batch, itcache->first, itcache->second);
     dirtyNodes.clear();
-    for (std::vector<int>::iterator itRowNum = vDirtyQueueRows.begin(); itRowNum != vDirtyQueueRows.end(); ++itRowNum)
-        BatchWriteQueueRow(batch, *itRowNum);
-    vDirtyQueueRows.clear();
+    BatchWriteQueueRows(batch);
+    dirtyQueueRows.clear();
     batch.Write('h', hashBlock);
     batch.Write('t', nCurrentHeight);
     return db.WriteBatch(batch);
@@ -541,15 +564,6 @@ bool CNCCTrie::ReadFromDisk(bool check)
                 ssValue >> *node;
                 if (!InsertFromDisk(name, node))
                     return false;
-            }
-            else if (chType == 'r')
-            {
-                leveldb::Slice slValue = pcursor->value();
-                int nHeight;
-                ssKey >> nHeight;
-                CDataStream ssValue(slValue.data(), slValue.data()+slValue.size(), SER_DISK, CLIENT_VERSION);
-                valueQueueType::iterator itQueueRow = getQueueRow(nHeight, true);
-                ssValue >> itQueueRow->second;
             }
             pcursor->Next();
         }
@@ -884,14 +898,10 @@ valueQueueType::iterator CNCCTrieCache::getQueueCacheRow(int nHeight, bool creat
         // Have to make a new row it put in the cache, if createIfNotExists is true
         std::vector<CValueQueueEntry> queueRow;
         // If the row exists in the base, copy its values into the new row.
-        valueQueueType::iterator itBaseQueueRow = base->valueQueue.find(nHeight);
-        if (itBaseQueueRow == base->valueQueue.end())
-        {
+        bool exists = base->getQueueRow(nHeight, queueRow);
+        if (!exists)
             if (!createIfNotExists)
                 return itQueueRow;
-        }
-        else
-            queueRow = itBaseQueueRow->second;
         // Stick the new row in the cache
         std::pair<valueQueueType::iterator, bool> ret;
         ret = valueQueueCache.insert(std::pair<int, std::vector<CValueQueueEntry> >(nHeight, queueRow));
@@ -1036,13 +1046,16 @@ bool CNCCTrieCache::decrementBlock(CNCCTrieQueueUndo& undo) const
 {
     LogPrintf("%s: nCurrentHeight (before decrement): %d\n", __func__, nCurrentHeight);
     nCurrentHeight--;
-    valueQueueType::iterator itQueueRow = getQueueCacheRow(nCurrentHeight, true);
-    for (CNCCTrieQueueUndo::iterator itUndo = undo.begin(); itUndo != undo.end(); ++itUndo)
+    if (undo.begin() != undo.end())
     {
-        int nValidHeightInTrie;
-        assert(removeClaimFromTrie(itUndo->name, itUndo->val.txhash, itUndo->val.nOut, nValidHeightInTrie));
-        assert(nValidHeightInTrie == itUndo->val.nValidAtHeight);
-        itQueueRow->second.push_back(*itUndo);
+        valueQueueType::iterator itQueueRow = getQueueCacheRow(nCurrentHeight, true);
+        for (CNCCTrieQueueUndo::iterator itUndo = undo.begin(); itUndo != undo.end(); ++itUndo)
+        {
+            int nValidHeightInTrie;
+            assert(removeClaimFromTrie(itUndo->name, itUndo->val.txhash, itUndo->val.nOut, nValidHeightInTrie));
+            assert(nValidHeightInTrie == itUndo->val.nValidAtHeight);
+            itQueueRow->second.push_back(*itUndo);
+        }
     }
     return true;
 }
