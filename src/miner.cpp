@@ -394,8 +394,9 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         pblock->nBits          = GetNextWorkRequired(pindexPrev, pblock, Params().GetConsensus());
         pblock->nNonce         = 0;
         pblocktemplate->vTxSigOps[0] = GetLegacySigOpCount(pblock->vtx[0]);
-        CNCCTrieQueueUndo dummyundo;
-        trieCache.incrementBlock(dummyundo);
+        CNCCTrieQueueUndo dummyInsertUndo;
+        CNCCTrieQueueUndo dummyExpireUndo;
+        trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo);
         pblock->hashNCCTrie = trieCache.getMerkleHash();
 
         CValidationState state;

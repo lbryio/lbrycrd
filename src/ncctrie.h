@@ -147,7 +147,7 @@ class CNCCTrieCache;
 class CNCCTrie
 {
 public:
-    CNCCTrie(bool fMemory = false, bool fWipe = false) : db(GetDataDir() / "ncctrie", 100, fMemory, fWipe), nCurrentHeight(0), root(uint256S("0000000000000000000000000000000000000000000000000000000000000001")) {}
+    CNCCTrie(bool fMemory = false, bool fWipe = false) : db(GetDataDir() / "ncctrie", 100, fMemory, fWipe), nCurrentHeight(0), nExpirationTime(262974), root(uint256S("0000000000000000000000000000000000000000000000000000000000000001")) {}
     uint256 getMerkleHash();
     CLevelDBWrapper db;
     bool empty() const;
@@ -159,15 +159,19 @@ public:
     bool getInfoForName(const std::string& name, CNodeValue& val) const;
     int nCurrentHeight;
     bool queueEmpty() const;
+    bool expirationQueueEmpty() const;
+    void setExpirationTime(int t);
     bool getQueueRow(int nHeight, std::vector<CValueQueueEntry>& row);
+    bool getExpirationQueueRow(int nHeight, std::vector<CValueQueueEntry>& row);
     bool haveClaim(const std::string& name, const uint256& txhash, uint32_t nOut) const;
     unsigned int getTotalNamesInTrie() const;
     unsigned int getTotalClaimsInTrie() const;
     CAmount getTotalValueOfClaimsInTrie(bool fControllingOnly) const;
     friend class CNCCTrieCache;
+    int nExpirationTime;
 private:
     void clear(CNCCTrieNode* current);
-    bool update(nodeCacheType& cache, hashMapType& hashes, const uint256& hashBlock, valueQueueType& queueCache, int nNewHeight);
+    bool update(nodeCacheType& cache, hashMapType& hashes, const uint256& hashBlock, valueQueueType& queueCache, valueQueueType& expirationQueueCache, int nNewHeight);
     bool updateName(const std::string& name, CNCCTrieNode* updatedNode);
     bool updateHash(const std::string& name, uint256& hash);
     bool recursiveNullify(CNCCTrieNode* node, std::string& name);
@@ -180,14 +184,16 @@ private:
     CNCCTrieNode root;
     uint256 hashBlock;
     valueQueueType dirtyQueueRows;
+    valueQueueType dirtyExpirationQueueRows;
     
     nodeCacheType dirtyNodes;
     void markNodeDirty(const std::string& name, CNCCTrieNode* node);
-    void deleteQueueRow(int nHeight);
     void updateQueueRow(int nHeight, std::vector<CValueQueueEntry>& row);
+    void updateExpirationRow(int nHeight, std::vector<CValueQueueEntry>& row);
     void BatchWriteNode(CLevelDBBatch& batch, const std::string& name, const CNCCTrieNode* pNode) const;
     void BatchEraseNode(CLevelDBBatch& batch, const std::string& nome) const;
     void BatchWriteQueueRows(CLevelDBBatch& batch);
+    void BatchWriteExpirationQueueRows(CLevelDBBatch& batch);
 };
 
 class CNCCTrieCache
@@ -205,8 +211,8 @@ public:
     bool undoSpendClaim(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight, int nValidAtHeight) const;
     uint256 getBestBlock();
     void setBestBlock(const uint256& hashBlock);
-    bool incrementBlock(CNCCTrieQueueUndo& undo) const;
-    bool decrementBlock(CNCCTrieQueueUndo& undo) const;
+    bool incrementBlock(CNCCTrieQueueUndo& insertUndo, CNCCTrieQueueUndo& expireUndo) const;
+    bool decrementBlock(CNCCTrieQueueUndo& insertUndo, CNCCTrieQueueUndo& expireUndo) const;
     ~CNCCTrieCache() { clear(); }
     bool insertClaimIntoTrie(const std::string name, CNodeValue val) const;
     bool removeClaimFromTrie(const std::string name, uint256 txhash, uint32_t nOut, int& nValidAtHeight) const;
@@ -217,6 +223,7 @@ private:
     mutable std::set<std::string> dirtyHashes;
     mutable hashMapType cacheHashes;
     mutable valueQueueType valueQueueCache;
+    mutable valueQueueType expirationQueueCache;
     mutable int nCurrentHeight; // Height of the block that is being worked on, which is
                                 // one greater than the height of the chain's tip
     uint256 computeHash() const;
@@ -224,9 +231,12 @@ private:
     bool recursivePruneName(CNCCTrieNode* tnCurrent, unsigned int nPos, std::string sName, bool* pfNullified = NULL) const;
     bool clear() const;
     bool removeClaim(const std::string name, uint256 txhash, uint32_t nOut, int nHeight, int& nValidAtHeight) const;
-    bool addClaimToQueue(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight, int nValidAtHeight) const;
+    bool addClaimToQueues(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight, int nValidAtHeight) const;
     bool removeClaimFromQueue(const std::string name, uint256 txhash, uint32_t nOut, int nHeightToCheck, int& nValidAtHeight) const;
+    void addToExpirationQueue(CValueQueueEntry& entry) const;
+    void removeFromExpirationQueue(const std::string name, uint256 txhash, uint32_t nOut, int nHeight) const;
     valueQueueType::iterator getQueueCacheRow(int nHeight, bool createIfNotExists) const;
+    valueQueueType::iterator getExpirationQueueCacheRow(int nHeight, bool createIfNotExists) const;
     uint256 hashBlock;
 };
 

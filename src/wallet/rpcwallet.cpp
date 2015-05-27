@@ -665,7 +665,19 @@ void ListNameClaims(const CWalletTx& wtx, const string& strAccount, int nMinDept
                 {
                     CBlockIndex* pindex = it->second;
                     if (pindex)
+                    {
                         entry.push_back(Pair("height", pindex->nHeight));
+                        entry.push_back(Pair("expiration height", pindex->nHeight + pnccTrie->nExpirationTime));
+                        if (pindex->nHeight + pnccTrie->nExpirationTime > chainActive.Height())
+                        {
+                            entry.push_back(Pair("expired", false));
+                            entry.push_back(Pair("blocks to expiration", pindex->nHeight + pnccTrie->nExpirationTime - chainActive.Height()));
+                        }
+                        else
+                        {
+                            entry.push_back(Pair("expired", true));
+                        }
+                    }
                 }
                 entry.push_back(Pair("confirmations", wtx.GetDepthInMainChain()));
                 entry.push_back(Pair("is spent", pwalletMain->IsSpent(wtx.GetHash(), s.vout)));

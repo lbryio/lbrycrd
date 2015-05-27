@@ -1625,7 +1625,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     if (blockUndo.vtxundo.size() + 1 != block.vtx.size())
         return error("DisconnectBlock(): block and undo data inconsistent");
 
-    assert(trieCache.decrementBlock(blockUndo.queueUndo));
+    assert(trieCache.decrementBlock(blockUndo.insertUndo, blockUndo.expireUndo));
 
     // undo transactions in reverse order
     for (int i = block.vtx.size() - 1; i >= 0; i--) {
@@ -1934,7 +1934,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
 
-    assert(trieCache.incrementBlock(blockundo.queueUndo));
+    assert(trieCache.incrementBlock(blockundo.insertUndo, blockundo.expireUndo));
 
     if (trieCache.getMerkleHash() != block.hashNCCTrie)
         return state.DoS(100,

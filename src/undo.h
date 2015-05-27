@@ -80,14 +80,16 @@ class CBlockUndo
 {
 public:
     std::vector<CTxUndo> vtxundo; // for all but the coinbase
-    CNCCTrieQueueUndo queueUndo; // any claims that went from the queue to the trie
+    CNCCTrieQueueUndo insertUndo; // any claims that went from the queue to the trie
+    CNCCTrieQueueUndo expireUndo; // any claims that expired
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         READWRITE(vtxundo);
-        READWRITE(queueUndo);
+        READWRITE(insertUndo);
+        READWRITE(expireUndo);
     }
 };
 

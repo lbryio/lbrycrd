@@ -14,7 +14,7 @@
 
 using namespace std;
 
-const unsigned int nonces[] = {
+const unsigned int insert_nonces[] = {
     62302, 78404, 42509, 88397, 232147, 34120, 48944, 8449, 3855, 99418,
     35007, 36992, 18865, 48021, 117592, 61911, 26614, 26267, 171911, 49917,
     68274, 19360, 48650, 22711, 102612, 73362, 7375, 39379, 413, 123283,
@@ -83,6 +83,64 @@ const unsigned int nonces[] = {
     102894, 41478, 509, 169951, 5571, 28284, 8138, 53248, 47878, 113791,
     192277, 73645, 28672, 93670, 30741, 129667}; 
 
+const unsigned int expire_nonces[] = {
+   1772, 19895, 52494, 75900, 15954, 92687, 381518, 24750, 131218, 140637,
+   25151, 4751, 117588, 31281, 741, 13006, 56207, 23174, 32024, 23597,
+   17093, 22998, 68975, 84976, 47024, 48818, 29830, 28891, 66091, 6304,
+   117, 253782, 126584, 55982, 43172, 5862, 36712, 289031, 42833, 61902,
+   81993, 26790, 80145, 111102, 27904, 16188, 55120, 7171, 67694, 214899,
+   16360, 133920, 31442, 103537, 266284, 4407, 102008, 1149, 156950, 76029,
+   33751, 20831, 24714, 202595, 9393, 227174, 3357, 70, 45445, 104755,
+   6024, 13512, 163718, 43755, 17582, 17069, 17355, 38898, 101900, 41342,
+   20701, 9827, 11663, 146362, 189082, 279537, 79142, 423101, 11154, 103046,
+   44740, 90350, 41450, 4627, 4685, 14510, 13639, 13705, 2369, 326596,
+   74814, 15068, 7287, 26685, 41834, 5872, 94033, 77510, 21271, 51233,
+   687, 84716, 18945, 139111, 11508, 15009, 103492, 25317, 100121, 29105,
+   26520, 531, 6883, 181308, 161707, 72079, 50032, 65286, 96365, 18280,
+   21015, 56591, 90913, 3280, 74270, 87610, 85124, 58599, 161342, 36017,
+   135104, 19625, 114763, 163177, 31400, 99871, 15939, 6822, 51007, 33240,
+   15449, 28232, 242057, 45744, 253284, 218826, 25843, 118582, 228181, 7592,
+   3398, 23637, 46762, 22853, 7669, 358599, 99238, 32782, 46407, 36545,
+   28976, 34995, 23564, 60624, 45957, 162829, 7055, 184611, 69270, 22560,
+   17314, 24374, 67156, 44705, 9482, 17611, 92669, 22471, 47688, 110960,
+   18595, 46376, 23989, 47847, 41231, 2937, 34056, 61839, 9393, 122723,
+   119967, 41795, 13244, 22081, 41407, 65568, 120355, 228591, 3763, 23561,
+   78832, 20110, 3849, 162319, 9699, 153960, 60013, 22063, 22895, 84997,
+   20008, 6201, 18985, 7065, 63655, 35849, 19788, 69977, 45664, 15647,
+   111735, 1372, 2487, 38856, 39081, 74496, 71062, 20232, 33091, 26777,
+   155180, 149434, 35380, 102844, 46709, 3373, 137389, 33273, 13194, 5106,
+   69109, 21599, 24896, 16688, 101584, 567, 61253, 125648, 30825, 38976,
+   88494, 82214, 84079, 52761, 16392, 206857, 19856, 48376, 11820, 21296,
+   12707, 94783, 31272, 113581, 40682, 143247, 1206, 21720, 40627, 131077,
+   78794, 9026, 38830, 39757, 94577, 20134, 15904, 185817, 35595, 21609,
+   15868, 187480, 62515, 36383, 12797, 101029, 17979, 48892, 59215, 197023,
+   217536, 295885, 5639, 24470, 440, 96896, 3113, 74270, 8773, 89871,
+   41807, 33896, 41053, 87038, 64666, 2642, 39880, 113389, 51922, 64364,
+   46026, 34424, 6856, 51050, 48871, 43033, 95444, 68098, 10463, 27119,
+   101386, 28555, 94429, 38046, 13110, 39449, 976, 12015, 32827, 20156,
+   79086, 90632, 24716, 11632, 27225, 11563, 45437, 41804, 240056, 26298,
+   7089, 119823, 87043, 46315, 108722, 24002, 109328, 32013, 47232, 243845,
+   9604, 158119, 189402, 124127, 89656, 39496, 63807, 83836, 80843, 2261,
+   103229, 24028, 299032, 43513, 8506, 362389, 14113, 47973, 145654, 23170,
+   23272, 35090, 17628, 28197, 96581, 84151, 694, 182728, 86514, 129029,
+   4509, 48647, 63280, 86829, 138046, 8075, 59670, 53232, 37353, 51966,
+   62110, 66890, 75512, 42296, 240099, 64624, 98903, 29189, 2593, 17376,
+   11417, 2982, 3273, 40001, 468410, 29603, 111819, 36878, 6710, 14350,
+   87778, 69800, 18820, 75880, 26049, 36685, 8500, 189289, 186944, 100520,
+   167630, 7170, 115904, 79212, 4792, 82507, 13634, 71118, 27066, 66914,
+   44963, 58999, 153183, 184462, 65596, 102627, 333388, 164930, 6664, 120605,
+   141, 122317, 162948, 93160, 216861, 68595, 67370, 15526, 4320, 45961,
+   86806, 61077, 61730, 117548, 127472, 1191, 15735, 133987, 16288, 4652,
+   83674, 21872, 21351, 35691, 11584, 85669, 196, 75276, 45275, 55828,
+   46586, 153482, 6183, 386, 28729, 111942, 2847, 10584, 207349, 57260,
+   12075, 27552, 129129, 282325, 11954, 28300, 175155, 31256, 12953, 16345,
+   34101, 57962, 16950, 9103, 94414, 1918, 69031, 151629, 41281, 85752,
+   66681, 31646, 12396, 167, 72005, 3936, 27566, 5663, 24098, 73350,
+   19076, 179631, 36500, 152550, 56501, 81202, 77561, 134713, 81130, 22321,
+   112081, 32992, 144573, 21369, 2471, 18371, 63050, 44211, 6147, 206052,
+   34252, 534, 20176, 58035, 24268, 19608, 37770, 57588, 120961, 58415,
+   4780, 4614, 229320, 42279, 41295, 23501, 78183}; 
+
 BOOST_FIXTURE_TEST_SUITE(ncctrie_tests, TestingSetup)
 
 CMutableTransaction BuildTransaction(const uint256& prevhash)
@@ -129,7 +187,7 @@ void AddToMempool(CMutableTransaction& tx)
     mempool.addUnchecked(tx.GetHash(), CTxMemPoolEntry(tx, 0, GetTime(), 111.0, chainActive.Height()));
 }
 
-bool CreateBlock(CBlockTemplate* pblocktemplate, bool f = false)
+bool CreateBlock(CBlockTemplate* pblocktemplate, int nonce)
 {
     static int unique_block_counter = 0;
     CBlock* pblock = &pblocktemplate->block;
@@ -140,18 +198,24 @@ bool CreateBlock(CBlockTemplate* pblocktemplate, bool f = false)
     txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height(), Params().GetConsensus());
     pblock->vtx[0] = CTransaction(txCoinbase);
     pblock->hashMerkleRoot = pblock->BuildMerkleTree();
-    pblock->nNonce = nonces[unique_block_counter - 1];
-    /*for (int i = 0; ; ++i)
+    //if (nonce != -1)
+    //{
+    pblock->nNonce = nonce;
+    //}
+    /*else
     {
-        pblock->nNonce = i;
-        if (CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus()))
+        for (int i = 0; ; ++i)
         {
-            std::cout << pblock->nNonce << ",";
-            if (unique_block_counter % 10 == 0)
-                std::cout << std::endl;
-            else
-                std::cout << " "; 
-            break;
+            pblock->nNonce = i;
+            if (CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus()))
+            {
+                std::cout << pblock->nNonce << ",";
+                if (unique_block_counter % 10 == 0)
+                    std::cout << std::endl;
+                else
+                    std::cout << " "; 
+                break;
+            }
         }
     }*/
     CValidationState state;
@@ -290,6 +354,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_merkle_hash)
 
 BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
 {
+    int block_counter = 0;
     BOOST_CHECK(pnccTrie->nCurrentHeight == chainActive.Height() + 1);
     
     CBlockTemplate *pblocktemplate;
@@ -315,7 +380,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
 
     for (unsigned int i = 0; i < 103; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate));
+        BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
         if (coinbases.size() < 3)
             coinbases.push_back(CTransaction(pblocktemplate->block.vtx[0]));
     }
@@ -352,7 +417,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 3);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -363,7 +428,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 1; i < 100; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate));
+        BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
     
@@ -372,7 +437,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     delete pblocktemplate;
     
     // Verify tx1 and tx2 are in the trie
@@ -389,7 +454,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 4);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -429,7 +494,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, true));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -451,7 +516,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -462,7 +527,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 1; i < 100; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate));
+        BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
 
@@ -471,7 +536,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     delete pblocktemplate;
        
     BOOST_CHECK(!pnccTrie->empty());
@@ -497,7 +562,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 3);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -519,7 +584,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
     BOOST_CHECK(pnccTrie->empty());
@@ -529,7 +594,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 1; i < 50; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate));
+        BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
     BOOST_CHECK(pnccTrie->empty());
@@ -542,7 +607,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
     BOOST_CHECK(pnccTrie->empty());
@@ -552,7 +617,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 1; i < 51; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate));
+        BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
     BOOST_CHECK(pnccTrie->empty());
@@ -571,7 +636,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 0; i < 50; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate));
+        BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
 
@@ -580,7 +645,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     delete pblocktemplate;
     BOOST_CHECK(!pnccTrie->empty());
     BOOST_CHECK(pnccTrie->queueEmpty());
@@ -596,7 +661,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -628,7 +693,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, true));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -641,7 +706,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 1; i < 50; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate));
+        BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
     BOOST_CHECK(pnccTrie->empty());
@@ -654,7 +719,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -668,7 +733,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -689,7 +754,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 1; i < 100; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate, true));
+        BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
 
@@ -698,7 +763,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     delete pblocktemplate;
 
     BOOST_CHECK(!pnccTrie->empty());
@@ -720,7 +785,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 0; i < 50; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate));
+        BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
 
@@ -729,7 +794,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     delete pblocktemplate;
 
     BOOST_CHECK(!pnccTrie->empty());
@@ -744,7 +809,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     delete pblocktemplate;
     
     BOOST_CHECK(!pnccTrie->empty());
@@ -759,7 +824,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate));
+    BOOST_CHECK(CreateBlock(pblocktemplate, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
     
@@ -781,6 +846,279 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     blocks_to_invalidate.pop_back();
     BOOST_CHECK(pnccTrie->empty());
     BOOST_CHECK(pnccTrie->queueEmpty());
+}
+
+BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
+{
+    int block_counter = 0;
+    BOOST_CHECK(pnccTrie->nCurrentHeight == chainActive.Height() + 1);
+
+    CBlockTemplate *pblocktemplate;
+    LOCK(cs_main);
+
+    CScript scriptPubKey = CScript() << OP_TRUE;
+
+    std::string sName("atest");
+    std::string sValue("testa");
+
+    std::vector<unsigned char> vchName(sName.begin(), sName.end());
+    std::vector<unsigned char> vchValue(sValue.begin(), sValue.end());
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    std::vector<CTransaction> coinbases;
+    for (unsigned int i = 0; i < 102; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate, expire_nonces[block_counter++]));
+        if (coinbases.size() < 2)
+            coinbases.push_back(CTransaction(pblocktemplate->block.vtx[0]));
+    }
+
+    delete pblocktemplate;
+
+    CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
+    tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP << OP_TRUE;
+    CMutableTransaction tx2 = BuildTransaction(tx1);
+    tx2.vout[0].scriptPubKey = CScript() << OP_TRUE;
+
+    std::vector<uint256> blocks_to_invalidate;
+    // set expiration time to 100 blocks after the block becomes valid.
+
+    pnccTrie->setExpirationTime(200);
+
+    // create a claim. verify no expiration event has been scheduled.
+
+    AddToMempool(tx1);
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, expire_nonces[block_counter++]));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(!pnccTrie->queueEmpty());
+    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+
+    // advance until the claim is valid. verify the expiration event is scheduled.
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 1; i < 100; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate, expire_nonces[block_counter++]));
+    }
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, expire_nonces[block_counter++]));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+
+    // advance until the expiration event occurs. verify the expiration event occurs on time.
+    
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 1; i < 100; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate, expire_nonces[block_counter++]));
+    }
+    delete pblocktemplate;
+
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, expire_nonces[block_counter++]));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+    
+    // roll forward a bit and then roll back to before the expiration event. verify the claim is reinserted. verify the expiration event is scheduled again.
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 0; i < 100; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate, expire_nonces[block_counter++]));
+    }
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    
+    // advance until the expiration event occurs. verify the expiration event occurs on time.
+    
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, expire_nonces[block_counter++]));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+
+    // roll back to before the expiration event. verify the claim is reinserted. verify the expiration event is scheduled again.
+    
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    
+    // roll back to before the claim is valid. verify the claim is removed but the expiration event still exists.
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(!pnccTrie->queueEmpty());
+    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+
+    // advance until the claim is valid again. verify the expiration event is scheduled.
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, expire_nonces[block_counter++]));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+
+    // advance until the expiration event occurs. verify the expiration event occurs on time.
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 1; i < 100; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate, expire_nonces[block_counter++]));
+        if (i == 50)
+            blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    }
+    delete pblocktemplate;
+
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, expire_nonces[block_counter++]));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+
+    // roll back to before the expiration event. verify the expiration event is scheduled.
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+
+    // roll back some.
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+
+    // spend the claim. verify the expiration event is removed.
+    
+    AddToMempool(tx2);
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, expire_nonces[block_counter++]));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+    
+    // roll back the spend. verify the expiration event is returned.
+    
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    
+    // advance until the expiration event occurs. verify the event occurs on time.
+    
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 50; i < 100; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate, expire_nonces[block_counter++]));
+    }
+    delete pblocktemplate;
+
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, expire_nonces[block_counter++]));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+    
+    // roll back to before the expiration event. verify the claim is reinserted. verify the expiration event is scheduled again.
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+
+    // roll back to before the claim is valid. verify the claim is removed but the expiration event is not.
+    
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(!pnccTrie->queueEmpty());
+    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+
+    // roll all the way back
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(blocks_to_invalidate.empty());
 }
 
 BOOST_AUTO_TEST_CASE(ncctrienode_serialize_unserialize)
