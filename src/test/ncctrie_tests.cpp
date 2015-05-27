@@ -139,7 +139,7 @@ const unsigned int expire_nonces[] = {
    19076, 179631, 36500, 152550, 56501, 81202, 77561, 134713, 81130, 22321,
    112081, 32992, 144573, 21369, 2471, 18371, 63050, 44211, 6147, 206052,
    34252, 534, 20176, 58035, 24268, 19608, 37770, 57588, 120961, 58415,
-   4780, 4614, 229320, 42279, 41295, 23501, 78183}; 
+   4780, 4614, 229320, 42279, 41295, 23501, 78183, 171983, 24229}; 
 
 BOOST_FIXTURE_TEST_SUITE(ncctrie_tests, TestingSetup)
 
@@ -199,9 +199,7 @@ bool CreateBlock(CBlockTemplate* pblocktemplate, int nonce)
     pblock->vtx[0] = CTransaction(txCoinbase);
     pblock->hashMerkleRoot = pblock->BuildMerkleTree();
     //if (nonce != -1)
-    //{
     pblock->nNonce = nonce;
-    //}
     /*else
     {
         for (int i = 0; ; ++i)
@@ -1070,6 +1068,8 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     BOOST_CHECK(!pnccTrie->empty());
     BOOST_CHECK(pnccTrie->queueEmpty());
     BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+   
+    mempool.clear();
     
     // advance until the expiration event occurs. verify the event occurs on time.
     
@@ -1094,8 +1094,53 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     BOOST_CHECK(pnccTrie->empty());
     BOOST_CHECK(pnccTrie->queueEmpty());
     BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+
+    // spend the expired claim
+
+    AddToMempool(tx2);
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, expire_nonces[block_counter++]));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+
+    // undo the spend. verify everything remains empty.
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+
+    mempool.clear();
     
     // roll back to before the expiration event. verify the claim is reinserted. verify the expiration event is scheduled again.
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+
+    // verify the expiration event happens at the right time again
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, expire_nonces[block_counter++]));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+
+    // roll back to before the expiration event. verify it gets reinserted and expiration gets scheduled.
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();

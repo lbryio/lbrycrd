@@ -1595,9 +1595,11 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CNCCTrie
         std::string name(vvchParams[0].begin(), vvchParams[0].end());
         LogPrintf("%s: Restoring %s to the NCC trie due to a block being disconnected\n", __func__, name.c_str());
         int nValidHeight = undo.nNCCValidHeight;
-        assert(nValidHeight > 0 && nValidHeight >= coins->nHeight);
-        if (!trieCache.undoSpendClaim(name, out.hash, out.n, undo.txout.nValue, coins->nHeight, nValidHeight))
-            LogPrintf("%s: Something went wrong inserting the name\n", __func__);
+        if (nValidHeight > 0 && nValidHeight >= coins->nHeight)
+        {
+            if (!trieCache.undoSpendClaim(name, out.hash, out.n, undo.txout.nValue, coins->nHeight, nValidHeight))
+                LogPrintf("%s: Something went wrong inserting the name\n", __func__);
+        }
     }
 
     coins->vout[out.n] = undo.txout;
@@ -1874,12 +1876,13 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     int nValidAtHeight;
                     LogPrintf("%s: Removing %s from the ncc trie. Tx: %s, nOut: %d\n", __func__, name, txin.prevout.hash.GetHex(), txin.prevout.n);
-                    if (!trieCache.spendClaim(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, nValidAtHeight))
-                        LogPrintf("%s: Something went wrong removing the name\n", __func__);
-                    mNCCUndoHeights[i] = nValidAtHeight;
-                    std::pair<uint256, unsigned int> val(txin.prevout.hash, txin.prevout.n);
-                    std::pair<std::string, std::pair<uint256, unsigned int> > entry(name, val);
-                    spentClaims.insert(entry);
+                    if (trieCache.spendClaim(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, nValidAtHeight))
+                    {
+                        mNCCUndoHeights[i] = nValidAtHeight;
+                        std::pair<uint256, unsigned int> val(txin.prevout.hash, txin.prevout.n);
+                        std::pair<std::string, std::pair<uint256, unsigned int> > entry(name, val);
+                        spentClaims.insert(entry);
+                    }
                 }
             }
             
