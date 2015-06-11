@@ -1,14 +1,9 @@
 #include "main.h"
 #include "ncc.h"
 #include "rpcserver.h"
+#include "univalue/univalue.h"
 
-#include "json/json_spirit_value.h"
-
-using namespace json_spirit;
-//using namespace std;
-
-
-Value getncctrie(const Array& params, bool fHelp)
+UniValue getncctrie(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() > 0)
         throw std::runtime_error(
@@ -29,12 +24,12 @@ Value getncctrie(const Array& params, bool fHelp)
 
     LOCK(cs_main);
 
-    Array ret = pnccTrie->dumpToJSON();
+    UniValue ret = pnccTrie->dumpToJSON();
 
     return ret;
 }
 
-Value gettxinfoforname(const Array& params, bool fHelp)
+UniValue gettxinfoforname(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
         throw std::runtime_error(
@@ -52,7 +47,7 @@ Value gettxinfoforname(const Array& params, bool fHelp)
 
     std::string name = params[0].get_str();
     
-    Object ret;// = pnccTrie->getInfoForName(name);
+    UniValue ret(UniValue::VOBJ);
     CNodeValue val;
     if (pnccTrie->getInfoForName(name, val))
     {
@@ -64,7 +59,7 @@ Value gettxinfoforname(const Array& params, bool fHelp)
     return ret;
 }
 
-Value getvalueforname(const Array& params, bool fHelp)
+UniValue getvalueforname(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
         throw std::runtime_error(
@@ -78,7 +73,7 @@ Value getvalueforname(const Array& params, bool fHelp)
     LOCK(cs_main);
     std::string name = params[0].get_str();
     CNodeValue val;
-    Object ret;
+    UniValue ret(UniValue::VOBJ);
     if (!pnccTrie->getInfoForName(name, val))
         return ret;
     CCoinsViewCache view(pcoinsTip);
@@ -106,7 +101,7 @@ Value getvalueforname(const Array& params, bool fHelp)
     return ret;
 }
 
-Value gettotalclaimednames(const Array& params, bool fHelp)
+UniValue gettotalclaimednames(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
         throw std::runtime_error(
@@ -127,7 +122,7 @@ Value gettotalclaimednames(const Array& params, bool fHelp)
     return int(num_names);
 }
 
-Value gettotalclaims(const Array& params, bool fHelp)
+UniValue gettotalclaims(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
         throw std::runtime_error(
@@ -147,7 +142,7 @@ Value gettotalclaims(const Array& params, bool fHelp)
     return int(num_claims);
 }
 
-Value gettotalvalueofclaims(const Array& params, bool fHelp)
+UniValue gettotalvalueofclaims(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() > 1)
         throw std::runtime_error(

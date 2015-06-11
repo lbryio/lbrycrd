@@ -279,10 +279,9 @@ CAmount CNCCTrie::getTotalValueOfClaimsRecursive(const CNCCTrieNode* current, bo
      return value_in_subtrie;
 }
 
-bool CNCCTrie::recursiveDumpToJSON(const std::string& name, const CNCCTrieNode* current, json_spirit::Array& ret) const
+bool CNCCTrie::recursiveDumpToJSON(const std::string& name, const CNCCTrieNode* current, UniValue& ret) const
 {
-    using namespace json_spirit;
-    Object objNode;
+    UniValue objNode(UniValue::VOBJ);
     objNode.push_back(Pair("name", name));
     objNode.push_back(Pair("hash", current->hash.GetHex()));
     CNodeValue val;
@@ -304,9 +303,9 @@ bool CNCCTrie::recursiveDumpToJSON(const std::string& name, const CNCCTrieNode* 
     return true;
 }
 
-json_spirit::Array CNCCTrie::dumpToJSON() const
+UniValue CNCCTrie::dumpToJSON() const
 {
-    json_spirit::Array ret;
+    UniValue ret(UniValue::VARR);
     if (!recursiveDumpToJSON("", &root, ret))
         LogPrintf("%s: Something went wrong dumping to JSON", __func__);
     return ret;

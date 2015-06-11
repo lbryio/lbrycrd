@@ -3,6 +3,7 @@
 // file COPYING or http://opensource.org/licenses/mit-license.php
 
 #include "main.h"
+#include "consensus/validation.h"
 #include "primitives/transaction.h"
 #include "miner.h"
 #include "ncctrie.h"
@@ -217,7 +218,7 @@ bool CreateBlock(CBlockTemplate* pblocktemplate, int nonce)
         }
     }*/
     CValidationState state;
-    bool success = (ProcessNewBlock(state, NULL, pblock) && state.IsValid() && pblock->GetHash() == chainActive.Tip()->GetBlockHash());
+    bool success = (ProcessNewBlock(state, NULL, pblock, true, NULL) && state.IsValid() && pblock->GetHash() == chainActive.Tip()->GetBlockHash());
     pblock->hashPrevBlock = pblock->GetHash();
     return success;
 }

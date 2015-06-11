@@ -16,10 +16,11 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/dynamic_bitset.hpp>
 
-using namespace std;
-using namespace json_spirit;
+#include "univalue/univalue.h"
 
-static const int MAX_GETUTXOS_OUTPOINTS = 100; //allow a max of 100 outpoints to be queried at once
+using namespace std;
+
+static const int MAX_GETUTXOS_OUTPOINTS = 15; //allow a max of 15 outpoints to be queried at once
 
 enum RetFormat {
     RF_UNDEF,
@@ -61,9 +62,9 @@ public:
     string message;
 };
 
-extern void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry);
-extern Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool txDetails = false);
-extern void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out, bool fIncludeHex);
+extern void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry);
+extern UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool txDetails = false);
+extern void ScriptPubKeyToJSON(const CScript& scriptPubKey, UniValue& out, bool fIncludeHex);
 
 static RestErr RESTERR(enum HTTPStatusCode status, string message)
 {
@@ -221,8 +222,8 @@ static bool rest_block(AcceptedConnection* conn,
     }
 
     case RF_JSON: {
-        Object objBlock = blockToJSON(block, pblockindex, showTxDetails);
-        string strJSON = write_string(Value(objBlock), false) + "\n";
+        UniValue objBlock = blockToJSON(block, pblockindex, showTxDetails);
+        string strJSON = objBlock.write() + "\n";
         conn->stream() << HTTPReply(HTTP_OK, strJSON, fRun) << std::flush;
         return true;
     }
@@ -262,13 +263,12 @@ static bool rest_chaininfo(AcceptedConnection* conn,
 {
     vector<string> params;
     const RetFormat rf = ParseDataFormat(params, strURIPart);
-    
+
     switch (rf) {
     case RF_JSON: {
-        Array rpcParams;
-        Value chainInfoObject = getblockchaininfo(rpcParams, false);
-        
-        string strJSON = write_string(chainInfoObject, false) + "\n";
+        UniValue rpcParams(UniValue::VARR);
+        UniValue chainInfoObject = getblockchaininfo(rpcParams, false);
+        string strJSON = chainInfoObject.write() + "\n";
         conn->stream() << HTTPReply(HTTP_OK, strJSON, fRun) << std::flush;
         return true;
     }
@@ -276,7 +276,7 @@ static bool rest_chaininfo(AcceptedConnection* conn,
         throw RESTERR(HTTP_NOT_FOUND, "output format not found (available: json)");
     }
     }
-    
+
     // not reached
     return true; // continue to process further HTTP reqs on this cxn
 }
@@ -317,9 +317,9 @@ static bool rest_tx(AcceptedConnection* conn,
     }
 
     case RF_JSON: {
-        Object objTx;
+        UniValue objTx(UniValue::VOBJ);
         TxToJSON(tx, hashBlock, objTx);
-        string strJSON = write_string(Value(objTx), false) + "\n";
+        string strJSON = objTx.write() + "\n";
         conn->stream() << HTTPReply(HTTP_OK, strJSON, fRun) << std::flush;
         return true;
     }
@@ -342,18 +342,53 @@ static bool rest_getutxos(AcceptedConnection* conn,
     vector<string> params;
     enum RetFormat rf = ParseDataFormat(params, strURIPart);
 
+    vector<string> uriParts;
+    if (params.size() > 0 && params[0].length() > 1)
+    {
+        std::string strUriParams = params[0].substr(1);
+        boost::split(uriParts, strUriParams, boost::is_any_of("/"));
+    }
+
     // throw exception in case of a empty request
-    if (strRequest.length() == 0)
+    if (strRequest.length() == 0 && uriParts.size() == 0)
         throw RESTERR(HTTP_INTERNAL_SERVER_ERROR, "Error: empty request");
 
+    bool fInputParsed = false;
     bool fCheckMemPool = false;
     vector<COutPoint> vOutPoints;
 
     // parse/deserialize input
     // input-format = output-format, rest/getutxos/bin requires binary input, gives binary output, ...
-    
+
+    if (uriParts.size() > 0)
+    {
+
+        //inputs is sent over URI scheme (/rest/getutxos/checkmempool/txid1-n/txid2-n/...)
+        if (uriParts.size() > 0 && uriParts[0] == "checkmempool")
+            fCheckMemPool = true;
+
+        for (size_t i = (fCheckMemPool) ? 1 : 0; i < uriParts.size(); i++)
+        {
+            uint256 txid;
+            int32_t nOutput;
+            std::string strTxid = uriParts[i].substr(0, uriParts[i].find("-"));
+            std::string strOutput = uriParts[i].substr(uriParts[i].find("-")+1);
+
+            if (!ParseInt32(strOutput, &nOutput) || !IsHex(strTxid))
+                throw RESTERR(HTTP_INTERNAL_SERVER_ERROR, "Parse error");
+
+            txid.SetHex(strTxid);
+            vOutPoints.push_back(COutPoint(txid, (uint32_t)nOutput));
+        }
+
+        if (vOutPoints.size() > 0)
+            fInputParsed = true;
+        else
+            throw RESTERR(HTTP_INTERNAL_SERVER_ERROR, "Error: empty request");
+    }
+
     string strRequestMutable = strRequest; //convert const string to string for allowing hex to bin converting
-    
+
     switch (rf) {
     case RF_HEX: {
         // convert hex to bin, continue then with bin part
@@ -363,11 +398,17 @@ static bool rest_getutxos(AcceptedConnection* conn,
 
     case RF_BINARY: {
         try {
-            //deserialize
-            CDataStream oss(SER_NETWORK, PROTOCOL_VERSION);
-            oss << strRequestMutable;
-            oss >> fCheckMemPool;
-            oss >> vOutPoints;
+            //deserialize only if user sent a request
+            if (strRequestMutable.size() > 0)
+            {
+                if (fInputParsed) //don't allow sending input over URI and HTTP RAW DATA
+                    throw RESTERR(HTTP_INTERNAL_SERVER_ERROR, "Combination of URI scheme inputs and raw post data is not allowed");
+
+                CDataStream oss(SER_NETWORK, PROTOCOL_VERSION);
+                oss << strRequestMutable;
+                oss >> fCheckMemPool;
+                oss >> vOutPoints;
+            }
         } catch (const std::ios_base::failure& e) {
             // abort in case of unreadable binary data
             throw RESTERR(HTTP_INTERNAL_SERVER_ERROR, "Parse error");
@@ -376,33 +417,8 @@ static bool rest_getutxos(AcceptedConnection* conn,
     }
 
     case RF_JSON: {
-        try {
-            // parse json request
-            Value valRequest;
-            if (!read_string(strRequest, valRequest))
-                throw RESTERR(HTTP_INTERNAL_SERVER_ERROR, "Parse error");
-
-            Object jsonObject = valRequest.get_obj();
-            const Value& checkMempoolValue = find_value(jsonObject, "checkmempool");
-
-            if (!checkMempoolValue.is_null()) {
-                fCheckMemPool = checkMempoolValue.get_bool();
-            }
-            const Value& outpointsValue = find_value(jsonObject, "outpoints");
-            if (!outpointsValue.is_null()) {
-                Array outPoints = outpointsValue.get_array();
-                BOOST_FOREACH (const Value& outPoint, outPoints) {
-                    Object outpointObject = outPoint.get_obj();
-                    uint256 txid = ParseHashO(outpointObject, "txid");
-                    Value nValue = find_value(outpointObject, "n");
-                    int nOutput = nValue.get_int();
-                    vOutPoints.push_back(COutPoint(txid, nOutput));
-                }
-            }
-        } catch (...) {
-            // return HTTP 500 if there was a json parsing error
-            throw RESTERR(HTTP_INTERNAL_SERVER_ERROR, "Parse error");
-        }
+        if (!fInputParsed)
+            throw RESTERR(HTTP_INTERNAL_SERVER_ERROR, "Error: empty request");
         break;
     }
     default: {
@@ -476,7 +492,7 @@ static bool rest_getutxos(AcceptedConnection* conn,
     }
 
     case RF_JSON: {
-        Object objGetUTXOResponse;
+        UniValue objGetUTXOResponse(UniValue::VOBJ);
 
         // pack in some essentials
         // use more or less the same output as mentioned in Bip64
@@ -484,15 +500,15 @@ static bool rest_getutxos(AcceptedConnection* conn,
         objGetUTXOResponse.push_back(Pair("chaintipHash", chainActive.Tip()->GetBlockHash().GetHex()));
         objGetUTXOResponse.push_back(Pair("bitmap", bitmapStringRepresentation));
 
-        Array utxos;
+        UniValue utxos(UniValue::VARR);
         BOOST_FOREACH (const CCoin& coin, outs) {
-            Object utxo;
+            UniValue utxo(UniValue::VOBJ);
             utxo.push_back(Pair("txvers", (int32_t)coin.nTxVer));
             utxo.push_back(Pair("height", (int32_t)coin.nHeight));
             utxo.push_back(Pair("value", ValueFromAmount(coin.out.nValue)));
 
             // include the script in a json output
-            Object o;
+            UniValue o(UniValue::VOBJ);
             ScriptPubKeyToJSON(coin.out.scriptPubKey, o, true);
             utxo.push_back(Pair("scriptPubKey", o));
             utxos.push_back(utxo);
@@ -500,7 +516,7 @@ static bool rest_getutxos(AcceptedConnection* conn,
         objGetUTXOResponse.push_back(Pair("utxos", utxos));
 
         // return json string
-        string strJSON = write_string(Value(objGetUTXOResponse), false) + "\n";
+        string strJSON = objGetUTXOResponse.write() + "\n";
         conn->stream() << HTTPReply(HTTP_OK, strJSON, fRun) << std::flush;
         return true;
     }

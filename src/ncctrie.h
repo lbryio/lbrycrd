@@ -13,7 +13,7 @@
 #include <string>
 #include <algorithm>
 #include <vector>
-#include "json/json_spirit_value.h"
+#include "univalue/univalue.h"
 
 #define DEFAULT_DELAY 100
 
@@ -155,7 +155,7 @@ public:
     bool checkConsistency();
     bool WriteToDisk();
     bool ReadFromDisk(bool check = false);
-    json_spirit::Array dumpToJSON() const;
+    UniValue dumpToJSON() const;
     bool getInfoForName(const std::string& name, CNodeValue& val) const;
     int nCurrentHeight;
     bool queueEmpty() const;
@@ -180,7 +180,7 @@ private:
     unsigned int getTotalNamesRecursive(const CNCCTrieNode* current) const;
     unsigned int getTotalClaimsRecursive(const CNCCTrieNode* current) const;
     CAmount getTotalValueOfClaimsRecursive(const CNCCTrieNode* current, bool fControllingOnly) const;
-    bool recursiveDumpToJSON(const std::string& name, const CNCCTrieNode* current, json_spirit::Array& ret) const;
+    bool recursiveDumpToJSON(const std::string& name, const CNCCTrieNode* current, UniValue& ret) const;
     CNCCTrieNode root;
     uint256 hashBlock;
     valueQueueType dirtyQueueRows;
