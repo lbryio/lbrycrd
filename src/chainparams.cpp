@@ -31,7 +31,7 @@ using namespace std;
 class CMainParams : public CChainParams {
 public:
     CMainParams() {
-        strNetworkID = "newcc";
+        strNetworkID = "lbrycrd";
         consensus.nSubsidyHalvingInterval = 2100000;
         consensus.nMajorityEnforceBlockUpgrade = 750;
         consensus.nMajorityRejectBlockOutdated = 950;

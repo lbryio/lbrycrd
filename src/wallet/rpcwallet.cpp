@@ -405,7 +405,7 @@ UniValue claimname(const UniValue& params, bool fHelp)
             "\nArguments:\n"
             "1. \"name\"  (string, required) The name to be assigned the value.\n"
             "2. \"value\"  (string, required) The value to assign to the name.\n"
-            "3. \"amount\"  (numeric, required) The amount in ncc to send. eg 0.1\n"
+            "3. \"amount\"  (numeric, required) The amount in LBRYcrd to send. eg 0.1\n"
             "\nResult:\n"
             "\"transactionid\"  (string) The transaction id.\n"
         );
@@ -484,7 +484,7 @@ UniValue updatename(const UniValue& params, bool fHelp)
             "\nArguments:\n"
             "1.  \"txid\"  (string, required) The transaction containing the unspent txout which should be spent.\n"
             "2.  \"value\"  (string, required) The value to assign to the name.\n"
-            "3.  \"amount\"  (numeric, required) The amount in ncc to send. eg 0.1\n"
+            "3.  \"amount\"  (numeric, required) The amount in LBRYcrd to send. eg 0.1\n"
             "\nResult:\n"
             "\"transactionid\"  (string) The new transaction id.\n"
         );
@@ -663,7 +663,7 @@ void ListNameClaims(const CWalletTx& wtx, const string& strAccount, int nMinDept
                 entry.push_back(Pair("txid", wtx.GetHash().ToString()));
                 entry.push_back(Pair("account", strSentAccount));
                 MaybePushAddress(entry, s.destination);
-                entry.push_back(Pair("category", "ncc"));
+                entry.push_back(Pair("category", "name"));
                 entry.push_back(Pair("amount", ValueFromAmount(s.amount)));
                 entry.push_back(Pair("vout", s.vout));
                 entry.push_back(Pair("fee", ValueFromAmount(nFee)));
@@ -688,7 +688,7 @@ void ListNameClaims(const CWalletTx& wtx, const string& strAccount, int nMinDept
                 }
                 entry.push_back(Pair("confirmations", wtx.GetDepthInMainChain()));
                 entry.push_back(Pair("is spent", pwalletMain->IsSpent(wtx.GetHash(), s.vout)));
-                entry.push_back(Pair("is in ncc trie", pnccTrie->haveClaim(sName, wtx.GetHash(), s.vout)));
+                entry.push_back(Pair("is in name trie", pnccTrie->haveClaim(sName, wtx.GetHash(), s.vout)));
                 ret.push_back(entry);
             }
         }
@@ -717,7 +717,7 @@ UniValue listnameclaims(const UniValue& params, bool fHelp)
             "    \"account\":\"accountname\",     (string) The account name associated with the transaction. \n"
             "                                              It will be \"\" for the default account.\n"
             "    \"address\":\"bitcoinaddress\",  (string) The bitcoin address of the transaction.\n"
-            "    \"category\":\"ncc\"             (string) Always ncc\n"
+            "    \"category\":\"name\"            (string) Always name\n"
             "    \"amount\": x.xxx,               (numeric) The amount in btc.\n"
             "    \"vout\": n,                     (numeric) The vout value\n"
             "    \"fee\": x.xxx,                  (numeric) The amount of the fee in btc.\n"

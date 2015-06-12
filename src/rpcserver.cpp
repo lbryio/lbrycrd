@@ -380,12 +380,12 @@ static const CRPCCommand vRPCCommands[] =
 #endif // ENABLE_WALLET
 
     /* NCC trie */
-    { "ncctrie",            "getncctrie",             &getncctrie,             true  },
-    { "ncctrie",            "gettxinfoforname",       &gettxinfoforname,       true  },
-    { "ncctrie",            "getvalueforname",        &getvalueforname,        true  },
-    { "ncctrie",            "gettotalclaimednames",   &gettotalclaimednames,   true  },
-    { "ncctrie",            "gettotalclaims",         &gettotalclaims,         true  },
-    { "ncctrie",            "gettotalvalueofclaims",  &gettotalvalueofclaims,  true  },
+    { "nametrie",           "getnametrie",            &getnametrie,            true  },
+    { "nametrie",           "gettxinfoforname",       &gettxinfoforname,       true  },
+    { "nametrie",           "getvalueforname",        &getvalueforname,        true  },
+    { "nametrie",           "gettotalclaimednames",   &gettotalclaimednames,   true  },
+    { "nametrie",           "gettotalclaims",         &gettotalclaims,         true  },
+    { "nametrie",           "gettotalvalueofclaims",  &gettotalvalueofclaims,  true  },
 };
 
 CRPCTable::CRPCTable()

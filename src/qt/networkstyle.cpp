@@ -17,7 +17,7 @@ static const struct {
     const char *titleAddText;
 } network_styles[] = {
     {"main", QAPP_APP_NAME_DEFAULT, 0, 0, ""},
-    {"newcc", QAPP_APP_NAME_DEFAULT, 0, 0, ""},
+    {"lbrycrd", QAPP_APP_NAME_DEFAULT, 0, 0, ""},
     {"test", QAPP_APP_NAME_TESTNET, 70, 30, QT_TRANSLATE_NOOP("SplashScreen", "[testnet]")},
     {"regtest", QAPP_APP_NAME_TESTNET, 160, 30, "[regtest]"}
 };

@@ -279,36 +279,26 @@ CAmount CNCCTrie::getTotalValueOfClaimsRecursive(const CNCCTrieNode* current, bo
      return value_in_subtrie;
 }
 
-bool CNCCTrie::recursiveDumpToJSON(const std::string& name, const CNCCTrieNode* current, UniValue& ret) const
+bool CNCCTrie::recursiveFlattenTrie(const std::string& name, const CNCCTrieNode* current, std::vector<namedNodeType>& nodes) const
 {
-    UniValue objNode(UniValue::VOBJ);
-    objNode.push_back(Pair("name", name));
-    objNode.push_back(Pair("hash", current->hash.GetHex()));
-    CNodeValue val;
-    if (current->getBestValue(val))
-    {
-        objNode.push_back(Pair("txid", val.txhash.GetHex()));
-        objNode.push_back(Pair("n", (int)val.nOut));
-        objNode.push_back(Pair("value", val.nAmount));
-        objNode.push_back(Pair("height", val.nHeight));
-    }
-    ret.push_back(objNode);
+    namedNodeType node(name, *current);
+    nodes.push_back(node);
     for (nodeMapType::const_iterator it = current->children.begin(); it != current->children.end(); ++it)
     {
         std::stringstream ss;
         ss << name << it->first;
-        if (!recursiveDumpToJSON(ss.str(), it->second, ret))
+        if (!recursiveFlattenTrie(ss.str(), it->second, nodes))
             return false;
     }
     return true;
 }
 
-UniValue CNCCTrie::dumpToJSON() const
+std::vector<namedNodeType> CNCCTrie::flattenTrie() const
 {
-    UniValue ret(UniValue::VARR);
-    if (!recursiveDumpToJSON("", &root, ret))
-        LogPrintf("%s: Something went wrong dumping to JSON", __func__);
-    return ret;
+    std::vector<namedNodeType> nodes;
+    if (!recursiveFlattenTrie("", &root, nodes))
+        LogPrintf("%s: Something went wrong flattening the trie", __func__);
+    return nodes;
 }
 
 bool CNCCTrie::getInfoForName(const std::string& name, CNodeValue& val) const

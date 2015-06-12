@@ -3,12 +3,12 @@
 #include "rpcserver.h"
 #include "univalue/univalue.h"
 
-UniValue getncctrie(const UniValue& params, bool fHelp)
+UniValue getnametrie(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() > 0)
         throw std::runtime_error(
-            "getncctrie\n"
-            "Return the entire NCC trie.\n"
+            "getnametrie\n"
+            "Return the entire name trie.\n"
             "Arguments:\n"
             "None\n"
             "Result: \n"
@@ -23,9 +23,24 @@ UniValue getncctrie(const UniValue& params, bool fHelp)
         );
 
     LOCK(cs_main);
+    UniValue ret(UniValue::VARR);
 
-    UniValue ret = pnccTrie->dumpToJSON();
-
+    std::vector<namedNodeType> nodes = pnccTrie->flattenTrie();
+    for (std::vector<namedNodeType>::iterator it = nodes.begin(); it != nodes.end(); ++it)
+    {
+        UniValue node(UniValue::VOBJ);
+        node.push_back(Pair("name", it->first));                                                       
+        node.push_back(Pair("hash", it->second.hash.GetHex()));
+        CNodeValue val;
+        if (it->second.getBestValue(val))
+        {
+            node.push_back(Pair("txid", val.txhash.GetHex()));                                    
+            node.push_back(Pair("n", (int)val.nOut));                                             
+            node.push_back(Pair("value", ValueFromAmount(val.nAmount)));                                           
+            node.push_back(Pair("height", val.nHeight));                                          
+        }
+        ret.push_back(node);
+    }
     return ret;
 }
 
