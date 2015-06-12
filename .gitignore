@@ -3,8 +3,11 @@
 *.exe
 src/bitcoin
 src/bitcoind
+src/lbrycrdd
 src/bitcoin-cli
+src/lbrycrd-cli
 src/bitcoin-tx
+src/lbrycrd-tx
 src/test/test_bitcoin
 src/qt/test/test_bitcoin-qt
 
@@ -74,6 +77,7 @@ src/qt/test/moc*.cpp
 # Compilation and Qt preprocessor part
 *.qm
 Makefile
+lbrycrd-qt
 bitcoin-qt
 Bitcoin-Qt.app
 
