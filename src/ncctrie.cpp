@@ -983,19 +983,6 @@ valueQueueType::iterator CNCCTrieCache::getQueueCacheRow(int nHeight, bool creat
     return itQueueRow;
 }
 
-bool CNCCTrieCache::getInfoForName(const std::string name, CNodeValue& val) const
-{
-    nodeCacheType::iterator itcache = cache.find(name);
-    if (itcache != cache.end())
-    {
-        return itcache->second->getBestValue(val);
-    }
-    else
-    {
-        return base->getInfoForName(name, val);
-    }
-}
-
 bool CNCCTrieCache::addClaim(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight) const
 {
     LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, nAmount, nHeight, nCurrentHeight);
@@ -1008,7 +995,7 @@ bool CNCCTrieCache::addClaim(const std::string name, uint256 txhash, uint32_t nO
     LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, nAmount, nHeight, nCurrentHeight);
     assert(nHeight == nCurrentHeight);
     CNodeValue val;
-    if (getInfoForName(name, val))
+    if (base->getInfoForName(name, val))
     {
         if (val.txhash == prevTxhash && val.nOut == nPrevOut)
         {

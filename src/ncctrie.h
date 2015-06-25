@@ -219,7 +219,6 @@ public:
     bool removeClaimFromTrie(const std::string name, uint256 txhash, uint32_t nOut, int& nValidAtHeight) const;
 private:
     CNCCTrie* base;
-    bool getInfoForName(const std::string name, CNodeValue& val) const;
     mutable nodeCacheType cache;
     mutable std::set<std::string> dirtyHashes;
     mutable hashMapType cacheHashes;
