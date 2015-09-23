@@ -37,7 +37,7 @@
 using namespace std;
 
 #if defined(NDEBUG)
-# error "Bitcoin cannot be compiled without assertions."
+# error "LBRYcrd cannot be compiled without assertions."
 #endif
 
 /**
@@ -87,7 +87,7 @@ static void CheckBlockIndex();
 /** Constant stuff for coinbase transactions we create: */
 CScript COINBASE_FLAGS;
 
-const string strMessageMagic = "Bitcoin Signed Message:\n";
+const string strMessageMagic = "LBRYcrd Signed Message:\n";
 
 // Internal stuff
 namespace {

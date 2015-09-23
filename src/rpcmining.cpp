@@ -433,7 +433,7 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
     //    throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "Bitcoin is not connected!");
 
     if (IsInitialBlockDownload())
-        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "Bitcoin is downloading blocks...");
+        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "LBRYcrd is downloading blocks...");
 
     static unsigned int nTransactionsUpdatedLast;
 

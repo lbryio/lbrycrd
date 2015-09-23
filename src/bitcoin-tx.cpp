@@ -44,10 +44,10 @@ static bool AppInitRawTx(int argc, char* argv[])
     if (argc<2 || mapArgs.count("-?") || mapArgs.count("-help"))
     {
         // First part of help message is specific to this utility
-        std::string strUsage = _("Bitcoin Core bitcoin-tx utility version") + " " + FormatFullVersion() + "\n\n" +
+        std::string strUsage = _("LBRYcrd Core lbrycrd-tx utility version") + " " + FormatFullVersion() + "\n\n" +
             _("Usage:") + "\n" +
-              "  bitcoin-tx [options] <hex-tx> [commands]  " + _("Update hex-encoded bitcoin transaction") + "\n" +
-              "  bitcoin-tx [options] -create [commands]   " + _("Create hex-encoded bitcoin transaction") + "\n" +
+              "  lbrycrd-tx [options] <hex-tx> [commands]  " + _("Update hex-encoded lbrycrd transaction") + "\n" +
+              "  lbrycrd-tx [options] -create [commands]   " + _("Create hex-encoded lbrycrd transaction") + "\n" +
               "\n";
 
         fprintf(stdout, "%s", strUsage.c_str());
