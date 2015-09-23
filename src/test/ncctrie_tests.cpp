@@ -16,131 +16,134 @@
 using namespace std;
 
 const unsigned int insert_nonces[] = {
-    62302, 78404, 42509, 88397, 232147, 34120, 48944, 8449, 3855, 99418,
-    35007, 36992, 18865, 48021, 117592, 61911, 26614, 26267, 171911, 49917,
-    68274, 19360, 48650, 22711, 102612, 73362, 7375, 39379, 413, 123283,
-    51264, 50359, 11329, 126833, 56973, 48128, 183377, 122530, 68435, 16223,
-    201782, 6345, 169401, 49980, 340128, 21022, 54403, 2304, 57721, 257910,
-    31720, 13689, 73758, 43961, 14926, 90259, 23943, 75907, 70683, 91654,
-    2788, 110836, 21685, 78041, 3310, 39497, 1774, 51369, 59835, 41272,
-    41575, 63281, 25029, 87528, 285, 34225, 48228, 5152, 22230, 83385,
-    11314, 192174, 75562, 116667, 385684, 56288, 23660, 18636, 228282, 114723,
-    623, 251464, 15557, 88445, 141000, 111823, 3972, 25959, 26559, 137659,
-    47864, 70562, 102076, 29568, 22490, 22769, 5000, 19580, 50900, 6462,
-    64813, 22073, 48263, 96969, 222691, 146458, 76007, 105190, 11401, 14515,
-    203019, 19029, 164801, 51632, 19463, 56817, 58258, 46103, 97679, 10580,
-    31557, 176766, 57483, 37231, 61472, 29672, 3340, 14743, 47647, 28833,
-    11843, 66537, 5105, 77780, 12270, 73825, 244523, 47452, 96794, 34497,
-    67771, 16018, 37534, 32834, 26981, 27410, 20836, 29076, 134834, 180185,
-    143043, 63176, 30082, 17094, 43620, 87972, 275074, 5306, 228970, 26128,
-    124783, 3604, 9825, 24384, 26636, 70597, 514964, 5309, 60113, 33521,
-    44825, 27066, 26288, 41406, 3766, 103595, 90818, 4539, 35609, 113968,
-    147955, 108641, 80092, 77889, 49159, 12194, 225563, 1699, 18409, 77169,
-    16383, 166243, 81121, 34986, 134632, 122648, 33768, 47477, 153994, 38973,
-    202893, 111195, 124071, 102094, 18835, 56978, 170668, 36551, 75722, 141828,
-    23880, 64969, 68576, 62520, 83244, 74063, 5778, 3964, 225044, 54563,
-    17064, 38127, 23523, 91523, 16855, 9379, 18787, 70601, 9031, 51717,
-    26563, 77126, 7447, 125050, 141, 7512, 19611, 6048, 47656, 9348,
-    79912, 35843, 50490, 107387, 16606, 77454, 63480, 63073, 25449, 45363,
-    115179, 52546, 18200, 19398, 12571, 131374, 27457, 78462, 42836, 14535,
-    44255, 30167, 68307, 16068, 214097, 22964, 71976, 20886, 103506, 79337,
-    12677, 4186, 126617, 50971, 304404, 67646, 274301, 11462, 127908, 227970,
-    36763, 4374, 35899, 81014, 26616, 113321, 107200, 118140, 34971, 20484,
-    19382, 28121, 29119, 4171, 263691, 90010, 5362, 1252, 16379, 67875,
-    48816, 70008, 78077, 42141, 274402, 64404, 29048, 68155, 40330, 13389,
-    27220, 54792, 92551, 59916, 106950, 12253, 91426, 70679, 188204, 18131,
-    18140, 81867, 69231, 43748, 61209, 84967, 17533, 189318, 214936, 46093,
-    52349, 18022, 11900, 114815, 80839, 60330, 20284, 70705, 44565, 41630,
-    418242, 3748, 107687, 87922, 21830, 14465, 50678, 27455, 10509, 66027,
-    66812, 19895, 60741, 42904, 16239, 20304, 167228, 21652, 21128, 15175,
-    36498, 29416, 16439, 30056, 52031, 267457, 36733, 35286, 327852, 36891,
-    65112, 213754, 8059, 49092, 139001, 81888, 43571, 63300, 23746, 86535,
-    40392, 33540, 70265, 165061, 24267, 38953, 119058, 172744, 8092, 89955,
-    94304, 56409, 111350, 147215, 381284, 195888, 113626, 45183, 181599, 21960,
-    123902, 6903, 64749, 5211, 18984, 92254, 36524, 163374, 211065, 27583,
-    4006, 3734, 233995, 17833, 23251, 90766, 62439, 78222, 6753, 143287,
-    29582, 283989, 85745, 11782, 225909, 12318, 4874, 30732, 38807, 47820,
-    64215, 15218, 14474, 11933, 192744, 43514, 6537, 44224, 8152, 52797,
-    36002, 70940, 10113, 28230, 88513, 20851, 9416, 26690, 5636, 49017,
-    24489, 5891, 52178, 112005, 1323, 65666, 27639, 19368, 3426, 939,
-    3201, 82763, 76412, 93407, 64863, 110937, 113871, 61948, 84322, 120320,
-    32750, 58558, 56873, 16736, 100739, 23973, 74486, 82648, 6239, 55025,
-    75957, 99033, 18698, 15017, 29811, 156593, 34076, 275238, 73977, 58125,
-    110002, 161309, 25162, 21797, 9184, 71998, 26884, 13724, 127125, 9812,
-    57019, 15554, 96831, 157322, 213015, 133877, 36031, 48019, 41288, 21987,
-    57397, 2743, 13895, 10856, 82534, 115190, 4674, 47244, 19616, 34988,
-    45898, 77946, 18003, 56538, 66241, 110794, 206987, 17054, 65244, 200061,
-    18330, 47037, 66014, 109698, 14009, 19877, 3833, 269982, 155678, 135408,
-    2324, 14029, 72797, 1080, 18427, 122959, 66905, 174627, 79735, 76385,
-    71183, 124006, 7897, 29318, 11133, 36011, 56162, 17163, 17898, 155128,
-    106245, 241379, 118949, 107329, 58675, 132912, 14625, 31558, 11842, 96304,
-    39669, 22840, 299, 56646, 37035, 178643, 28723, 33076, 53497, 18187,
-    14902, 11989, 48905, 37425, 14750, 25955, 45064, 140598, 62745, 12696,
-    101134, 31934, 19402, 55777, 16389, 101083, 153404, 32865, 140224, 36455,
-    105193, 17279, 59216, 27586, 6950, 6954, 78686, 59285, 154434, 183079,
-    99757, 121250, 41132, 9781, 45133, 20393, 168398, 95580, 3792, 138720,
-    34715, 52729, 72670, 32519, 76086, 45306, 98322, 69894, 89144, 162112,
-    32373, 32699, 91015, 83786, 6276, 44093, 130595, 43470, 28695, 106842,
-    117764, 176045, 182298, 32614, 22494, 30691, 31846, 13440, 43454, 45975,
-    79025, 53569, 35236, 83251, 47205, 17089, 78860};
+	62302, 78404, 42509, 88397, 232147, 34120, 48944, 8449, 3855, 99418, 
+	35007, 36992, 18865, 48021, 117592, 61911, 26614, 26267, 171911, 49917, 
+	68274, 19360, 48650, 22711, 102612, 73362, 7375, 39379, 413, 123283, 
+	51264, 50359, 11329, 126833, 56973, 48128, 183377, 122530, 68435, 16223, 
+	201782, 6345, 169401, 49980, 340128, 21022, 54403, 2304, 57721, 257910, 
+	31720, 13689, 73758, 43961, 14926, 90259, 23943, 75907, 70683, 91654, 
+	2788, 110836, 21685, 78041, 3310, 39497, 1774, 51369, 59835, 41272, 
+	41575, 63281, 25029, 87528, 285, 34225, 48228, 5152, 22230, 83385, 
+	11314, 192174, 75562, 116667, 385684, 56288, 23660, 18636, 228282, 114723, 
+	623, 251464, 15557, 88445, 141000, 111823, 3972, 25959, 26559, 137659, 
+	47864, 70562, 102076, 29568, 7219, 6132, 207855, 27429, 38443, 37445, 
+	64206, 135854, 93674, 103500, 67021, 58095, 118236, 91253, 64567, 19366, 
+	70102, 666, 80009, 9994, 39820, 3524, 2212, 85667, 47668, 25021, 
+	182192, 29285, 3769, 86857, 126797, 49162, 16952, 50760, 120889, 3173, 
+	2962, 2436, 58781, 104999, 14241, 61552, 90007, 22316, 95414, 104797, 
+	24690, 31606, 14425, 12265, 7724, 40322, 50948, 84037, 90870, 90439, 
+	79317, 19064, 25852, 67993, 132666, 93574, 11211, 204244, 3274, 108448, 
+	61865, 21722, 15966, 19349, 5051, 37715, 12500, 2933, 55290, 8778, 
+	64996, 22325, 18638, 132615, 77471, 59497, 64174, 10540, 34782, 12876, 
+	36011, 19461, 122409, 41333, 346439, 12835, 161, 29867, 5664, 24276, 
+	110629, 41705, 82403, 117918, 2686, 22781, 74781, 8059, 13574, 80700, 
+	259435, 94645, 2441, 79068, 87422, 7437, 1197, 4969, 51038, 17387, 
+	132591, 106293, 164375, 100688, 20687, 44270, 32408, 33912, 41316, 27930, 
+	18173, 60038, 113697, 127820, 39899, 44525, 55585, 31759, 58538, 3297, 
+	437, 27842, 167299, 119639, 32566, 121136, 7388, 71680, 45357, 195629, 
+	127616, 55406, 78161, 76184, 333, 72817, 1730, 114948, 10746, 148968, 
+	182375, 37126, 105817, 48017, 36250, 44934, 24850, 95678, 104566, 95614, 
+	28324, 76120, 5795, 179419, 69318, 152410, 108472, 21062, 215696, 27140, 
+	52488, 135070, 23647, 47157, 113538, 13583, 78351, 12363, 18558, 127062, 
+	43971, 515, 84045, 87171, 79124, 146078, 9189, 4323, 9875, 343500, 
+	99225, 28037, 11630, 28675, 90970, 6716, 27681, 12145, 104170, 67804, 
+	112975, 83973, 194635, 20363, 1392, 16861, 64895, 41499, 3914, 94319, 
+	73582, 13873, 56605, 32687, 16570, 104036, 7131, 48046, 192954, 132191, 
+	17337, 36860, 32876, 4682, 20878, 155049, 545, 2662, 92339, 36864, 
+	6169, 442438, 57917, 230552, 18608, 470961, 13556, 99731, 103752, 89833, 
+	65375, 108902, 12204, 116092, 11987, 14974, 16281, 19849, 9684, 19262, 
+	60274, 3922, 4561, 50643, 70270, 26895, 68064, 41757, 61724, 53073, 
+	3175, 5290, 75838, 79923, 20281, 38820, 12629, 9813, 23148, 74146, 
+	110888, 61261, 142701, 86139, 132205, 20238, 45403, 16518, 31533, 18313, 
+	23873, 8693, 50244, 135146, 144813, 7323, 38316, 9083, 27235, 211421, 
+	97467, 212336, 5376, 61095, 120776, 24573, 8260, 230917, 86233, 16242, 
+	91065, 123686, 4773, 74425, 60920, 88288, 67248, 8801, 30884, 30203, 
+	8688, 85095, 18908, 106600, 90656, 61144, 36166, 137897, 72744, 42217, 
+	72626, 146860, 2951, 173219, 6303, 116133, 1916, 80782, 15029, 67245, 
+	31028, 104551, 14783, 83962, 73425, 45736, 38192, 5284, 12346, 18773, 
+	74892, 38445, 75585, 5918, 18999, 41399, 64447, 139444, 2527, 93440, 
+	53288, 31806, 34110, 40471, 40983, 35527, 1230, 115613, 94375, 25932, 
+	47094, 31209, 13013, 51423, 76326, 82904, 29303, 11973, 60207, 21922, 
+	10099, 39484, 25276, 90711, 27471, 42073, 13007, 44022, 80585, 80630, 
+	22096, 3515, 10527, 101717, 132546, 44391, 46593, 841, 262331, 5922, 
+	2404, 25644, 195305, 20699, 144171, 42511, 55261, 61342, 2457, 58694, 
+	282954, 62834, 30707, 18560, 33639, 63196, 275047, 81401, 19986, 113428, 
+	29405, 57197, 17269, 9409, 73793, 45070, 140346, 71080, 84621, 12136, 
+	39231, 13978, 1513, 48179, 18624, 14175, 14533, 104261, 59562, 61698, 
+	41790, 16402, 39768, 18407, 13544, 394, 210609, 168382, 32641, 14521, 
+	16777, 180974, 46559, 40745, 11246, 3340, 5717, 53973, 61629, 97237, 
+	22712, 691, 55, 66071, 10969, 57775, 3169, 8226, 35500, 19929, 
+	30040, 99052, 33071, 57245, 25403, 6895, 28362, 44132, 122062, 99461, 
+	9933, 49373, 32076, 27231, 88766, 62646, 1034, 107621, 15337, 217266, 
+	13015, 69866, 30969, 4047, 102839, 19328, 31593, 69543, 73805, 87999, 
+	66440, 52514, 32789, 29271, 24563, 3880, 72436, 196210, 52393, 112434, 
+	194415, 67700, 191419, 44634, 92402, 4904, 31125, 6806, 25877, 152964, 
+	63322, 45156, 5487, 212201, 57173, 13030, 4566, 246817, 23718, 120594, 
+	28808, 57914, 67186, 8294, 142255, 26350, 94732, 1635, 2272, 113460, 
+	126065, 32864, 69844, 137209, 12286, 45293, 46530, 3738, 9976, 11934, 
+	21574, 674, 8540, 63574, 68149, 40583, 148497, 125165, 6685, 8401, 
+	154662, 37101, 39016, 32108, 11193, 167425, 41041, 
+};
 
 const unsigned int expire_nonces[] = {
-    6685, 83337, 74116, 50981, 51352, 158110, 132142, 161310, 95702, 32959,
-    5785, 229298, 59738, 71206, 24625, 6, 141161, 43901, 35697, 98865,
-    41764, 104919, 89611, 813, 54564, 13614, 24774, 39079, 67709, 94367,
-    24006, 137451, 87265, 4096, 17540, 93657, 64419, 178853, 45385, 18571,
-    49357, 67111, 92635, 73880, 7810, 15338, 56201, 1419, 92096, 121328,
-    60987, 32796, 63605, 2178, 25415, 19115, 62190, 76200, 155888, 208604,
-    43921, 623, 63809, 129207, 59080, 111270, 58799, 47014, 26935, 140745,
-    15982, 22417, 54877, 64708, 3508, 63688, 117163, 93037, 27595, 49051,
-    109801, 54794, 38790, 192113, 14920, 2056, 419624, 20495, 86719, 27455,
-    94870, 5539, 12871, 24142, 103201, 12358, 60226, 11163, 57429, 49086,
-    115051, 39940, 34817, 1724, 91130, 20041, 38570, 923, 17184, 42591,
-    35586, 19752, 26576, 5173, 8970, 215002, 32461, 195216, 60150, 27044,
-    5916, 228877, 25914, 56110, 127394, 111381, 36319, 111266, 21833, 52590,
-    39068, 51757, 171729, 7358, 29374, 37896, 125432, 89249, 30156, 9523,
-    76100, 148120, 24943, 39244, 117588, 42535, 32965, 145241, 162982, 84811,
-    35939, 123068, 20170, 45770, 260368, 26161, 72054, 46892, 135347, 131614,
-    72678, 15791, 57306, 3384, 30735, 70373, 59112, 149034, 7153, 43872,
-    45341, 35383, 69, 609, 12034, 8438, 21840, 10436, 80502, 31340,
-    109070, 7458, 12991, 233778, 135362, 29701, 77055, 86303, 17555, 25517,
-    5205, 81740, 23024, 7139, 22769, 122158, 77201, 16994, 3560, 30110,
-    27323, 1349, 20958, 116331, 31375, 133579, 20904, 67165, 8954, 3102,
-    84605, 47576, 81461, 21605, 59055, 65933, 11157, 92120, 33227, 50342,
-    90112, 66074, 56248, 2922, 90955, 108013, 13643, 14320, 50956, 44099,
-    65428, 122313, 3797, 27404, 41130, 2296, 45138, 205861, 78637, 46951,
-    60730, 29619, 144080, 2208, 49247, 30945, 44877, 18714, 9715, 127097,
-    34095, 17017, 333, 16886, 48304, 44245, 3722, 17912, 167555, 10276,
-    7961, 40281, 64116, 73456, 45919, 70395, 99043, 16845, 1932, 26892,
-    37878, 53549, 89852, 23005, 78973, 74107, 2392, 49788, 98929, 2727,
-    157505, 19202, 39268, 54388, 52105, 77206, 88256, 7704, 34719, 60101,
-    46413, 106590, 113925, 358628, 4899, 159559, 399, 21855, 25910, 51499,
-    31095, 56302, 183160, 84071, 92756, 152426, 6388, 85811, 94305, 2721,
-    107352, 51510, 16615, 152584, 50273, 35666, 38855, 56913, 27707, 57761,
-    28430, 18212, 12477, 140303, 25670, 43210, 27620, 148028, 51561, 77556,
-    23667, 394, 58426, 18566, 31627, 54029, 6953, 38339, 72961, 154717,
-    142676, 9515, 66512, 44269, 35671, 78909, 17336, 26498, 40930, 16674,
-    11195, 38641, 120251, 110780, 9775, 103928, 44075, 46645, 55815, 7801,
-    26240, 23347, 10875, 20669, 11529, 57307, 3963, 88243, 24511, 55463,
-    44979, 66228, 59614, 118508, 95007, 3359, 33983, 58249, 1013, 56155,
-    42072, 125072, 56416, 132031, 17483, 50512, 19961, 28508, 41761, 162244,
-    27153, 27361, 158584, 23059, 27499, 150286, 26279, 38744, 40316, 32869,
-    78376, 43217, 12101, 13071, 8363, 101726, 91323, 81057, 85645, 17909,
-    82419, 181847, 92612, 27698, 1579, 55772, 5290, 64689, 52203, 29000,
-    5085, 28834, 212585, 32008, 152752, 22753, 802, 31195, 28394, 73452,
-    59259, 7126, 36382, 117150, 1214, 2814, 27005, 5996, 5399, 22524,
-    32785, 15673, 5669, 23434, 137538, 63064, 17607, 2787, 85835, 14197,
-    54059, 144162, 50208, 198656, 73481, 12705, 1358, 242235, 26206, 61382,
-    48368, 25012, 26385, 138366, 103553, 27639, 190425, 194892, 8592, 31087,
-    254588, 43661, 115645, 95185, 54081, 48525, 232239, 119953, 2679, 33312,
-    117797, 21667, 26637, 90650, 24069, 26953, 47329, 16529, 35478, 9702,
-    209987, 48940, 32153, 32670, 283105, 28191, 38158, 53877, 38322, 92536,
-    38999, 121915, 89484, 25975, 119789, 83084, 32398, 55645, 272764, 17181,
-    141410, 31545, 35612, 23513, 211548, 36853, 154871, 76235, 59678, 131872,
-    11252, 21975, 35712, 7510, 1534, 44727, 143860, 47305, 27722, 175266,
-    43248, 225233, 11955, 88368, 168603, 124807, 69459, 31880, 49456, 355451,
-    79880, 128749, 65667, 10897, 14131, 4409, 10523, 8720, 112240, 71025,
-    95521, 103635, 39284, 63443, 66790, 52473, 80317, 118192, 76604,}; 
+	6685, 83337, 74116, 50981, 51352, 158110, 132142, 161310, 95702, 32959, 
+	5785, 229298, 59738, 71206, 24625, 6, 141161, 43901, 35697, 98865, 
+	41764, 104919, 89611, 813, 54564, 13614, 24774, 39079, 67709, 94367, 
+	24006, 137451, 87265, 4096, 17540, 93657, 64419, 178853, 45385, 18571, 
+	49357, 67111, 92635, 73880, 7810, 15338, 56201, 1419, 92096, 121328, 
+	60987, 32796, 63605, 2178, 25415, 19115, 62190, 76200, 155888, 208604, 
+	43921, 623, 63809, 129207, 59080, 111270, 58799, 47014, 26935, 140745, 
+	15982, 22417, 54877, 64708, 3508, 63688, 117163, 93037, 27595, 49051, 
+	109801, 54794, 38790, 192113, 14920, 2056, 419624, 20495, 86719, 27455, 
+	94870, 5539, 12871, 24142, 103201, 12358, 60226, 11163, 57429, 49086, 
+	115051, 39940, 68936, 392, 23999, 23185, 37265, 793, 196124, 133047, 
+	95771, 4927, 2410, 191047, 8416, 36182, 126426, 101492, 268543, 66462, 
+	132688, 9709, 25766, 10781, 56169, 17484, 191643, 46857, 180718, 129600, 
+	76319, 275342, 113429, 52200, 8584, 205931, 60264, 99367, 71513, 10931, 
+	2470, 146435, 35660, 30357, 53621, 126053, 198310, 7340, 23329, 56232, 
+	43152, 1290, 178803, 58294, 28730, 135307, 26024, 33903, 23202, 69984, 
+	91861, 4406, 21564, 12088, 5307, 17517, 177507, 3629, 81666, 196118, 
+	37329, 42816, 1766, 5227, 98516, 62284, 1449, 10331, 4915, 1086, 
+	257130, 125081, 63069, 34059, 51482, 15396, 25319, 208595, 45717, 145038, 
+	51317, 34896, 60597, 8930, 150489, 15827, 94634, 19809, 90784, 102628, 
+	26279, 36205, 239377, 98432, 1949, 167692, 123222, 36572, 5435, 239413, 
+	85529, 124924, 17443, 10391, 21356, 109441, 711, 27883, 15410, 172902, 
+	9155, 6372, 93226, 31199, 47383, 77311, 107243, 1248, 3968, 88072, 
+	50741, 175826, 9475, 19473, 78911, 59587, 172626, 54698, 127135, 4356, 
+	70568, 9206, 41708, 162673, 82436, 8787, 12851, 17524, 27151, 34992, 
+	19003, 17118, 1353, 173957, 62721, 10956, 28301, 38722, 35000, 51572, 
+	122622, 26131, 219537, 24299, 8306, 22556, 117394, 5874, 1658, 4299, 
+	85895, 59207, 17620, 65379, 53730, 66114, 31973, 80054, 39898, 88576, 
+	35918, 54740, 43218, 310351, 18849, 65424, 18941, 49216, 21837, 1044, 
+	36089, 89042, 1064, 57622, 18277, 30812, 392721, 68449, 21958, 59353, 
+	230626, 192876, 152661, 83303, 12403, 48000, 322, 36098, 216060, 261073, 
+	10127, 40078, 13820, 37595, 2465, 67578, 8074, 17069, 23001, 75590, 
+	59540, 38500, 81671, 83017, 21630, 42072, 87988, 34685, 54463, 73723, 
+	64583, 11708, 27819, 60914, 44671, 73532, 481251, 50437, 51482, 140164, 
+	17802, 52420, 18605, 39313, 5815, 130397, 47241, 41700, 73784, 38254, 
+	31816, 81033, 63873, 61180, 73597, 31012, 46596, 34360, 16076, 3553, 
+	19667, 70678, 76463, 14007, 6695, 34346, 177277, 82740, 10695, 195656, 
+	199473, 19061, 12235, 118857, 5890, 158834, 14991, 9908, 40669, 76476, 
+	5798, 56010, 12434, 136848, 44171, 33686, 38022, 85052, 88529, 96055, 
+	77808, 14052, 26881, 183273, 110552, 14780, 62505, 29327, 16832, 146503, 
+	4492, 3210, 60633, 117771, 14125, 30949, 20800, 35101, 72610, 3023, 
+	39933, 7829, 21639, 14090, 59951, 46100, 26005, 57832, 3410, 58340, 
+	83407, 189530, 1991, 46036, 39758, 26344, 36726, 13556, 54091, 52219, 
+	10445, 23350, 62863, 41887, 39607, 47051, 170358, 62714, 54450, 44956, 
+	90394, 89040, 82532, 10732, 30853, 69521, 27096, 129159, 25700, 56643, 
+	4510, 61375, 45066, 84264, 47513, 27524, 25215, 95656, 73959, 20581, 
+	101988, 14797, 76360, 120161, 17567, 3903, 126413, 64154, 317038, 33995, 
+	25108, 8165, 132499, 174571, 4312, 63941, 109366, 12461, 81720, 36019, 
+	57768, 30058, 64038, 60147, 5536, 87586, 10954, 84112, 42404, 109189, 
+	13869, 50548, 11654, 10051, 76725, 20594, 51481, 2668, 262831, 23754, 
+	66190, 133133, 119290, 52240, 72002, 103103, 9144, 72562, 54350, 22676, 
+	126558, 532, 23582, 20393, 25177, 4026, 55663, 24424, 175796, 14987, 
+	58251, 124293, 4159, 220204, 2488, 36895, 10692, 1368, 80599, 203043, 
+	3851, 11006, 24724, 40853, 19234, 36755, 43655, 12807, 40882, 43029, 
+	4359, 35786, 24830, 102413, 17399, 48845, 22866, 8417, 24049, 50162, 
+	36921, 162891, 38509, 121018, 54548, 158171, 54355, 12742, 6174, 
+};
+const unsigned int support_nonces[] = {};
 
 BOOST_FIXTURE_TEST_SUITE(ncctrie_tests, TestingSetup)
 
@@ -188,7 +191,34 @@ void AddToMempool(CMutableTransaction& tx)
     mempool.addUnchecked(tx.GetHash(), CTxMemPoolEntry(tx, 0, GetTime(), 111.0, chainActive.Height()));
 }
 
-bool CreateBlock(CBlockTemplate* pblocktemplate, bool find_nonce, int nonce)
+class CNoncePrinter
+{
+public:
+    CNoncePrinter() {};
+    void addNonce(int nonce)
+    {
+        nonces.push_back(nonce);
+    }
+    void printNonces()
+    {
+        int counter = 0;
+        std::cout << "{";
+        for (std::vector<int>::iterator nonce_it = nonces.begin(); nonce_it != nonces.end(); ++nonce_it)
+        {
+            if (counter % 10 == 0)
+            {
+                std::cout << std::endl << '\t';
+            }
+            std::cout << *nonce_it << ", ";
+            counter++;
+        }
+        std::cout << std::endl << "}" << std::endl;
+    }
+private:
+    std::vector<int> nonces;
+};
+
+bool CreateBlock(CBlockTemplate* pblocktemplate, CNoncePrinter * pnp, int nonce)
 {
     static int unique_block_counter = 0;
     CBlock* pblock = &pblocktemplate->block;
@@ -199,7 +229,7 @@ bool CreateBlock(CBlockTemplate* pblocktemplate, bool find_nonce, int nonce)
     txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height(), Params().GetConsensus());
     pblock->vtx[0] = CTransaction(txCoinbase);
     pblock->hashMerkleRoot = pblock->BuildMerkleTree();
-    if (!find_nonce)
+    if (!pnp)
         pblock->nNonce = nonce;
     else
     {
@@ -208,11 +238,7 @@ bool CreateBlock(CBlockTemplate* pblocktemplate, bool find_nonce, int nonce)
             pblock->nNonce = i;
             if (CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus()))
             {
-                std::cout << pblock->nNonce << ",";
-                if (unique_block_counter % 10 == 0)
-                    std::cout << std::endl;
-                else
-                    std::cout << " "; 
+                pnp->addNonce(i);
                 break;
             }
         }
@@ -354,7 +380,8 @@ BOOST_AUTO_TEST_CASE(ncctrie_merkle_hash)
 BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
 {
     int block_counter = 0;
-    bool find_nonces = false;
+    //CNoncePrinter noncePrinter;
+    CNoncePrinter* pnp = NULL;//&noncePrinter;
     BOOST_CHECK(pnccTrie->nCurrentHeight == chainActive.Height() + 1);
     
     CBlockTemplate *pblocktemplate;
@@ -380,7 +407,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
 
     for (unsigned int i = 0; i < 104; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
         if (coinbases.size() < 4)
             coinbases.push_back(CTransaction(pblocktemplate->block.vtx[0]));
     }
@@ -420,7 +447,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 4);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -432,7 +459,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 1; i < 100; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
     
@@ -441,7 +468,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     delete pblocktemplate;
     
     // Verify tx1 and tx2 are in the trie
@@ -465,7 +492,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 4);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -505,7 +532,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -527,7 +554,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -538,7 +565,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 1; i < 100; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
 
@@ -547,7 +574,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     delete pblocktemplate;
        
     BOOST_CHECK(!pnccTrie->empty());
@@ -573,7 +600,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 3);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -595,7 +622,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
     BOOST_CHECK(pnccTrie->empty());
@@ -605,7 +632,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 1; i < 50; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
     BOOST_CHECK(pnccTrie->empty());
@@ -618,7 +645,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
     BOOST_CHECK(pnccTrie->empty());
@@ -628,7 +655,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 1; i < 51; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
     BOOST_CHECK(pnccTrie->empty());
@@ -647,7 +674,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 0; i < 50; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
 
@@ -656,7 +683,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     delete pblocktemplate;
     BOOST_CHECK(!pnccTrie->empty());
     BOOST_CHECK(pnccTrie->queueEmpty());
@@ -672,7 +699,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -704,7 +731,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -717,7 +744,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 1; i < 50; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
     BOOST_CHECK(pnccTrie->empty());
@@ -730,7 +757,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -744,7 +771,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -765,7 +792,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 1; i < 100; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
 
@@ -774,7 +801,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     delete pblocktemplate;
 
     BOOST_CHECK(!pnccTrie->empty());
@@ -796,7 +823,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 0; i < 50; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
 
@@ -805,7 +832,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     delete pblocktemplate;
 
     BOOST_CHECK(!pnccTrie->empty());
@@ -820,7 +847,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     delete pblocktemplate;
     
     BOOST_CHECK(!pnccTrie->empty());
@@ -835,7 +862,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, insert_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
     
@@ -857,12 +884,14 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     blocks_to_invalidate.pop_back();
     BOOST_CHECK(pnccTrie->empty());
     BOOST_CHECK(pnccTrie->queueEmpty());
+    //noncePrinter.printNonces();
 }
 
 BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
 {
     int block_counter = 0;
-    bool find_nonces = false;
+    //CNoncePrinter noncePrinter;
+    CNoncePrinter* pnp = NULL;//&noncePrinter;
     BOOST_CHECK(pnccTrie->nCurrentHeight == chainActive.Height() + 1);
 
     CBlockTemplate *pblocktemplate;
@@ -881,7 +910,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     std::vector<CTransaction> coinbases;
     for (unsigned int i = 0; i < 102; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, expire_nonces[block_counter++]));
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
         if (coinbases.size() < 2)
             coinbases.push_back(CTransaction(pblocktemplate->block.vtx[0]));
     }
@@ -894,7 +923,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     tx2.vout[0].scriptPubKey = CScript() << OP_TRUE;
 
     std::vector<uint256> blocks_to_invalidate;
-    // set expiration time to 100 blocks after the block becomes valid.
+    // set expiration time to 100 blocks after the block becomes valid. (more correctly, 200 blocks after the block is created)
 
     pnccTrie->setExpirationTime(200);
 
@@ -905,7 +934,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, expire_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -919,14 +948,14 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 1; i < 100; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, expire_nonces[block_counter++]));
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
     }
     delete pblocktemplate;
 
     BOOST_CHECK(pnccTrie->empty());
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, expire_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -940,7 +969,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 1; i < 100; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, expire_nonces[block_counter++]));
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
     }
     delete pblocktemplate;
 
@@ -950,7 +979,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, expire_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -964,7 +993,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 0; i < 100; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, expire_nonces[block_counter++]));
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
     }
     delete pblocktemplate;
 
@@ -982,7 +1011,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, expire_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -1010,7 +1039,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, expire_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -1024,7 +1053,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 1; i < 100; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, expire_nonces[block_counter++]));
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
         if (i == 50)
             blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     }
@@ -1036,7 +1065,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, expire_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -1067,7 +1096,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, expire_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -1091,7 +1120,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 50; i < 100; ++i)
     {
-        BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, expire_nonces[block_counter++]));
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
     }
     delete pblocktemplate;
 
@@ -1101,7 +1130,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, expire_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -1116,7 +1145,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, expire_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -1146,7 +1175,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, expire_nonces[block_counter++]));
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
@@ -1178,6 +1207,76 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     BOOST_CHECK(pnccTrie->queueEmpty());
     BOOST_CHECK(pnccTrie->expirationQueueEmpty());
     BOOST_CHECK(blocks_to_invalidate.empty());
+
+    //noncePrinter.printNonces();
+}
+
+BOOST_AUTO_TEST_CASE(ncctrie_supporting_claims)
+{
+    int block_counter = 0;
+    CNoncePrinter noncePrinter;
+    CNoncePrinter* pnp = &noncePrinter;
+    
+    BOOST_CHECK(pnccTrie->nCurrentHeight == chainActive.Height() + 1);
+
+    CBlockTemplate *pblocktemplate;
+    LOCK(cs_main);
+
+    CScript scriptPubKey = CScript() << OP_TRUE;
+
+    std::string sName("atest");
+    std::string sValue1("testa");
+    std::string sValue2("testb");
+
+    std::vector<unsigned char> vchName(sName.begin(), sName.end());
+    std::vector<unsigned char> vchValue1(sValue1.begin(), sValue1.end());
+    std::vector<unsigned char> vchValue2(sValue2.begin(), sValue2.end());
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    std::vector<CTransaction> coinbases;
+    for (unsigned int i = 0; i < 103; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
+        if (coinbases.size() < 3)
+            coinbases.push_back(CTransaction(pblocktemplate->block.vtx[0]));
+    }
+
+    delete pblocktemplate;
+
+    CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
+    tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
+
+    CMutableTransaction tx2 = BuildTransaction(coinbases[1]);
+    tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
+
+    CMutableTransaction tx3 = BuildTransaction(coinbases[2]);
+    std::string sTx1Hash = tx1.GetHash().ToString();
+    std::vector<unsigned char> vchTx1Hash(sTx1Hash.begin(), sTx1Hash.end());
+    tx1.vout[0].scriptPubKey = CScript() << OP_SUPPORT_CLAIM << vchTx1Hash << 0 << OP_2DROP << OP_DROP << OP_TRUE;
+
+    std::vector<uint256> blocks_to_invalidate;
+
+    // Test 1: create 1 LBC claim (A), create 5 LBC support (A), create 5 LBC claim (B)
+    // Verify that A retains control throughout
+
+    // Test 2: create 1 LBC claim (A), create 5 LBC claim (B), create 5 LBC support (A)
+    // Verify that A loses control when B becomes valid, and then A gains control when support becomes valid
+
+    // Test 3: create 1 LBC claim (A), create 5 LBC support (A), create 5 LBC claim(B), spend (A) support
+    // Verify that A retains control until support is spent
+
+    // Test 4: create 1 LBC claim (A), wait till valid, create 5 LBC claim (B), create 5 LBC support (A)
+    // Verify that A retains control throughout
+
+    // Test 5: create 5 LBC claim (A), wait till valid, create 1 LBC claim (B), create 5 LBC support (B)
+    // Verify that A retains control until support becomes valid
+
+    // Test 6: create 1 LBC claim (A), wait till valid, create 5 LBC claim (B), create 5 LBC support (A), spend A
+    // Verify that A retains control until it is spent
+
+    // Test 7: create 1 LBC claim (A), wait till valid, create 5 LBC support (A), spend A
+    // Verify name trie is empty
 }
 
 BOOST_AUTO_TEST_CASE(ncctrienode_serialize_unserialize)

@@ -45,14 +45,10 @@ public:
          * The characters are rarely used upper ASCII, not valid as UTF-8, and produce
          * a large 32-bit integer with any alignment.
          */
-        pchMessageStart[0] = 0xf9;
-        pchMessageStart[1] = 0xbe;
-        pchMessageStart[2] = 0xb4;
-        pchMessageStart[3] = 0xd9;
-        //pchMessageStart[0] = 0xfa;
-        //pchMessageStart[1] = 0xe4;
-        //pchMessageStart[2] = 0xaa;
-        //pchMessageStart[3] = 0xf1;
+        pchMessageStart[0] = 0xfa;
+        pchMessageStart[1] = 0xe4;
+        pchMessageStart[2] = 0xaa;
+        pchMessageStart[3] = 0xf1;
         vAlertPubKey = ParseHex("04fc9702847840aaf195de8442ebecedf5b095cdbb9bc716bda9110971b28a49e0ead8564ff0db22209e0374782c093bb899692d524e9d6a6956e7c5ecbcd68284");
         nDefaultPort = 8333;
         nMinerThreads = 2;

@@ -31,7 +31,6 @@ enum opcodetype
     // push value
     OP_0 = 0x00,
     OP_FALSE = OP_0,
-    OP_CLAIM_NAME = OP_0,
     OP_PUSHDATA1 = 0x4c,
     OP_PUSHDATA2 = 0x4d,
     OP_PUSHDATA4 = 0x4e,
@@ -150,8 +149,8 @@ enum opcodetype
     OP_CHECKMULTISIGVERIFY = 0xaf,
 
     // expansion
-    OP_NOP1 = 0xb0,
-    OP_NOP2 = 0xb1,
+    OP_CLAIM_NAME = 0xb0,
+    OP_SUPPORT_CLAIM = 0xb1,
     OP_NOP3 = 0xb2,
     OP_NOP4 = 0xb3,
     OP_NOP5 = 0xb4,
