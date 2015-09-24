@@ -50,7 +50,7 @@ public:
         pchMessageStart[2] = 0xaa;
         pchMessageStart[3] = 0xf1;
         vAlertPubKey = ParseHex("04fc9702847840aaf195de8442ebecedf5b095cdbb9bc716bda9110971b28a49e0ead8564ff0db22209e0374782c093bb899692d524e9d6a6956e7c5ecbcd68284");
-        nDefaultPort = 8333;
+        nDefaultPort = 9246;
         nMinerThreads = 2;
         nPruneAfterHeight = 100000;
 
@@ -79,7 +79,7 @@ public:
         genesis.vtx.push_back(txNew);
         genesis.hashPrevBlock.SetNull();
         genesis.hashMerkleRoot = genesis.BuildMerkleTree();
-        genesis.hashNCCTrie = uint256S("0x0000000000000000000000000000000000000000000000000000000000000001");
+        genesis.hashClaimTrie = uint256S("0x0000000000000000000000000000000000000000000000000000000000000001");
         genesis.nVersion = 1;
         genesis.nTime = 1417453734;
         genesis.nBits    = 0x1f00ffff;
@@ -154,7 +154,7 @@ public:
         pchMessageStart[2] = 0x09;
         pchMessageStart[3] = 0x07;
         vAlertPubKey = ParseHex("04302390343f91cc401d56d68b123028bf52e5fca1939df127f63c6467cdf9c8e2c14b61104cf817d0b780da337893ecc4aaff1309e536162dabbdb45200ca2b0a");
-        nDefaultPort = 18333;
+        nDefaultPort = 19246;
         nMinerThreads = 0;
         nPruneAfterHeight = 1000;
 

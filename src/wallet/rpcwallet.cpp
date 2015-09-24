@@ -16,7 +16,7 @@
 #include "utilmoneystr.h"
 #include "wallet.h"
 #include "walletdb.h"
-#include "ncc.h"
+#include "nameclaim.h"
 
 #include <stdint.h>
 
@@ -471,14 +471,14 @@ void UpdateName(const std::vector<unsigned char> vchName, const std::vector<unsi
 }
 
 
-UniValue updatename(const UniValue& params, bool fHelp)
+UniValue updateclaim(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
     
     if (fHelp || params.size() != 3)
         throw runtime_error(
-            "updatename \"txid\" \"value\" amount\n"
+            "updateclaim \"txid\" \"value\" amount\n"
             "Create a transaction which issues a claim assigning a value to a name, spending the previous txout which issued a claim over the same name and therefore superseding that claim. The claim will be authoritative if the transaction amount is greater than the transaction amount of all other unspent transactions which issue a claim over the same name, and it will remain authoritative as long as it remains unspent and there are no greater unspent transactions issuing a claim over the same name.\n"
             + HelpRequiringPassphrase() +
             "\nArguments:\n"
@@ -497,7 +497,7 @@ UniValue updatename(const UniValue& params, bool fHelp)
     std::vector<unsigned char> vchValue (sValue.begin(), sValue.end());
     CAmount nAmount = AmountFromValue(params[2]);
      
-    isminefilter filter = ISMINE_NCC;
+    isminefilter filter = ISMINE_CLAIM;
 
     UniValue entry;
     if (!pwalletMain->mapWallet.count(hash))
@@ -512,7 +512,7 @@ UniValue updatename(const UniValue& params, bool fHelp)
     {
         if ((filter & pwalletMain->IsMine(wtx.vout[i])))
         {
-            if (DecodeNCCScript(wtx.vout[i].scriptPubKey, op, vvchParams))
+            if (DecodeClaimScript(wtx.vout[i].scriptPubKey, op, vvchParams))
             {
                 vchName = vvchParams[0];
                 EnsureWalletIsUnlocked();
@@ -522,7 +522,7 @@ UniValue updatename(const UniValue& params, bool fHelp)
         }
     }
     if (!fFound)
-        throw runtime_error("Error: The given transaction contains no NCC scripts owned by this wallet");
+        throw runtime_error("Error: The given transaction contains no claim scripts owned by this wallet");
     return wtxNew.GetHash().GetHex();
 }
 
@@ -565,14 +565,14 @@ void AbandonName(const CTxDestination &address, CAmount nAmount, CWalletTx& wtxN
         throw JSONRPCError(RPC_WALLET_ERROR, "Error: The transaction was rejected! This might happen if some of the coins in your wallet were already spent, such as if you used a copy of a wallet.dat and coins were spent in the copy but not marked as spent here.");
 }
 
-UniValue abandonname(const UniValue& params, bool fHelp)
+UniValue abandonclaim(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
     
     if (fHelp || params.size() != 3)
         throw runtime_error(
-            "abandonname \"txid\" \"lbrycrdaddress\" \"amount\"\n"
+            "abandonclaim \"txid\" \"lbrycrdaddress\" \"amount\"\n"
             "Create a transaction which spends a txout which assigned a value to a name, effectively abandoning that claim.\n"
             + HelpRequiringPassphrase() +
             "\nArguments:\n"
@@ -592,7 +592,7 @@ UniValue abandonname(const UniValue& params, bool fHelp)
 
     CAmount nAmount = AmountFromValue(params[2]);
 
-    isminefilter filter = ISMINE_NCC;
+    isminefilter filter = ISMINE_CLAIM;
 
     UniValue entry;
     if (!pwalletMain->mapWallet.count(hash))
@@ -607,7 +607,7 @@ UniValue abandonname(const UniValue& params, bool fHelp)
     {
         if ((filter & pwalletMain->IsMine(wtx.vout[i])))
         {
-            if (DecodeNCCScript(wtx.vout[i].scriptPubKey, op, vvchParams))
+            if (DecodeClaimScript(wtx.vout[i].scriptPubKey, op, vvchParams))
             {
                 EnsureWalletIsUnlocked();
                 AbandonName(address.Get(), nAmount, wtxNew, wtx, i);
@@ -616,7 +616,7 @@ UniValue abandonname(const UniValue& params, bool fHelp)
         }
     }
     if (!fFound)
-        throw runtime_error("Error: The given transaction contains no NCC scripts owned by this wallet");
+        throw runtime_error("Error: The given transaction contains no claim scripts owned by this wallet");
     return wtxNew.GetHash().GetHex();
 }
 
@@ -646,9 +646,9 @@ void ListNameClaims(const CWalletTx& wtx, const string& strAccount, int nMinDept
                 const CScript& scriptPubKey = wtx.vout[s.vout].scriptPubKey;
                 int op;
                 vector<vector<unsigned char> > vvchParams;
-                if (!DecodeNCCScript(scriptPubKey, op, vvchParams))
+                if (!DecodeClaimScript(scriptPubKey, op, vvchParams))
                 {
-                    LogPrintf("ListNameClaims(): Txout classified as NCC could not be decoded. Txid: %s", wtx.GetHash().ToString());
+                    LogPrintf("ListNameClaims(): Txout classified as name claim could not be decoded. Txid: %s", wtx.GetHash().ToString());
                     continue;
                 }
                 else if (vvchParams.size() != 2)
@@ -674,11 +674,11 @@ void ListNameClaims(const CWalletTx& wtx, const string& strAccount, int nMinDept
                     if (pindex)
                     {
                         entry.push_back(Pair("height", pindex->nHeight));
-                        entry.push_back(Pair("expiration height", pindex->nHeight + pnccTrie->nExpirationTime));
-                        if (pindex->nHeight + pnccTrie->nExpirationTime > chainActive.Height())
+                        entry.push_back(Pair("expiration height", pindex->nHeight + pclaimTrie->nExpirationTime));
+                        if (pindex->nHeight + pclaimTrie->nExpirationTime > chainActive.Height())
                         {
                             entry.push_back(Pair("expired", false));
-                            entry.push_back(Pair("blocks to expiration", pindex->nHeight + pnccTrie->nExpirationTime - chainActive.Height()));
+                            entry.push_back(Pair("blocks to expiration", pindex->nHeight + pclaimTrie->nExpirationTime - chainActive.Height()));
                         }
                         else
                         {
@@ -688,13 +688,13 @@ void ListNameClaims(const CWalletTx& wtx, const string& strAccount, int nMinDept
                 }
                 entry.push_back(Pair("confirmations", wtx.GetDepthInMainChain()));
                 entry.push_back(Pair("is spent", pwalletMain->IsSpent(wtx.GetHash(), s.vout)));
-                entry.push_back(Pair("is in name trie", pnccTrie->haveClaim(sName, wtx.GetHash(), s.vout)));
+                entry.push_back(Pair("is in name trie", pclaimTrie->haveClaim(sName, wtx.GetHash(), s.vout)));
                 ret.push_back(entry);
             }
         }
     }
 }
-            
+
 
 
 UniValue listnameclaims(const UniValue& params, bool fHelp)
@@ -739,7 +739,7 @@ UniValue listnameclaims(const UniValue& params, bool fHelp)
     bool fListSpent = true;
     if (params.size() > 0)
         fListSpent = !params[0].get_bool();
-    isminefilter ncc_filter = ISMINE_NCC;
+    isminefilter claim_filter = ISMINE_CLAIM;
 
     // Minimum confirmations
     int nMinDepth = 1;
@@ -755,7 +755,7 @@ UniValue listnameclaims(const UniValue& params, bool fHelp)
     {
         CWalletTx *const pwtx = (*it).second.first;
         if (pwtx != 0 && pwtx->GetDepthInMainChain() >= nMinDepth)
-            ListNameClaims(*pwtx, strAccount, 0, ret, ncc_filter, fListSpent);
+            ListNameClaims(*pwtx, strAccount, 0, ret, claim_filter, fListSpent);
     }
 
     vector<UniValue> arrTmp = ret.getValues();

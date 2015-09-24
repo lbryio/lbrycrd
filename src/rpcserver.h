@@ -179,8 +179,8 @@ extern UniValue getaccount(const UniValue& params, bool fHelp);
 extern UniValue getaddressesbyaccount(const UniValue& params, bool fHelp);
 extern UniValue claimname(const UniValue& params, bool fHelp);
 extern UniValue listnameclaims(const UniValue& params, bool fHelp);
-extern UniValue updatename(const UniValue& params, bool fHelp);
-extern UniValue abandonname(const UniValue& params, bool fHelp);
+extern UniValue updateclaim(const UniValue& params, bool fHelp);
+extern UniValue abandonclaim(const UniValue& params, bool fHelp);
 extern UniValue sendtoaddress(const UniValue& params, bool fHelp);
 extern UniValue signmessage(const UniValue& params, bool fHelp);
 extern UniValue verifymessage(const UniValue& params, bool fHelp);
@@ -241,7 +241,7 @@ extern UniValue getchaintips(const UniValue& params, bool fHelp);
 extern UniValue invalidateblock(const UniValue& params, bool fHelp);
 extern UniValue reconsiderblock(const UniValue& params, bool fHelp);
 
-extern UniValue getnametrie(const UniValue& params, bool fHelp); // in rpcncctrie.cpp
+extern UniValue getclaimtrie(const UniValue& params, bool fHelp); // in rpcclaimtrie.cpp
 extern UniValue gettxinfoforname(const UniValue& params, bool fHelp);
 extern UniValue getvalueforname(const UniValue& params, bool fHelp);
 extern UniValue gettotalclaimednames(const UniValue& params, bool fHelp);

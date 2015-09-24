@@ -1,13 +1,13 @@
-#include "ncc.h"
+#include "nameclaim.h"
 #include "util.h"
 
-bool DecodeNCCScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams)
+bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams)
 {
     CScript::const_iterator pc = scriptIn.begin();
-    return DecodeNCCScript(scriptIn, op, vvchParams, pc);
+    return DecodeClaimScript(scriptIn, op, vvchParams, pc);
 }
 
-bool DecodeNCCScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams, CScript::const_iterator& pc)
+bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams, CScript::const_iterator& pc)
 {
     opcodetype opcode;
     if (!scriptIn.GetOp(pc, opcode))
@@ -51,13 +51,13 @@ bool DecodeNCCScript(const CScript& scriptIn, int& op, std::vector<std::vector<u
     return true;
 }
 
-CScript StripNCCScriptPrefix(const CScript& scriptIn)
+CScript StripClaimScriptPrefix(const CScript& scriptIn)
 {
     int op;
     std::vector<std::vector<unsigned char> > vvchParams;
     CScript::const_iterator pc = scriptIn.begin();
 
-    if (!DecodeNCCScript(scriptIn, op, vvchParams, pc))
+    if (!DecodeClaimScript(scriptIn, op, vvchParams, pc))
     {
         return scriptIn;
     }

@@ -9,7 +9,7 @@
 #include "keystore.h"
 #include "script/script.h"
 #include "script/standard.h"
-#include "ncc.h"
+#include "nameclaim.h"
 
 #include <boost/foreach.hpp>
 
@@ -41,10 +41,10 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
     txnouttype whichType;
     isminetype spendable_type = ISMINE_SPENDABLE;
     
-    CScript strippedScriptPubKey = StripNCCScriptPrefix(scriptPubKey);
+    CScript strippedScriptPubKey = StripClaimScriptPrefix(scriptPubKey);
     if (strippedScriptPubKey != scriptPubKey)
     {
-        spendable_type = ISMINE_NCC;
+        spendable_type = ISMINE_CLAIM;
     }
 
 

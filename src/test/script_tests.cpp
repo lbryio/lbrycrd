@@ -951,13 +951,13 @@ BOOST_AUTO_TEST_CASE(script_combineSigs)
     BOOST_CHECK(combined == partial3c);
 }
 
-BOOST_AUTO_TEST_CASE(script_nccScript)
+BOOST_AUTO_TEST_CASE(script_claimScript)
 {
-    // Test the NCC scripts
+    // Test the claim scripts
     // Outline:
-    // Spend normal tx to make NCC claim
-    // Spend NCC claim to update NCC claim
-    // Spend NCC updated claim to abandon name
+    // Spend normal tx to make claim
+    // Spend claim to update claim
+    // Spend updated claim to abandon name
     CBasicKeyStore keystore;
     vector<CKey> keys;
     vector<CPubKey> pubkeys;
@@ -977,21 +977,21 @@ BOOST_AUTO_TEST_CASE(script_nccScript)
 
     CMutableTransaction txOrig = BuildCreditingTransaction(GetScriptForDestination(keys[0].GetPubKey().GetID()));
     
-    CMutableTransaction txNCC0 = BuildSpendingTransaction(CScript(), txOrig);
-    CScript txNCCOut0 = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
-    txNCCOut0 = txNCCOut0 + GetScriptForDestination(keys[1].GetPubKey().GetID());
-    txNCC0.vout[0].scriptPubKey = txNCCOut0;
-    SignSignature(keystore, txOrig, txNCC0, 0);
+    CMutableTransaction txClaim0 = BuildSpendingTransaction(CScript(), txOrig);
+    CScript txClaimOut0 = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
+    txClaimOut0 = txClaimOut0 + GetScriptForDestination(keys[1].GetPubKey().GetID());
+    txClaim0.vout[0].scriptPubKey = txClaimOut0;
+    SignSignature(keystore, txOrig, txClaim0, 0);
 
-    CMutableTransaction txNCC1 = BuildSpendingTransaction(CScript(), txNCC0);
-    CScript txNCCOut1 = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
-    txNCCOut1 = txNCCOut1 + GetScriptForDestination(keys[2].GetPubKey().GetID());
-    txNCC1.vout[0].scriptPubKey = txNCCOut1;
-    SignSignature(keystore, txNCC0, txNCC1, 0);
+    CMutableTransaction txClaim1 = BuildSpendingTransaction(CScript(), txClaim0);
+    CScript txClaimOut1 = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
+    txClaimOut1 = txClaimOut1 + GetScriptForDestination(keys[2].GetPubKey().GetID());
+    txClaim1.vout[0].scriptPubKey = txClaimOut1;
+    SignSignature(keystore, txClaim0, txClaim1, 0);
 
-    CMutableTransaction txFinal = BuildSpendingTransaction(CScript(), txNCC1);
+    CMutableTransaction txFinal = BuildSpendingTransaction(CScript(), txClaim1);
     txFinal.vout[0].scriptPubKey = GetScriptForDestination(keys[3].GetPubKey().GetID());
-    SignSignature(keystore, txNCC1, txFinal, 0);
+    SignSignature(keystore, txClaim1, txFinal, 0);
 }
 
 BOOST_AUTO_TEST_CASE(script_standard_push)

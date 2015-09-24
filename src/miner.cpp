@@ -11,8 +11,8 @@
 #include "consensus/validation.h"
 #include "hash.h"
 #include "main.h"
-#include "ncc.h"
-#include "ncctrie.h"
+#include "nameclaim.h"
+#include "claimtrie.h"
 #include "net.h"
 #include "pow.h"
 #include "primitives/transaction.h"
@@ -142,11 +142,11 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         const int nHeight = pindexPrev->nHeight + 1;
         pblock->nTime = GetAdjustedTime();
         CCoinsViewCache view(pcoinsTip);
-        if (!pnccTrie)
+        if (!pclaimTrie)
         {
             return NULL;
         }
-        CNCCTrieCache trieCache(pnccTrie);
+        CClaimTrieCache trieCache(pclaimTrie);
 
         // Priority order to process transactions
         list<COrphan> vOrphan; // list memory doesn't move
@@ -308,7 +308,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                 std::vector<std::vector<unsigned char> > vvchParams;
                 int op;
 
-                if (DecodeNCCScript(coins->vout[txin.prevout.n].scriptPubKey, op, vvchParams))
+                if (DecodeClaimScript(coins->vout[txin.prevout.n].scriptPubKey, op, vvchParams))
                 {
                     assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
@@ -329,7 +329,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
             
                 std::vector<std::vector<unsigned char> > vvchParams;
                 int op;
-                if (DecodeNCCScript(txout.scriptPubKey, op, vvchParams))
+                if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams))
                 {
                     assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
@@ -396,10 +396,10 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         pblock->nBits          = GetNextWorkRequired(pindexPrev, pblock, Params().GetConsensus());
         pblock->nNonce         = 0;
         pblocktemplate->vTxSigOps[0] = GetLegacySigOpCount(pblock->vtx[0]);
-        CNCCTrieQueueUndo dummyInsertUndo;
-        CNCCTrieQueueUndo dummyExpireUndo;
+        CClaimTrieQueueUndo dummyInsertUndo;
+        CClaimTrieQueueUndo dummyExpireUndo;
         trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo);
-        pblock->hashNCCTrie = trieCache.getMerkleHash();
+        pblock->hashClaimTrie = trieCache.getMerkleHash();
 
         CValidationState state;
         if (!TestBlockValidity(state, *pblock, pindexPrev, false, false))

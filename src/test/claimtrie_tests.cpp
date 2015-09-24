@@ -6,7 +6,7 @@
 #include "consensus/validation.h"
 #include "primitives/transaction.h"
 #include "miner.h"
-#include "ncctrie.h"
+#include "claimtrie.h"
 #include "coins.h"
 #include "streams.h"
 #include <boost/test/unit_test.hpp>
@@ -145,7 +145,7 @@ const unsigned int expire_nonces[] = {
 };
 const unsigned int support_nonces[] = {};
 
-BOOST_FIXTURE_TEST_SUITE(ncctrie_tests, TestingSetup)
+BOOST_FIXTURE_TEST_SUITE(claimtrie_tests, TestingSetup)
 
 CMutableTransaction BuildTransaction(const uint256& prevhash)
 {
@@ -264,7 +264,7 @@ bool RemoveBlock(uint256& blockhash)
 
 }
 
-BOOST_AUTO_TEST_CASE(ncctrie_merkle_hash)
+BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
 {
     int unused;
     uint256 hash0(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
@@ -287,13 +287,13 @@ BOOST_AUTO_TEST_CASE(ncctrie_merkle_hash)
     uint256 hash4;
     hash4.SetHex("6ec84089eb4ca1aeead6cf3538d4def78baebb44715c31be8790e627e0dcbc28");
 
-    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pclaimTrie->empty());
 
-    CNCCTrieCache ntState(pnccTrie);
+    CClaimTrieCache ntState(pclaimTrie);
     ntState.insertClaimIntoTrie(std::string("test"), CNodeValue(tx1.GetHash(), 0, 50, 100, 200));
     ntState.insertClaimIntoTrie(std::string("test2"), CNodeValue(tx2.GetHash(), 0, 50, 100, 200));
 
-    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!ntState.empty());
     BOOST_CHECK(ntState.getMerkleHash() == hash1);
 
@@ -306,11 +306,11 @@ BOOST_AUTO_TEST_CASE(ncctrie_merkle_hash)
     BOOST_CHECK(ntState.getMerkleHash() == hash2);
     ntState.flush();
 
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->getMerkleHash() == hash2);
-    BOOST_CHECK(pnccTrie->checkConsistency());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->getMerkleHash() == hash2);
+    BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CNCCTrieCache ntState1(pnccTrie);
+    CClaimTrieCache ntState1(pclaimTrie);
     ntState1.removeClaimFromTrie(std::string("test"), tx1.GetHash(), 0, unused);
     ntState1.removeClaimFromTrie(std::string("test2"), tx2.GetHash(), 0, unused);
     ntState1.removeClaimFromTrie(std::string("test"), tx3.GetHash(), 0, unused);
@@ -318,7 +318,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_merkle_hash)
 
     BOOST_CHECK(ntState1.getMerkleHash() == hash0);
 
-    CNCCTrieCache ntState2(pnccTrie);
+    CClaimTrieCache ntState2(pclaimTrie);
     ntState2.insertClaimIntoTrie(std::string("abab"), CNodeValue(tx6.GetHash(), 0, 50, 100, 200));
     ntState2.removeClaimFromTrie(std::string("test"), tx1.GetHash(), 0, unused);
 
@@ -326,45 +326,45 @@ BOOST_AUTO_TEST_CASE(ncctrie_merkle_hash)
 
     ntState2.flush();
 
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->getMerkleHash() == hash3);
-    BOOST_CHECK(pnccTrie->checkConsistency());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->getMerkleHash() == hash3);
+    BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CNCCTrieCache ntState3(pnccTrie);
+    CClaimTrieCache ntState3(pclaimTrie);
     ntState3.insertClaimIntoTrie(std::string("test"), CNodeValue(tx1.GetHash(), 0, 50, 100, 200));
     BOOST_CHECK(ntState3.getMerkleHash() == hash4);
     ntState3.flush();
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->getMerkleHash() == hash4);
-    BOOST_CHECK(pnccTrie->checkConsistency());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->getMerkleHash() == hash4);
+    BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CNCCTrieCache ntState4(pnccTrie);
+    CClaimTrieCache ntState4(pclaimTrie);
     ntState4.removeClaimFromTrie(std::string("abab"), tx6.GetHash(), 0, unused);
     BOOST_CHECK(ntState4.getMerkleHash() == hash2);
     ntState4.flush();
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->getMerkleHash() == hash2);
-    BOOST_CHECK(pnccTrie->checkConsistency());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->getMerkleHash() == hash2);
+    BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CNCCTrieCache ntState5(pnccTrie);
+    CClaimTrieCache ntState5(pclaimTrie);
     ntState5.removeClaimFromTrie(std::string("test"), tx3.GetHash(), 0, unused);
 
     BOOST_CHECK(ntState5.getMerkleHash() == hash2);
     ntState5.flush();
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->getMerkleHash() == hash2);
-    BOOST_CHECK(pnccTrie->checkConsistency());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->getMerkleHash() == hash2);
+    BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CNCCTrieCache ntState6(pnccTrie);
+    CClaimTrieCache ntState6(pclaimTrie);
     ntState6.insertClaimIntoTrie(std::string("test"), CNodeValue(tx3.GetHash(), 0, 50, 101, 201));
 
     BOOST_CHECK(ntState6.getMerkleHash() == hash2);
     ntState6.flush();
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->getMerkleHash() == hash2);
-    BOOST_CHECK(pnccTrie->checkConsistency());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->getMerkleHash() == hash2);
+    BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CNCCTrieCache ntState7(pnccTrie);
+    CClaimTrieCache ntState7(pclaimTrie);
     ntState7.removeClaimFromTrie(std::string("test"), tx3.GetHash(), 0, unused);
     ntState7.removeClaimFromTrie(std::string("test"), tx1.GetHash(), 0, unused);
     ntState7.removeClaimFromTrie(std::string("tes"), tx4.GetHash(), 0, unused);
@@ -372,17 +372,17 @@ BOOST_AUTO_TEST_CASE(ncctrie_merkle_hash)
     
     BOOST_CHECK(ntState7.getMerkleHash() == hash0);
     ntState7.flush();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->getMerkleHash() == hash0);
-    BOOST_CHECK(pnccTrie->checkConsistency());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->getMerkleHash() == hash0);
+    BOOST_CHECK(pclaimTrie->checkConsistency());
 }
 
-BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
+BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 {
     int block_counter = 0;
     //CNoncePrinter noncePrinter;
     CNoncePrinter* pnp = NULL;//&noncePrinter;
-    BOOST_CHECK(pnccTrie->nCurrentHeight == chainActive.Height() + 1);
+    BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
     
     CBlockTemplate *pblocktemplate;
     LOCK(cs_main);
@@ -415,7 +415,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     delete pblocktemplate;
 
     uint256 hash0(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
-    BOOST_CHECK(pnccTrie->getMerkleHash() == hash0);
+    BOOST_CHECK(pclaimTrie->getMerkleHash() == hash0);
     
     CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
     tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName1 << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
@@ -463,8 +463,8 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     }
     delete pblocktemplate;
     
-    BOOST_CHECK(!pnccTrie->getInfoForName(sName1, val));
-    BOOST_CHECK(!pnccTrie->getInfoForName(sName2, val));
+    BOOST_CHECK(!pclaimTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(!pclaimTrie->getInfoForName(sName2, val));
     
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
@@ -473,15 +473,15 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     
     // Verify tx1 and tx2 are in the trie
 
-    BOOST_CHECK(pnccTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
     BOOST_CHECK(val.txhash == tx1.GetHash());
 
-    BOOST_CHECK(pnccTrie->getInfoForName(sName2, val));
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName2, val));
     BOOST_CHECK(val.txhash == tx2.GetHash());
 
     // Verify tx7 is also in the trie
 
-    BOOST_CHECK(pnccTrie->haveClaim(sName1, tx7.GetHash(), 0));
+    BOOST_CHECK(pclaimTrie->haveClaim(sName1, tx7.GetHash(), 0));
 
     // Spend tx1 with tx3, tx2 with tx4, and put in tx5.
     
@@ -498,30 +498,30 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
 
     // Verify tx1, tx2, and tx5 are not in the trie, but tx3 is in the trie.
 
-    BOOST_CHECK(pnccTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
     BOOST_CHECK(val.txhash == tx3.GetHash());
-    BOOST_CHECK(!pnccTrie->getInfoForName(sName2, val));
+    BOOST_CHECK(!pclaimTrie->getInfoForName(sName2, val));
 
     // Roll back the last block, make sure tx1 and tx2 are put back in the trie
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(pnccTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
     BOOST_CHECK(val.txhash == tx1.GetHash());
-    BOOST_CHECK(pnccTrie->getInfoForName(sName2, val));
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName2, val));
     BOOST_CHECK(val.txhash == tx2.GetHash());
 
     // Roll all the way back, make sure all txs are out of the trie
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(!pnccTrie->getInfoForName(sName1, val));
-    BOOST_CHECK(!pnccTrie->getInfoForName(sName2, val));
+    BOOST_CHECK(!pclaimTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(!pclaimTrie->getInfoForName(sName2, val));
     mempool.clear();
     
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->getMerkleHash() == hash0);
-    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->getMerkleHash() == hash0);
+    BOOST_CHECK(pclaimTrie->queueEmpty());
 
     // Test undoing a claim before the claim gets into the trie
 
@@ -541,8 +541,8 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
 
     // Make sure it's not in the queue
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
     mempool.clear();
 
     // Test undoing a claim that has gotten into the trie
@@ -558,8 +558,8 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
@@ -569,25 +569,25 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     }
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     delete pblocktemplate;
        
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(pnccTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
     BOOST_CHECK(val.txhash == tx1.GetHash());
 
     // Remove it from the trie
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
     mempool.clear();
 
     // Test undoing a spend which involves a claim just inserted into the queue
@@ -604,13 +604,13 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
     mempool.clear();
 
     // Test undoing a spend which involves a claim inserted into the queue by a previous block
@@ -625,8 +625,8 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
@@ -635,8 +635,8 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
         BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
 
     // Spend tx2 with tx4, and then advance to where tx2 would be inserted into the trie and verify it hasn't happened
 
@@ -648,8 +648,8 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
@@ -658,15 +658,15 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
         BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
 
     // Undo spending tx2 with tx4, and then advance and verify tx2 is inserted into the trie when it should be
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
 
     mempool.clear();
 
@@ -678,16 +678,16 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     }
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     delete pblocktemplate;
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(pnccTrie->getInfoForName(sName2, val));
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName2, val));
     BOOST_CHECK(val.txhash == tx2.GetHash());
 
     // Test undoing a spend which involves a claim in the trie
@@ -703,23 +703,23 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
 
     // undo spending tx2 with tx4, and verify tx2 is back in the trie
     
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
     mempool.clear();
 
     // roll back to the beginning
     
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
     mempool.clear();
 
     // Test undoing a spent update which updated a claim still in the queue
@@ -735,8 +735,8 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
 
     // move forward some, but not far enough for the claim to get into the trie
 
@@ -747,8 +747,8 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
         BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     }
     delete pblocktemplate;
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
 
     // update the original claim (tx3 spends tx1)
 
@@ -761,8 +761,8 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
 
     // spend the update (tx6 spends tx3)
 
@@ -775,15 +775,15 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
 
     // undo spending the update (undo tx6 spending tx3)
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
     mempool.clear();
 
     // make sure the update (tx3) still goes into effect in 100 blocks
@@ -796,23 +796,23 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     }
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     delete pblocktemplate;
 
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
 
     // undo updating the original claim (tx3 spends tx1)
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
     mempool.clear();
 
     // Test undoing an spent update which updated the best claim to a name
@@ -827,17 +827,17 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     }
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     delete pblocktemplate;
 
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(pnccTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
     BOOST_CHECK(val.txhash == tx1.GetHash());
 
     // update the original claim (tx3 spends tx1)
@@ -850,9 +850,9 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
     delete pblocktemplate;
     
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(pnccTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
     BOOST_CHECK(val.txhash == tx3.GetHash());
     
     // spend the update (tx6 spends tx3)
@@ -866,33 +866,33 @@ BOOST_AUTO_TEST_CASE(ncctrie_insert_update_claim)
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
     
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
     
     // undo spending the update (undo tx6 spending tx3)
     
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(pnccTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
     BOOST_CHECK(val.txhash == tx3.GetHash());
 
     // roll all the way back
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
     //noncePrinter.printNonces();
 }
 
-BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
+BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 {
     int block_counter = 0;
     //CNoncePrinter noncePrinter;
     CNoncePrinter* pnp = NULL;//&noncePrinter;
-    BOOST_CHECK(pnccTrie->nCurrentHeight == chainActive.Height() + 1);
+    BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
 
     CBlockTemplate *pblocktemplate;
     LOCK(cs_main);
@@ -925,7 +925,7 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     std::vector<uint256> blocks_to_invalidate;
     // set expiration time to 100 blocks after the block becomes valid. (more correctly, 200 blocks after the block is created)
 
-    pnccTrie->setExpirationTime(200);
+    pclaimTrie->setExpirationTime(200);
 
     // create a claim. verify no expiration event has been scheduled.
 
@@ -938,9 +938,9 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
-    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
     // advance until the claim is valid. verify the expiration event is scheduled.
 
@@ -952,16 +952,16 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     }
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
     // advance until the expiration event occurs. verify the expiration event occurs on time.
     
@@ -973,9 +973,9 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     }
     delete pblocktemplate;
 
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
@@ -983,9 +983,9 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
     
     // roll forward a bit and then roll back to before the expiration event. verify the claim is reinserted. verify the expiration event is scheduled again.
 
@@ -997,15 +997,15 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     }
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
     
     // advance until the expiration event occurs. verify the expiration event occurs on time.
     
@@ -1015,25 +1015,25 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
 
     // roll back to before the expiration event. verify the claim is reinserted. verify the expiration event is scheduled again.
     
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
     
     // roll back to before the claim is valid. verify the claim is removed but the expiration event still exists.
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
-    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
     // advance until the claim is valid again. verify the expiration event is scheduled.
 
@@ -1043,9 +1043,9 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
     // advance until the expiration event occurs. verify the expiration event occurs on time.
 
@@ -1059,9 +1059,9 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     }
     delete pblocktemplate;
 
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
@@ -1069,25 +1069,25 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
 
     // roll back to before the expiration event. verify the expiration event is scheduled.
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
     // roll back some.
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
     // spend the claim. verify the expiration event is removed.
     
@@ -1100,17 +1100,17 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
     
     // roll back the spend. verify the expiration event is returned.
     
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
    
     mempool.clear();
     
@@ -1124,9 +1124,9 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     }
     delete pblocktemplate;
 
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
@@ -1134,9 +1134,9 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
 
     // spend the expired claim
 
@@ -1149,17 +1149,17 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
 
     // undo the spend. verify everything remains empty.
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
 
     mempool.clear();
     
@@ -1167,9 +1167,9 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
     // verify the expiration event happens at the right time again
 
@@ -1179,45 +1179,45 @@ BOOST_AUTO_TEST_CASE(ncctrie_claim_expiration)
     blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
     delete pblocktemplate;
 
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
 
     // roll back to before the expiration event. verify it gets reinserted and expiration gets scheduled.
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(!pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
     // roll back to before the claim is valid. verify the claim is removed but the expiration event is not.
     
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(!pnccTrie->queueEmpty());
-    BOOST_CHECK(!pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
     // roll all the way back
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(pnccTrie->empty());
-    BOOST_CHECK(pnccTrie->queueEmpty());
-    BOOST_CHECK(pnccTrie->expirationQueueEmpty());
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
     BOOST_CHECK(blocks_to_invalidate.empty());
 
     //noncePrinter.printNonces();
 }
 
-BOOST_AUTO_TEST_CASE(ncctrie_supporting_claims)
+BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 {
     int block_counter = 0;
     CNoncePrinter noncePrinter;
     CNoncePrinter* pnp = &noncePrinter;
     
-    BOOST_CHECK(pnccTrie->nCurrentHeight == chainActive.Height() + 1);
+    BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
 
     CBlockTemplate *pblocktemplate;
     LOCK(cs_main);
@@ -1279,12 +1279,12 @@ BOOST_AUTO_TEST_CASE(ncctrie_supporting_claims)
     // Verify name trie is empty
 }
 
-BOOST_AUTO_TEST_CASE(ncctrienode_serialize_unserialize)
+BOOST_AUTO_TEST_CASE(claimtrienode_serialize_unserialize)
 {
     CDataStream ss(SER_DISK, 0);
 
-    CNCCTrieNode n1;
-    CNCCTrieNode n2;
+    CClaimTrieNode n1;
+    CClaimTrieNode n2;
     CNodeValue throwaway;
     
     ss << n1;

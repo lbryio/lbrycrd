@@ -107,8 +107,8 @@ BITCOIN_CORE_H = \
   merkleblock.h \
   miner.h \
   mruset.h \
-  ncc.h \
-  ncctrie.h \
+  nameclaim.h \
+  claimtrie.h \
   net.h \
   netbase.h \
   noui.h \
@@ -175,7 +175,7 @@ libbitcoin_server_a_SOURCES = \
   main.cpp \
   merkleblock.cpp \
   miner.cpp \
-  ncctrie.cpp \
+  claimtrie.cpp \
   net.cpp \
   noui.cpp \
   policy/fees.cpp \
@@ -184,7 +184,7 @@ libbitcoin_server_a_SOURCES = \
   rpcblockchain.cpp \
   rpcmining.cpp \
   rpcmisc.cpp \
-  rpcncctrie.cpp \
+  rpcclaimtrie.cpp \
   rpcnet.cpp \
   rpcrawtransaction.cpp \
   rpcserver.cpp \
@@ -249,7 +249,7 @@ libbitcoin_common_a_SOURCES = \
   hash.cpp \
   key.cpp \
   keystore.cpp \
-  ncc.cpp \
+  nameclaim.cpp \
   netbase.cpp \
   primitives/block.cpp \
   primitives/transaction.cpp \

@@ -10,7 +10,7 @@
 #include "keystore.h"
 #include "script/standard.h"
 #include "uint256.h"
-#include "ncc.h"
+#include "nameclaim.h"
 #include <boost/foreach.hpp>
 
 using namespace std;
@@ -66,7 +66,7 @@ static bool SignStep(const BaseSignatureCreator& creator, const CScript& scriptP
 {
     scriptSigRet.clear();
 
-    const CScript& strippedScriptPubKey = StripNCCScriptPrefix(scriptPubKey);
+    const CScript& strippedScriptPubKey = StripClaimScriptPrefix(scriptPubKey);
 
     vector<valtype> vSolutions;
     if (!Solver(strippedScriptPubKey, whichTypeRet, vSolutions))

@@ -368,8 +368,8 @@ static const CRPCCommand vRPCCommands[] =
     { "wallet",             "sendmany",               &sendmany,               false },
     { "wallet",             "claimname",              &claimname,              false },
     { "wallet",             "listnameclaims",         &listnameclaims,         false },
-    { "wallet",             "updatename",             &updatename,             false },
-    { "wallet",             "abandonname",            &abandonname,            false },
+    { "wallet",             "updateclaim",            &updateclaim,            false },
+    { "wallet",             "abandonclaim",           &abandonclaim,           false },
     { "wallet",             "sendtoaddress",          &sendtoaddress,          false },
     { "wallet",             "setaccount",             &setaccount,             true  },
     { "wallet",             "settxfee",               &settxfee,               true  },
@@ -379,13 +379,13 @@ static const CRPCCommand vRPCCommands[] =
     { "wallet",             "walletpassphrase",       &walletpassphrase,       true  },
 #endif // ENABLE_WALLET
 
-    /* NCC trie */
-    { "nametrie",           "getnametrie",            &getnametrie,            true  },
-    { "nametrie",           "gettxinfoforname",       &gettxinfoforname,       true  },
-    { "nametrie",           "getvalueforname",        &getvalueforname,        true  },
-    { "nametrie",           "gettotalclaimednames",   &gettotalclaimednames,   true  },
-    { "nametrie",           "gettotalclaims",         &gettotalclaims,         true  },
-    { "nametrie",           "gettotalvalueofclaims",  &gettotalvalueofclaims,  true  },
+    /* Claim trie */
+    { "claimtrie",           "getclaimtrie",           &getclaimtrie,           true  },
+    { "claimtrie",           "gettxinfoforname",       &gettxinfoforname,       true  },
+    { "claimtrie",           "getvalueforname",        &getvalueforname,        true  },
+    { "claimtrie",           "gettotalclaimednames",   &gettotalclaimednames,   true  },
+    { "claimtrie",           "gettotalclaims",         &gettotalclaims,         true  },
+    { "claimtrie",           "gettotalvalueofclaims",  &gettotalvalueofclaims,  true  },
 };
 
 CRPCTable::CRPCTable()
@@ -1043,7 +1043,7 @@ std::string HelpExampleCli(const std::string& methodname, const std::string& arg
 std::string HelpExampleRpc(const std::string& methodname, const std::string& args)
 {
     return "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", "
-        "\"method\": \"" + methodname + "\", \"params\": [" + args + "] }' -H 'content-type: text/plain;' http://127.0.0.1:8332/\n";
+        "\"method\": \"" + methodname + "\", \"params\": [" + args + "] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/\n";
 }
 
 const CRPCTable tableRPC;

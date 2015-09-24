@@ -1,13 +1,13 @@
 #include "main.h"
-#include "ncc.h"
+#include "nameclaim.h"
 #include "rpcserver.h"
 #include "univalue/univalue.h"
 
-UniValue getnametrie(const UniValue& params, bool fHelp)
+UniValue getclaimtrie(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() > 0)
         throw std::runtime_error(
-            "getnametrie\n"
+            "getclaimtrie\n"
             "Return the entire name trie.\n"
             "Arguments:\n"
             "None\n"
@@ -25,7 +25,7 @@ UniValue getnametrie(const UniValue& params, bool fHelp)
     LOCK(cs_main);
     UniValue ret(UniValue::VARR);
 
-    std::vector<namedNodeType> nodes = pnccTrie->flattenTrie();
+    std::vector<namedNodeType> nodes = pclaimTrie->flattenTrie();
     for (std::vector<namedNodeType>::iterator it = nodes.begin(); it != nodes.end(); ++it)
     {
         UniValue node(UniValue::VOBJ);
@@ -64,7 +64,7 @@ UniValue gettxinfoforname(const UniValue& params, bool fHelp)
     
     UniValue ret(UniValue::VOBJ);
     CNodeValue val;
-    if (pnccTrie->getInfoForName(name, val))
+    if (pclaimTrie->getInfoForName(name, val))
     {
         ret.push_back(Pair("txid", val.txhash.GetHex()));
         ret.push_back(Pair("n", (int)val.nOut));
@@ -89,7 +89,7 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
     std::string name = params[0].get_str();
     CNodeValue val;
     UniValue ret(UniValue::VOBJ);
-    if (!pnccTrie->getInfoForName(name, val))
+    if (!pclaimTrie->getInfoForName(name, val))
         return ret;
     CCoinsViewCache view(pcoinsTip);
     const CCoins* coin = view.AccessCoins(val.txhash);
@@ -107,9 +107,9 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
     
     int op;
     std::vector<std::vector<unsigned char> > vvchParams;
-    if (!DecodeNCCScript(coin->vout[val.nOut].scriptPubKey, op, vvchParams))
+    if (!DecodeClaimScript(coin->vout[val.nOut].scriptPubKey, op, vvchParams))
     {
-        LogPrintf("%s: the specified txout of %s does not have an NCC command\n", __func__, val.txhash.GetHex());
+        LogPrintf("%s: the specified txout of %s does not have a name claim command\n", __func__, val.txhash.GetHex());
     }
     std::string sValue(vvchParams[1].begin(), vvchParams[1].end());
     ret.push_back(Pair("value", sValue));
@@ -129,11 +129,11 @@ UniValue gettotalclaimednames(const UniValue& params, bool fHelp)
             "                                         names in the trie\n"
         );
     LOCK(cs_main);
-    if (!pnccTrie)
+    if (!pclaimTrie)
     {
         return -1;
     }       
-    unsigned int num_names = pnccTrie->getTotalNamesInTrie();
+    unsigned int num_names = pclaimTrie->getTotalNamesInTrie();
     return int(num_names);
 }
 
@@ -149,11 +149,11 @@ UniValue gettotalclaims(const UniValue& params, bool fHelp)
             "                                       of active claims\n"
         );
     LOCK(cs_main);
-    if (!pnccTrie)
+    if (!pclaimTrie)
     {
         return -1;
     }
-    unsigned int num_claims = pnccTrie->getTotalClaimsInTrie();
+    unsigned int num_claims = pclaimTrie->getTotalClaimsInTrie();
     return int(num_claims);
 }
 
@@ -171,14 +171,14 @@ UniValue gettotalvalueofclaims(const UniValue& params, bool fHelp)
             "                                          claims in the trie\n"
         );
     LOCK(cs_main);
-    if (!pnccTrie)
+    if (!pclaimTrie)
     {
         return -1;
     }
     bool controlling_only = false;
     if (params.size() == 1)
         controlling_only = params[0].get_bool();
-    CAmount total_amount = pnccTrie->getTotalValueOfClaimsInTrie(controlling_only);
+    CAmount total_amount = pclaimTrie->getTotalValueOfClaimsInTrie(controlling_only);
     return ValueFromAmount(total_amount);
 }
 

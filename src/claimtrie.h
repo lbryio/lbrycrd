@@ -1,5 +1,5 @@
-#ifndef BITCOIN_NCCTRIE_H
-#define BITCOIN_NCCTRIE_H
+#ifndef BITCOIN_ClaimTRIE_H
+#define BITCOIN_ClaimTRIE_H
 
 #include "amount.h"
 #include "serialize.h"
@@ -67,18 +67,18 @@ public:
     }
 };
 
-class CNCCTrieNode;
-class CNCCTrie;
+class CClaimTrieNode;
+class CClaimTrie;
 
-typedef std::map<unsigned char, CNCCTrieNode*> nodeMapType;
+typedef std::map<unsigned char, CClaimTrieNode*> nodeMapType;
 
-typedef std::pair<std::string, CNCCTrieNode> namedNodeType;
+typedef std::pair<std::string, CClaimTrieNode> namedNodeType;
 
-class CNCCTrieNode
+class CClaimTrieNode
 {
 public:
-    CNCCTrieNode() {}
-    CNCCTrieNode(uint256 hash) : hash(hash) {}
+    CClaimTrieNode() {}
+    CClaimTrieNode(uint256 hash) : hash(hash) {}
     uint256 hash;
     uint256 bestBlock;
     nodeMapType children;
@@ -96,12 +96,12 @@ public:
         READWRITE(values);
     }
     
-    bool operator==(const CNCCTrieNode& other) const
+    bool operator==(const CClaimTrieNode& other) const
     {
         return hash == other.hash && values == other.values;
     }
 
-    bool operator!=(const CNCCTrieNode& other) const
+    bool operator!=(const CClaimTrieNode& other) const
     {
         return !(*this == other);
     }
@@ -137,18 +137,18 @@ class CValueQueueEntry
 };
 
 typedef std::map<int, std::vector<CValueQueueEntry> > valueQueueType;
-typedef std::vector<CValueQueueEntry> CNCCTrieQueueUndo;
+typedef std::vector<CValueQueueEntry> CClaimTrieQueueUndo;
 
-typedef std::map<std::string, CNCCTrieNode*, nodenamecompare> nodeCacheType;
+typedef std::map<std::string, CClaimTrieNode*, nodenamecompare> nodeCacheType;
 
 typedef std::map<std::string, uint256> hashMapType;
 
-class CNCCTrieCache;
+class CClaimTrieCache;
 
-class CNCCTrie
+class CClaimTrie
 {
 public:
-    CNCCTrie(bool fMemory = false, bool fWipe = false) : db(GetDataDir() / "ncctrie", 100, fMemory, fWipe), nCurrentHeight(0), nExpirationTime(262974), root(uint256S("0000000000000000000000000000000000000000000000000000000000000001")) {}
+    CClaimTrie(bool fMemory = false, bool fWipe = false) : db(GetDataDir() / "claimtrie", 100, fMemory, fWipe), nCurrentHeight(0), nExpirationTime(262974), root(uint256S("0000000000000000000000000000000000000000000000000000000000000001")) {}
     uint256 getMerkleHash();
     CLevelDBWrapper db;
     bool empty() const;
@@ -168,39 +168,39 @@ public:
     unsigned int getTotalNamesInTrie() const;
     unsigned int getTotalClaimsInTrie() const;
     CAmount getTotalValueOfClaimsInTrie(bool fControllingOnly) const;
-    friend class CNCCTrieCache;
+    friend class CClaimTrieCache;
     int nExpirationTime;
 private:
-    void clear(CNCCTrieNode* current);
+    void clear(CClaimTrieNode* current);
     bool update(nodeCacheType& cache, hashMapType& hashes, const uint256& hashBlock, valueQueueType& queueCache, valueQueueType& expirationQueueCache, int nNewHeight);
-    bool updateName(const std::string& name, CNCCTrieNode* updatedNode);
+    bool updateName(const std::string& name, CClaimTrieNode* updatedNode);
     bool updateHash(const std::string& name, uint256& hash);
-    bool recursiveNullify(CNCCTrieNode* node, std::string& name);
-    bool recursiveCheckConsistency(CNCCTrieNode* node);
-    bool InsertFromDisk(const std::string& name, CNCCTrieNode* node);
-    unsigned int getTotalNamesRecursive(const CNCCTrieNode* current) const;
-    unsigned int getTotalClaimsRecursive(const CNCCTrieNode* current) const;
-    CAmount getTotalValueOfClaimsRecursive(const CNCCTrieNode* current, bool fControllingOnly) const;
-    bool recursiveFlattenTrie(const std::string& name, const CNCCTrieNode* current, std::vector<namedNodeType>& nodes) const;
-    CNCCTrieNode root;
+    bool recursiveNullify(CClaimTrieNode* node, std::string& name);
+    bool recursiveCheckConsistency(CClaimTrieNode* node);
+    bool InsertFromDisk(const std::string& name, CClaimTrieNode* node);
+    unsigned int getTotalNamesRecursive(const CClaimTrieNode* current) const;
+    unsigned int getTotalClaimsRecursive(const CClaimTrieNode* current) const;
+    CAmount getTotalValueOfClaimsRecursive(const CClaimTrieNode* current, bool fControllingOnly) const;
+    bool recursiveFlattenTrie(const std::string& name, const CClaimTrieNode* current, std::vector<namedNodeType>& nodes) const;
+    CClaimTrieNode root;
     uint256 hashBlock;
     valueQueueType dirtyQueueRows;
     valueQueueType dirtyExpirationQueueRows;
     
     nodeCacheType dirtyNodes;
-    void markNodeDirty(const std::string& name, CNCCTrieNode* node);
+    void markNodeDirty(const std::string& name, CClaimTrieNode* node);
     void updateQueueRow(int nHeight, std::vector<CValueQueueEntry>& row);
     void updateExpirationRow(int nHeight, std::vector<CValueQueueEntry>& row);
-    void BatchWriteNode(CLevelDBBatch& batch, const std::string& name, const CNCCTrieNode* pNode) const;
+    void BatchWriteNode(CLevelDBBatch& batch, const std::string& name, const CClaimTrieNode* pNode) const;
     void BatchEraseNode(CLevelDBBatch& batch, const std::string& nome) const;
     void BatchWriteQueueRows(CLevelDBBatch& batch);
     void BatchWriteExpirationQueueRows(CLevelDBBatch& batch);
 };
 
-class CNCCTrieCache
+class CClaimTrieCache
 {
 public:
-    CNCCTrieCache(CNCCTrie* base): base(base) {assert(base); nCurrentHeight = base->nCurrentHeight;}
+    CClaimTrieCache(CClaimTrie* base): base(base) {assert(base); nCurrentHeight = base->nCurrentHeight;}
     uint256 getMerkleHash() const;
     bool empty() const;
     bool flush();
@@ -212,13 +212,13 @@ public:
     bool undoSpendClaim(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight, int nValidAtHeight) const;
     uint256 getBestBlock();
     void setBestBlock(const uint256& hashBlock);
-    bool incrementBlock(CNCCTrieQueueUndo& insertUndo, CNCCTrieQueueUndo& expireUndo) const;
-    bool decrementBlock(CNCCTrieQueueUndo& insertUndo, CNCCTrieQueueUndo& expireUndo) const;
-    ~CNCCTrieCache() { clear(); }
+    bool incrementBlock(CClaimTrieQueueUndo& insertUndo, CClaimTrieQueueUndo& expireUndo) const;
+    bool decrementBlock(CClaimTrieQueueUndo& insertUndo, CClaimTrieQueueUndo& expireUndo) const;
+    ~CClaimTrieCache() { clear(); }
     bool insertClaimIntoTrie(const std::string name, CNodeValue val) const;
     bool removeClaimFromTrie(const std::string name, uint256 txhash, uint32_t nOut, int& nValidAtHeight) const;
 private:
-    CNCCTrie* base;
+    CClaimTrie* base;
     mutable nodeCacheType cache;
     mutable std::set<std::string> dirtyHashes;
     mutable hashMapType cacheHashes;
@@ -227,8 +227,8 @@ private:
     mutable int nCurrentHeight; // Height of the block that is being worked on, which is
                                 // one greater than the height of the chain's tip
     uint256 computeHash() const;
-    bool recursiveComputeMerkleHash(CNCCTrieNode* tnCurrent, std::string sPos) const;
-    bool recursivePruneName(CNCCTrieNode* tnCurrent, unsigned int nPos, std::string sName, bool* pfNullified = NULL) const;
+    bool recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent, std::string sPos) const;
+    bool recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos, std::string sName, bool* pfNullified = NULL) const;
     bool clear() const;
     bool removeClaim(const std::string name, uint256 txhash, uint32_t nOut, int nHeight, int& nValidAtHeight) const;
     bool addClaimToQueues(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight, int nValidAtHeight) const;
@@ -240,4 +240,4 @@ private:
     uint256 hashBlock;
 };
 
-#endif // BITCOIN_NCCTRIE_H
+#endif // BITCOIN_ClaimTRIE_H

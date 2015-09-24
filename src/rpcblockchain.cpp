@@ -65,7 +65,7 @@ UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool tx
     result.push_back(Pair("height", blockindex->nHeight));
     result.push_back(Pair("version", block.nVersion));
     result.push_back(Pair("merkleroot", block.hashMerkleRoot.GetHex()));
-    result.push_back(Pair("nccroot", block.hashNCCTrie.GetHex()));
+    result.push_back(Pair("nameclaimroot", block.hashClaimTrie.GetHex()));
     UniValue txs(UniValue::VARR);
     BOOST_FOREACH(const CTransaction&tx, block.vtx)
     {
@@ -279,7 +279,7 @@ UniValue getblock(const UniValue& params, bool fHelp)
             "  \"height\" : n,          (numeric) The block height or index\n"
             "  \"version\" : n,         (numeric) The block version\n"
             "  \"merkleroot\" : \"xxxx\", (string) The merkle root\n"
-            "  \"nccroot\" : \"xxxx\",  (string) The hash of the root of the NCC trie\n"
+            "  \"nameclaimroot\" : \"xxxx\",  (string) The hash of the root of the name claim trie\n"
             "  \"tx\" : [               (array of string) The transaction ids\n"
             "     \"transactionid\"     (string) The transaction id\n"
             "     ,...\n"

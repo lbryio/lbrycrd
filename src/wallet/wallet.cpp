@@ -17,7 +17,7 @@
 #include "timedata.h"
 #include "util.h"
 #include "utilmoneystr.h"
-#include "ncc.h"
+#include "nameclaim.h"
 
 #include <assert.h>
 
@@ -834,7 +834,7 @@ bool CWallet::IsChange(const CTxOut& txout) const
     {
         CTxDestination address;
 
-        const CScript& scriptPubKey = StripNCCScriptPrefix(txout.scriptPubKey);
+        const CScript& scriptPubKey = StripClaimScriptPrefix(txout.scriptPubKey);
 
         if (!ExtractDestination(scriptPubKey, address))
             return true;
@@ -982,7 +982,7 @@ void CWalletTx::GetAmounts(list<COutputEntry>& listReceived,
 
         // In either case, we need to get the destination address
         CTxDestination address;
-        const CScript& scriptPubKey = StripNCCScriptPrefix(txout.scriptPubKey);
+        const CScript& scriptPubKey = StripClaimScriptPrefix(txout.scriptPubKey);
         if (!ExtractDestination(scriptPubKey, address))
         {
             LogPrintf("CWalletTx::GetAmounts: Unknown transaction type found, txid %s\n",
@@ -993,7 +993,7 @@ void CWalletTx::GetAmounts(list<COutputEntry>& listReceived,
         COutputEntry output = {address, txout.nValue, (int)i};
 
         // If we are debited by the transaction, add the output as a "sent" entry
-        if (nDebit > 0 || filter == ISMINE_NCC)
+        if (nDebit > 0 || filter == ISMINE_CLAIM)
             listSent.push_back(output);
 
         // If we are receiving the output, add it as a "received" entry

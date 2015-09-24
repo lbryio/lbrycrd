@@ -14,7 +14,7 @@
 #include "consensus/validation.h"
 #include "init.h"
 #include "merkleblock.h"
-#include "ncc.h"
+#include "nameclaim.h"
 #include "net.h"
 #include "pow.h"
 #include "txdb.h"
@@ -23,7 +23,6 @@
 #include "undo.h"
 #include "util.h"
 #include "utilmoneystr.h"
-#include "ncc.h"
 #include "validationinterface.h"
 
 #include <sstream>
@@ -517,7 +516,7 @@ CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& loc
 }
 
 CCoinsViewCache *pcoinsTip = NULL;
-CNCCTrie *pnccTrie = NULL;
+CClaimTrie *pclaimTrie = NULL;
 CBlockTreeDB *pblocktree = NULL;
 
 //////////////////////////////////////////////////////////////////////////////
@@ -647,7 +646,7 @@ bool IsStandardTx(const CTransaction& tx, string& reason)
     txnouttype whichType;
     BOOST_FOREACH(const CTxOut& txout, tx.vout) {
 
-        const CScript& scriptPubKey = StripNCCScriptPrefix(txout.scriptPubKey);
+        const CScript& scriptPubKey = StripClaimScriptPrefix(txout.scriptPubKey);
 
         if (!::IsStandard(scriptPubKey, whichType)) {
             reason = "scriptpubkey";
@@ -713,7 +712,7 @@ bool AreInputsStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs)
         vector<vector<unsigned char> > vSolutions;
         txnouttype whichType;
         // get the scriptPubKey corresponding to this input:
-        const CScript& prevScript = StripNCCScriptPrefix(prev.scriptPubKey);
+        const CScript& prevScript = StripClaimScriptPrefix(prev.scriptPubKey);
 
         if (!Solver(prevScript, whichType, vSolutions))
             return false;
@@ -784,7 +783,7 @@ unsigned int GetP2SHSigOpCount(const CTransaction& tx, const CCoinsViewCache& in
     for (unsigned int i = 0; i < tx.vin.size(); i++)
     {
         const CTxOut &prevout = inputs.GetOutputFor(tx.vin[i]);
-        const CScript& scriptPubKey = StripNCCScriptPrefix(prevout.scriptPubKey);
+        const CScript& scriptPubKey = StripClaimScriptPrefix(prevout.scriptPubKey);
         if (scriptPubKey.IsPayToScriptHash())
             nSigOps += scriptPubKey.GetSigOpCount(tx.vin[i].scriptSig);
     }
@@ -1597,7 +1596,7 @@ bool AbortNode(CValidationState& state, const std::string& strMessage, const std
  * @param out The out point that corresponds to the tx input.
  * @return True on success.
  */
-static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CNCCTrieCache& trieCache, const COutPoint& out)
+static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CClaimTrieCache& trieCache, const COutPoint& out)
 {
     bool fClean = true;
 
@@ -1619,15 +1618,15 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CNCCTrie
     if (coins->vout.size() < out.n+1)
         coins->vout.resize(out.n+1);
 
-    // restore NCC claim if applicable
+    // restore claim if applicable
     int op;
     std::vector<std::vector<unsigned char> > vvchParams;
-    if (DecodeNCCScript(undo.txout.scriptPubKey, op, vvchParams))
+    if (DecodeClaimScript(undo.txout.scriptPubKey, op, vvchParams))
     {
         assert(vvchParams.size() == 2);
         std::string name(vvchParams[0].begin(), vvchParams[0].end());
-        LogPrintf("%s: Restoring %s to the NCC trie due to a block being disconnected\n", __func__, name.c_str());
-        int nValidHeight = undo.nNCCValidHeight;
+        LogPrintf("%s: Restoring %s to the claim trie due to a block being disconnected\n", __func__, name.c_str());
+        int nValidHeight = undo.nClaimValidHeight;
         if (nValidHeight > 0 && nValidHeight >= coins->nHeight)
         {
             if (!trieCache.undoSpendClaim(name, out.hash, out.n, undo.txout.nValue, coins->nHeight, nValidHeight))
@@ -1640,7 +1639,7 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CNCCTrie
     return fClean;
 }
 
-bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, CNCCTrieCache& trieCache, bool* pfClean)
+bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, CClaimTrieCache& trieCache, bool* pfClean)
 {
     assert(pindex->GetBlockHash() == view.GetBestBlock());
     assert(pindex->GetBlockHash() == trieCache.getBestBlock());
@@ -1682,18 +1681,18 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         if (*outs != outsBlock)
             fClean = fClean && error("DisconnectBlock(): added transaction mismatch? database corrupted");
 
-        // remove any NCC claims
+        // remove any claims
         for (unsigned int i = 0; i < tx.vout.size(); ++i)
         {
             const CTxOut& txout = tx.vout[i];
 
             int op;
             std::vector<std::vector<unsigned char> > vvchParams;
-            if (DecodeNCCScript(txout.scriptPubKey, op, vvchParams))
+            if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams))
             {
                 assert(vvchParams.size() == 2);
                 std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                LogPrintf("%s: Removing %s from the ncc trie due to its block being disconnected\n", __func__, name.c_str());
+                LogPrintf("%s: Removing %s from the claim trie due to its block being disconnected\n", __func__, name.c_str());
                 if (!trieCache.undoAddClaim(name, hash, i, pindex->nHeight))
                     LogPrintf("%s: Something went wrong removing the name %s in hash %s\n", __func__, name.c_str(), hash.GetHex());
             }
@@ -1720,7 +1719,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
     trieCache.setBestBlock(pindex->pprev->GetBlockHash());
-    assert(trieCache.getMerkleHash() == pindex->pprev->hashNCCTrie);
+    assert(trieCache.getMerkleHash() == pindex->pprev->hashClaimTrie);
 
     if (pfClean) {
         *pfClean = fClean;
@@ -1826,7 +1825,7 @@ static int64_t nTimeIndex = 0;
 static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 
-bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, CNCCTrieCache& trieCache, bool fJustCheck)
+bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, CClaimTrieCache& trieCache, bool fJustCheck)
 {
     const CChainParams& chainparams = Params();
     AssertLockHeld(cs_main);
@@ -1918,7 +1917,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             return state.DoS(100, error("ConnectBlock(): too many sigops"),
                              REJECT_INVALID, "bad-blk-sigops");
 
-        std::map<unsigned int, unsigned int> mNCCUndoHeights;
+        std::map<unsigned int, unsigned int> mClaimUndoHeights;
 
         if (!tx.IsCoinBase())
         {
@@ -1944,11 +1943,11 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                 return false;
             control.Add(vChecks);
 
-            // To handle NCC updates, stick all NCC claims found in the inputs into a map of
-            // name: (txhash, nOut). When running through the outputs, if any NCC claim's
+            // To handle claim updates, stick all claims found in the inputs into a map of
+            // name: (txhash, nOut). When running through the outputs, if any claim's
             // name is found in the map, send the name's txhash and nOut to the trie cache,
             // and then remove the name: (txhash, nOut) mapping from the map.
-            // If there are two or more NCC claims in the inputs with the same name, only
+            // If there are two or more claims in the inputs with the same name, only
             // use the first.
             // TODO: before releasing, see if it's a better idea to make an explicit
             // operation for updating, like OP_UPDATE_NAME, which directly references
@@ -1968,15 +1967,15 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
                 int op;
                 std::vector<std::vector<unsigned char> > vvchParams;
-                if (DecodeNCCScript(coins->vout[txin.prevout.n].scriptPubKey, op, vvchParams))
+                if (DecodeClaimScript(coins->vout[txin.prevout.n].scriptPubKey, op, vvchParams))
                 {
                     assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     int nValidAtHeight;
-                    LogPrintf("%s: Removing %s from the ncc trie. Tx: %s, nOut: %d\n", __func__, name, txin.prevout.hash.GetHex(), txin.prevout.n);
+                    LogPrintf("%s: Removing %s from the claim trie. Tx: %s, nOut: %d\n", __func__, name, txin.prevout.hash.GetHex(), txin.prevout.n);
                     if (trieCache.spendClaim(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, nValidAtHeight))
                     {
-                        mNCCUndoHeights[i] = nValidAtHeight;
+                        mClaimUndoHeights[i] = nValidAtHeight;
                         std::pair<uint256, unsigned int> val(txin.prevout.hash, txin.prevout.n);
                         std::pair<std::string, std::pair<uint256, unsigned int> > entry(name, val);
                         spentClaims.insert(entry);
@@ -1990,11 +1989,11 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
                 int op;
                 std::vector<std::vector<unsigned char> > vvchParams;
-                if (DecodeNCCScript(txout.scriptPubKey, op, vvchParams))
+                if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams))
                 {
                     assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                    LogPrintf("%s: Inserting %s into the ncc trie. Tx: %s, nOut: %d\n", __func__, name, tx.GetHash().GetHex(), i);
+                    LogPrintf("%s: Inserting %s into the claim trie. Tx: %s, nOut: %d\n", __func__, name, tx.GetHash().GetHex(), i);
                     spentClaimsType::iterator itSpent = spentClaims.find(name);
                     bool success;
                     if (itSpent != spentClaims.end())
@@ -2017,17 +2016,17 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             blockundo.vtxundo.push_back(CTxUndo());
         }
         UpdateCoins(tx, state, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
-        if (i > 0 && !mNCCUndoHeights.empty())
+        if (i > 0 && !mClaimUndoHeights.empty())
         {
             std::vector<CTxInUndo>& txinUndos = blockundo.vtxundo.back().vprevout;
-            for (std::map<unsigned int, unsigned int>::iterator itHeight = mNCCUndoHeights.begin(); itHeight != mNCCUndoHeights.end(); ++itHeight)
+            for (std::map<unsigned int, unsigned int>::iterator itHeight = mClaimUndoHeights.begin(); itHeight != mClaimUndoHeights.end(); ++itHeight)
             {
-                txinUndos[itHeight->first].nNCCValidHeight = itHeight->second;
+                txinUndos[itHeight->first].nClaimValidHeight = itHeight->second;
             }
         }
-        // The CTxUndo vector contains the heights at which NCC claims should be put into the trie.
-        // This is necessary because some NCC claims are inserted immediately into the trie, and
-        // others are inserted after a delay, depending on the state of the NCC trie at the time
+        // The CTxUndo vector contains the heights at which claims should be put into the trie.
+        // This is necessary because some claims are inserted immediately into the trie, and
+        // others are inserted after a delay, depending on the state of the claim trie at the time
         // that the claim was originally inserted into the blockchain. That state will not be
         // available when and if this block is disconnected.
 
@@ -2037,11 +2036,11 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     assert(trieCache.incrementBlock(blockundo.insertUndo, blockundo.expireUndo));
 
-    if (trieCache.getMerkleHash() != block.hashNCCTrie)
+    if (trieCache.getMerkleHash() != block.hashClaimTrie)
         return state.DoS(100,
-                         error("ConnectBlock() : the merkle root of the NCC trie does not match "
+                         error("ConnectBlock() : the merkle root of the claim trie does not match "
                                "(actual=%s vs block=%s)", trieCache.getMerkleHash().GetHex(),
-                               block.hashNCCTrie.GetHex()), REJECT_INVALID, "bad-ncc-merkle-hash");
+                               block.hashClaimTrie.GetHex()), REJECT_INVALID, "bad-claim-merkle-hash");
 
     int64_t nTime1 = GetTimeMicros(); nTimeConnect += nTime1 - nTimeStart;
     LogPrint("bench", "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs]\n", (unsigned)block.vtx.size(), 0.001 * (nTime1 - nTimeStart), 0.001 * (nTime1 - nTimeStart) / block.vtx.size(), nInputs <= 1 ? 0 : 0.001 * (nTime1 - nTimeStart) / (nInputs-1), nTimeConnect * 0.000001);
@@ -2196,8 +2195,8 @@ bool static FlushStateToDisk(CValidationState &state, FlushStateMode mode) {
         if (!CheckDiskSpace(128 * 2 * 2 * pcoinsTip->GetCacheSize()))
             return state.Error("out of disk space");
         // Flush the chainstate (which may refer to block index entries).
-        if (!pnccTrie->WriteToDisk())
-            return AbortNode("Failed to write to ncc trie database");
+        if (!pclaimTrie->WriteToDisk())
+            return AbortNode("Failed to write to claim trie database");
         if (!pcoinsTip->Flush())
             return AbortNode(state, "Failed to write to coin database");
         nLastFlush = nNow;
@@ -2277,12 +2276,12 @@ bool static DisconnectTip(CValidationState &state) {
     int64_t nStart = GetTimeMicros();
     {
         CCoinsViewCache view(pcoinsTip);
-        CNCCTrieCache trieCache(pnccTrie);
+        CClaimTrieCache trieCache(pclaimTrie);
         if (!DisconnectBlock(block, state, pindexDelete, view, trieCache))
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
         assert(view.Flush());
         assert(trieCache.flush());
-        assert(pindexDelete->pprev->hashNCCTrie == trieCache.getMerkleHash());
+        assert(pindexDelete->pprev->hashClaimTrie == trieCache.getMerkleHash());
     }
     LogPrint("bench", "- Disconnect block: %.2fms\n", (GetTimeMicros() - nStart) * 0.001);
     // Write the chain state to disk, if necessary.
@@ -2335,7 +2334,7 @@ bool static ConnectTip(CValidationState &state, CBlockIndex *pindexNew, CBlock *
     LogPrint("bench", "  - Load block from disk: %.2fms [%.2fs]\n", (nTime2 - nTime1) * 0.001, nTimeReadFromDisk * 0.000001);
     {
         CCoinsViewCache view(pcoinsTip);
-        CNCCTrieCache trieCache(pnccTrie);
+        CClaimTrieCache trieCache(pclaimTrie);
         CInv inv(MSG_BLOCK, pindexNew->GetBlockHash());
         bool rv = ConnectBlock(*pblock, state, pindexNew, view, trieCache);
         GetMainSignals().BlockChecked(*pblock, state);
@@ -3101,7 +3100,7 @@ bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex
         return error("%s: CheckIndexAgainstCheckpoint(): %s", __func__, state.GetRejectReason().c_str());
 
     CCoinsViewCache viewNew(pcoinsTip);
-    CNCCTrieCache trieCache(pnccTrie);
+    CClaimTrieCache trieCache(pclaimTrie);
     CBlockIndex indexDummy(block);
     indexDummy.pprev = pindexPrev;
     indexDummy.nHeight = pindexPrev->nHeight + 1;
@@ -3426,7 +3425,7 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
     nCheckLevel = std::max(0, std::min(4, nCheckLevel));
     LogPrintf("Verifying last %i blocks at level %i\n", nCheckDepth, nCheckLevel);
     CCoinsViewCache coins(coinsview);
-    CNCCTrieCache trieCache(pnccTrie);
+    CClaimTrieCache trieCache(pclaimTrie);
     CBlockIndex* pindexState = chainActive.Tip();
     CBlockIndex* pindexFailure = NULL;
     int nGoodTransactions = 0;
