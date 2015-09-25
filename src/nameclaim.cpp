@@ -14,40 +14,54 @@ bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector
     {
         return false;
     }
-    if (opcode != OP_CLAIM_NAME)
+    
+    if (opcode != OP_CLAIM_NAME && opcode != OP_SUPPORT_CLAIM)
     {
         return false;
     }
 
     op = opcode;
 
-    std::vector<unsigned char> vchName;
-    std::vector<unsigned char> vchValue;
-
-    // The correct format is:
-    // OP_CLAIM_NAME vchName vchValue OP_DROP2 OP_DROP pubkeyscript
+    std::vector<unsigned char> vchParam1;
+    std::vector<unsigned char> vchParam2;
+    std::vector<unsigned char> vchParam3;
+    // Valid formats:
+    // OP_CLAIM_NAME vchName vchValue OP_2DROP OP_DROP pubkeyscript
+    // OP_SUPPORT_CLAIM vchName vchClaimHash vchClaimIndex OP_2DROP OP_2DROP pubkeyscript
     // All others are invalid.
 
-    if (!scriptIn.GetOp(pc, opcode, vchName) || opcode < 0 || opcode > OP_PUSHDATA4)
+    
+    if (!scriptIn.GetOp(pc, opcode, vchParam1) || opcode < 0 || opcode > OP_PUSHDATA4)
     {
         return false;
     }
-    if (!scriptIn.GetOp(pc, opcode, vchValue) || opcode < 0 || opcode > OP_PUSHDATA4)
+    if (!scriptIn.GetOp(pc, opcode, vchParam2) || opcode < 0 || opcode > OP_PUSHDATA4)
     {
         return false;
+    }
+    if (op == OP_SUPPORT_CLAIM)
+    {
+        if (!scriptIn.GetOp(pc, opcode) || opcode < 0 || opcode > OP_PUSHDATA4)
+        {
+            return false;
+        }
     }
     if (!scriptIn.GetOp(pc, opcode) || opcode != OP_2DROP)
     {
         return false;
     }
-    if (!scriptIn.GetOp(pc, opcode) || opcode != OP_DROP)
+    if (!scriptIn.GetOp(pc, opcode) || (op == OP_CLAIM_NAME && opcode != OP_DROP) || (op == OP_SUPPORT_CLAIM && opcode != OP_2DROP))
     {
         return false;
     }
 
-    vvchParams.push_back(vchName);
-    vvchParams.push_back(vchValue);
-
+    vvchParams.push_back(vchParam1);
+    vvchParams.push_back(vchParam2);
+    if (op == OP_SUPPORT_CLAIM)
+    {
+        vvchParams.push_back(vchParam3);
+    }
+    
     return true;
 }
 

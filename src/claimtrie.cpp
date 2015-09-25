@@ -28,35 +28,35 @@ uint256 CNodeValue::GetHash() const
     return valHash;
 }
 
-bool CClaimTrieNode::insertValue(CNodeValue val, bool * pfChanged)
+bool CClaimTrieNode::insertValue(CNodeValue val)//, bool * pfChanged)
 {
     LogPrintf("%s: Inserting %s:%d (amount: %d)  into the claim trie\n", __func__, val.txhash.ToString(), val.nOut, val.nAmount);
-    bool fChanged = false;
+    //bool fChanged = false;
     
-    if (values.empty())
-    {
-        values.push_back(val);
-        fChanged = true;
-    }
-    else
-    {
-        CNodeValue currentTop = values.front();
-        values.push_back(val);
-        std::make_heap(values.begin(), values.end());
-        if (currentTop != values.front())
-            fChanged = true;
-    }
-    if (pfChanged)
-        *pfChanged = fChanged;
+    //if (values.empty())
+    //{
+    values.push_back(val);
+    //    fChanged = true;
+    //}
+    //else
+    //{
+    //    CNodeValue currentTop = values.front();
+    //    values.push_back(val);
+    //    std::make_heap(values.begin(), values.end());
+    //    if (currentTop != values.front())
+    //        fChanged = true;
+    //}
+    //if (pfChanged)
+    //    *pfChanged = fChanged;
     return true;
 }
 
-bool CClaimTrieNode::removeValue(uint256& txhash, uint32_t nOut, CNodeValue& val, bool * pfChanged)
+bool CClaimTrieNode::removeValue(uint256& txhash, uint32_t nOut, CNodeValue& val)//, bool * pfChanged)
 {
     LogPrintf("%s: Removing txid: %s, nOut: %d from the claim trie\n", __func__, txhash.ToString(), nOut);
-    bool fChanged = false;
+    //bool fChanged = false;
 
-    CNodeValue currentTop = values.front();
+    //CNodeValue currentTop = values.front();
 
     std::vector<CNodeValue>::iterator position;
     for (position = values.begin(); position != values.end(); ++position)
@@ -77,18 +77,19 @@ bool CClaimTrieNode::removeValue(uint256& txhash, uint32_t nOut, CNodeValue& val
         {
             LogPrintf("\ttxid: %s, nOut: %d\n", values[i].txhash.ToString(), values[i].nOut);
         }
+        std::cout << "couldnt find the thing" << std::endl;
         return false;
     }
-    if (!values.empty())
-    {
-        std::make_heap(values.begin(), values.end());
-        if (currentTop != values.front())
-            fChanged = true;
-    }
-    else
-        fChanged = true;
-    if (pfChanged)
-        *pfChanged = fChanged;
+    //if (!values.empty())
+    //{
+    //    std::make_heap(values.begin(), values.end());
+    //    if (currentTop != values.front())
+    //        fChanged = true;
+    //}
+    //else
+    //    fChanged = true;
+    //if (pfChanged)
+    //    *pfChanged = fChanged;
     return true;
 }
 
@@ -111,6 +112,11 @@ bool CClaimTrieNode::haveValue(const uint256& txhash, uint32_t nOut) const
     return false;
 }
 
+void CClaimTrieNode::reorderValues()
+{
+    std::make_heap(values.begin(), values.end());
+}
+
 uint256 CClaimTrie::getMerkleHash()
 {
     return root.hash;
@@ -121,13 +127,8 @@ bool CClaimTrie::empty() const
     return root.empty();
 }
 
-bool CClaimTrie::queueEmpty() const
+bool CClaimTrie::keyTypeEmpty(char key) const
 {
-    for (valueQueueType::const_iterator itRow = dirtyQueueRows.begin(); itRow != dirtyQueueRows.end(); ++itRow)
-    {
-        if (!itRow->second.empty())
-            return false;
-    }
     boost::scoped_ptr<leveldb::Iterator> pcursor(const_cast<CLevelDBWrapper*>(&db)->NewIterator());
     pcursor->SeekToFirst();
     
@@ -139,7 +140,7 @@ bool CClaimTrie::queueEmpty() const
             CDataStream ssKey(slKey.data(), slKey.data()+slKey.size(), SER_DISK, CLIENT_VERSION);
             char chType;
             ssKey >> chType;
-            if (chType == 'r')
+            if (chType == key)
             {
                 return false;
             }
@@ -153,6 +154,16 @@ bool CClaimTrie::queueEmpty() const
     return true;
 }
 
+bool CClaimTrie::queueEmpty() const
+{
+    for (valueQueueType::const_iterator itRow = dirtyQueueRows.begin(); itRow != dirtyQueueRows.end(); ++itRow)
+    {
+        if (!itRow->second.empty())
+            return false;
+    }
+    return keyTypeEmpty(QUEUE_ROW);
+}
+
 bool CClaimTrie::expirationQueueEmpty() const
 {
     for (valueQueueType::const_iterator itRow = dirtyExpirationQueueRows.begin(); itRow != dirtyExpirationQueueRows.end(); ++itRow)
@@ -160,29 +171,27 @@ bool CClaimTrie::expirationQueueEmpty() const
         if (!itRow->second.empty())
             return false;
     }
-    boost::scoped_ptr<leveldb::Iterator> pcursor(const_cast<CLevelDBWrapper*>(&db)->NewIterator());
-    pcursor->SeekToFirst();
+    return keyTypeEmpty(EXP_QUEUE_ROW);
+}
 
-    while(pcursor->Valid())
+bool CClaimTrie::supportEmpty() const
+{
+    for (supportMapType::const_iterator itNode = dirtySupportNodes.begin(); itNode != dirtySupportNodes.end(); ++itNode)
     {
-        try
-        {
-            leveldb::Slice slKey = pcursor->key();
-            CDataStream ssKey(slKey.data(), slKey.data()+slKey.size(), SER_DISK, CLIENT_VERSION);
-            char chType;
-            ssKey >> chType;
-            if (chType == 'e')
-            {
-                return false;
-            }
-        }
-        catch (const std::exception& e)
-        {
-            return error("%s: Deserialize or I/O error - %s", __func__, e.what());
-        }
-        pcursor->Next();
+        if (!itNode->second.empty())
+            return false;
     }
-    return true;
+    return keyTypeEmpty(SUPPORT);
+}
+
+bool CClaimTrie::supportQueueEmpty() const
+{
+    for (supportValueQueueType::const_iterator itRow = dirtySupportQueueRows.begin(); itRow != dirtySupportQueueRows.end(); ++itRow)
+    {
+        if (!itRow->second.empty())
+            return false;
+    }
+    return keyTypeEmpty(SUPPORT_QUEUE);
 }
 
 void CClaimTrie::setExpirationTime(int t)
@@ -361,7 +370,7 @@ bool CClaimTrie::getQueueRow(int nHeight, std::vector<CValueQueueEntry>& row)
         row = itQueueRow->second;
         return true;
     }
-    return db.Read(std::make_pair('r', nHeight), row);
+    return db.Read(std::make_pair(QUEUE_ROW, nHeight), row);
 }
 
 bool CClaimTrie::getExpirationQueueRow(int nHeight, std::vector<CValueQueueEntry>& row)
@@ -372,7 +381,7 @@ bool CClaimTrie::getExpirationQueueRow(int nHeight, std::vector<CValueQueueEntry
         row = itQueueRow->second;
         return true;
     }
-    return db.Read(std::make_pair('e', nHeight), row);
+    return db.Read(std::make_pair(EXP_QUEUE_ROW, nHeight), row);
 }
 
 void CClaimTrie::updateQueueRow(int nHeight, std::vector<CValueQueueEntry>& row)
@@ -403,7 +412,57 @@ void CClaimTrie::updateExpirationRow(int nHeight, std::vector<CValueQueueEntry>&
     itQueueRow->second.swap(row);
 }
 
-bool CClaimTrie::update(nodeCacheType& cache, hashMapType& hashes, const uint256& hashBlockIn, valueQueueType& queueCache, valueQueueType& expirationQueueCache, int nNewHeight)
+void CClaimTrie::updateSupportMap(const std::string& name, supportMapNodeType& node)
+{
+    supportMapType::iterator itNode = dirtySupportNodes.find(name);
+    if (itNode == dirtySupportNodes.end())
+    {
+        supportMapNodeType newNode;
+        std::pair<supportMapType::iterator, bool> ret;
+        ret = dirtySupportNodes.insert(std::pair<std::string, supportMapNodeType>(name, newNode));
+        assert(ret.second);
+        itNode = ret.first;
+    }
+    itNode->second.swap(node);
+}
+
+void CClaimTrie::updateSupportQueue(int nHeight, std::vector<CSupportValueQueueEntry>& row)
+{
+    supportValueQueueType::iterator itQueueRow = dirtySupportQueueRows.find(nHeight);
+    if (itQueueRow == dirtySupportQueueRows.end())
+    {
+        std::vector<CSupportValueQueueEntry> newRow;
+        std::pair<supportValueQueueType::iterator, bool> ret;
+        ret = dirtySupportQueueRows.insert(std::pair<int, std::vector<CSupportValueQueueEntry> >(nHeight, newRow));
+        assert(ret.second);
+        itQueueRow = ret.first;
+    }
+    itQueueRow->second.swap(row);
+}
+
+bool CClaimTrie::getSupportNode(std::string name, supportMapNodeType& node)
+{
+    supportMapType::iterator itNode = dirtySupportNodes.find(name);
+    if (itNode != dirtySupportNodes.end())
+    {
+        node = itNode->second;
+        return true;
+    }
+    return db.Read(std::make_pair(SUPPORT, name), node);
+}
+
+bool CClaimTrie::getSupportQueueRow(int nHeight, std::vector<CSupportValueQueueEntry>& row)
+{
+    supportValueQueueType::iterator itQueueRow = dirtySupportQueueRows.find(nHeight);
+    if (itQueueRow != dirtySupportQueueRows.end())
+    {
+        row = itQueueRow->second;
+        return true;
+    }
+    return db.Read(std::make_pair(SUPPORT_QUEUE, nHeight), row);
+}
+
+bool CClaimTrie::update(nodeCacheType& cache, hashMapType& hashes, const uint256& hashBlockIn, valueQueueType& queueCache, valueQueueType& expirationQueueCache, int nNewHeight, supportMapType& supportCache, supportValueQueueType& supportQueueCache)
 {
     // General strategy: the cache is ordered by length, ensuring child
     // nodes are always inserted after their parents. Insert each node
@@ -444,6 +503,14 @@ bool CClaimTrie::update(nodeCacheType& cache, hashMapType& hashes, const uint256
     for (valueQueueType::iterator itExpirationRow = expirationQueueCache.begin(); itExpirationRow != expirationQueueCache.end(); ++itExpirationRow)
     {
         updateExpirationRow(itExpirationRow->first, itExpirationRow->second);
+    }
+    for (supportMapType::iterator itSupportCache = supportCache.begin(); itSupportCache != supportCache.end(); ++itSupportCache)
+    {
+        updateSupportMap(itSupportCache->first, itSupportCache->second);
+    }
+    for (supportValueQueueType::iterator itSupportQueue = supportQueueCache.begin(); itSupportQueue != supportQueueCache.end(); ++itSupportQueue)
+    {
+        updateSupportQueue(itSupportQueue->first, itSupportQueue->second);
     }
     hashBlock = hashBlockIn;
     nCurrentHeight = nNewHeight;
@@ -540,9 +607,9 @@ void CClaimTrie::BatchWriteNode(CLevelDBBatch& batch, const std::string& name, c
 {
     LogPrintf("%s: Writing %s to disk with %d values\n", __func__, name, pNode->values.size());
     if (pNode)
-        batch.Write(std::make_pair('n', name), *pNode);
+        batch.Write(std::make_pair(TRIE_NODE, name), *pNode);
     else
-        batch.Erase(std::make_pair('n', name));
+        batch.Erase(std::make_pair(TRIE_NODE, name));
 }
 
 void CClaimTrie::BatchWriteQueueRows(CLevelDBBatch& batch)
@@ -551,11 +618,11 @@ void CClaimTrie::BatchWriteQueueRows(CLevelDBBatch& batch)
     {
         if (itQueue->second.empty())
         {
-            batch.Erase(std::make_pair('r', itQueue->first));
+            batch.Erase(std::make_pair(QUEUE_ROW, itQueue->first));
         }
         else
         {
-            batch.Write(std::make_pair('r', itQueue->first), itQueue->second);
+            batch.Write(std::make_pair(QUEUE_ROW, itQueue->first), itQueue->second);
         }
     }
 }
@@ -566,11 +633,41 @@ void CClaimTrie::BatchWriteExpirationQueueRows(CLevelDBBatch& batch)
     {
         if (itQueue->second.empty())
         {
-            batch.Erase(std::make_pair('e', itQueue->first));
+            batch.Erase(std::make_pair(EXP_QUEUE_ROW, itQueue->first));
         }
         else
         {
-            batch.Write(std::make_pair('e', itQueue->first), itQueue->second);
+            batch.Write(std::make_pair(EXP_QUEUE_ROW, itQueue->first), itQueue->second);
+        }
+    }
+}
+
+void CClaimTrie::BatchWriteSupportNodes(CLevelDBBatch& batch)
+{
+    for (supportMapType::iterator itSupport = dirtySupportNodes.begin(); itSupport != dirtySupportNodes.end(); ++itSupport)
+    {
+        if (itSupport->second.empty())
+        {
+            batch.Erase(std::make_pair(SUPPORT, itSupport->first));
+        }
+        else
+        {
+            batch.Write(std::make_pair(SUPPORT, itSupport->first), itSupport->second);
+        }
+    }
+}
+
+void CClaimTrie::BatchWriteSupportQueueRows(CLevelDBBatch& batch)
+{
+    for (supportValueQueueType::iterator itQueue = dirtySupportQueueRows.begin(); itQueue != dirtySupportQueueRows.end(); ++itQueue)
+    {
+        if (itQueue->second.empty())
+        {
+            batch.Erase(std::make_pair(SUPPORT_QUEUE, itQueue->first));
+        }
+        else
+        {
+            batch.Write(std::make_pair(SUPPORT_QUEUE, itQueue->first), itQueue->second);
         }
     }
 }
@@ -585,8 +682,12 @@ bool CClaimTrie::WriteToDisk()
     dirtyQueueRows.clear();
     BatchWriteExpirationQueueRows(batch);
     dirtyExpirationQueueRows.clear();
-    batch.Write('h', hashBlock);
-    batch.Write('t', nCurrentHeight);
+    BatchWriteSupportNodes(batch);
+    dirtySupportNodes.clear();
+    BatchWriteSupportQueueRows(batch);
+    dirtySupportQueueRows.clear();
+    batch.Write(HASH_BLOCK, hashBlock);
+    batch.Write(CURRENT_HEIGHT, nCurrentHeight);
     return db.WriteBatch(batch);
 }
 
@@ -611,9 +712,9 @@ bool CClaimTrie::InsertFromDisk(const std::string& name, CClaimTrieNode* node)
 
 bool CClaimTrie::ReadFromDisk(bool check)
 {
-    if (!db.Read('h', hashBlock))
+    if (!db.Read(HASH_BLOCK, hashBlock))
         LogPrintf("%s: Couldn't read the best block's hash\n", __func__);
-    if (!db.Read('t', nCurrentHeight))
+    if (!db.Read(CURRENT_HEIGHT, nCurrentHeight))
         LogPrintf("%s: Couldn't read the current height\n", __func__);
     boost::scoped_ptr<leveldb::Iterator> pcursor(const_cast<CLevelDBWrapper*>(&db)->NewIterator());
     pcursor->SeekToFirst();
@@ -626,7 +727,7 @@ bool CClaimTrie::ReadFromDisk(bool check)
             CDataStream ssKey(slKey.data(), slKey.data()+slKey.size(), SER_DISK, CLIENT_VERSION);
             char chType;
             ssKey >> chType;
-            if (chType == 'n')
+            if (chType == TRIE_NODE)
             {
                 leveldb::Slice slValue = pcursor->value();
                 std::string name;
@@ -810,7 +911,19 @@ bool CClaimTrieCache::insertClaimIntoTrie(const std::string name, CNodeValue val
         cache[name] = currentNode;
     }
     bool fChanged = false;
-    currentNode->insertValue(val, &fChanged);
+    if (currentNode->values.empty())
+    {
+        fChanged = true;
+        currentNode->insertValue(val);//, &fChanged);
+    }
+    else
+    {
+        CNodeValue currentTop = currentNode->values.front();
+        currentNode->insertValue(val);
+        currentNode->reorderValues();
+        if (currentTop != currentNode->values.front())
+            fChanged = true;
+    }
     if (fChanged)
     {
         for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
@@ -864,7 +977,26 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string name, uint256 txhash
     bool fChanged = false;
     assert(currentNode != NULL);
     CNodeValue val;
-    bool success = currentNode->removeValue(txhash, nOut, val, &fChanged);
+    bool success = false;
+    
+    if (currentNode->values.empty())
+    {
+        LogPrintf("%s: Asked to remove value from node without values\n", __func__);
+        return false;
+    }
+    CNodeValue currentTop = currentNode->values.front();
+
+    success = currentNode->removeValue(txhash, nOut, val);//, &fChanged);
+    
+    if (!currentNode->values.empty())
+    {
+        currentNode->reorderValues();
+        if (currentTop != currentNode->values.front())
+            fChanged = true;
+    }
+    else
+        fChanged = true;
+    
     if (!success)
     {
         LogPrintf("%s: Removing a value was unsuccessful. name = %s, txhash = %s, nOut = %d", __func__, name.c_str(), txhash.GetHex(), nOut);
@@ -1013,14 +1145,13 @@ bool CClaimTrieCache::undoSpendClaim(const std::string name, uint256 txhash, uin
     {
         CNodeValue val(txhash, nOut, nAmount, nHeight, nValidAtHeight);
         CValueQueueEntry entry(name, val);
-        insertClaimIntoTrie(name, CNodeValue(txhash, nOut, nAmount, nHeight, nValidAtHeight));
         addToExpirationQueue(entry);
+        return insertClaimIntoTrie(name, val);
     }
     else
     {
-        addClaimToQueues(name, txhash, nOut, nAmount, nHeight, nValidAtHeight);
+        return addClaimToQueues(name, txhash, nOut, nAmount, nHeight, nValidAtHeight);
     }
-    return true;
 }
 
 bool CClaimTrieCache::addClaimToQueues(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight, int nValidAtHeight) const
@@ -1081,8 +1212,8 @@ bool CClaimTrieCache::removeClaim(const std::string name, uint256 txhash, uint32
         else if (removeClaimFromQueue(name, txhash, nOut, nHeight, nValidAtHeight))
             removed = true;
     }
-    if (removed == false && removeClaimFromQueue(name, txhash, nOut, nHeight, nCurrentHeight))
-        removed = true;
+    //if (removed == false && removeClaimFromQueue(name, txhash, nOut, nHeight, nCurrentHeight))
+    //    removed = true;
     if (removed == false && removeClaimFromTrie(name, txhash, nOut, nValidAtHeight))
         removed = true;
     if (removed == true)
@@ -1138,7 +1269,228 @@ valueQueueType::iterator CClaimTrieCache::getExpirationQueueCacheRow(int nHeight
     return itQueueRow;
 }
 
-bool CClaimTrieCache::incrementBlock(CClaimTrieQueueUndo& insertUndo, CClaimTrieQueueUndo& expireUndo) const
+bool CClaimTrieCache::reorderTrieNode(const std::string name) const
+{
+    assert(base);
+    nodeCacheType::iterator cachedNode;
+    cachedNode = cache.find("name");
+    if (cachedNode == cache.end())
+    {
+        CClaimTrieNode* currentNode = &(base->root);
+        for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
+        {
+            std::string sCurrentSubstring(name.begin(), itCur);
+            std::string sNextSubstring(name.begin(), itCur + 1);
+
+            cachedNode = cache.find(sNextSubstring);
+            if (cachedNode != cache.end())
+            {
+                currentNode = cachedNode->second;
+                continue;
+            }
+            nodeMapType::iterator childNode = currentNode->children.find(*itCur);
+            if (childNode != currentNode->children.end())
+            {
+                currentNode = childNode->second;
+                continue;
+            }
+            // The node doesn't exist, so it can't be reordered.
+            return true;
+        }
+        currentNode = new CClaimTrieNode(*currentNode);
+        std::pair<nodeCacheType::iterator, bool> ret;
+        ret = cache.insert(std::pair<std::string, CClaimTrieNode*>(name, currentNode));
+        assert(ret.second);
+        cachedNode = ret.first;
+    }
+    bool fChanged = false;
+    if (cachedNode->second->values.empty())
+    {
+        // Nothing in there to reorder
+        return true;
+    }
+    else
+    {
+        CNodeValue currentTop = cachedNode->second->values.front();
+        cachedNode->second->reorderValues();
+        if (currentTop != cachedNode->second->values.front())
+            fChanged = true;
+    }
+    if (fChanged)
+    {
+        for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
+        {
+            std::string sub(name.begin(), itCur);
+            dirtyHashes.insert(sub);
+        }
+        dirtyHashes.insert(name);
+    }
+    return true;
+}
+
+bool CClaimTrieCache::insertSupportIntoMap(const std::string name, CSupportNodeValue val) const
+{
+    supportMapType::iterator cachedNode;
+    // If this node is already in the cache, use that
+    cachedNode = supportCache.find(name);
+    // If not, copy the one from base if it exists, and use that
+    if (cachedNode == supportCache.end())
+    {
+        supportMapNodeType node;
+        base->getSupportNode(name, node);
+        std::pair<supportMapType::iterator, bool> ret;
+        ret = supportCache.insert(std::pair<std::string, supportMapNodeType>(name, node));
+        assert(ret.second);
+        cachedNode = ret.first;
+    }
+    cachedNode->second.push_back(val);
+    // See if this changed the biggest bid
+    return reorderTrieNode(name);
+}
+
+bool CClaimTrieCache::removeSupportFromMap(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, int supportednOut, int nHeight, int& nValidAtHeight) const
+{
+    supportMapType::iterator cachedNode;
+    cachedNode = supportCache.find(name);
+    if (cachedNode == supportCache.end())
+    {
+        supportMapNodeType node;
+        if (!base->getSupportNode(name, node))
+        {
+            // clearly, this support does not exist
+            return false;
+        }
+        std::pair<supportMapType::iterator, bool> ret;
+        ret = supportCache.insert(std::pair<std::string, supportMapNodeType>(name, node));
+        assert(ret.second);
+        cachedNode = ret.first;
+    }
+    for (supportMapNodeType::iterator itSupport = cachedNode->second.begin(); itSupport != cachedNode->second.end(); ++itSupport)
+    {
+        if (itSupport->txhash == txhash && itSupport->nOut == nOut && itSupport->supportTxhash == supportedTxhash && itSupport->supportnOut == supportednOut && itSupport->nHeight == nHeight)
+        {
+            nValidAtHeight = itSupport->nValidAtHeight;
+            return true;
+        }
+    }
+    return false;
+}
+
+supportValueQueueType::iterator CClaimTrieCache::getSupportQueueCacheRow(int nHeight, bool createIfNotExists) const
+{
+    supportValueQueueType::iterator itQueueRow = supportQueueCache.find(nHeight);
+    if (itQueueRow == supportQueueCache.end())
+    {
+        std::vector<CSupportValueQueueEntry> queueRow;
+        bool exists = base->getSupportQueueRow(nHeight, queueRow);
+        if (!exists)
+            if (!createIfNotExists)
+                return itQueueRow;
+        // Stick the new row in the cache
+        std::pair<supportValueQueueType::iterator, bool> ret;
+        ret = supportQueueCache.insert(std::pair<int, std::vector<CSupportValueQueueEntry> >(nHeight, queueRow));
+        assert(ret.second);
+        itQueueRow = ret.first;
+    }
+    return itQueueRow;
+}
+
+bool CClaimTrieCache::addSupportToQueue(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, uint256 supportedTxhash, int supportednOut, int nHeight, int nValidAtHeight) const
+{
+    LogPrintf("%s: nValidAtHeight: %d\n", __func__, nValidAtHeight);
+    CSupportNodeValue val(txhash, nOut, supportedTxhash, supportednOut, nAmount, nHeight, nValidAtHeight);
+    CSupportValueQueueEntry entry(name, val);
+    supportValueQueueType::iterator itQueueRow = getSupportQueueCacheRow(nValidAtHeight, true);
+    itQueueRow->second.push_back(entry);
+    return true;
+}
+
+bool CClaimTrieCache::removeSupportFromQueue(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, int supportednOut, int nHeightToCheck, int& nValidAtHeight) const
+{
+    supportValueQueueType::iterator itQueueRow = getSupportQueueCacheRow(nHeightToCheck, false);
+    if (itQueueRow == supportQueueCache.end())
+    {
+        return false;
+    }
+    std::vector<CSupportValueQueueEntry>::iterator itQueue;
+    for (itQueue = itQueueRow->second.begin(); itQueue != itQueueRow->second.end(); ++itQueue)
+    {
+        CSupportNodeValue& val = itQueue->val;
+        if (name == itQueue->name && val.txhash == txhash && val.nOut == nOut && val.supportTxhash == supportedTxhash && val.supportnOut == supportednOut)
+         {
+             nValidAtHeight = val.nValidAtHeight;
+             break;
+         }
+    }
+    if (itQueue != itQueueRow->second.end())
+    {
+        itQueueRow->second.erase(itQueue);
+        return true;
+    }
+    return false;
+}
+
+bool CClaimTrieCache::addSupport(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, uint256 supportedTxhash, int supportednOut, int nHeight) const
+{
+    std::cout << "just adding some support" << std::endl;
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedTxhash: %s, supportednOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, nAmount, supportedTxhash.GetHex(), supportednOut, nHeight);
+    assert(nHeight == nCurrentHeight);
+    CNodeValue val;
+    if (base->getInfoForName(name, val))
+    {
+        if (val.txhash == supportedTxhash && val.nOut == supportednOut)
+        {
+            LogPrintf("%s: This is a support to a best claim.\n", __func__);
+            return addSupportToQueue(name, txhash, nOut, nAmount, supportedTxhash, supportednOut, nHeight, nHeight);
+        }
+    }
+    return addSupportToQueue(name, txhash, nOut, nAmount, supportedTxhash, supportednOut, nHeight, nHeight + DEFAULT_DELAY);
+}
+
+bool CClaimTrieCache::undoSpendSupport(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, uint256 supportedTxhash, int supportednOut, int nHeight, int nValidAtHeight) const
+{
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedTxhash: %s, supportednOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, nAmount, supportedTxhash.GetHex(), supportednOut, nHeight);
+    if (nValidAtHeight < nCurrentHeight)
+    {
+        CSupportNodeValue val(txhash, nOut, supportedTxhash, supportednOut, nAmount, nHeight, nValidAtHeight);
+        CSupportValueQueueEntry entry(name, val);
+        return insertSupportIntoMap(name, val);
+    }
+    else
+    {
+        return addSupportToQueue(name, txhash, nOut, nAmount, supportedTxhash, supportednOut, nHeight, nValidAtHeight);
+    }
+}
+
+bool CClaimTrieCache::removeSupport(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, int supportednOut, int nHeight, int& nValidAtHeight) const
+{
+    bool removed = false;
+    if (nHeight + DEFAULT_DELAY >= nCurrentHeight)
+    {
+        if (removeSupportFromQueue(name, txhash, nOut, supportedTxhash, supportednOut, nHeight + DEFAULT_DELAY, nValidAtHeight))
+            removed = true;
+        else if (removeSupportFromQueue(name, txhash, nOut, supportedTxhash, supportednOut, nHeight, nValidAtHeight))
+            removed = true;
+    }
+    if (removed == false && removeSupportFromMap(name, txhash, nOut, supportedTxhash, supportednOut, nHeight, nValidAtHeight))
+        removed = true;
+    return removed;
+}
+
+bool CClaimTrieCache::undoAddSupport(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, int supportednOut, int nHeight) const
+{
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, supportedTxhash: %s, supportednOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, supportedTxhash.GetHex(), supportednOut, nHeight);
+    int throwaway;
+    return removeSupport(name, txhash, nOut, supportedTxhash, supportednOut, nHeight, throwaway);
+}
+
+bool CClaimTrieCache::spendSupport(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, int supportednOut, int nHeight, int& nValidAtHeight) const
+{
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, supportedTxhash: %s, supportednOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, supportedTxhash.GetHex(), supportednOut, nHeight);
+    return removeSupport(name, txhash, nOut, supportedTxhash, supportednOut, nHeight, nValidAtHeight);
+}
+
+bool CClaimTrieCache::incrementBlock(CClaimTrieQueueUndo& insertUndo, CClaimTrieQueueUndo& expireUndo, CSupportValueQueueUndo& insertSupportUndo) const
 {
     LogPrintf("%s: nCurrentHeight (before increment): %d\n", __func__, nCurrentHeight);
     valueQueueType::iterator itQueueRow = getQueueCacheRow(nCurrentHeight, false);
@@ -1163,11 +1515,21 @@ bool CClaimTrieCache::incrementBlock(CClaimTrieQueueUndo& insertUndo, CClaimTrie
         }
         itExpirationRow->second.clear();
     }
+    supportValueQueueType::iterator itSupportRow = getSupportQueueCacheRow(nCurrentHeight, false);
+    if (itSupportRow != supportQueueCache.end())
+    {
+        for (std::vector<CSupportValueQueueEntry>::iterator itSupport = itSupportRow->second.begin(); itSupport != itSupportRow->second.end(); ++itSupport)
+        {
+            insertSupportIntoMap(itSupport->name, itSupport->val);
+            insertSupportUndo.push_back(*itSupport);
+        }
+        itSupportRow->second.clear();
+    }
     nCurrentHeight++;
     return true;
 }
 
-bool CClaimTrieCache::decrementBlock(CClaimTrieQueueUndo& insertUndo, CClaimTrieQueueUndo& expireUndo) const
+bool CClaimTrieCache::decrementBlock(CClaimTrieQueueUndo& insertUndo, CClaimTrieQueueUndo& expireUndo, CSupportValueQueueUndo& insertSupportUndo) const
 {
     LogPrintf("%s: nCurrentHeight (before decrement): %d\n", __func__, nCurrentHeight);
     nCurrentHeight--;
@@ -1189,6 +1551,17 @@ bool CClaimTrieCache::decrementBlock(CClaimTrieQueueUndo& insertUndo, CClaimTrie
         {
             insertClaimIntoTrie(itExpireUndo->name, itExpireUndo->val);
             itExpireRow->second.push_back(*itExpireUndo);
+        }
+    }
+    if (insertSupportUndo.begin() != insertSupportUndo.end())
+    {
+        supportValueQueueType::iterator itSupportRow = getSupportQueueCacheRow(nCurrentHeight, true);
+        for (CSupportValueQueueUndo::iterator itSupportUndo = insertSupportUndo.begin(); itSupportUndo != insertSupportUndo.end(); ++itSupportUndo)
+        {
+            int nValidHeightInMap;
+            assert(removeSupportFromMap(itSupportUndo->name, itSupportUndo->val.txhash, itSupportUndo->val.nOut, itSupportUndo->val.supportTxhash, itSupportUndo->val.supportnOut, itSupportUndo->val.nHeight, nValidHeightInMap));
+            assert(nValidHeightInMap == itSupportUndo->val.nValidAtHeight);
+            itSupportRow->second.push_back(*itSupportUndo);
         }
     }
     return true;
@@ -1217,6 +1590,9 @@ bool CClaimTrieCache::clear() const
     dirtyHashes.clear();
     cacheHashes.clear();
     valueQueueCache.clear();
+    expirationQueueCache.clear();
+    supportCache.clear();
+    supportQueueCache.clear();
     return true;
 }
 
@@ -1224,7 +1600,7 @@ bool CClaimTrieCache::flush()
 {
     if (dirty())
         getMerkleHash();
-    bool success = base->update(cache, cacheHashes, getBestBlock(), valueQueueCache, expirationQueueCache, nCurrentHeight);
+    bool success = base->update(cache, cacheHashes, getBestBlock(), valueQueueCache, expirationQueueCache, nCurrentHeight, supportCache, supportQueueCache);
     if (success)
     {
         success = clear();

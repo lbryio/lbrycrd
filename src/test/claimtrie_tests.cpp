@@ -143,7 +143,57 @@ const unsigned int expire_nonces[] = {
 	4359, 35786, 24830, 102413, 17399, 48845, 22866, 8417, 24049, 50162, 
 	36921, 162891, 38509, 121018, 54548, 158171, 54355, 12742, 6174, 
 };
-const unsigned int support_nonces[] = {};
+const unsigned int support_nonces[] = {
+	6685, 83337, 74116, 50981, 51352, 158110, 132142, 161310, 95702, 32959, 
+	5785, 229298, 59738, 71206, 24625, 6, 141161, 43901, 35697, 98865, 
+	41764, 104919, 89611, 813, 54564, 13614, 24774, 39079, 67709, 94367, 
+	24006, 137451, 87265, 4096, 17540, 93657, 64419, 178853, 45385, 18571, 
+	49357, 67111, 92635, 73880, 7810, 15338, 56201, 1419, 92096, 121328, 
+	60987, 32796, 63605, 2178, 25415, 19115, 62190, 76200, 155888, 208604, 
+	43921, 623, 63809, 129207, 59080, 111270, 58799, 47014, 26935, 140745, 
+	15982, 22417, 54877, 64708, 3508, 63688, 117163, 93037, 27595, 49051, 
+	109801, 54794, 38790, 192113, 14920, 2056, 419624, 20495, 86719, 27455, 
+	94870, 5539, 12871, 24142, 103201, 12358, 60226, 11163, 57429, 49086, 
+	115051, 39940, 68936, 392, 23999, 23185, 37265, 793, 196124, 133047, 
+	95771, 4927, 2410, 191047, 8416, 36182, 126426, 101492, 268543, 66462, 
+	132688, 9709, 25766, 10781, 56169, 17484, 191643, 46857, 180718, 129600, 
+	76319, 275342, 113429, 52200, 8584, 205931, 60264, 99367, 71513, 10931, 
+	2470, 146435, 35660, 30357, 53621, 126053, 198310, 7340, 23329, 56232, 
+	43152, 1290, 178803, 58294, 28730, 135307, 26024, 33903, 23202, 69984, 
+	91861, 4406, 21564, 12088, 5307, 17517, 177507, 3629, 81666, 196118, 
+	37329, 42816, 1766, 5227, 98516, 62284, 1449, 10331, 4915, 1086, 
+	257130, 125081, 63069, 34059, 51482, 15396, 25319, 208595, 45717, 145038, 
+	51317, 34896, 60597, 8930, 150489, 15827, 94634, 19809, 90784, 102628, 
+	26279, 36205, 239377, 98432, 1949, 167692, 123222, 36572, 5435, 239413, 
+	85529, 124924, 17443, 10391, 21356, 109441, 711, 27883, 15410, 172902, 
+	9155, 6372, 93226, 31199, 47383, 77311, 107243, 1248, 3968, 88072, 
+	50741, 175826, 9475, 19473, 78911, 59587, 172626, 54698, 127135, 4356, 
+	70568, 9206, 41708, 162673, 82436, 8787, 12851, 17524, 27151, 34992, 
+	19003, 17118, 1353, 173957, 62721, 10956, 28301, 38722, 35000, 51572, 
+	122622, 26131, 219537, 24299, 8306, 22556, 117394, 5874, 1658, 4299, 
+	85895, 59207, 17620, 65379, 53730, 66114, 31973, 80054, 39898, 88576, 
+	35918, 54740, 43218, 310351, 18849, 65424, 18941, 49216, 21837, 1044, 
+	36089, 89042, 1064, 57622, 18277, 30812, 392721, 68449, 21958, 59353, 
+	230626, 192876, 152661, 83303, 12403, 48000, 322, 36098, 216060, 261073, 
+	10127, 40078, 13820, 37595, 2465, 67578, 8074, 17069, 23001, 75590, 
+	59540, 38500, 81671, 83017, 21630, 42072, 87988, 34685, 54463, 73723, 
+	64583, 11708, 27819, 60914, 44671, 73532, 481251, 50437, 51482, 140164, 
+	17802, 52420, 18605, 39313, 5815, 130397, 47241, 41700, 73784, 38254, 
+	31816, 81033, 63873, 61180, 73597, 31012, 46596, 34360, 16076, 3553, 
+	19667, 70678, 76463, 14007, 6695, 34346, 177277, 82740, 10695, 195656, 
+	199473, 19061, 12235, 118857, 5890, 158834, 14991, 9908, 40669, 76476, 
+	5798, 56010, 12434, 136848, 44171, 33686, 38022, 85052, 88529, 96055, 
+	77808, 14052, 26881, 183273, 110552, 14780, 62505, 29327, 16832, 146503, 
+	4492, 3210, 60633, 117771, 14125, 30949, 20800, 35101, 72610, 3023, 
+	39933, 7829, 21639, 14090, 59951, 46100, 26005, 57832, 3410, 58340, 
+	83407, 189530, 1991, 46036, 39758, 26344, 36726, 13556, 54091, 52219, 
+	10445, 23350, 62863, 41887, 39607, 47051, 170358, 62714, 54450, 44956, 
+	90394, 89040, 82532, 10732, 30853, 69521, 27096, 129159, 25700, 56643, 
+	4510, 61375, 45066, 84264, 47513, 27524, 25215, 95656, 73959, 20581, 
+	101988, 14797, 76360, 120161, 17567, 3903, 126413, 64154, 317038, 33995, 
+	25108, 8165, 132499, 174571, 4312, 63941, 109366, 12461, 81720, 36019, 
+	57768, 30058, 64038, 60147, 5536, 87586, 10954, 84112, 42404, 109189, 
+};
 
 BOOST_FIXTURE_TEST_SUITE(claimtrie_tests, TestingSetup)
 
@@ -1248,34 +1298,181 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
 
     CMutableTransaction tx2 = BuildTransaction(coinbases[1]);
-    tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
+    tx2.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
 
     CMutableTransaction tx3 = BuildTransaction(coinbases[2]);
     std::string sTx1Hash = tx1.GetHash().ToString();
     std::vector<unsigned char> vchTx1Hash(sTx1Hash.begin(), sTx1Hash.end());
-    tx1.vout[0].scriptPubKey = CScript() << OP_SUPPORT_CLAIM << vchTx1Hash << 0 << OP_2DROP << OP_DROP << OP_TRUE;
+    tx3.vout[0].scriptPubKey = CScript() << OP_SUPPORT_CLAIM << vchName << vchTx1Hash << CScriptNum(0) << OP_2DROP << OP_2DROP << OP_TRUE;
 
+    CNodeValue val;
     std::vector<uint256> blocks_to_invalidate;
 
-    // Test 1: create 1 LBC claim (A), create 5 LBC support (A), create 5 LBC claim (B)
-    // Verify that A retains control throughout
+    // Test 1: create 1 LBC claim (tx1), create 5 LBC support (tx3), create 5 LBC claim (tx2)
+    // Verify that tx1 retains control throughout
+    // spend tx3, verify that tx2 gains control
+    // roll back to before tx3 is valid
+    // advance until tx3 and tx2 are valid, verify tx1 retains control
+    // spend tx3, verify tx2 gains control
+    // roll back to before tx3 is spent, verify tx1 gains control
+    // roll back to before tx2 is valid, spend tx3
+    // advance to tx2 valid, verify tx2 gains control
+    // roll back to before tx3 is valid, spend tx3
+    // advance to tx2 valid, verify tx2 gains control
+    // roll back to insertion of tx3, and don't insert it
+    // insert tx2, advance until it is valid, verify tx2 gains control
 
-    // Test 2: create 1 LBC claim (A), create 5 LBC claim (B), create 5 LBC support (A)
-    // Verify that A loses control when B becomes valid, and then A gains control when support becomes valid
+    // Put tx1 in the blockchain
 
-    // Test 3: create 1 LBC claim (A), create 5 LBC support (A), create 5 LBC claim(B), spend (A) support
-    // Verify that A retains control until support is spent
+    AddToMempool(tx1);
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
+    delete pblocktemplate;
 
-    // Test 4: create 1 LBC claim (A), wait till valid, create 5 LBC claim (B), create 5 LBC support (A)
-    // Verify that A retains control throughout
+    BOOST_CHECK(pcoinsTip->HaveCoins(tx1.GetHash()));
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
 
-    // Test 5: create 5 LBC claim (A), wait till valid, create 1 LBC claim (B), create 5 LBC support (B)
-    // Verify that A retains control until support becomes valid
+    // advance 20 blocks
 
-    // Test 6: create 1 LBC claim (A), wait till valid, create 5 LBC claim (B), create 5 LBC support (A), spend A
-    // Verify that A retains control until it is spent
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 1; i < 20; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
+    }
+    delete pblocktemplate;
 
-    // Test 7: create 1 LBC claim (A), wait till valid, create 5 LBC support (A), spend A
+    // Put tx3 into the blockchain
+
+    AddToMempool(tx3);
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(pcoinsTip->HaveCoins(tx3.GetHash()));
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+
+    // advance 20 blocks
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 21; i < 40; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
+    }
+    delete pblocktemplate;
+
+    // Put tx2 into the blockchain
+
+    AddToMempool(tx2);
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
+    delete pblocktemplate;
+
+    BOOST_CHECK(pcoinsTip->HaveCoins(tx2.GetHash()));
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+
+    // advance until tx1 is valid
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 41; i < 100; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
+    }
+    delete pblocktemplate;
+
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
+    delete pblocktemplate;
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+    
+    // advance until tx3 is valid
+    
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 101; i < 120; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
+    }
+    delete pblocktemplate;
+
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
+    delete pblocktemplate;
+
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+
+    // advance until tx2 is valid
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 121; i < 140; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
+    }
+    delete pblocktemplate;
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
+    delete pblocktemplate;
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+
+    // Test 2: create 1 LBC claim (tx1), create 5 LBC claim (tx2), create 5 LBC support (tx3)
+    // Verify that tx1 loses control when tx2 becomes valid, and then tx1 gains control when tx3 becomes valid
+
+    // Test 3: create 1 LBC claim (tx1), create 5 LBC support (tx3), create 5 LBC claim(tx2), spend tx3
+    // Verify that tx1 retains control until tx3 is spent
+
+    // Test 4: create 1 LBC claim (tx1), wait till valid, create 5 LBC claim (tx2), create 5 LBC support (tx3)
+    // Verify that tx1 retains control throughout
+
+    // Test 5: create 5 LBC claim (tx2), wait till valid, create 1 LBC claim (tx1), create 5 LBC support (tx3)
+    // Verify that tx2 retains control until support becomes valid
+
+    // Test 6: create 1 LBC claim (tx1), wait till valid, create 5 LBC claim (tx2), create 5 LBC support (tx3), spend tx1
+    // Verify that tx1 retains control until it is spent
+
+    // Test 7: create 1 LBC claim (tx1), wait till valid, create 5 LBC support (tx3), spend tx1
+    // Verify name trie is empty
+
+    // Test 8: create 1 LBC claim (tx1), create 5 LBC support (tx3), wait till tx1 valid, spend tx1, wait till tx3 valid
     // Verify name trie is empty
 }
 

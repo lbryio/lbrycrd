@@ -82,6 +82,7 @@ public:
     std::vector<CTxUndo> vtxundo; // for all but the coinbase
     CClaimTrieQueueUndo insertUndo; // any claims that went from the queue to the trie
     CClaimTrieQueueUndo expireUndo; // any claims that expired
+    CSupportValueQueueUndo insertSupportUndo; // any claims that went from the support queue to the support map
 
     ADD_SERIALIZE_METHODS;
 
@@ -90,6 +91,7 @@ public:
         READWRITE(vtxundo);
         READWRITE(insertUndo);
         READWRITE(expireUndo);
+        READWRITE(insertSupportUndo);
     }
 };
 

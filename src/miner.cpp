@@ -310,14 +310,28 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 
                 if (DecodeClaimScript(coins->vout[txin.prevout.n].scriptPubKey, op, vvchParams))
                 {
-                    assert(vvchParams.size() == 2);
-                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                    int throwaway;
-                    if (!trieCache.spendClaim(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, throwaway))
-                        LogPrintf("%s: Something went wrong removing the name\n", __func__);
-                    std::pair<uint256, unsigned int> val(txin.prevout.hash, txin.prevout.n);
-                    std::pair<std::string, std::pair<uint256, unsigned int> >entry(name, val);
-                    spentClaims.insert(entry);
+                    if (op == OP_CLAIM_NAME)
+                    {
+                        assert(vvchParams.size() == 2);
+                        std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                        int throwaway;
+                        if (!trieCache.spendClaim(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, throwaway))
+                            LogPrintf("%s: Something went wrong removing the name\n", __func__);
+                        std::pair<uint256, unsigned int> val(txin.prevout.hash, txin.prevout.n);
+                        std::pair<std::string, std::pair<uint256, unsigned int> >entry(name, val);
+                        spentClaims.insert(entry);
+                    }
+                    else if (op == OP_SUPPORT_CLAIM)
+                    {
+                        assert(vvchParams.size() == 3);
+                        std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                        uint256 supportedTxid(vvchParams[1]);
+                        CScriptNum snOut(vvchParams[2], true);
+                        int supportednOut = snOut.getint();
+                        int throwaway;
+                        if (!trieCache.spendSupport(name, txin.prevout.hash, txin.prevout.n, supportedTxid, supportednOut, coins->nHeight, throwaway))
+                            LogPrintf("%s: Something went wrong removing the support\n", __func__);
+                    }
                 }
             }
             
@@ -331,19 +345,34 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                 int op;
                 if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams))
                 {
-                    assert(vvchParams.size() == 2);
-                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                    spentClaimsType::iterator itSpent = spentClaims.find(name);
-                    bool success;
-                    if (itSpent != spentClaims.end())
+                    if (op == OP_CLAIM_NAME)
                     {
-                        success = trieCache.addClaim(name, tx.GetHash(), i, txout.nValue, nHeight, itSpent->second.first, itSpent->second.second);
-                        spentClaims.erase(itSpent);
+                        assert(vvchParams.size() == 2);
+                        std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                        spentClaimsType::iterator itSpent = spentClaims.find(name);
+                        bool success;
+                        if (itSpent != spentClaims.end())
+                        {
+                            success = trieCache.addClaim(name, tx.GetHash(), i, txout.nValue, nHeight, itSpent->second.first, itSpent->second.second);
+                            spentClaims.erase(itSpent);
+                        }
+                        else
+                            success = trieCache.addClaim(name, tx.GetHash(), i, txout.nValue, nHeight);
+                        if (!success)
+                            LogPrintf("%s: Something went wrong inserting the name\n", __func__);
                     }
-                    else
-                        success = trieCache.addClaim(name, tx.GetHash(), i, txout.nValue, nHeight);
-                    if (!success)
-                        LogPrintf("%s: Something went wrong inserting the name\n", __func__);
+                    else if (op == OP_SUPPORT_CLAIM)
+                    {
+                        assert(vvchParams.size() == 3);
+                        std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                        uint256 supportedTxid(vvchParams[1]);
+                        CScriptNum snOut(vvchParams[2], true);
+                        int supportednOut = snOut.getint();
+                        if (!trieCache.addSupport(name, tx.GetHash(), i, txout.nValue, supportedTxid, supportednOut, nHeight))
+                        {
+                            LogPrintf("%s: Something went wrong inserting the name\n", __func__);
+                        }
+                    }
                 }
             }
 
@@ -398,7 +427,8 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         pblocktemplate->vTxSigOps[0] = GetLegacySigOpCount(pblock->vtx[0]);
         CClaimTrieQueueUndo dummyInsertUndo;
         CClaimTrieQueueUndo dummyExpireUndo;
-        trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo);
+        CSupportValueQueueUndo dummyInsertSupportUndo;
+        trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo, dummyInsertSupportUndo);
         pblock->hashClaimTrie = trieCache.getMerkleHash();
 
         CValidationState state;
