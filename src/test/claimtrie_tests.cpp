@@ -1296,14 +1296,17 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
     tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
+    tx1.vout[0].nValue = 100000000;
 
     CMutableTransaction tx2 = BuildTransaction(coinbases[1]);
     tx2.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
+    tx2.vout[0].nValue = 500000000;
 
     CMutableTransaction tx3 = BuildTransaction(coinbases[2]);
-    std::string sTx1Hash = tx1.GetHash().ToString();
-    std::vector<unsigned char> vchTx1Hash(sTx1Hash.begin(), sTx1Hash.end());
+    uint256 tx1Hash = tx1.GetHash();
+    std::vector<unsigned char> vchTx1Hash(tx1Hash.begin(), tx1Hash.end());
     tx3.vout[0].scriptPubKey = CScript() << OP_SUPPORT_CLAIM << vchName << vchTx1Hash << CScriptNum(0) << OP_2DROP << OP_2DROP << OP_TRUE;
+    tx3.vout[0].nValue = 500000000;
 
     CNodeValue val;
     std::vector<uint256> blocks_to_invalidate;

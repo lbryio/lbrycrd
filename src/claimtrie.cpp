@@ -112,8 +112,27 @@ bool CClaimTrieNode::haveValue(const uint256& txhash, uint32_t nOut) const
     return false;
 }
 
-void CClaimTrieNode::reorderValues()
+void CClaimTrieNode::reorderValues(supportMapNodeType& supports)
 {
+    std::vector<CNodeValue>::iterator itVal;
+    
+    for (itVal = values.begin(); itVal != values.end(); ++itVal)
+    {
+        itVal->nEffectiveAmount = itVal->nAmount;
+    }
+
+    for (supportMapNodeType::iterator itSupport = supports.begin(); itSupport != supports.end(); ++itSupport)
+    {
+        for (itVal = values.begin(); itVal != values.end(); ++itVal)
+        {
+            if (itSupport->supportTxhash == itVal->txhash && itSupport->supportnOut == itVal->nOut)
+            {
+                itVal->nEffectiveAmount += itSupport->nAmount;
+                break;
+            }
+        }
+    }
+    
     std::make_heap(values.begin(), values.end());
 }
 
@@ -920,7 +939,9 @@ bool CClaimTrieCache::insertClaimIntoTrie(const std::string name, CNodeValue val
     {
         CNodeValue currentTop = currentNode->values.front();
         currentNode->insertValue(val);
-        currentNode->reorderValues();
+        supportMapNodeType node;
+        getSupportsForName(name, node);
+        currentNode->reorderValues(node);
         if (currentTop != currentNode->values.front())
             fChanged = true;
     }
@@ -990,7 +1011,9 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string name, uint256 txhash
     
     if (!currentNode->values.empty())
     {
-        currentNode->reorderValues();
+        supportMapNodeType node;
+        getSupportsForName(name, node);
+        currentNode->reorderValues(node);
         if (currentTop != currentNode->values.front())
             fChanged = true;
     }
@@ -1312,8 +1335,10 @@ bool CClaimTrieCache::reorderTrieNode(const std::string name) const
     else
     {
         CNodeValue currentTop = cachedNode->second->values.front();
-        cachedNode->second->reorderValues();
-        if (currentTop != cachedNode->second->values.front())
+        supportMapNodeType node;
+        getSupportsForName(name, node);
+        cachedNode->second->reorderValues(node);
+        if (cachedNode->second->values.front() != currentTop)
             fChanged = true;
     }
     if (fChanged)
@@ -1326,6 +1351,21 @@ bool CClaimTrieCache::reorderTrieNode(const std::string name) const
         dirtyHashes.insert(name);
     }
     return true;
+}
+
+bool CClaimTrieCache::getSupportsForName(const std::string name, supportMapNodeType& node) const
+{
+    supportMapType::iterator cachedNode;
+    cachedNode = supportCache.find(name);
+    if (cachedNode != supportCache.end())
+    {
+        node = cachedNode->second;
+        return true;
+    }
+    else
+    {
+        return base->getSupportNode(name, node);
+    }
 }
 
 bool CClaimTrieCache::insertSupportIntoMap(const std::string name, CSupportNodeValue val) const
@@ -1432,8 +1472,7 @@ bool CClaimTrieCache::removeSupportFromQueue(const std::string name, uint256 txh
 
 bool CClaimTrieCache::addSupport(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, uint256 supportedTxhash, int supportednOut, int nHeight) const
 {
-    std::cout << "just adding some support" << std::endl;
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedTxhash: %s, supportednOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, nAmount, supportedTxhash.GetHex(), supportednOut, nHeight);
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedTxhash: %s, supportednOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, nAmount, supportedTxhash.GetHex(), supportednOut, nHeight, nCurrentHeight);
     assert(nHeight == nCurrentHeight);
     CNodeValue val;
     if (base->getInfoForName(name, val))

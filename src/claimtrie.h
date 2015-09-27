@@ -31,10 +31,11 @@ public:
     uint256 txhash;
     uint32_t nOut;
     CAmount nAmount;
+    CAmount nEffectiveAmount;
     int nHeight;
     int nValidAtHeight;
     CNodeValue() {};
-    CNodeValue(uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight, int nValidAtHeight) : txhash(txhash), nOut(nOut), nAmount(nAmount), nHeight(nHeight), nValidAtHeight(nValidAtHeight) {}
+    CNodeValue(uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight, int nValidAtHeight) : txhash(txhash), nOut(nOut), nAmount(nAmount), nEffectiveAmount(nAmount), nHeight(nHeight), nValidAtHeight(nValidAtHeight) {}
     uint256 GetHash() const;
     ADD_SERIALIZE_METHODS;
 
@@ -49,9 +50,9 @@ public:
     
     bool operator<(const CNodeValue& other) const
     {
-        if (nAmount < other.nAmount)
+        if (nEffectiveAmount < other.nEffectiveAmount)
             return true;
-        else if (nAmount == other.nAmount)
+        else if (nEffectiveAmount == other.nEffectiveAmount)
         {
             if (nHeight > other.nHeight)
                 return true;
@@ -114,6 +115,8 @@ public:
 class CClaimTrieNode;
 class CClaimTrie;
 
+typedef std::vector<CSupportNodeValue> supportMapNodeType;
+
 typedef std::map<unsigned char, CClaimTrieNode*> nodeMapType;
 
 typedef std::pair<std::string, CClaimTrieNode> namedNodeType;
@@ -131,7 +134,7 @@ public:
     bool getBestValue(CNodeValue& val) const;
     bool empty() const {return children.empty() && values.empty();}
     bool haveValue(const uint256& txhash, uint32_t nOut) const;
-    void reorderValues();
+    void reorderValues(supportMapNodeType& supports);
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
@@ -195,7 +198,6 @@ public:
     }
 };
 
-typedef std::vector<CSupportNodeValue> supportMapNodeType;
 typedef std::map<std::string, supportMapNodeType> supportMapType;
 
 typedef std::map<int, std::vector<CValueQueueEntry> > valueQueueType;
@@ -328,6 +330,7 @@ private:
     bool addSupportToQueue(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, uint256 supportedTxhash, int supportednOut, int nHeight, int nValidAtHeight) const;
     bool removeSupportFromQueue(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, int supportednOut, int nHeightToCheck, int& nValidAtHeight) const;
     uint256 hashBlock;
+    bool getSupportsForName(const std::string name, supportMapNodeType& node) const;
 };
 
 #endif // BITCOIN_ClaimTRIE_H
