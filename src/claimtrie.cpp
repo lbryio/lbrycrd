@@ -77,7 +77,6 @@ bool CClaimTrieNode::removeValue(uint256& txhash, uint32_t nOut, CNodeValue& val
         {
             LogPrintf("\ttxid: %s, nOut: %d\n", values[i].txhash.ToString(), values[i].nOut);
         }
-        std::cout << "couldnt find the thing" << std::endl;
         return false;
     }
     //if (!values.empty())
@@ -1296,7 +1295,7 @@ bool CClaimTrieCache::reorderTrieNode(const std::string name) const
 {
     assert(base);
     nodeCacheType::iterator cachedNode;
-    cachedNode = cache.find("name");
+    cachedNode = cache.find(name);
     if (cachedNode == cache.end())
     {
         CClaimTrieNode* currentNode = &(base->root);
@@ -1405,15 +1404,25 @@ bool CClaimTrieCache::removeSupportFromMap(const std::string name, uint256 txhas
         assert(ret.second);
         cachedNode = ret.first;
     }
-    for (supportMapNodeType::iterator itSupport = cachedNode->second.begin(); itSupport != cachedNode->second.end(); ++itSupport)
+    supportMapNodeType::iterator itSupport;
+    for (itSupport = cachedNode->second.begin(); itSupport != cachedNode->second.end(); ++itSupport)
     {
         if (itSupport->txhash == txhash && itSupport->nOut == nOut && itSupport->supportTxhash == supportedTxhash && itSupport->supportnOut == supportednOut && itSupport->nHeight == nHeight)
         {
             nValidAtHeight = itSupport->nValidAtHeight;
-            return true;
+            break;
         }
     }
-    return false;
+    if (itSupport != cachedNode->second.end())
+    {
+        cachedNode->second.erase(itSupport);
+        return reorderTrieNode(name);
+    }
+    else
+    {
+        LogPrintf("CClaimTrieCache::%s() : asked to remove a support that doesn't exist\n", __func__);
+        return false;
+    }
 }
 
 supportValueQueueType::iterator CClaimTrieCache::getSupportQueueCacheRow(int nHeight, bool createIfNotExists) const
@@ -1488,7 +1497,7 @@ bool CClaimTrieCache::addSupport(const std::string name, uint256 txhash, uint32_
 
 bool CClaimTrieCache::undoSpendSupport(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, uint256 supportedTxhash, int supportednOut, int nHeight, int nValidAtHeight) const
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedTxhash: %s, supportednOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, nAmount, supportedTxhash.GetHex(), supportednOut, nHeight);
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedTxhash: %s, supportednOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, nAmount, supportedTxhash.GetHex(), supportednOut, nHeight, nCurrentHeight);
     if (nValidAtHeight < nCurrentHeight)
     {
         CSupportNodeValue val(txhash, nOut, supportedTxhash, supportednOut, nAmount, nHeight, nValidAtHeight);
@@ -1518,14 +1527,14 @@ bool CClaimTrieCache::removeSupport(const std::string name, uint256 txhash, uint
 
 bool CClaimTrieCache::undoAddSupport(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, int supportednOut, int nHeight) const
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, supportedTxhash: %s, supportednOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, supportedTxhash.GetHex(), supportednOut, nHeight);
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, supportedTxhash: %s, supportednOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, supportedTxhash.GetHex(), supportednOut, nHeight, nCurrentHeight);
     int throwaway;
     return removeSupport(name, txhash, nOut, supportedTxhash, supportednOut, nHeight, throwaway);
 }
 
 bool CClaimTrieCache::spendSupport(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, int supportednOut, int nHeight, int& nValidAtHeight) const
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, supportedTxhash: %s, supportednOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, supportedTxhash.GetHex(), supportednOut, nHeight);
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, supportedTxhash: %s, supportednOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, supportedTxhash.GetHex(), supportednOut, nHeight, nCurrentHeight);
     return removeSupport(name, txhash, nOut, supportedTxhash, supportednOut, nHeight, nValidAtHeight);
 }
 
