@@ -15,6 +15,8 @@
 
 using namespace std;
 
+CScript scriptPubKey = CScript() << OP_TRUE;
+
 const unsigned int insert_nonces[] = {
 	62302, 78404, 42509, 88397, 232147, 34120, 48944, 8449, 3855, 99418, 
 	35007, 36992, 18865, 48021, 117592, 61911, 26614, 26267, 171911, 49917, 
@@ -354,6 +356,37 @@ bool RemoveBlock(uint256& blockhash)
 
 }
 
+bool CreateCoinbases(unsigned int num_coinbases, std::vector<CTransaction>& coinbases, CNoncePrinter* pnp, unsigned int const * nonces, unsigned int& nonce_counter)
+{
+    CBlockTemplate *pblocktemplate;
+    coinbases.clear();
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 1);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 0; i < 100 + num_coinbases; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, nonces[nonce_counter++]));
+        if (coinbases.size() < num_coinbases)
+            coinbases.push_back(CTransaction(pblocktemplate->block.vtx[0]));
+    }
+    delete pblocktemplate;
+    return true;
+}
+
+bool CreateBlocks(unsigned int num_blocks, unsigned int num_txs, CNoncePrinter* pnp, unsigned int const * nonces, unsigned int& nonce_counter)
+{
+    CBlockTemplate *pblocktemplate;
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == num_txs);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 0; i < num_blocks; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, nonces[nonce_counter++]));
+    }
+    delete pblocktemplate;
+    return true;
+}
+
 BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
 {
     int unused;
@@ -469,16 +502,13 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
 
 BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 {
-    int block_counter = 0;
+    unsigned int block_counter = 0;
     //CNoncePrinter noncePrinter;
     CNoncePrinter* pnp = NULL;//&noncePrinter;
     BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
     
-    CBlockTemplate *pblocktemplate;
     LOCK(cs_main);
     //Checkpoints::fEnabled = false;
-
-    CScript scriptPubKey = CScript() << OP_TRUE;
 
     std::string sName1("atest");
     std::string sName2("btest");
@@ -489,20 +519,10 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     std::vector<unsigned char> vchName2(sName2.begin(), sName2.end());
     std::vector<unsigned char> vchValue1(sValue1.begin(), sValue1.end());
     std::vector<unsigned char> vchValue2(sValue2.begin(), sValue2.end());
-    
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     std::vector<CTransaction> coinbases;
 
-    for (unsigned int i = 0; i < 104; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-        if (coinbases.size() < 4)
-            coinbases.push_back(CTransaction(pblocktemplate->block.vtx[0]));
-    }
-
-    delete pblocktemplate;
+    BOOST_CHECK(CreateCoinbases(4, coinbases, pnp, insert_nonces, block_counter));
 
     uint256 hash0(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash0);
@@ -538,32 +558,19 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     AddToMempool(tx2);
     AddToMempool(tx7);
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 4);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 4, pnp, insert_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx1.GetHash()));
     BOOST_CHECK(pcoinsTip->HaveCoins(tx2.GetHash()));
     BOOST_CHECK(pcoinsTip->HaveCoins(tx7.GetHash()));
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 1; i < 100; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(99, 1, pnp, insert_nonces, block_counter));
     
     BOOST_CHECK(!pclaimTrie->getInfoForName(sName1, val));
     BOOST_CHECK(!pclaimTrie->getInfoForName(sName2, val));
     
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, insert_nonces, block_counter));
     
     // Verify tx1 and tx2 are in the trie
 
@@ -583,12 +590,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     AddToMempool(tx4);
     AddToMempool(tx5);
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 4);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 4, pnp, insert_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     // Verify tx1, tx2, and tx5 are not in the trie, but tx3 is in the trie.
 
@@ -623,12 +626,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     
     AddToMempool(tx1);
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, insert_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
@@ -645,32 +644,19 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     AddToMempool(tx1);
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, insert_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 1; i < 100; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(99, 1, pnp, insert_nonces, block_counter));
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    delete pblocktemplate;
-       
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, insert_nonces, block_counter));
+
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
@@ -691,12 +677,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     AddToMempool(tx2);
     AddToMempool(tx4);
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 3);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 3, pnp, insert_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -713,22 +695,14 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     AddToMempool(tx2);
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, insert_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+    
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 1; i < 50; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(49, 1, pnp, insert_nonces, block_counter));
+    
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
@@ -736,22 +710,14 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     AddToMempool(tx4);
     
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, insert_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+    
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 1; i < 51; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(50, 1, pnp, insert_nonces, block_counter));
+    
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
 
@@ -764,21 +730,13 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     mempool.clear();
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 0; i < 50; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(50, 1, pnp, insert_nonces, block_counter));
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, insert_nonces, block_counter));
+    
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName2, val));
@@ -790,12 +748,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     
     AddToMempool(tx4);
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, insert_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -822,25 +776,16 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     AddToMempool(tx1);
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, insert_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
     // move forward some, but not far enough for the claim to get into the trie
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 1; i < 50; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(49, 1, pnp, insert_nonces, block_counter));
+    
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
@@ -848,12 +793,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     AddToMempool(tx3);
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, insert_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
@@ -862,12 +803,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     AddToMempool(tx6);
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, insert_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -882,21 +819,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     // make sure the update (tx3) still goes into effect in 100 blocks
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 1; i < 100; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(99, 1, pnp, insert_nonces, block_counter));
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, insert_nonces, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -913,21 +841,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     // move forward until the original claim is inserted into the trie
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 0; i < 50; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(50, 1, pnp, insert_nonces, block_counter));
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, insert_nonces, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -938,11 +857,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     
     AddToMempool(tx3);
     
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, insert_nonces, block_counter));
     
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -953,12 +868,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     
     AddToMempool(tx6);
     
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, insert_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
     
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -978,12 +889,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     
     AddToMempool(tx8);
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, insert_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     // ensure txout 0 made it into the trie and txout 1 did not
     
@@ -995,21 +902,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     // roll forward until tx8 output 1 gets into the trie
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 1; i < 100; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(99, 1, pnp, insert_nonces, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, insert_nonces[block_counter++]));
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, insert_nonces, block_counter));
 
     // ensure txout 1 made it into the trie and is now in control
 
@@ -1035,15 +933,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
 BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 {
-    int block_counter = 0;
+    unsigned int block_counter = 0;
     //CNoncePrinter noncePrinter;
     CNoncePrinter* pnp = NULL;//&noncePrinter;
     BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
 
-    CBlockTemplate *pblocktemplate;
     LOCK(cs_main);
-
-    CScript scriptPubKey = CScript() << OP_TRUE;
 
     std::string sName("atest");
     std::string sValue("testa");
@@ -1051,17 +946,9 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     std::vector<unsigned char> vchName(sName.begin(), sName.end());
     std::vector<unsigned char> vchValue(sValue.begin(), sValue.end());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     std::vector<CTransaction> coinbases;
-    for (unsigned int i = 0; i < 102; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
-        if (coinbases.size() < 2)
-            coinbases.push_back(CTransaction(pblocktemplate->block.vtx[0]));
-    }
-
-    delete pblocktemplate;
+   
+    BOOST_CHECK(CreateCoinbases(2, coinbases, pnp, expire_nonces, block_counter));
 
     CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
     tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP << OP_TRUE;
@@ -1077,12 +964,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 
     AddToMempool(tx1);
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, expire_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
@@ -1090,20 +973,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 
     // advance until the claim is valid. verify the expiration event is scheduled.
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 1; i < 100; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(99, 1, pnp, expire_nonces, block_counter));
 
     BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, expire_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1111,23 +986,14 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 
     // advance until the expiration event occurs. verify the expiration event occurs on time.
     
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 1; i < 100; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(99, 1, pnp, expire_nonces, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, expire_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1135,13 +1001,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     
     // roll forward a bit and then roll back to before the expiration event. verify the claim is reinserted. verify the expiration event is scheduled again.
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 0; i < 100; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(100, 1, pnp, expire_nonces, block_counter));
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1155,11 +1015,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     
     // advance until the expiration event occurs. verify the expiration event occurs on time.
     
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, expire_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1183,11 +1040,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 
     // advance until the claim is valid again. verify the expiration event is scheduled.
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, expire_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1195,25 +1049,16 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 
     // advance until the expiration event occurs. verify the expiration event occurs on time.
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 1; i < 100; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
-        if (i == 50)
-            blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(50, 1, pnp, expire_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+    BOOST_CHECK(CreateBlocks(49, 1, pnp, expire_nonces, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, expire_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1239,12 +1084,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     
     AddToMempool(tx2);
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, expire_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1262,23 +1103,14 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     
     // advance until the expiration event occurs. verify the event occurs on time.
     
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 50; i < 100; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(50, 1, pnp, expire_nonces, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, expire_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1288,12 +1120,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 
     AddToMempool(tx2);
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, expire_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1319,11 +1147,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 
     // verify the expiration event happens at the right time again
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, expire_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, expire_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1359,16 +1184,13 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 
 BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 {
-    int block_counter = 0;
+    unsigned int block_counter = 0;
     CNoncePrinter noncePrinter;
     CNoncePrinter* pnp = &noncePrinter;
     
     BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
 
-    CBlockTemplate *pblocktemplate;
     LOCK(cs_main);
-
-    CScript scriptPubKey = CScript() << OP_TRUE;
 
     std::string sName("atest");
     std::string sValue1("testa");
@@ -1378,17 +1200,9 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     std::vector<unsigned char> vchValue1(sValue1.begin(), sValue1.end());
     std::vector<unsigned char> vchValue2(sValue2.begin(), sValue2.end());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     std::vector<CTransaction> coinbases;
-    for (unsigned int i = 0; i < 103; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-        if (coinbases.size() < 3)
-            coinbases.push_back(CTransaction(pblocktemplate->block.vtx[0]));
-    }
 
-    delete pblocktemplate;
+    BOOST_CHECK(CreateCoinbases(3, coinbases, pnp, support_nonces, block_counter));
 
     CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
     tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
@@ -1433,12 +1247,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     // Put tx1 in the blockchain
 
     AddToMempool(tx1);
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx1.GetHash()));
     BOOST_CHECK(pclaimTrie->empty());
@@ -1448,23 +1258,14 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // advance 20 blocks
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 1; i < 20; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
 
     // Put tx3 into the blockchain
 
     AddToMempool(tx3);
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx3.GetHash()));
     BOOST_CHECK(pclaimTrie->supportEmpty());
@@ -1472,22 +1273,13 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // advance 20 blocks
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 21; i < 40; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
 
     // Put tx2 into the blockchain
 
     AddToMempool(tx2);
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    delete pblocktemplate;
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx2.GetHash()));
     BOOST_CHECK(pclaimTrie->empty());
@@ -1495,21 +1287,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // advance until tx1 is valid
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 41; i < 100; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(59, 1, pnp, support_nonces, block_counter));
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
     
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
@@ -1521,43 +1304,25 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     
     // advance until tx3 is valid
     
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 101; i < 120; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
 
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
 
     // advance until tx2 is valid
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 121; i < 140; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1567,11 +1332,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     // spend tx3
 
     AddToMempool(tx6);
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    delete pblocktemplate;
+    
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
 
     // verify tx2 gains control
 
@@ -1596,33 +1358,21 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.txhash == tx1.GetHash());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
 
     // advance until tx2 is valid
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 121; i < 140; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1631,12 +1381,9 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // spend tx3
     AddToMempool(tx6);
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
-    delete pblocktemplate;
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     // verify tx2 gains control
 
@@ -1669,11 +1416,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     // spend tx3
 
     AddToMempool(tx6);
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    delete pblocktemplate;
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
 
     // Verify tx2 gains control
 
@@ -1692,11 +1436,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     // spend tx3
 
     AddToMempool(tx6);
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    delete pblocktemplate;
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
@@ -1705,19 +1446,9 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // advance until tx2 is valid
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 121; i < 140; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 1);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1732,22 +1463,13 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // advance 20 blocks
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 20; i < 40; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(20, 1, pnp, support_nonces, block_counter));
 
     // Put tx2 into the blockchain
 
     AddToMempool(tx2);
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 2);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    delete pblocktemplate;
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx2.GetHash()));
     BOOST_CHECK(pclaimTrie->empty());
@@ -1755,21 +1477,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // advance until tx1 is valid
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 41; i < 100; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(59, 1, pnp, support_nonces, block_counter));
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
     
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
@@ -1781,21 +1494,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     
     // advance until tx2 is valid
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 101; i < 140; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    }
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(39, 1, pnp, support_nonces, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    BOOST_CHECK(CreateBlock(pblocktemplate, pnp, support_nonces[block_counter++]));
-    delete pblocktemplate;
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1809,9 +1513,89 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // Test 2: create 1 LBC claim (tx1), create 5 LBC claim (tx2), create 5 LBC support (tx3)
     // Verify that tx1 loses control when tx2 becomes valid, and then tx1 gains control when tx3 becomes valid
+    // Then, verify that tx2 regains control when A) tx3 is spent and B) tx3 is undone
+    
+    AddToMempool(tx1);
 
-    // Test 3: create 1 LBC claim (tx1), create 5 LBC support (tx3), create 5 LBC claim(tx2), spend tx3
-    // Verify that tx1 retains control until tx3 is spent
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+    
+    BOOST_CHECK(pcoinsTip->HaveCoins(tx1.GetHash()));
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    
+    // advance 20 blocks
+    
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
+
+    // put tx2 into the blockchain
+
+    AddToMempool(tx2);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
+
+    BOOST_CHECK(pcoinsTip->HaveCoins(tx2.GetHash()));
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+
+    // advance 20 blocks
+
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
+
+    // put tx3 into the blockchain
+
+    AddToMempool(tx3);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
+
+    BOOST_CHECK(pcoinsTip->HaveCoins(tx3.GetHash()));
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+
+    // advance until tx1 is valid
+
+    BOOST_CHECK(CreateBlocks(59, 1, pnp, support_nonces, block_counter));
+
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+
+    // advance until tx2 is valid
+
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
+
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx2.GetHash());
+
+    // advance until tx3 is valid
+
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
+
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
 
     // Test 4: create 1 LBC claim (tx1), wait till valid, create 5 LBC claim (tx2), create 5 LBC support (tx3)
     // Verify that tx1 retains control throughout
