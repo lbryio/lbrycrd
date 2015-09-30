@@ -156,76 +156,167 @@ const unsigned int expire_nonces[] = {
 	22343, 31416, 138676, 3672, 41575, 77002, 199599, 59124, 4381, 
 };
 
-const unsigned int support_nonces[] = {
-	6685, 83337, 74116, 50981, 51352, 158110, 132142, 161310, 95702, 32959, 
-	5785, 229298, 59738, 71206, 24625, 6, 141161, 43901, 35697, 98865, 
-	41764, 104919, 89611, 813, 54564, 13614, 24774, 39079, 67709, 94367, 
-	24006, 137451, 87265, 4096, 17540, 93657, 64419, 178853, 45385, 18571, 
-	49357, 67111, 92635, 73880, 7810, 15338, 56201, 1419, 92096, 121328, 
-	60987, 32796, 63605, 2178, 25415, 19115, 62190, 76200, 155888, 208604, 
-	43921, 623, 63809, 129207, 59080, 111270, 58799, 47014, 26935, 140745, 
-	15982, 22417, 54877, 64708, 3508, 63688, 117163, 93037, 27595, 49051, 
-	109801, 54794, 38790, 192113, 14920, 2056, 419624, 20495, 86719, 27455, 
-	94870, 5539, 12871, 24142, 103201, 12358, 60226, 11163, 57429, 49086, 
-	115051, 39940, 68936, 392, 23999, 23185, 37265, 793, 196124, 133047, 
-	95771, 4927, 2410, 191047, 8416, 36182, 126426, 101492, 268543, 66462, 
-	132688, 9709, 25766, 10781, 56169, 17484, 191643, 46857, 180718, 129600, 
-	76319, 275342, 113429, 52200, 8584, 205931, 60264, 99367, 71513, 10931, 
-	2470, 146435, 35660, 30357, 53621, 126053, 198310, 7340, 23329, 56232, 
-	43152, 1290, 178803, 58294, 28730, 135307, 26024, 33903, 23202, 69984, 
-	91861, 4406, 21564, 12088, 5307, 17517, 177507, 3629, 81666, 196118, 
-	37329, 42816, 1766, 5227, 98516, 62284, 1449, 10331, 4915, 1086, 
-	257130, 125081, 63069, 34059, 51482, 15396, 25319, 208595, 45717, 145038, 
-	51317, 34896, 60597, 8930, 150489, 15827, 94634, 19809, 90784, 102628, 
-	26279, 36205, 239377, 98432, 1949, 167692, 123222, 36572, 5435, 239413, 
-	85529, 124924, 17443, 10391, 21356, 109441, 711, 27883, 15410, 172902, 
-	9155, 6372, 93226, 31199, 47383, 77311, 107243, 1248, 3968, 88072, 
-	50741, 175826, 9475, 19473, 78911, 59587, 172626, 54698, 127135, 4356, 
-	70568, 9206, 41708, 162673, 82436, 8787, 12851, 17524, 27151, 34992, 
-	19003, 17118, 1353, 173957, 62721, 10956, 28301, 38722, 35000, 51572, 
-	122622, 26131, 219537, 24299, 8306, 22556, 117394, 5874, 1658, 4299, 
-	85895, 59207, 17620, 65379, 53730, 66114, 31973, 80054, 39898, 88576, 
-	35918, 54740, 43218, 310351, 18849, 65424, 18941, 49216, 21837, 1044, 
-	36089, 89042, 1064, 57622, 18277, 30812, 392721, 68449, 21958, 59353, 
-	36089, 89042, 1064, 57622, 18277, 30812, 392721, 68449, 21958, 59353, 
-	36089, 89042, 1064, 57622, 18277, 30812, 392721, 68449, 21958, 59353, 
-	230626, 192876, 152661, 83303, 12403, 48000, 322, 36098, 216060, 261073, 
-	10127, 40078, 13820, 37595, 2465, 67578, 8074, 17069, 23001, 75590, 
-	59540, 38500, 81671, 83017, 21630, 42072, 87988, 34685, 54463, 73723, 
-	64583, 11708, 27819, 60914, 44671, 73532, 481251, 50437, 51482, 140164, 
-	17802, 52420, 18605, 39313, 5815, 130397, 47241, 41700, 73784, 38254, 
-	31816, 81033, 63873, 61180, 73597, 31012, 46596, 34360, 16076, 3553, 
-	19667, 70678, 76463, 14007, 6695, 34346, 177277, 82740, 10695, 195656, 
-	199473, 19061, 12235, 118857, 5890, 158834, 14991, 9908, 40669, 76476, 
-	5798, 56010, 12434, 136848, 44171, 33686, 38022, 85052, 88529, 96055, 
-	230626, 192876, 152661, 83303, 12403, 48000, 322, 36098, 216060, 261073, 
-	10127, 40078, 13820, 37595, 2465, 67578, 8074, 17069, 23001, 75590, 
-	59540, 38500, 81671, 83017, 21630, 42072, 87988, 34685, 54463, 73723, 
-	64583, 11708, 27819, 60914, 44671, 73532, 481251, 50437, 51482, 140164, 
-	17802, 52420, 18605, 39313, 5815, 130397, 47241, 41700, 73784, 38254, 
-	31816, 81033, 63873, 61180, 73597, 31012, 46596, 34360, 16076, 3553, 
-	19667, 70678, 76463, 14007, 6695, 34346, 177277, 82740, 10695, 195656, 
-	199473, 19061, 12235, 118857, 5890, 158834, 14991, 9908, 40669, 76476, 
-	5798, 56010, 12434, 136848, 44171, 33686, 38022, 85052, 88529, 96055, 
-	230626, 192876, 152661, 83303, 12403, 48000, 322, 36098, 216060, 261073, 
-	10127, 40078, 13820, 37595, 2465, 67578, 8074, 17069, 23001, 75590, 
-	59540, 38500, 81671, 83017, 21630, 42072, 87988, 34685, 54463, 73723, 
-	64583, 11708, 27819, 60914, 44671, 73532, 481251, 50437, 51482, 140164, 
-	17802, 52420, 18605, 39313, 5815, 130397, 47241, 41700, 73784, 38254, 
-	31816, 81033, 63873, 61180, 73597, 31012, 46596, 34360, 16076, 3553, 
-	19667, 70678, 76463, 14007, 6695, 34346, 177277, 82740, 10695, 195656, 
-	199473, 19061, 12235, 118857, 5890, 158834, 14991, 9908, 40669, 76476, 
-	5798, 56010, 12434, 136848, 44171, 33686, 38022, 85052, 88529, 96055, 
-	77808, 14052, 26881, 183273, 110552, 14780, 62505, 29327, 16832, 146503, 
-	4492, 3210, 60633, 117771, 14125, 30949, 20800, 35101, 72610, 3023, 
-	39933, 7829, 21639, 14090, 59951, 46100, 26005, 57832, 3410, 58340, 
-	83407, 189530, 1991, 46036, 39758, 26344, 36726, 13556, 54091, 52219, 
-	10445, 23350, 62863, 41887, 39607, 47051, 170358, 62714, 54450, 44956, 
-	90394, 89040, 82532, 10732, 30853, 69521, 27096, 129159, 25700, 56643, 
-	4510, 61375, 45066, 84264, 47513, 27524, 25215, 95656, 73959, 20581, 
-	101988, 14797, 76360, 120161, 17567, 3903, 126413, 64154, 317038, 33995, 
-	25108, 8165, 132499, 174571, 4312, 63941, 109366, 12461, 81720, 36019, 
-	57768, 30058, 64038, 60147, 5536, 87586, 10954, 84112, 42404, 109189, 
+const unsigned int support_nonces1[] = {
+	105701, 115584, 37683, 27712, 42977, 51687, 132104, 219642, 77841, 55531, 
+	13564, 117419, 73277, 153293, 142955, 72110, 37463, 62119, 78019, 43317, 
+	10408, 52672, 284680, 230150, 21623, 48803, 16417, 55640, 129049, 116488, 
+	41627, 7494, 78035, 1595, 22143, 301, 89697, 25699, 4234, 71440, 
+	7401, 58869, 53932, 29626, 1163, 16368, 117353, 196807, 40560, 75864, 
+	86242, 164842, 261952, 42966, 31269, 151460, 193885, 120629, 28690, 103892, 
+	95195, 16868, 64307, 6336, 35715, 5468, 55442, 4855, 1558, 47981, 
+	1673, 12417, 87010, 57350, 66760, 347, 136748, 23558, 156370, 8112, 
+	32751, 67399, 78430, 62284, 38879, 63197, 41810, 47568, 2194, 20021, 
+	55230, 65910, 11530, 7441, 110596, 108561, 71692, 43935, 151361, 79724, 
+	99792, 107989, 82596, 9169, 291679, 112377, 41344, 185047, 7018, 5951, 
+	88404, 140428, 87970, 81004, 152441, 36684, 173721, 3349, 3175, 252786, 
+	32720, 40948, 76930, 9491, 137742, 56954, 358844, 11884, 79338, 1449, 
+	271845, 65895, 3599, 67466, 390374, 92544, 169976, 64804, 22583, 33184, 
+	21846, 126102, 134037, 7743, 68285, 37887, 19122, 58595, 13881, 49513, 
+	59047, 76262, 33652, 176824, 128984, 700, 3132, 46367, 11747, 127193, 
+	41077, 38093, 5491, 325, 79570, 204899, 30771, 366656, 31271, 30585, 
+	158040, 144014, 12649, 23040, 115875, 18196, 50306, 7922, 43930, 19235, 
+	29139, 48803, 44994, 103398, 22128, 20131, 23586, 15249, 2941, 266120, 
+	16186, 104144, 194544, 26703, 80750, 28839, 1190, 24200, 22772, 28085, 
+	74439, 988, 51721, 65257, 48807, 45808, 5972, 44544, 43609, 97247, 
+	338685, 648, 87423, 106088, 31569, 99139, 106419, 69391, 3635, 113533, 
+	10925, 87228, 70748, 56881, 128451, 2366, 68232, 11000, 1853, 153196, 
+	2581, 3875, 54236, 107276, 545, 229067, 76364, 45067, 39982, 68628, 
+	5029, 27839, 67151, 20147, 20111, 47782, 18702, 42648, 5476, 15906, 
+	69026, 289594, 22143, 113896, 30068, 23716, 62821, 67978, 77734, 116084, 
+	88619, 92799, 92576, 25349, 165358, 7728, 80032, 124308, 37356, 49800, 
+	82395, 58213, 61798, 66574, 25471, 29709, 7591, 121781, 75306, 27929, 
+	7698, 69279, 151730, 2691, 33981, 22634, 48722, 610916, 4741, 61336, 
+	20033, 19624, 63951, 6755, 18613, 43297, 180012, 66684, 6631, 121649, 
+	22531, 320516, 74811, 59326, 17935, 39781, 137162, 44383, 33226, 114852, 
+	181180, 67566, 157014, 13412, 166344, 47237, 2946, 1812, 122065, 28047, 
+	46154, 219650, 86082, 70152, 104421, 159526, 78937, 87378, 29769, 236780, 
+	23349, 89921, 115223, 27581, 14524, 59617, 83790, 54662, 33948, 86135, 
+	2294, 17568, 6718, 28464, 19443, 48403, 49226, 116460, 41971, 145968, 
+	18998, 18336, 4439, 17381, 31806, 174135, 8843, 5821, 59615, 70414, 
+	8139, 92130, 292188, 27433, 32219, 3543, 264777, 64492, 56545, 2022, 
+	84938, 134120, 31399, 47938, 2636, 78275, 95149, 3045, 23538, 37556, 
+	7601, 14137, 11467, 106593, 48554, 155380, 139237, 20564, 17083, 13782, 
+	259910, 28778, 14579, 23222, 217354, 106378, 31622, 138311, 62060, 231925, 
+	137370, 99259, 12165, 71289, 288569, 138298, 72384, 51470, 7769, 58315, 
+};
+
+const unsigned int support_nonces2[] = {
+	48702, 44910, 140964, 17704, 11556, 21180, 29805, 90484, 193777, 16876, 
+	15155, 27884, 78520, 659, 92784, 99385, 69875, 18357, 13829, 87382, 
+	46608, 65607, 65131, 168763, 53739, 27749, 96759, 15690, 2153, 67153, 
+	13489, 139244, 54725, 26897, 93614, 18265, 6707, 12046, 27070, 75341, 
+	139417, 12032, 134983, 58875, 2878, 75451, 58147, 3217, 79206, 85487, 
+	18664, 41326, 1626, 56088, 47222, 12817, 40648, 49519, 63781, 75246, 
+	10883, 263162, 8502, 110769, 26554, 104794, 1160, 35622, 1581, 21486, 
+	23668, 31824, 28294, 41480, 109983, 5951, 100510, 20950, 35565, 47013, 
+	41826, 91009, 52933, 58867, 62875, 84031, 131209, 7100, 81796, 292517, 
+	49363, 59229, 28120, 5635, 83082, 19464, 6361, 11129, 111566, 20012, 
+	17332, 118951, 63053, 1140, 52805, 55065, 71125, 13182, 112795, 81320, 
+	81635, 191166, 66330, 36626, 94722, 52716, 133306, 20991, 64508, 34170, 
+	88659, 9779, 70051, 123365, 158677, 142215, 165612, 176285, 5277, 69969, 
+	123460, 4739, 25210, 1181, 22451, 147063, 45230, 183496, 50047, 142425, 
+	90173, 10472, 97468, 37034, 93084, 39525, 120266, 84300, 17673, 6804, 
+	97967, 26481, 4194, 17105, 124852, 94454, 27437, 28181, 56705, 41272, 
+	114455, 71194, 57137, 94295, 22075, 71012, 98068, 4972, 3674, 65977, 
+	100267, 85369, 5135, 135988, 72022, 1382, 34686, 147332, 41812, 28748, 
+	67431, 75021, 6087, 1904, 1747, 75216, 32773, 12619, 134365, 122043, 
+	12472, 109146, 40092, 1179, 47114, 60362, 7733, 25120, 32149, 61762, 
+	126194, 2473, 24550, 33741, 22542, 29648, 68799, 372, 14759, 4420, 
+	122218, 115770, 11635, 40806, 5109, 200049, 50072, 135160, 128155, 78683, 
+	250908, 21261, 133847, 188522, 79927, 18060, 121196, 80770, 69660, 30155, 
+	74666, 20550, 18463, 52066, 40764, 36043, 24574, 17210, 55087, 42619, 
+	19320, 6026, 17221, 30996, 52355, 62543, 2856, 308138, 9975, 5428, 
+	39726, 1759, 24200, 6970, 154491, 59163, 144476, 46342, 64023, 78238, 
+	71701, 52740, 30958, 122696, 6737, 210973, 32609, 19114, 58624, 92640, 
+	12948, 11073, 16901, 25895, 21842, 9027, 60460, 33030, 67370, 44786, 
+	113286, 85555, 29815, 37009, 75025, 23515, 65613, 104071, 7267, 63431, 
+	96262, 8044, 61330, 19289, 78340, 12648, 198796, 175488, 22506, 31865, 
+	83995, 94606, 113201, 11202, 10724, 33568, 54055, 43569, 191502, 5594, 
+	24091, 27495, 6129, 128914, 51810, 33524, 29688, 35199, 39280, 108535, 
+	1736, 70288, 10865, 5106, 185582, 82878, 955, 3329, 2251, 138742, 
+	93783, 74610, 35624, 98287, 67057, 8956, 3387, 48018, 6227, 100255, 
+	36146, 55132, 49590, 11123, 158871, 457652, 57564, 50630, 4577, 2105, 
+	44065, 14316, 105841, 120794, 1948, 2004, 12254, 126543, 7061, 26528, 
+	45784, 70172, 44564, 143614, 39200, 75869, 14353, 127113, 70557, 38980, 
+	63364, 14319, 18884, 256, 44183, 16794, 45418, 126627, 31531, 60619, 
+	16674, 99942, 16293, 4961, 57609, 247725, 102578, 76154, 4376, 74861, 
+	27560, 14614, 158129, 126472, 79987, 20773, 61268, 1874, 130509, 870, 
+	57357, 10848, 15044, 9971, 35590, 20488, 13594, 30216, 149806, 1096, 
+	64153, 32166, 114746, 83875, 22065, 53825, 24118, 41806, 236143, 6033, 
+	51233, 82133, 22722, 70053, 24220, 121801, 28752, 106039, 35457, 43791, 
+	99575, 241399, 3328, 39177, 59918, 46609, 2050, 177764, 32959, 44877, 
+	97421, 70882, 86683, 137432, 28277, 4848, 65459, 86324, 11610, 111098, 
+	198344, 10291, 83710, 39609, 33945, 11683, 93409, 28102, 20296, 64664, 
+	1384, 23191, 168994, 31248, 81598, 179948, 1255, 7520, 8735, 23643, 
+	27822, 136323, 25917, 18533, 105920, 50395, 98221, 2001, 46451, 191395, 
+	12709, 5158, 74971, 76936, 104398, 11660, 55449, 208248, 31366, 73869, 
+	66816, 163398, 195525, 17431, 22347, 32792, 83361, 66235, 19852, 13907, 
+	52216, 40466, 9592, 110002, 10990, 71981, 87843, 271672, 20693, 26582, 
+	21839, 250793, 18064, 18993, 45669, 26660, 109817, 48143, 96317, 14468, 
+	21931, 10907, 367206, 56636, 42977, 84096, 78926, 50284, 151140, 16814, 
+	1581, 46599, 18978, 28613, 165947, 1030, 95786, 49411, 161086, 52389, 
+	221160, 8204, 32467, 24016, 462, 12787, 116808, 9401, 7582, 154849, 
+	14292, 101912, 2662, 36954, 47938, 84462, 119556, 63212, 15535, 112705, 
+	11959, 12403, 226703, 60436, 48242, 180368, 20683, 13789, 38857, 72504, 
+	62740, 27778, 16689, 126445, 63668, 135369, 16489, 91265, 87614, 256543, 
+	31608, 63165, 8084, 48884, 60285, 233181, 133145, 67325, 38060, 82702, 
+	274112, 1546, 17121, 72008, 63213, 66714, 4427, 26378, 94263, 36210, 
+	28045, 4909, 57592, 77438, 49088, 85309, 35021, 68525, 64373, 118736, 
+	73554, 33662, 31448, 22889, 9562, 51823, 38785, 93493, 109255, 7238, 
+	107680, 222970, 81756, 128621, 2719, 283622, 231398, 73223, 70508, 11794, 
+	81074, 132458, 79351, 36119, 21610, 28900, 61319, 186803, 78521, 107741, 
+	96212, 63336, 151983, 43585, 9506, 108319, 12565, 72059, 31944, 184186, 
+	72624, 119317, 3929, 69397, 31659, 19319, 76104, 16688, 2118, 101192, 
+	48160, 97739, 20241, 133014, 48221, 19220, 5980, 127621, 18732, 177, 
+	10627, 157980, 7145, 43432, 60647, 132588, 51314, 9458, 22465, 13920, 
+	148416, 16017, 56429, 161205, 49038, 20341, 18729, 66404, 126427, 59051, 
+	93406, 66991, 61963, 23362, 67901, 11674, 96360, 32335, 130778, 39768, 
+	75, 11013, 7055, 104552, 9149, 54963, 2738, 28738, 25418, 48211, 
+	39567, 47613, 19398, 177205, 29822, 104444, 115853, 31753, 26932, 48801, 
+	111612, 25639, 44335, 94548, 84888, 14268, 10561, 50159, 37092, 19300, 
+	37845, 45460, 36084, 59780, 40756, 71487, 60695, 29116, 53714, 24781, 
+	58210, 137549, 65394, 34018, 56946, 4416, 1841, 58247, 53607, 32158, 
+	88902, 135830, 17041, 39545, 6724, 52312, 53347, 2825, 215441, 74588, 
+	19509, 38730, 2412, 127743, 32123, 92704, 179750, 50374, 21157, 222824, 
+	54796, 11741, 46491, 45248, 285619, 32196, 106068, 287634, 2688, 118090, 
+	82950, 7794, 33720, 2455, 102322, 100087, 169239, 39274, 6861, 66819, 
+	114355, 7949, 23741, 54772, 23483, 94184, 14850, 182793, 55775, 57186, 
+	6405, 222525, 20364, 69784, 125103, 119738, 30484, 25932, 109801, 71021, 
+	67308, 20082, 26806, 30199, 74329, 43277, 65960, 14599, 1792, 104329, 
+	25474, 15522, 87555, 60020, 103660, 41229, 115987, 19328, 69277, 102703, 
+	53647, 113118, 10548, 19783, 27221, 17091, 14797, 61259, 43178, 28954, 
+	123513, 29391, 23953, 70469, 28759, 57824, 19168, 13562, 4571, 26173, 
+	21807, 88451, 42122, 80482, 1114, 29348, 32714, 12145, 45059, 140758, 
+	21086, 1404, 93598, 22266, 38093, 62994, 20323, 25937, 97720, 200142, 
+	37172, 45408, 2590, 4616, 9409, 143829, 38195, 22823, 59868, 79751, 
+	28362, 298864, 29197, 66153, 65205, 118892, 41497, 127505, 44291, 9390, 
+	247172, 112067, 129931, 66836, 36417, 164541, 226592, 4711, 58305, 56688, 
+	95081, 159350, 235037, 123980, 9143, 94471, 73153, 11363, 93164, 63362, 
+	86526, 24756, 14070, 16924, 83332, 4100, 317190, 285610, 61499, 27712, 
+	76315, 4835, 40248, 5447, 12097, 81545, 12833, 37877, 242159, 91197, 
+	2425, 26630, 2519, 152473, 65756, 32133, 248062, 4329, 39461, 27326, 
+	33558, 98007, 35090, 200461, 19532, 28572, 115567, 10390, 83286, 58626, 
+	88522, 12284, 6507, 7279, 66431, 55510, 2911, 25166, 1303, 495978, 
+	66969, 161276, 5564, 26862, 122295, 50245, 26803, 227395, 357530, 6129, 
+	2874, 24150, 9499, 52916, 14152, 141953, 21624, 22911, 42470, 52998, 
+	1080, 37439, 131336, 59290, 38910, 29273, 94703, 8312, 116959, 51277, 
+	849, 40262, 190652, 11850, 38769, 87731, 143411, 65908, 50669, 4674, 
+	125631, 98358, 39497, 144991, 101800, 44453, 113984, 47609, 2319, 88314, 
+	22946, 31369, 99638, 7495, 260385, 116804, 136433, 70265, 98192, 31726, 
+	12780, 17332, 3003, 47373, 74798, 26352, 5939, 15375, 8675, 101575, 
+	164102, 100976, 101627, 10537, 54993, 31846, 126637, 20135, 158708, 7478, 
+	25893, 28672, 66730, 39996, 126228, 20288, 77905, 34495, 19051, 12352, 
+	55961, 124354, 58053, 5836, 17005, 28713, 5440, 61023, 67395, 11906, 
+	191543, 46119, 5766, 9724, 136234, 20108, 34132, 113384, 49581, 23655, 
+	55773, 108438, 12770, 2401, 31206, 25771, 1512, 15106, 95593, 18175, 
+	130805, 25440, 214098, 136438, 53509, 290766, 15849, 1552, 65290, 725, 
+	22352, 147274, 29787, 81667, 3047, 1360, 154794, 12339, 21770, 56408, 
+	33675, 129531, 91341, 137661, 37828, 97543, 22518, 69127, 108482, 2514, 
+	12634, 11975, 126573, 142228, 87169, 91641, 146065, 21746, 42517, 19841, 
+	10163, 100527, 174806, 3410, 90965, 152821, 57522, 36897, 113679, 20895, 
+	85751, 74220, 45532, 38417, 83189, 187113, 47798, 84865, 19093, 96824, 
+	10547, 263601, 59486, 86011, 10869, 201270, 68189, 6550, 71153, 51180, 
+	46722, 321280, 28734, 29270, 196742, 36713, 
 };
 
 BOOST_FIXTURE_TEST_SUITE(claimtrie_tests, TestingSetup)
@@ -1185,8 +1276,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 {
     unsigned int block_counter = 0;
-    CNoncePrinter noncePrinter;
-    CNoncePrinter* pnp = &noncePrinter;
+    //CNoncePrinter noncePrinter;
+    CNoncePrinter* pnp = NULL;//&noncePrinter;
     
     BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
 
@@ -1202,7 +1293,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     std::vector<CTransaction> coinbases;
 
-    BOOST_CHECK(CreateCoinbases(3, coinbases, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateCoinbases(3, coinbases, pnp, support_nonces1, block_counter));
 
     CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
     tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
@@ -1247,7 +1338,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     // Put tx1 in the blockchain
 
     AddToMempool(tx1);
-    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces1, block_counter));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx1.GetHash()));
@@ -1258,13 +1349,13 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // advance 20 blocks
 
-    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces1, block_counter));
 
     // Put tx3 into the blockchain
 
     AddToMempool(tx3);
 
-    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces1, block_counter));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx3.GetHash()));
@@ -1273,13 +1364,13 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // advance 20 blocks
 
-    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces1, block_counter));
 
     // Put tx2 into the blockchain
 
     AddToMempool(tx2);
 
-    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces1, block_counter));
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx2.GetHash()));
     BOOST_CHECK(pclaimTrie->empty());
@@ -1287,12 +1378,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // advance until tx1 is valid
 
-    BOOST_CHECK(CreateBlocks(59, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(59, 1, pnp, support_nonces1, block_counter));
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
     
-    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces1, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
@@ -1304,12 +1395,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     
     // advance until tx3 is valid
     
-    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces1, block_counter));
 
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
 
-    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces1, block_counter));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(!pclaimTrie->supportEmpty());
@@ -1317,12 +1408,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // advance until tx2 is valid
 
-    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces1, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
-    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces1, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1333,7 +1424,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     AddToMempool(tx6);
     
-    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces1, block_counter));
 
     // verify tx2 gains control
 
@@ -1358,7 +1449,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.txhash == tx1.GetHash());
 
-    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces1, block_counter));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(!pclaimTrie->supportEmpty());
@@ -1366,12 +1457,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // advance until tx2 is valid
 
-    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces1, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
-    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces1, block_counter));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(!pclaimTrie->empty());
@@ -1382,7 +1473,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     // spend tx3
     AddToMempool(tx6);
 
-    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces1, block_counter));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     // verify tx2 gains control
@@ -1417,7 +1508,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     AddToMempool(tx6);
 
-    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces1, block_counter));
 
     // Verify tx2 gains control
 
@@ -1437,7 +1528,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     AddToMempool(tx6);
 
-    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces1, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
@@ -1446,9 +1537,9 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // advance until tx2 is valid
 
-    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces1, block_counter));
 
-    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces1, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1463,13 +1554,13 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // advance 20 blocks
 
-    BOOST_CHECK(CreateBlocks(20, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(20, 1, pnp, support_nonces1, block_counter));
 
     // Put tx2 into the blockchain
 
     AddToMempool(tx2);
 
-    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces1, block_counter));
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx2.GetHash()));
     BOOST_CHECK(pclaimTrie->empty());
@@ -1477,12 +1568,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // advance until tx1 is valid
 
-    BOOST_CHECK(CreateBlocks(59, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(59, 1, pnp, support_nonces1, block_counter));
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
     
-    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces1, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
@@ -1494,12 +1585,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     
     // advance until tx2 is valid
 
-    BOOST_CHECK(CreateBlocks(39, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(39, 1, pnp, support_nonces1, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
-    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces1, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1510,14 +1601,64 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
+    //noncePrinter.printNonces();
+}
 
+BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
+{
+    unsigned int block_counter = 0;
+    //CNoncePrinter noncePrinter;
+    CNoncePrinter* pnp = NULL;//&noncePrinter;
+    
+    BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
+
+    LOCK(cs_main);
+
+    std::string sName("atest");
+    std::string sValue1("testa");
+    std::string sValue2("testb");
+
+    std::vector<unsigned char> vchName(sName.begin(), sName.end());
+    std::vector<unsigned char> vchValue1(sValue1.begin(), sValue1.end());
+    std::vector<unsigned char> vchValue2(sValue2.begin(), sValue2.end());
+
+    std::vector<CTransaction> coinbases;
+
+    BOOST_CHECK(CreateCoinbases(3, coinbases, pnp, support_nonces2, block_counter));
+
+    CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
+    tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
+    tx1.vout[0].nValue = 100000000;
+
+    CMutableTransaction tx2 = BuildTransaction(coinbases[1]);
+    tx2.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
+    tx2.vout[0].nValue = 500000000;
+
+    CMutableTransaction tx3 = BuildTransaction(coinbases[2]);
+    uint256 tx1Hash = tx1.GetHash();
+    std::vector<unsigned char> vchTx1Hash(tx1Hash.begin(), tx1Hash.end());
+    tx3.vout[0].scriptPubKey = CScript() << OP_SUPPORT_CLAIM << vchName << vchTx1Hash << CScriptNum(0) << OP_2DROP << OP_2DROP << OP_TRUE;
+    tx3.vout[0].nValue = 500000000;
+
+    CMutableTransaction tx4 = BuildTransaction(tx1);
+    tx4.vout[0].scriptPubKey = CScript() << OP_TRUE;
+
+    CMutableTransaction tx5 = BuildTransaction(tx2);
+    tx5.vout[0].scriptPubKey = CScript() << OP_TRUE;
+
+    CMutableTransaction tx6 = BuildTransaction(tx3);
+    tx6.vout[0].scriptPubKey = CScript() << OP_TRUE;
+
+    CNodeValue val;
+    std::vector<uint256> blocks_to_invalidate;
+    
     // Test 2: create 1 LBC claim (tx1), create 5 LBC claim (tx2), create 5 LBC support (tx3)
     // Verify that tx1 loses control when tx2 becomes valid, and then tx1 gains control when tx3 becomes valid
     // Then, verify that tx2 regains control when A) tx3 is spent and B) tx3 is undone
     
     AddToMempool(tx1);
 
-    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
     
     BOOST_CHECK(pcoinsTip->HaveCoins(tx1.GetHash()));
@@ -1528,13 +1669,13 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     
     // advance 20 blocks
     
-    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces2, block_counter));
 
     // put tx2 into the blockchain
 
     AddToMempool(tx2);
 
-    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx2.GetHash()));
     BOOST_CHECK(pclaimTrie->empty());
@@ -1544,25 +1685,25 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // advance 20 blocks
 
-    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces2, block_counter));
 
     // put tx3 into the blockchain
 
     AddToMempool(tx3);
 
-    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx3.GetHash()));
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
 
     // advance until tx1 is valid
 
-    BOOST_CHECK(CreateBlocks(59, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(59, 1, pnp, support_nonces2, block_counter));
 
-    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces2, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
@@ -1573,9 +1714,9 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // advance until tx2 is valid
 
-    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces2, block_counter));
 
-    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces2, block_counter));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1586,9 +1727,10 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     // advance until tx3 is valid
 
-    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(19, 1, pnp, support_nonces2, block_counter));
 
-    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces2, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1597,20 +1739,454 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.txhash == tx1.GetHash());
 
+    // spend tx3
+
+    AddToMempool(tx6);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx2.GetHash());
+
+    // undo spend
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+
+    // roll back to before tx3 is valid
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx2.GetHash());
+
+    // roll all the way back
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+
     // Test 4: create 1 LBC claim (tx1), wait till valid, create 5 LBC claim (tx2), create 5 LBC support (tx3)
     // Verify that tx1 retains control throughout
+
+    // put tx1 into the blockchain
+
+    AddToMempool(tx1);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(pcoinsTip->HaveCoins(tx1.GetHash()));
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+
+    // advance until tx1 is valid
+
+    BOOST_CHECK(CreateBlocks(99, 1, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces2, block_counter));
+    
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+
+    // put tx2 into the blockchain
+
+    AddToMempool(tx2);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+
+    // advance some, insert tx3, should be immediately valid
+
+    BOOST_CHECK(CreateBlocks(49, 1, pnp, support_nonces2, block_counter));
+
+    AddToMempool(tx3);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+
+    // advance until tx2 is valid, verify tx1 retains control
+
+    BOOST_CHECK(CreateBlocks(49, 1, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+
+    // roll all the way back
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
 
     // Test 5: create 5 LBC claim (tx2), wait till valid, create 1 LBC claim (tx1), create 5 LBC support (tx3)
     // Verify that tx2 retains control until support becomes valid
 
+    // insert tx2 into the blockchain
+
+    AddToMempool(tx2);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+    
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+
+    // advance until tx2 is valid
+
+    BOOST_CHECK(CreateBlocks(99, 1, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx2.GetHash());
+
+    // insert tx1 into the block chain
+
+    AddToMempool(tx1);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx2.GetHash());
+
+    // advance some
+    
+    BOOST_CHECK(CreateBlocks(49, 1, pnp, support_nonces2, block_counter));
+
+    // insert tx3 into the block chain
+
+    AddToMempool(tx3);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
+    
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx2.GetHash());
+
+    // advance until tx1 is valid
+
+    BOOST_CHECK(CreateBlocks(49, 1, pnp, support_nonces2, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces2, block_counter));
+    
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx2.GetHash());
+
+    // advance until tx3 is valid
+
+    BOOST_CHECK(CreateBlocks(49, 1, pnp, support_nonces2, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces2, block_counter));
+    
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+
+    // roll all the way back
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+
+
     // Test 6: create 1 LBC claim (tx1), wait till valid, create 5 LBC claim (tx2), create 5 LBC support (tx3), spend tx1
     // Verify that tx1 retains control until it is spent
 
+    AddToMempool(tx1);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    
+    // advance until tx1 is valid
+
+    BOOST_CHECK(CreateBlocks(99, 1, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+    
+    // insert tx2 into the blockchain
+
+    AddToMempool(tx2);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+    
+    // advance some, insert tx3
+
+    BOOST_CHECK(CreateBlocks(49, 1, pnp, support_nonces2, block_counter));
+
+    AddToMempool(tx3);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+    
+    // advance until tx2 is valid
+
+    BOOST_CHECK(CreateBlocks(49, 1, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+    
+    // spend tx1
+
+    AddToMempool(tx4);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx2.GetHash());
+    
+    // undo spend of tx1
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+    
+    // roll all the way back
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    
     // Test 7: create 1 LBC claim (tx1), wait till valid, create 5 LBC support (tx3), spend tx1
     // Verify name trie is empty
 
+    // insert tx1 into blockchain
+    AddToMempool(tx1);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    
+    // advance until tx1 is valid
+
+    BOOST_CHECK(CreateBlocks(99, 1, pnp, support_nonces2, block_counter));
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    
+    // insert tx3 into blockchain
+
+    AddToMempool(tx3);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    
+    // spent tx1
+
+    AddToMempool(tx4);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+
+    // roll all the way back
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    
     // Test 8: create 1 LBC claim (tx1), create 5 LBC support (tx3), wait till tx1 valid, spend tx1, wait till tx3 valid
     // Verify name trie is empty
+
+    // insert tx1 into the blockchain
+
+    AddToMempool(tx1);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    
+    // move forward a bit
+
+    BOOST_CHECK(CreateBlocks(49, 1, pnp, support_nonces2, block_counter));
+
+    // insert tx3 into the blockchain
+
+    AddToMempool(tx3);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+    
+    // advance until tx1 is valid
+
+    BOOST_CHECK(CreateBlocks(49, 1, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+    
+    // spend tx1
+
+    AddToMempool(tx4);
+
+    BOOST_CHECK(CreateBlocks(1, 2, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+    
+    // advance until tx3 is valid
+
+    BOOST_CHECK(CreateBlocks(48, 1, pnp, support_nonces2, block_counter));
+
+    BOOST_CHECK(CreateBlocks(1, 1, pnp, support_nonces2, block_counter));
+    
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+
+    // roll all the way back
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    
     //noncePrinter.printNonces();
 }
 
