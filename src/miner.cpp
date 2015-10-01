@@ -326,8 +326,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                         assert(vvchParams.size() == 3);
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         uint256 supportedTxid(vvchParams[1]);
-                        CScriptNum snOut(vvchParams[2], true);
-                        int supportednOut = snOut.getint();
+                        uint32_t supportednOut = vch_to_uint32_t(vvchParams[2]);
                         int throwaway;
                         if (!trieCache.spendSupport(name, txin.prevout.hash, txin.prevout.n, supportedTxid, supportednOut, coins->nHeight, throwaway))
                             LogPrintf("%s: Something went wrong removing the support\n", __func__);
@@ -366,8 +365,9 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                         assert(vvchParams.size() == 3);
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         uint256 supportedTxid(vvchParams[1]);
-                        CScriptNum snOut(vvchParams[2], true);
-                        int supportednOut = snOut.getint();
+                        uint32_t supportednOut = vch_to_uint32_t(vvchParams[2]);
+                        //CScriptNum snOut(vvchParams[2], true);
+                        //int supportednOut = snOut.getint();
                         if (!trieCache.addSupport(name, tx.GetHash(), i, txout.nValue, supportedTxid, supportednOut, nHeight))
                         {
                             LogPrintf("%s: Something went wrong inserting the name\n", __func__);

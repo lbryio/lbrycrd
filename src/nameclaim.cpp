@@ -1,6 +1,29 @@
 #include "nameclaim.h"
 #include "util.h"
 
+std::vector<unsigned char> uint32_t_to_vch(uint32_t n)
+{
+    std::vector<unsigned char> vchN;
+    vchN.resize(4);
+    vchN[0] = n >> 24;
+    vchN[1] = n >> 16;
+    vchN[2] = n >> 8;
+    vchN[3] = n;
+    return vchN;
+}
+
+uint32_t vch_to_uint32_t(std::vector<unsigned char>& vchN)
+{
+    uint32_t n;
+    if (vchN.size() != 4)
+    {
+        LogPrintf("%s() : a vector<unsigned char> with size other than 4 has been given", __func__);
+        return 0;
+    }
+    n = vchN[0] << 24 | vchN[1] << 16 | vchN[2] << 8 | vchN[3];
+    return n;
+}
+
 bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams)
 {
     CScript::const_iterator pc = scriptIn.begin();
@@ -41,7 +64,11 @@ bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector
     }
     if (op == OP_SUPPORT_CLAIM)
     {
-        if (!scriptIn.GetOp(pc, opcode) || opcode < 0 || opcode > OP_PUSHDATA4)
+        if (!scriptIn.GetOp(pc, opcode, vchParam3) || opcode < 0 || opcode > OP_PUSHDATA4)
+        {
+            return false;
+        }
+        if (vchParam3.size() != 4)
         {
             return false;
         }
@@ -60,6 +87,8 @@ bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector
     if (op == OP_SUPPORT_CLAIM)
     {
         vvchParams.push_back(vchParam3);
+        if (vchParam2.size() != (256/8))
+            return false;
     }
     
     return true;
@@ -68,6 +97,11 @@ bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector
 CScript StripClaimScriptPrefix(const CScript& scriptIn)
 {
     int op;
+    return StripClaimScriptPrefix(scriptIn, op);
+}
+
+CScript StripClaimScriptPrefix(const CScript& scriptIn, int& op)
+{
     std::vector<std::vector<unsigned char> > vvchParams;
     CScript::const_iterator pc = scriptIn.begin();
 

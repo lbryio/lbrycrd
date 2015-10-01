@@ -244,6 +244,22 @@ bool CClaimTrie::haveClaim(const std::string& name, const uint256& txhash, uint3
     return current->haveValue(txhash, nOut);
 }
 
+
+bool CClaimTrie::haveSupport(const std::string& name, const uint256& txhash, uint32_t nOut) const
+{
+    supportMapNodeType node;
+    if (!getSupportNode(name, node))
+    {
+        return false;
+    }
+    for (supportMapNodeType::const_iterator itnode = node.begin(); itnode != node.end(); ++itnode)
+    {
+        if (itnode->txhash == txhash && itnode->nOut == nOut)
+            return true;
+    }
+    return false;
+}
+
 unsigned int CClaimTrie::getTotalNamesInTrie() const
 {
     if (empty())
@@ -461,6 +477,17 @@ void CClaimTrie::updateSupportQueue(int nHeight, std::vector<CSupportValueQueueE
 bool CClaimTrie::getSupportNode(std::string name, supportMapNodeType& node)
 {
     supportMapType::iterator itNode = dirtySupportNodes.find(name);
+    if (itNode != dirtySupportNodes.end())
+    {
+        node = itNode->second;
+        return true;
+    }
+    return db.Read(std::make_pair(SUPPORT, name), node);
+}
+
+bool CClaimTrie::getSupportNode(std::string name, supportMapNodeType& node) const
+{
+    supportMapType::const_iterator itNode = dirtySupportNodes.find(name);
     if (itNode != dirtySupportNodes.end())
     {
         node = itNode->second;
@@ -1387,7 +1414,7 @@ bool CClaimTrieCache::insertSupportIntoMap(const std::string name, CSupportNodeV
     return reorderTrieNode(name);
 }
 
-bool CClaimTrieCache::removeSupportFromMap(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, int supportednOut, int nHeight, int& nValidAtHeight) const
+bool CClaimTrieCache::removeSupportFromMap(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, uint32_t supportednOut, int nHeight, int& nValidAtHeight) const
 {
     supportMapType::iterator cachedNode;
     cachedNode = supportCache.find(name);
@@ -1444,7 +1471,7 @@ supportValueQueueType::iterator CClaimTrieCache::getSupportQueueCacheRow(int nHe
     return itQueueRow;
 }
 
-bool CClaimTrieCache::addSupportToQueue(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, uint256 supportedTxhash, int supportednOut, int nHeight, int nValidAtHeight) const
+bool CClaimTrieCache::addSupportToQueue(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, uint256 supportedTxhash, uint32_t supportednOut, int nHeight, int nValidAtHeight) const
 {
     LogPrintf("%s: nValidAtHeight: %d\n", __func__, nValidAtHeight);
     CSupportNodeValue val(txhash, nOut, supportedTxhash, supportednOut, nAmount, nHeight, nValidAtHeight);
@@ -1454,7 +1481,7 @@ bool CClaimTrieCache::addSupportToQueue(const std::string name, uint256 txhash, 
     return true;
 }
 
-bool CClaimTrieCache::removeSupportFromQueue(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, int supportednOut, int nHeightToCheck, int& nValidAtHeight) const
+bool CClaimTrieCache::removeSupportFromQueue(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, uint32_t supportednOut, int nHeightToCheck, int& nValidAtHeight) const
 {
     supportValueQueueType::iterator itQueueRow = getSupportQueueCacheRow(nHeightToCheck, false);
     if (itQueueRow == supportQueueCache.end())
@@ -1479,7 +1506,7 @@ bool CClaimTrieCache::removeSupportFromQueue(const std::string name, uint256 txh
     return false;
 }
 
-bool CClaimTrieCache::addSupport(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, uint256 supportedTxhash, int supportednOut, int nHeight) const
+bool CClaimTrieCache::addSupport(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, uint256 supportedTxhash, uint32_t supportednOut, int nHeight) const
 {
     LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedTxhash: %s, supportednOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, nAmount, supportedTxhash.GetHex(), supportednOut, nHeight, nCurrentHeight);
     assert(nHeight == nCurrentHeight);
@@ -1495,7 +1522,7 @@ bool CClaimTrieCache::addSupport(const std::string name, uint256 txhash, uint32_
     return addSupportToQueue(name, txhash, nOut, nAmount, supportedTxhash, supportednOut, nHeight, nHeight + DEFAULT_DELAY);
 }
 
-bool CClaimTrieCache::undoSpendSupport(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, uint256 supportedTxhash, int supportednOut, int nHeight, int nValidAtHeight) const
+bool CClaimTrieCache::undoSpendSupport(const std::string name, uint256 txhash, uint32_t nOut, CAmount nAmount, uint256 supportedTxhash, uint32_t supportednOut, int nHeight, int nValidAtHeight) const
 {
     LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedTxhash: %s, supportednOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, nAmount, supportedTxhash.GetHex(), supportednOut, nHeight, nCurrentHeight);
     if (nValidAtHeight < nCurrentHeight)
@@ -1510,7 +1537,7 @@ bool CClaimTrieCache::undoSpendSupport(const std::string name, uint256 txhash, u
     }
 }
 
-bool CClaimTrieCache::removeSupport(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, int supportednOut, int nHeight, int& nValidAtHeight) const
+bool CClaimTrieCache::removeSupport(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, uint32_t supportednOut, int nHeight, int& nValidAtHeight) const
 {
     bool removed = false;
     if (nHeight + DEFAULT_DELAY >= nCurrentHeight)
@@ -1525,14 +1552,14 @@ bool CClaimTrieCache::removeSupport(const std::string name, uint256 txhash, uint
     return removed;
 }
 
-bool CClaimTrieCache::undoAddSupport(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, int supportednOut, int nHeight) const
+bool CClaimTrieCache::undoAddSupport(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, uint32_t supportednOut, int nHeight) const
 {
     LogPrintf("%s: name: %s, txhash: %s, nOut: %d, supportedTxhash: %s, supportednOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, supportedTxhash.GetHex(), supportednOut, nHeight, nCurrentHeight);
     int throwaway;
     return removeSupport(name, txhash, nOut, supportedTxhash, supportednOut, nHeight, throwaway);
 }
 
-bool CClaimTrieCache::spendSupport(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, int supportednOut, int nHeight, int& nValidAtHeight) const
+bool CClaimTrieCache::spendSupport(const std::string name, uint256 txhash, uint32_t nOut, uint256 supportedTxhash, uint32_t supportednOut, int nHeight, int& nValidAtHeight) const
 {
     LogPrintf("%s: name: %s, txhash: %s, nOut: %d, supportedTxhash: %s, supportednOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, txhash.GetHex(), nOut, supportedTxhash.GetHex(), supportednOut, nHeight, nCurrentHeight);
     return removeSupport(name, txhash, nOut, supportedTxhash, supportednOut, nHeight, nValidAtHeight);

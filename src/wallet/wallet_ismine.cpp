@@ -40,11 +40,24 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
     vector<valtype> vSolutions;
     txnouttype whichType;
     isminetype spendable_type = ISMINE_SPENDABLE;
+   
+    int opcode;
     
-    CScript strippedScriptPubKey = StripClaimScriptPrefix(scriptPubKey);
+    CScript strippedScriptPubKey = StripClaimScriptPrefix(scriptPubKey, opcode);
     if (strippedScriptPubKey != scriptPubKey)
     {
-        spendable_type = ISMINE_CLAIM;
+        if (opcode == OP_CLAIM_NAME)
+        {
+            spendable_type = ISMINE_CLAIM;
+        }
+        else if (opcode == OP_SUPPORT_CLAIM)
+        {
+            spendable_type = ISMINE_SUPPORT;
+        }
+        else
+        {
+            spendable_type = ISMINE_NO;
+        }
     }
 
 

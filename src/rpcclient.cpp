@@ -98,6 +98,10 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "abandonclaim", 2},
     { "listnameclaims", 0},
     { "listnameclaims", 1},
+    { "listnameclaims", 2},
+    { "supportclaim", 2},
+    { "supportclaim", 3},
+    { "abandonsupport", 2},
     { "gettotalvalueofclaims", 0},
 };
 

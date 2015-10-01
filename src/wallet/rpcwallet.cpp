@@ -347,7 +347,7 @@ UniValue getaddressesbyaccount(const UniValue& params, bool fHelp)
     return ret;
 }
 
-void ClaimName(const std::vector<unsigned char> vchName, const std::vector<unsigned char> vchValue, CAmount nAmount, CWalletTx& wtxNew)
+void CreateClaim(CScript& claimScript, CAmount nAmount, CWalletTx& wtxNew)
 {
     // Check amount
     if (nAmount <= 0)
@@ -360,7 +360,7 @@ void ClaimName(const std::vector<unsigned char> vchName, const std::vector<unsig
     if (pwalletMain->IsLocked())
     {
         strError = "Error: Wallet locked, unable to create transaction!";
-        LogPrintf("SendMoney() : %s", strError);
+        LogPrintf("%s() : %s", __func__, strError);
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
 
@@ -370,7 +370,6 @@ void ClaimName(const std::vector<unsigned char> vchName, const std::vector<unsig
         throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
 
     CScript scriptPubKey = GetScriptForDestination(CTxDestination(newKey.GetID()));
-    CScript claimScript = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
     claimScript = claimScript + scriptPubKey;
 
     vector<CRecipient> vecSend;
@@ -385,7 +384,7 @@ void ClaimName(const std::vector<unsigned char> vchName, const std::vector<unsig
     {
         if (nAmount + nFeeRequired > pwalletMain->GetBalance())
             strError = strprintf("Error: This transaction requires a transaction fee of at least %s because if its amount, complexity, or use of recently received funds!", FormatMoney(nFeeRequired));
-        LogPrintf("ClaimName() : %s\n", strError);
+        LogPrintf("%s() : %s\n", __func__, strError);
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
     if (!pwalletMain->CommitTransaction(wtxNew, reservekey))
@@ -419,7 +418,9 @@ UniValue claimname(const UniValue& params, bool fHelp)
 
     EnsureWalletIsUnlocked();
 
-    ClaimName(vchName, vchValue, nAmount, wtx);
+    CScript claimScript = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
+    
+    CreateClaim(claimScript, nAmount, wtx);
 
     return wtx.GetHash().GetHex();
 }
@@ -438,7 +439,7 @@ void UpdateName(const std::vector<unsigned char> vchName, const std::vector<unsi
     if (pwalletMain->IsLocked())
     {
         strError = "Error: Wallet locked, unable to create transaction!";
-        LogPrintf("UpdateName() : %s", strError);
+        LogPrintf("%s() : %s", __func__, strError);
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
 
@@ -463,7 +464,7 @@ void UpdateName(const std::vector<unsigned char> vchName, const std::vector<unsi
     {
         if (nAmount + nFeeRequired - wtxIn.vout[nTxOut].nValue > pwalletMain->GetBalance())
             strError = strprintf("Error: This transaction requires a transaction fee of at leaste %s because of its amount, complexity, or use of recently received funds!", FormatMoney(nFeeRequired));
-        LogPrintf("ClaimName() : %s\n", strError);
+        LogPrintf("%s() : %s\n", __func__, strError);
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
     if (!pwalletMain->CommitTransaction(wtxNew, reservekey))
@@ -527,7 +528,7 @@ UniValue updateclaim(const UniValue& params, bool fHelp)
 }
 
 
-void AbandonName(const CTxDestination &address, CAmount nAmount, CWalletTx& wtxNew, CWalletTx wtxIn, unsigned int nTxOut)
+void AbandonClaim(const CTxDestination &address, CAmount nAmount, CWalletTx& wtxNew, CWalletTx wtxIn, unsigned int nTxOut)
 {
     // Check amount
     if (nAmount <= 0)
@@ -540,7 +541,7 @@ void AbandonName(const CTxDestination &address, CAmount nAmount, CWalletTx& wtxN
     if (pwalletMain->IsLocked())
     {
         strError = "Error: Wallet locked, unable to create transaction!";
-        LogPrintf("AbandonName() : %s", strError);
+        LogPrintf("%s() : %s", __func__, strError);
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
 
@@ -558,7 +559,7 @@ void AbandonName(const CTxDestination &address, CAmount nAmount, CWalletTx& wtxN
     {
         if (nAmount + nFeeRequired - wtxIn.vout[nTxOut].nValue > pwalletMain->GetBalance())
             strError = strprintf("Error: This transaction requires a transaction fee of a least %s because of its amount, complexity, or use of recently received funds!", FormatMoney(nFeeRequired));
-        LogPrintf("AbandonName() : %s\n", strError);
+        LogPrintf("%s() : %s\n", __func__, strError);
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
     if (!pwalletMain->CommitTransaction(wtxNew, reservekey))
@@ -588,7 +589,7 @@ UniValue abandonclaim(const UniValue& params, bool fHelp)
 
     CBitcoinAddress address(params[1].get_str());
     if (!address.IsValid())
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Bitcoin address");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid LBRYcrd address");
 
     CAmount nAmount = AmountFromValue(params[2]);
 
@@ -610,7 +611,7 @@ UniValue abandonclaim(const UniValue& params, bool fHelp)
             if (DecodeClaimScript(wtx.vout[i].scriptPubKey, op, vvchParams))
             {
                 EnsureWalletIsUnlocked();
-                AbandonName(address.Get(), nAmount, wtxNew, wtx, i);
+                AbandonClaim(address.Get(), nAmount, wtxNew, wtx, i);
                 fFound = true;
             }
         }
@@ -648,22 +649,31 @@ void ListNameClaims(const CWalletTx& wtx, const string& strAccount, int nMinDept
                 vector<vector<unsigned char> > vvchParams;
                 if (!DecodeClaimScript(scriptPubKey, op, vvchParams))
                 {
-                    LogPrintf("ListNameClaims(): Txout classified as name claim could not be decoded. Txid: %s", wtx.GetHash().ToString());
+                    LogPrintf("%s(): Txout classified as name claim could not be decoded. Txid: %s", __func__, wtx.GetHash().ToString());
                     continue;
                 }
-                else if (vvchParams.size() != 2)
+                else if (((op == OP_CLAIM_NAME) && (vvchParams.size() != 2)) || ((op == OP_SUPPORT_CLAIM) && (vvchParams.size() != 3)))
                 {
-                    LogPrintf("ListNameClaims(): Wrong number of params to name claim script. Got %d, expected 2. Txid: %s", vvchParams.size(), wtx.GetHash().ToString());
+                    LogPrintf("%s(): Wrong number of params to name claim script. Got %d, expected %d. Txid: %s", __func__, vvchParams.size(), ((op == OP_CLAIM_NAME) ? 2 : 3), wtx.GetHash().ToString());
                     continue;
                 }
                 string sName (vvchParams[0].begin(), vvchParams[0].end());
-                string sValue (vvchParams[1].begin(), vvchParams[1].end());
                 entry.push_back(Pair("name", sName));
-                entry.push_back(Pair("value", sValue));
+                if (op == OP_CLAIM_NAME)
+                {
+                    string sValue (vvchParams[1].begin(), vvchParams[1].end());
+                    entry.push_back(Pair("value", sValue));
+                }
+                else if (op == OP_SUPPORT_CLAIM)
+                {
+                    uint256 txhash(vvchParams[1]);
+                    entry.push_back(Pair("supported_txid", txhash.GetHex()));
+                    CScriptNum snOut(vvchParams[2], true);
+                    entry.push_back(Pair("supported_nOut", snOut.getint()));
+                }
                 entry.push_back(Pair("txid", wtx.GetHash().ToString()));
                 entry.push_back(Pair("account", strSentAccount));
                 MaybePushAddress(entry, s.destination);
-                entry.push_back(Pair("category", "name"));
                 entry.push_back(Pair("amount", ValueFromAmount(s.amount)));
                 entry.push_back(Pair("vout", s.vout));
                 entry.push_back(Pair("fee", ValueFromAmount(nFee)));
@@ -688,7 +698,14 @@ void ListNameClaims(const CWalletTx& wtx, const string& strAccount, int nMinDept
                 }
                 entry.push_back(Pair("confirmations", wtx.GetDepthInMainChain()));
                 entry.push_back(Pair("is spent", pwalletMain->IsSpent(wtx.GetHash(), s.vout)));
-                entry.push_back(Pair("is in name trie", pclaimTrie->haveClaim(sName, wtx.GetHash(), s.vout)));
+                if (op == OP_CLAIM_NAME)
+                {
+                    entry.push_back(Pair("is in name trie", pclaimTrie->haveClaim(sName, wtx.GetHash(), s.vout)));
+                }
+                else if (op == OP_SUPPORT_CLAIM)
+                {
+                    entry.push_back(Pair("is in support map", pclaimTrie->haveSupport(sName, wtx.GetHash(), s.vout)));
+                }
                 ret.push_back(entry);
             }
         }
@@ -702,18 +719,20 @@ UniValue listnameclaims(const UniValue& params, bool fHelp)
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
     
-    if (fHelp || params.size() > 2)
+    if (fHelp || params.size() > 3)
         throw runtime_error(
             "listnameclaims activeonly minconf\n"
             "Return a list of all transactions claiming names.\n"
             "\nArguments\n"
-            "1. activeonly    (bool, optional, not implemented) Whether to only include transactions which are still active, i.e. have not been spent. Default is false.\n"
-            "2. minconf       (numeric, optional, default=1) Only include transactions confirmed at least this many time.\n"
+            "1. includesupports  (bool, optional) Whether to also include claim supports. Default is true.\n"
+            "2. activeonly    (bool, optional, not implemented) Whether to only include transactions which are still active, i.e. have not been spent. Default is false.\n"
+            "3. minconf       (numeric, optional, default=1) Only include transactions confirmed at least this many time.\n"
             "\nResult:\n"
             "[\n"
             "  {\n"
             "    \"name\":\"claimedname\",        (string) The name that is claimed.\n"
-            "    \"value\":\"value\"              (string) The value assigned to the name.\n"
+            "    \"claimtype\":\"claimtype\",     (string) CLAIM or SUPPORT.\n"
+            "    \"value\":\"value\"              (string) The value assigned to the name, if claimtype is CLAIM.\n"
             "    \"account\":\"accountname\",     (string) The account name associated with the transaction. \n"
             "                                              It will be \"\" for the default account.\n"
             "    \"address\":\"lbrycrdaddress\",  (string) The lbrycrd address of the transaction.\n"
@@ -735,16 +754,19 @@ UniValue listnameclaims(const UniValue& params, bool fHelp)
         );
 
     string strAccount = "*";
-    
-    bool fListSpent = true;
-    if (params.size() > 0)
-        fListSpent = !params[0].get_bool();
+
     isminefilter claim_filter = ISMINE_CLAIM;
+    if (params.size() < 1 || params[0].get_bool())
+        claim_filter |= ISMINE_SUPPORT;
+            
+    bool fListSpent = true;
+    if (params.size() > 1)
+        fListSpent = !params[1].get_bool();
 
     // Minimum confirmations
     int nMinDepth = 1;
-    if (params.size() > 1)
-        nMinDepth = params[1].get_int();
+    if (params.size() > 2)
+        nMinDepth = params[2].get_int();
     
     UniValue ret(UniValue::VARR);
 
@@ -771,6 +793,100 @@ UniValue listnameclaims(const UniValue& params, bool fHelp)
 }
 
 
+UniValue supportclaim(const UniValue& params, bool fHelp)
+{
+    if (!EnsureWalletIsAvailable(fHelp))
+        return NullUniValue;
+
+    if (fHelp || params.size() != 4)
+        throw runtime_error(
+            "supportclaim \"name\" \"txid\" nout amount\n"
+            "Increase the value of a claim. Whichever claim has the greatest value, including all support values, will be the authoritative claim, according to the rest of the rules. The name is the name which is claimed by the claim that will be supported, the txid is the txid of the claim that will be supported, nout is the transaction output which contains the claim to be supported, and amount is the amount which will be added to the value of the claim. If the claim is currently the authoritative claim, this support will go into effect immediately. Otherwise, it will go into effect after 100 blocks. The support will be in effect until it is spent, and will lose its effect when the claim is spent or expires. The amount is a real and is rounded to the nearest .00000001\n"
+            + HelpRequiringPassphrase() +
+            "\nArguments:\n"
+            "1. \"name\"  (string, required) The name claimed by the claim to support.\n"
+            "2. \"txid\"  (string, required) The transaction id of the claim to support.\n"
+            "3. \"nout\"  (integer, required) The transaction output of the transaction which contains the claim to be supported.\n"
+            "4. \"amount\"  (numeric, required) The amount in LBC to use to support the claim.\n"
+            "\nResult:\n"
+            "\"transactionid\"  (string) The transaction id of the support.\n"
+        );
+
+    string sName = params[0].get_str();
+    string sTxid = params[1].get_str();
+    uint256 txid;
+    txid.SetHex(sTxid);
+    std::vector<unsigned char> vchName (sName.begin(), sName.end());
+    std::vector<unsigned char> vchTxid (txid.begin(), txid.end());
+    std::vector<unsigned char> vchnOut = uint32_t_to_vch(params[2].get_int());
+    CAmount nAmount = AmountFromValue(params[3]);
+
+    CWalletTx wtx;
+
+    EnsureWalletIsUnlocked();
+
+    CScript supportScript = CScript() << OP_SUPPORT_CLAIM << vchName << vchTxid << vchnOut << OP_2DROP << OP_2DROP;
+    
+    CreateClaim(supportScript, nAmount, wtx);
+
+    return wtx.GetHash().GetHex();
+}
+
+
+UniValue abandonsupport(const UniValue& params, bool fHelp)
+{
+    if (!EnsureWalletIsAvailable(fHelp))
+        return NullUniValue;
+
+    if (fHelp || params.size() != 3)
+        throw runtime_error(
+            "abandonsupport \"txid\" \"lbrycrdaddress\" \"amount\"\n"
+            "Create a transaction which spends a txout which supported a name claim, effectively abandoning that support.\n"
+            + HelpRequiringPassphrase() +
+            "\nArguments:\n"
+            "1. \"txid\"  (string, required) The transaction containing the unspent txout which should be spent.\n"
+            "2. \"lbrycrdaddress\"  (string, required) The lbrycrd address to send to.\n"
+            "3. \"amount\"  (numeric, required) The amount to send to the lbrycrd address. eg 0.1\n"
+            "\nResult:\n"
+            "\"transactionid\"  (string) The new transaction id.\n"
+        );
+
+    uint256 hash;
+    hash.SetHex(params[0].get_str());
+
+    CBitcoinAddress address(params[1].get_str());
+    if (!address.IsValid())
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid LBRYcrd address");
+
+    CAmount nAmount = AmountFromValue(params[2]);
+
+    isminefilter filter = ISMINE_SUPPORT;
+
+    UniValue entry;
+    if (!pwalletMain->mapWallet.count(hash))
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid or non-wallet transaction id");
+
+    const CWalletTx& wtx = pwalletMain->mapWallet[hash];
+    int op;
+    std::vector<std::vector<unsigned char> > vvchParams;
+    CWalletTx wtxNew;
+    bool fFound = false;
+    for (unsigned int i = 0; !fFound && i < wtx.vout.size(); ++i)
+    {
+        if (filter & pwalletMain->IsMine(wtx.vout[i]))
+        {
+            if (DecodeClaimScript(wtx.vout[i].scriptPubKey, op, vvchParams))
+            {
+                EnsureWalletIsUnlocked();
+                AbandonClaim(address.Get(), nAmount, wtxNew, wtx, i); // not a type, they do the same thing
+                fFound = true;
+            }
+        }
+    }
+    if (!fFound)
+        throw runtime_error("Error: The given transaction contains no support scripts owned by this wallet");
+    return wtxNew.GetHash().GetHex();
+}
 
 
 static void SendMoney(const CTxDestination &address, CAmount nValue, bool fSubtractFeeFromAmount, CWalletTx& wtxNew)

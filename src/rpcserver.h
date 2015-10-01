@@ -181,6 +181,8 @@ extern UniValue claimname(const UniValue& params, bool fHelp);
 extern UniValue listnameclaims(const UniValue& params, bool fHelp);
 extern UniValue updateclaim(const UniValue& params, bool fHelp);
 extern UniValue abandonclaim(const UniValue& params, bool fHelp);
+extern UniValue supportclaim(const UniValue& params, bool fHelp);
+extern UniValue abandonsupport(const UniValue& params, bool fHelp);
 extern UniValue sendtoaddress(const UniValue& params, bool fHelp);
 extern UniValue signmessage(const UniValue& params, bool fHelp);
 extern UniValue verifymessage(const UniValue& params, bool fHelp);

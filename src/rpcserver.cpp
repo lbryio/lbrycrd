@@ -370,6 +370,8 @@ static const CRPCCommand vRPCCommands[] =
     { "wallet",             "listnameclaims",         &listnameclaims,         false },
     { "wallet",             "updateclaim",            &updateclaim,            false },
     { "wallet",             "abandonclaim",           &abandonclaim,           false },
+    { "wallet",             "supportclaim",           &supportclaim,           false },
+    { "wallet",             "abandonsupport",         &abandonsupport,         false },
     { "wallet",             "sendtoaddress",          &sendtoaddress,          false },
     { "wallet",             "setaccount",             &setaccount,             true  },
     { "wallet",             "settxfee",               &settxfee,               true  },

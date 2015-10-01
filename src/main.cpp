@@ -1644,8 +1644,7 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CClaimTr
             assert(vvchParams.size() == 3);
             std::string name(vvchParams[0].begin(), vvchParams[0].end());
             uint256 supportedTxid(vvchParams[1]);
-            CScriptNum snOut(vvchParams[2], true);
-            int supportednOut = snOut.getint();
+            uint32_t supportednOut = vch_to_uint32_t(vvchParams[2]);;
             int nValidHeight = undo.nClaimValidHeight;
             if (nValidHeight > 0 && nValidHeight >= coins->nHeight)
             {
@@ -1729,8 +1728,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                     assert(vvchParams.size() == 3);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     uint256 supportedTxid(vvchParams[1]);
-                    CScriptNum snOut(vvchParams[2], true);
-                    int supportednOut = snOut.getint();
+                    uint32_t supportednOut = vch_to_uint32_t(vvchParams[2]);;
                     LogPrintf("%s: (txid: %s, nOut: %d) Removing support for %s from txid %s nOut %d due to its block being disconnected\n", __func__, hash.ToString(), i, supportedTxid.ToString(), supportednOut, name.c_str());
                     if (!trieCache.undoAddSupport(name, hash, i, supportedTxid, supportednOut, pindex->nHeight))
                         LogPrintf("%s: Something went wrong removing support for name %s in hash %s\n", __func__, name.c_str(), hash.ToString());
@@ -2028,8 +2026,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         assert(vvchParams.size() == 3);
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         uint256 supportedTxid(vvchParams[1]);
-                        CScriptNum snOut(vvchParams[2], true);
-                        int supportednOut = snOut.getint();
+                        uint32_t supportednOut = vch_to_uint32_t(vvchParams[2]);;
                         int nValidAtHeight;
                         LogPrintf("%s: Removing support for %s in txid %s nOut %d. Tx: %s, nOut: %d\n", __func__, name, supportedTxid.ToString(), supportednOut, txin.prevout.hash.ToString(), txin.prevout.n);
                         if (trieCache.spendSupport(name, txin.prevout.hash, txin.prevout.n, supportedTxid, supportednOut, coins->nHeight, nValidAtHeight))
@@ -2071,8 +2068,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         assert(vvchParams.size() == 3);
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         uint256 supportedTxid(vvchParams[1]);
-                        CScriptNum snOut(vvchParams[2], true);
-                        int supportednOut = snOut.getint();
+                        uint32_t supportednOut = vch_to_uint32_t(vvchParams[2]);;
                         if (!trieCache.addSupport(name, tx.GetHash(), i, txout.nValue, supportedTxid, supportednOut, pindex->nHeight))
                             LogPrintf("%s: Something went wrong inserting the support\n", __func__);
                     }

@@ -19,7 +19,8 @@ enum isminetype
     ISMINE_WATCH_ONLY = 1,
     ISMINE_SPENDABLE = 2,
     ISMINE_CLAIM = 4,
-    ISMINE_ALL = ISMINE_WATCH_ONLY | ISMINE_SPENDABLE | ISMINE_CLAIM
+    ISMINE_SUPPORT = 8,
+    ISMINE_ALL = ISMINE_WATCH_ONLY | ISMINE_SPENDABLE | ISMINE_CLAIM | ISMINE_SUPPORT
 };
 /** used for bitflags of isminetype */
 typedef uint8_t isminefilter;
