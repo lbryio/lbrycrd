@@ -993,7 +993,7 @@ void CWalletTx::GetAmounts(list<COutputEntry>& listReceived,
         COutputEntry output = {address, txout.nValue, (int)i};
 
         // If we are debited by the transaction, add the output as a "sent" entry
-        if (nDebit > 0 || filter | ISMINE_CLAIM || filter | ISMINE_SUPPORT)
+        if (nDebit > 0 || filter & ISMINE_CLAIM || filter & ISMINE_SUPPORT)
             listSent.push_back(output);
 
         // If we are receiving the output, add it as a "received" entry
