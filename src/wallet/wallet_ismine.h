@@ -6,8 +6,9 @@
 #ifndef BITCOIN_WALLET_WALLET_ISMINE_H
 #define BITCOIN_WALLET_WALLET_ISMINE_H
 
-#include "key.h"
 #include "script/standard.h"
+
+#include <stdint.h>
 
 class CKeyStore;
 class CScript;
@@ -16,10 +17,14 @@ class CScript;
 enum isminetype
 {
     ISMINE_NO = 0,
-    ISMINE_WATCH_ONLY = 1,
-    ISMINE_SPENDABLE = 2,
-    ISMINE_CLAIM = 4,
-    ISMINE_SUPPORT = 8,
+    //! Indicates that we dont know how to create a scriptSig that would solve this if we were given the appropriate private keys
+    ISMINE_WATCH_UNSOLVABLE = 1,
+    //! Indicates that we know how to create a scriptSig that would solve this if we were given the appropriate private keys
+    ISMINE_WATCH_SOLVABLE = 2,
+    ISMINE_WATCH_ONLY = ISMINE_WATCH_SOLVABLE | ISMINE_WATCH_UNSOLVABLE,
+    ISMINE_SPENDABLE = 4,
+    ISMINE_CLAIM = 8,
+    ISMINE_SUPPORT = 16,
     ISMINE_ALL = ISMINE_WATCH_ONLY | ISMINE_SPENDABLE | ISMINE_CLAIM | ISMINE_SUPPORT
 };
 /** used for bitflags of isminetype */

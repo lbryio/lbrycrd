@@ -22,7 +22,21 @@
 /** This is needed because the foreach macro can't get over the comma in pair<t1, t2> */
 #define PAIRTYPE(t1, t2)    std::pair<t1, t2>
 
-std::string SanitizeString(const std::string& str);
+/** Used by SanitizeString() */
+enum SafeChars
+{
+    SAFE_CHARS_DEFAULT, //!< The full set of allowed chars
+    SAFE_CHARS_UA_COMMENT //!< BIP-0014 subset
+};
+
+/**
+* Remove unsafe chars. Safe chars chosen to allow simple messages/URLs/email
+* addresses, but avoid anything even possibly remotely dangerous like & or >
+* @param[in] str    The string to sanitize
+* @param[in] rule   The set of safe chars to choose (default: least restrictive)
+* @return           A new string without unsafe chars
+*/
+std::string SanitizeString(const std::string& str, int rule = SAFE_CHARS_DEFAULT);
 std::vector<unsigned char> ParseHex(const char* psz);
 std::vector<unsigned char> ParseHex(const std::string& str);
 signed char HexDigit(char c);
@@ -108,5 +122,12 @@ bool TimingResistantEqual(const T& a, const T& b)
         accumulator |= a[i] ^ b[i%b.size()];
     return accumulator == 0;
 }
+
+/** Parse number as fixed point according to JSON number syntax.
+ * See http://json.org/number.gif
+ * @returns true on success, false on error.
+ * @note The result must be in the range (-10^18,10^18), otherwise an overflow error will trigger.
+ */
+bool ParseFixedPoint(const std::string &val, int decimals, int64_t *amount_out);
 
 #endif // BITCOIN_UTILSTRENCODINGS_H

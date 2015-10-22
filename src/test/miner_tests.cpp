@@ -2,12 +2,17 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include "chainparams.h"
+#include "coins.h"
 #include "consensus/validation.h"
 #include "main.h"
 #include "miner.h"
 #include "pubkey.h"
+#include "script/standard.h"
+#include "txmempool.h"
 #include "uint256.h"
 #include "util.h"
+#include "utilstrencodings.h"
 
 #include "test/test_bitcoin.h"
 
@@ -131,7 +136,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         pblock->vtx[0] = CTransaction(txCoinbase);
         if (txFirst.size() < 2)
             txFirst.push_back(new CTransaction(pblock->vtx[0]));
-        pblock->hashMerkleRoot = pblock->BuildMerkleTree();
+        pblock->hashMerkleRoot = pblock->ComputeMerkleRoot();
         pblock->nNonce = nonces[i];
         /*bool fFound = false;
         for (int j = 0; !fFound; j++)

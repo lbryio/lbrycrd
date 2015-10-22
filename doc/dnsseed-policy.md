@@ -7,7 +7,7 @@ As such, DNS seeds must be run by entities which have some minimum
 level of trust within the Bitcoin community.
 
 Other implementations of Bitcoin software may also use the same
-seeds and may be more exposed. In light of this exposure, this 
+seeds and may be more exposed. In light of this exposure, this
 document establishes some basic expectations for operating dnsseeds.
 
 0. A DNS seed operating organization or person is expected to follow good
@@ -43,7 +43,8 @@ related to the DNS seed operation.
 
 If these expectations cannot be satisfied the operator should
 discontinue providing services and contact the active Bitcoin
-Core development team as well as posting on bitcoin-development.
+Core development team as well as posting on
+[bitcoin-dev](https://lists.linuxfoundation.org/mailman/listinfo/bitcoin-dev).
 
 Behavior outside of these expectations may be reasonable in some
 situations but should be discussed in public in advance.

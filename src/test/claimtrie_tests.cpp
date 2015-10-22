@@ -6,10 +6,12 @@
 #include "consensus/validation.h"
 #include "primitives/transaction.h"
 #include "miner.h"
+#include "txmempool.h"
 #include "claimtrie.h"
 #include "nameclaim.h"
 #include "coins.h"
 #include "streams.h"
+#include "chainparams.h"
 #include <boost/test/unit_test.hpp>
 #include <iostream>
 #include "test/test_bitcoin.h"
@@ -412,7 +414,7 @@ bool CreateBlock(CBlockTemplate* pblocktemplate, CNoncePrinter * pnp, int nonce)
     txCoinbase.vin[0].scriptSig = CScript() << CScriptNum(unique_block_counter++) << CScriptNum(chainActive.Height());
     txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height(), Params().GetConsensus());
     pblock->vtx[0] = CTransaction(txCoinbase);
-    pblock->hashMerkleRoot = pblock->BuildMerkleTree();
+    pblock->hashMerkleRoot = pblock->ComputeMerkleRoot();
     if (!pnp)
         pblock->nNonce = nonce;
     else

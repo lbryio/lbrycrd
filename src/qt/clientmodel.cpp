@@ -4,6 +4,7 @@
 
 #include "clientmodel.h"
 
+#include "bantablemodel.h"
 #include "guiconstants.h"
 #include "peertablemodel.h"
 
@@ -11,7 +12,6 @@
 #include "chainparams.h"
 #include "checkpoints.h"
 #include "clientversion.h"
-#include "main.h"
 #include "net.h"
 #include "ui_interface.h"
 #include "util.h"
@@ -27,6 +27,7 @@ ClientModel::ClientModel(OptionsModel *optionsModel, QObject *parent) :
     QObject(parent),
     optionsModel(optionsModel),
     peerTableModel(0),
+    banTableModel(0),
     cachedNumBlocks(0),
     cachedBlockDate(QDateTime()),
     cachedReindexing(0),
@@ -34,6 +35,7 @@ ClientModel::ClientModel(OptionsModel *optionsModel, QObject *parent) :
     pollTimer(0)
 {
     peerTableModel = new PeerTableModel(this);
+    banTableModel = new BanTableModel(this);
     pollTimer = new QTimer(this);
     connect(pollTimer, SIGNAL(timeout()), this, SLOT(updateTimer()));
     pollTimer->start(MODEL_UPDATE_DELAY);
@@ -53,9 +55,9 @@ int ClientModel::getNumConnections(unsigned int flags) const
         return vNodes.size();
 
     int nNum = 0;
-    BOOST_FOREACH(CNode* pnode, vNodes)
-    if (flags & (pnode->fInbound ? CONNECTIONS_IN : CONNECTIONS_OUT))
-        nNum++;
+    BOOST_FOREACH(const CNode* pnode, vNodes)
+        if (flags & (pnode->fInbound ? CONNECTIONS_IN : CONNECTIONS_OUT))
+            nNum++;
 
     return nNum;
 }
@@ -117,15 +119,15 @@ void ClientModel::updateTimer()
         cachedReindexing = fReindex;
         cachedImporting = fImporting;
 
-        emit numBlocksChanged(newNumBlocks, newBlockDate);
+        Q_EMIT numBlocksChanged(newNumBlocks, newBlockDate);
     }
 
-    emit bytesChanged(getTotalBytesRecv(), getTotalBytesSent());
+    Q_EMIT bytesChanged(getTotalBytesRecv(), getTotalBytesSent());
 }
 
 void ClientModel::updateNumConnections(int numConnections)
 {
-    emit numConnectionsChanged(numConnections);
+    Q_EMIT numConnectionsChanged(numConnections);
 }
 
 void ClientModel::updateAlert(const QString &hash, int status)
@@ -138,11 +140,11 @@ void ClientModel::updateAlert(const QString &hash, int status)
         CAlert alert = CAlert::getAlertByHash(hash_256);
         if(!alert.IsNull())
         {
-            emit message(tr("Network Alert"), QString::fromStdString(alert.strStatusBar), CClientUIInterface::ICON_ERROR);
+            Q_EMIT message(tr("Network Alert"), QString::fromStdString(alert.strStatusBar), CClientUIInterface::ICON_ERROR);
         }
     }
 
-    emit alertsChanged(getStatusBarWarnings());
+    Q_EMIT alertsChanged(getStatusBarWarnings());
 }
 
 bool ClientModel::inInitialBlockDownload() const
@@ -177,9 +179,19 @@ PeerTableModel *ClientModel::getPeerTableModel()
     return peerTableModel;
 }
 
+BanTableModel *ClientModel::getBanTableModel()
+{
+    return banTableModel;
+}
+
 QString ClientModel::formatFullVersion() const
 {
     return QString::fromStdString(FormatFullVersion());
+}
+
+QString ClientModel::formatSubVersion() const
+{
+    return QString::fromStdString(strSubVersion);
 }
 
 QString ClientModel::formatBuildDate() const
@@ -200,6 +212,11 @@ QString ClientModel::clientName() const
 QString ClientModel::formatClientStartupTime() const
 {
     return QDateTime::fromTime_t(nClientStartupTime).toString();
+}
+
+void ClientModel::updateBanlist()
+{
+    banTableModel->refresh();
 }
 
 // Handlers for core signals
@@ -226,12 +243,19 @@ static void NotifyAlertChanged(ClientModel *clientmodel, const uint256 &hash, Ch
                               Q_ARG(int, status));
 }
 
+static void BannedListChanged(ClientModel *clientmodel)
+{
+    qDebug() << QString("%1: Requesting update for peer banlist").arg(__func__);
+    QMetaObject::invokeMethod(clientmodel, "updateBanlist", Qt::QueuedConnection);
+}
+
 void ClientModel::subscribeToCoreSignals()
 {
     // Connect signals to client
     uiInterface.ShowProgress.connect(boost::bind(ShowProgress, this, _1, _2));
     uiInterface.NotifyNumConnectionsChanged.connect(boost::bind(NotifyNumConnectionsChanged, this, _1));
     uiInterface.NotifyAlertChanged.connect(boost::bind(NotifyAlertChanged, this, _1, _2));
+    uiInterface.BannedListChanged.connect(boost::bind(BannedListChanged, this));
 }
 
 void ClientModel::unsubscribeFromCoreSignals()
@@ -240,4 +264,5 @@ void ClientModel::unsubscribeFromCoreSignals()
     uiInterface.ShowProgress.disconnect(boost::bind(ShowProgress, this, _1, _2));
     uiInterface.NotifyNumConnectionsChanged.disconnect(boost::bind(NotifyNumConnectionsChanged, this, _1));
     uiInterface.NotifyAlertChanged.disconnect(boost::bind(NotifyAlertChanged, this, _1, _2));
+    uiInterface.BannedListChanged.disconnect(boost::bind(BannedListChanged, this));
 }

@@ -10,6 +10,7 @@
 #include "script/script.h"
 #include "script/standard.h"
 #include "nameclaim.h"
+#include "script/sign.h"
 
 #include <boost/foreach.hpp>
 
@@ -60,10 +61,9 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
         }
     }
 
-
     if (!Solver(strippedScriptPubKey, whichType, vSolutions)) {
-        if (keystore.HaveWatchOnly(strippedScriptPubKey))
-            return ISMINE_WATCH_ONLY;
+        if (keystore.HaveWatchOnly(scriptPubKey))
+            return ISMINE_WATCH_UNSOLVABLE;
         return ISMINE_NO;
     }
 
@@ -108,7 +108,10 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
     }
     }
 
-    if (keystore.HaveWatchOnly(scriptPubKey))
-        return ISMINE_WATCH_ONLY;
+    if (keystore.HaveWatchOnly(scriptPubKey)) {
+        // TODO: This could be optimized some by doing some work after the above solver
+        CScript scriptSig;
+        return ProduceSignature(DummySignatureCreator(&keystore), scriptPubKey, scriptSig) ? ISMINE_WATCH_SOLVABLE : ISMINE_WATCH_UNSOLVABLE;
+    }
     return ISMINE_NO;
 }

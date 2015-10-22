@@ -1,7 +1,7 @@
 #include "main.h"
 #include "nameclaim.h"
 #include "rpcserver.h"
-#include "univalue/univalue.h"
+#include "univalue.h"
 
 UniValue getclaimtrie(const UniValue& params, bool fHelp)
 {

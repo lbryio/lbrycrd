@@ -11,7 +11,7 @@
 
 #include "primitives/transaction.h"
 #include "init.h"
-#include "main.h"
+#include "main.h" // For minRelayTxFee
 #include "protocol.h"
 #include "script/script.h"
 #include "script/standard.h"
@@ -404,7 +404,7 @@ void SubstituteFonts(const QString& language)
 {
 #if defined(Q_OS_MAC)
 // Background:
-// OSX's default font changed in 10.9 and QT is unable to find it with its
+// OSX's default font changed in 10.9 and Qt is unable to find it with its
 // usual fallback methods when building against the 10.7 sdk or lower.
 // The 10.8 SDK added a function to let it find the correct fallback font.
 // If this fallback is not properly loaded, some characters may fail to

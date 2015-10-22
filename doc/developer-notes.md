@@ -1,5 +1,5 @@
-Coding
-====================
+Developer Notes
+===============
 
 Various coding styles have been used during the history of the codebase,
 and the result is not very consistent. However, we're now trying to converge to
@@ -57,7 +57,7 @@ As Doxygen recognizes the comments by the delimiters (`/**` and `*/` in this cas
 
 To describe a class use the same construct above the class definition:
 ```c++
-/** 
+/**
  * Alerts are for notifying old versions if they become too obsolete and
  * need to upgrade. The message is displayed in the status bar.
  * @see GetWarnings()
@@ -171,16 +171,3 @@ Threads
 - BitcoinMiner : Generates bitcoins (if wallet is enabled).
 
 - Shutdown : Does an orderly shutdown of everything.
-
-Pull Request Terminology
-------------------------
-
-Concept ACK - Agree with the idea and overall direction, but have neither reviewed nor tested the code changes.
-
-utACK (untested ACK) - Reviewed and agree with the code changes but haven't actually tested them.
-
-Tested ACK - Reviewed the code changes and have verified the functionality or bug fix.
-
-ACK -  A loose ACK can be confusing. It's best to avoid them unless it's a documentation/comment only change in which case there is nothing to test/verify; therefore the tested/untested distinction is not there.
-
-NACK - Disagree with the code changes/concept. Should be accompanied by an explanation.

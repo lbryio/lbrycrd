@@ -31,32 +31,13 @@ uint256 CNodeValue::GetHash() const
 bool CClaimTrieNode::insertValue(CNodeValue val)//, bool * pfChanged)
 {
     LogPrintf("%s: Inserting %s:%d (amount: %d)  into the claim trie\n", __func__, val.txhash.ToString(), val.nOut, val.nAmount);
-    //bool fChanged = false;
-    
-    //if (values.empty())
-    //{
     values.push_back(val);
-    //    fChanged = true;
-    //}
-    //else
-    //{
-    //    CNodeValue currentTop = values.front();
-    //    values.push_back(val);
-    //    std::make_heap(values.begin(), values.end());
-    //    if (currentTop != values.front())
-    //        fChanged = true;
-    //}
-    //if (pfChanged)
-    //    *pfChanged = fChanged;
     return true;
 }
 
 bool CClaimTrieNode::removeValue(uint256& txhash, uint32_t nOut, CNodeValue& val)//, bool * pfChanged)
 {
     LogPrintf("%s: Removing txid: %s, nOut: %d from the claim trie\n", __func__, txhash.ToString(), nOut);
-    //bool fChanged = false;
-
-    //CNodeValue currentTop = values.front();
 
     std::vector<CNodeValue>::iterator position;
     for (position = values.begin(); position != values.end(); ++position)
@@ -79,16 +60,6 @@ bool CClaimTrieNode::removeValue(uint256& txhash, uint32_t nOut, CNodeValue& val
         }
         return false;
     }
-    //if (!values.empty())
-    //{
-    //    std::make_heap(values.begin(), values.end());
-    //    if (currentTop != values.front())
-    //        fChanged = true;
-    //}
-    //else
-    //    fChanged = true;
-    //if (pfChanged)
-    //    *pfChanged = fChanged;
     return true;
 }
 
@@ -145,27 +116,24 @@ bool CClaimTrie::empty() const
     return root.empty();
 }
 
-bool CClaimTrie::keyTypeEmpty(char key) const
+template<typename K> bool CClaimTrie::keyTypeEmpty(char keyType, K& dummy) const
 {
-    boost::scoped_ptr<leveldb::Iterator> pcursor(const_cast<CLevelDBWrapper*>(&db)->NewIterator());
+    boost::scoped_ptr<CLevelDBIterator> pcursor(const_cast<CLevelDBWrapper*>(&db)->NewIterator());
     pcursor->SeekToFirst();
     
     while (pcursor->Valid())
     {
-        try
+        std::pair<char, K> key;
+        if (pcursor->GetKey(key))
         {
-            leveldb::Slice slKey = pcursor->key();
-            CDataStream ssKey(slKey.data(), slKey.data()+slKey.size(), SER_DISK, CLIENT_VERSION);
-            char chType;
-            ssKey >> chType;
-            if (chType == key)
+            if (key.first == keyType)
             {
                 return false;
             }
         }
-        catch (const std::exception& e)
+        else
         {
-            return error("%s: Deserialize or I/O error - %s", __func__, e.what());
+            break;
         }
         pcursor->Next();
     }
@@ -179,7 +147,8 @@ bool CClaimTrie::queueEmpty() const
         if (!itRow->second.empty())
             return false;
     }
-    return keyTypeEmpty(QUEUE_ROW);
+    int dummy;
+    return keyTypeEmpty(QUEUE_ROW, dummy);
 }
 
 bool CClaimTrie::expirationQueueEmpty() const
@@ -189,7 +158,8 @@ bool CClaimTrie::expirationQueueEmpty() const
         if (!itRow->second.empty())
             return false;
     }
-    return keyTypeEmpty(EXP_QUEUE_ROW);
+    int dummy;
+    return keyTypeEmpty(EXP_QUEUE_ROW, dummy);
 }
 
 bool CClaimTrie::supportEmpty() const
@@ -199,7 +169,8 @@ bool CClaimTrie::supportEmpty() const
         if (!itNode->second.empty())
             return false;
     }
-    return keyTypeEmpty(SUPPORT);
+    std::string dummy;
+    return keyTypeEmpty(SUPPORT, dummy);
 }
 
 bool CClaimTrie::supportQueueEmpty() const
@@ -209,7 +180,8 @@ bool CClaimTrie::supportQueueEmpty() const
         if (!itRow->second.empty())
             return false;
     }
-    return keyTypeEmpty(SUPPORT_QUEUE);
+    int dummy;
+    return keyTypeEmpty(SUPPORT_QUEUE, dummy);
 }
 
 void CClaimTrie::setExpirationTime(int t)
@@ -509,25 +481,6 @@ bool CClaimTrie::getSupportQueueRow(int nHeight, std::vector<CSupportValueQueueE
 
 bool CClaimTrie::update(nodeCacheType& cache, hashMapType& hashes, const uint256& hashBlockIn, valueQueueType& queueCache, valueQueueType& expirationQueueCache, int nNewHeight, supportMapType& supportCache, supportValueQueueType& supportQueueCache)
 {
-    // General strategy: the cache is ordered by length, ensuring child
-    // nodes are always inserted after their parents. Insert each node
-    // one at a time. When updating a node, swap its values with those
-    // of the cached node and delete all characters (and their children
-    // and so forth) which don't exist in the updated node. When adding
-    // a new node, make sure that its <character, CClaimTrieNode*> pair
-    // gets into the parent's children.
-    // Then, update all of the given hashes.
-    // This can probably be optimized by checking each substring against
-    // the caches each time, but that will come after this is shown to
-    // work correctly.
-    // Disk strategy: keep a map of <string: dirty node>, where
-    // any nodes that are changed get put into the map, and any nodes
-    // to be deleted will simply be empty (no value, no children). Nodes
-    // whose hashes change will also be inserted into the map.
-    // As far as the queue goes, just keep a list of dirty queue entries.
-    // When the time comes, send all of that to disk in one batch, and
-    // empty the map/list.
-    
     bool success = true;
     for (nodeCacheType::iterator itcache = cache.begin(); itcache != cache.end(); ++itcache)
     {
@@ -719,7 +672,7 @@ void CClaimTrie::BatchWriteSupportQueueRows(CLevelDBBatch& batch)
 
 bool CClaimTrie::WriteToDisk()
 {
-    CLevelDBBatch batch;
+    CLevelDBBatch batch(&db.GetObfuscateKey());
     for (nodeCacheType::iterator itcache = dirtyNodes.begin(); itcache != dirtyNodes.end(); ++itcache)
         BatchWriteNode(batch, itcache->first, itcache->second);
     dirtyNodes.clear();
@@ -757,39 +710,40 @@ bool CClaimTrie::InsertFromDisk(const std::string& name, CClaimTrieNode* node)
 
 bool CClaimTrie::ReadFromDisk(bool check)
 {
+    std::cout << "Trying to read the claim trie from disk" << std::endl;
     if (!db.Read(HASH_BLOCK, hashBlock))
         LogPrintf("%s: Couldn't read the best block's hash\n", __func__);
+    std::cout << "Read the best block's hash" << std::endl;
     if (!db.Read(CURRENT_HEIGHT, nCurrentHeight))
         LogPrintf("%s: Couldn't read the current height\n", __func__);
-    boost::scoped_ptr<leveldb::Iterator> pcursor(const_cast<CLevelDBWrapper*>(&db)->NewIterator());
+    std::cout << "Read the current height" << std::endl;
+    boost::scoped_ptr<CLevelDBIterator> pcursor(const_cast<CLevelDBWrapper*>(&db)->NewIterator());
     pcursor->SeekToFirst();
     
     while (pcursor->Valid())
     {
-        try
+        std::pair<char, std::string> key;
+        if (pcursor->GetKey(key))
         {
-            leveldb::Slice slKey = pcursor->key();
-            CDataStream ssKey(slKey.data(), slKey.data()+slKey.size(), SER_DISK, CLIENT_VERSION);
-            char chType;
-            ssKey >> chType;
-            if (chType == TRIE_NODE)
+            std::cout << "Got a key that looks good" << std::endl;
+            if (key.first == TRIE_NODE)
             {
-                leveldb::Slice slValue = pcursor->value();
-                std::string name;
-                ssKey >> name;
-                CDataStream ssValue(slValue.data(), slValue.data()+slValue.size(), SER_DISK, CLIENT_VERSION);
+                std::cout << "Got a trie node. name: " << key.second << std::endl;
                 CClaimTrieNode* node = new CClaimTrieNode();
-                ssValue >> *node;
-                if (!InsertFromDisk(name, node))
-                    return false;
+                if (pcursor->GetValue(*node))
+                {
+                    if (!InsertFromDisk(key.second, node))
+                    {
+                        return error("%s(): error restoring claim trie from disk", __func__);
+                    }
+                }
+                else
+                {
+                    return error("%s(): error reading claim trie from disk", __func__);
+                }
             }
-            pcursor->Next();
         }
-        catch (const std::exception& e)
-        {
-            return error("%s: Deserialize or I/O error - %s", __func__, e.what());
-        }
-
+        pcursor->Next();
     }
     if (check)
     {

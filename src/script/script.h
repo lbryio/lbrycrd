@@ -19,6 +19,10 @@
 
 static const unsigned int MAX_SCRIPT_ELEMENT_SIZE = 520; // bytes
 
+// Threshold for nLockTime: below this value it is interpreted as block number,
+// otherwise as UNIX timestamp.
+static const unsigned int LOCKTIME_THRESHOLD = 500000000; // Tue Nov  5 00:53:20 1985 UTC
+
 template <typename T>
 std::vector<unsigned char> ToByteVector(const T& in)
 {
@@ -149,9 +153,12 @@ enum opcodetype
     OP_CHECKMULTISIGVERIFY = 0xaf,
 
     // expansion
-    OP_CLAIM_NAME = 0xb0,
-    OP_SUPPORT_CLAIM = 0xb1,
+	OP_NOP1 = 0xb0,
+    OP_CLAIM_NAME = OP_NOP1,
+    OP_NOP2 = 0xb1,
+    OP_SUPPORT_CLAIM = OP_NOP2,
     OP_NOP3 = 0xb2,
+    OP_CHECKLOCKTIMEVERIFY = OP_NOP3,
     OP_NOP4 = 0xb3,
     OP_NOP5 = 0xb4,
     OP_NOP6 = 0xb5,
@@ -162,7 +169,6 @@ enum opcodetype
 
 
     // template matching params
-    OP_SMALLDATA = 0xf9,
     OP_SMALLINTEGER = 0xfa,
     OP_PUBKEYS = 0xfb,
     OP_PUBKEYHASH = 0xfd,
@@ -196,7 +202,10 @@ public:
         m_value = n;
     }
 
-    explicit CScriptNum(const std::vector<unsigned char>& vch, bool fRequireMinimal)
+    static const size_t nDefaultMaxNumSize = 4;
+
+    explicit CScriptNum(const std::vector<unsigned char>& vch, bool fRequireMinimal,
+                        const size_t nMaxNumSize = nDefaultMaxNumSize)
     {
         if (vch.size() > nMaxNumSize) {
             throw scriptnum_error("script number overflow");
@@ -318,8 +327,6 @@ public:
 
         return result;
     }
-
-    static const size_t nMaxNumSize = 4;
 
 private:
     static int64_t set_vch(const std::vector<unsigned char>& vch)
@@ -583,6 +590,7 @@ public:
     bool IsPayToScriptHash() const;
 
     /** Called by IsStandardTx and P2SH/BIP62 VerifyScript (which makes it consensus-critical). */
+    bool IsPushOnly(const_iterator pc) const;
     bool IsPushOnly() const;
 
     /**
@@ -595,12 +603,20 @@ public:
         return (size() > 0 && *begin() == OP_RETURN);
     }
 
-    std::string ToString() const;
     void clear()
     {
         // The default std::vector::clear() does not release memory.
         std::vector<unsigned char>().swap(*this);
     }
+};
+
+class CReserveScript
+{
+public:
+    CScript reserveScript;
+    virtual void KeepScript() {}
+    CReserveScript() {}
+    virtual ~CReserveScript() {}
 };
 
 #endif // BITCOIN_SCRIPT_SCRIPT_H

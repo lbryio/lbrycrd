@@ -215,7 +215,7 @@ class CClaimTrieCache;
 class CClaimTrie
 {
 public:
-    CClaimTrie(bool fMemory = false, bool fWipe = false) : db(GetDataDir() / "claimtrie", 100, fMemory, fWipe), nCurrentHeight(0), nExpirationTime(262974), root(uint256S("0000000000000000000000000000000000000000000000000000000000000001")) {}
+    CClaimTrie(bool fMemory = false, bool fWipe = false) : db(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false), nCurrentHeight(0), nExpirationTime(262974), root(uint256S("0000000000000000000000000000000000000000000000000000000000000001")) {}
     uint256 getMerkleHash();
     CLevelDBWrapper db;
     bool empty() const;
@@ -275,7 +275,7 @@ private:
     void BatchWriteExpirationQueueRows(CLevelDBBatch& batch);
     void BatchWriteSupportNodes(CLevelDBBatch& batch);
     void BatchWriteSupportQueueRows(CLevelDBBatch& batch);
-    bool keyTypeEmpty(char key) const;
+    template<typename K> bool keyTypeEmpty(char key, K& dummy) const;
 };
 
 class CClaimTrieCache

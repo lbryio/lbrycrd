@@ -13,6 +13,8 @@
 #include <QWidget>
 
 class ClientModel;
+class PlatformStyle;
+class RPCTimerInterface;
 
 namespace Ui {
     class RPCConsole;
@@ -29,7 +31,7 @@ class RPCConsole: public QWidget
     Q_OBJECT
 
 public:
-    explicit RPCConsole(QWidget *parent);
+    explicit RPCConsole(const PlatformStyle *platformStyle, QWidget *parent);
     ~RPCConsole();
 
     void setClientModel(ClientModel *model);
@@ -46,7 +48,7 @@ protected:
     virtual bool eventFilter(QObject* obj, QEvent *event);
     void keyPressEvent(QKeyEvent *);
 
-private slots:
+private Q_SLOTS:
     void on_lineEdit_returnPressed();
     void on_tabWidget_currentChanged(int index);
     /** open the debug.log from the current datadir */
@@ -59,9 +61,15 @@ private slots:
     void showEvent(QShowEvent *event);
     void hideEvent(QHideEvent *event);
     /** Show custom context menu on Peers tab */
-    void showMenu(const QPoint& point);
+    void showPeersTableContextMenu(const QPoint& point);
+    /** Show custom context menu on Bans tab */
+    void showBanTableContextMenu(const QPoint& point);
+    /** Hides ban table if no bans are present */
+    void showOrHideBanTableIfRequired();
+    /** clear the selected node */
+    void clearSelectedNode();
 
-public slots:
+public Q_SLOTS:
     void clear();
     void message(int category, const QString &message, bool html = false);
     /** Set number of connections shown in the UI */
@@ -76,10 +84,14 @@ public slots:
     void peerSelected(const QItemSelection &selected, const QItemSelection &deselected);
     /** Handle updated peer information */
     void peerLayoutChanged();
-	/** Disconnect a selected node on the Peers tab */
+    /** Disconnect a selected node on the Peers tab */
     void disconnectSelectedNode();
+    /** Ban a selected node on the Peers tab */
+    void banSelectedNode(int bantime);
+    /** Unban a selected node on the Bans tab */
+    void unbanSelectedNode();
 
-signals:
+Q_SIGNALS:
     // For RPC command executor
     void stopExecutor();
     void cmdRequest(const QString &command);
@@ -95,7 +107,10 @@ private:
     {
         ADDRESS_COLUMN_WIDTH = 200,
         SUBVERSION_COLUMN_WIDTH = 100,
-        PING_COLUMN_WIDTH = 80
+        PING_COLUMN_WIDTH = 80,
+        BANSUBNET_COLUMN_WIDTH = 200,
+        BANTIME_COLUMN_WIDTH = 250
+
     };
 
     Ui::RPCConsole *ui;
@@ -103,7 +118,10 @@ private:
     QStringList history;
     int historyPtr;
     NodeId cachedNodeid;
-    QMenu *contextMenu;
+    const PlatformStyle *platformStyle;
+    RPCTimerInterface *rpcTimerInterface;
+    QMenu *peersTableContextMenu;
+    QMenu *banTableContextMenu;
 };
 
 #endif // BITCOIN_QT_RPCCONSOLE_H

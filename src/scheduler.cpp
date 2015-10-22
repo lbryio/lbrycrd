@@ -4,6 +4,8 @@
 
 #include "scheduler.h"
 
+#include "reverselock.h"
+
 #include <assert.h>
 #include <boost/bind.hpp>
 #include <utility>
@@ -50,8 +52,10 @@ void CScheduler::serviceQueue()
                 // Keep waiting until timeout
             }
 #else
+            // Some boost versions have a conflicting overload of wait_until that returns void.
+            // Explicitly use a template here to avoid hitting that overload.
             while (!shouldStop() && !taskQueue.empty() &&
-                   newTaskScheduled.wait_until(lock, taskQueue.begin()->first) != boost::cv_status::timeout) {
+                   newTaskScheduled.wait_until<>(lock, taskQueue.begin()->first) != boost::cv_status::timeout) {
                 // Keep waiting until timeout
             }
 #endif
@@ -63,11 +67,12 @@ void CScheduler::serviceQueue()
             Function f = taskQueue.begin()->second;
             taskQueue.erase(taskQueue.begin());
 
-            // Unlock before calling f, so it can reschedule itself or another task
-            // without deadlocking:
-            lock.unlock();
-            f();
-            lock.lock();
+            {
+                // Unlock before calling f, so it can reschedule itself or another task
+                // without deadlocking:
+                reverse_lock<boost::unique_lock<boost::mutex> > rlock(lock);
+                f();
+            }
         } catch (...) {
             --nThreadsServicingQueue;
             throw;
