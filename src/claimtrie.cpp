@@ -603,7 +603,10 @@ bool CClaimTrie::updateHash(const std::string& name, uint256& hash)
 
 void CClaimTrie::BatchWriteNode(CLevelDBBatch& batch, const std::string& name, const CClaimTrieNode* pNode) const
 {
-    LogPrintf("%s: Writing %s to disk with %d values\n", __func__, name, pNode->values.size());
+    uint32_t num_values = 0;
+    if (pNode)
+        num_values = pNode->values.size();
+    LogPrintf("%s: Writing %s to disk with %d values\n", __func__, name, num_values);
     if (pNode)
         batch.Write(std::make_pair(TRIE_NODE, name), *pNode);
     else
@@ -710,13 +713,10 @@ bool CClaimTrie::InsertFromDisk(const std::string& name, CClaimTrieNode* node)
 
 bool CClaimTrie::ReadFromDisk(bool check)
 {
-    std::cout << "Trying to read the claim trie from disk" << std::endl;
     if (!db.Read(HASH_BLOCK, hashBlock))
         LogPrintf("%s: Couldn't read the best block's hash\n", __func__);
-    std::cout << "Read the best block's hash" << std::endl;
     if (!db.Read(CURRENT_HEIGHT, nCurrentHeight))
         LogPrintf("%s: Couldn't read the current height\n", __func__);
-    std::cout << "Read the current height" << std::endl;
     boost::scoped_ptr<CLevelDBIterator> pcursor(const_cast<CLevelDBWrapper*>(&db)->NewIterator());
     pcursor->SeekToFirst();
     
@@ -725,10 +725,8 @@ bool CClaimTrie::ReadFromDisk(bool check)
         std::pair<char, std::string> key;
         if (pcursor->GetKey(key))
         {
-            std::cout << "Got a key that looks good" << std::endl;
             if (key.first == TRIE_NODE)
             {
-                std::cout << "Got a trie node. name: " << key.second << std::endl;
                 CClaimTrieNode* node = new CClaimTrieNode();
                 if (pcursor->GetValue(*node))
                 {
