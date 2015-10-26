@@ -381,7 +381,6 @@ static const CRPCCommand vRPCCommands[] =
 
     /* NCC trie */
     { "nametrie",           "getnametrie",            &getnametrie,            true  },
-    { "nametrie",           "gettxinfoforname",       &gettxinfoforname,       true  },
     { "nametrie",           "getvalueforname",        &getvalueforname,        true  },
     { "nametrie",           "gettotalclaimednames",   &gettotalclaimednames,   true  },
     { "nametrie",           "gettotalclaims",         &gettotalclaims,         true  },
