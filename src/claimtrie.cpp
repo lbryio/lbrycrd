@@ -216,7 +216,6 @@ bool CClaimTrie::haveClaim(const std::string& name, const uint256& txhash, uint3
     return current->haveValue(txhash, nOut);
 }
 
-
 bool CClaimTrie::haveSupport(const std::string& name, const uint256& txhash, uint32_t nOut) const
 {
     supportMapNodeType node;
@@ -230,6 +229,41 @@ bool CClaimTrie::haveSupport(const std::string& name, const uint256& txhash, uin
             return true;
     }
     return false;
+}
+
+bool CClaimTrie::haveClaimInQueueRow(const std::string& name, const uint256& txhash, uint32_t nOut, int nHeight, const std::vector<CValueQueueEntry>& row) const
+{
+    for (std::vector<CValueQueueEntry>::const_iterator itRow = row.begin(); itRow != row.end(); ++itRow)
+    {
+        if (itRow->name == name && itRow->val.txhash == txhash && itRow->val.nOut == nOut && itRow->val.nHeight == nHeight)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool CClaimTrie::haveClaimInQueue(const std::string& name, const uint256& txhash, uint32_t nOut, int nHeight, int& nValidAtHeight) const
+{
+    std::vector<CValueQueueEntry> row;
+    if (getQueueRow(nHeight, row))
+    {
+        if (haveClaimInQueueRow(name, txhash, nOut, nHeight, row))
+        {
+            nValidAtHeight = nHeight;
+            return true;
+        }
+    }
+    row.clear();
+    if (getQueueRow(nHeight + DEFAULT_DELAY, row))
+    {
+        if (haveClaimInQueueRow(name, txhash, nOut, nHeight, row))
+        {
+            nValidAtHeight = nHeight + DEFAULT_DELAY;
+            return true;
+        }
+    }
+    return false;   
 }
 
 unsigned int CClaimTrie::getTotalNamesInTrie() const
@@ -368,9 +402,9 @@ bool CClaimTrie::recursiveCheckConsistency(CClaimTrieNode* node)
     return calculatedHash == node->hash;
 }
 
-bool CClaimTrie::getQueueRow(int nHeight, std::vector<CValueQueueEntry>& row)
+bool CClaimTrie::getQueueRow(int nHeight, std::vector<CValueQueueEntry>& row) const
 {
-    valueQueueType::iterator itQueueRow = dirtyQueueRows.find(nHeight);
+    valueQueueType::const_iterator itQueueRow = dirtyQueueRows.find(nHeight);
     if (itQueueRow != dirtyQueueRows.end())
     {
         row = itQueueRow->second;

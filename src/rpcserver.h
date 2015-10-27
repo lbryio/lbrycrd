@@ -273,6 +273,7 @@ extern UniValue getvalueforname(const UniValue& params, bool fHelp);
 extern UniValue gettotalclaimednames(const UniValue& params, bool fHelp);
 extern UniValue gettotalclaims(const UniValue& params, bool fHelp);
 extern UniValue gettotalvalueofclaims(const UniValue& params, bool fHelp);
+extern UniValue getclaimsfortx(const UniValue& params, bool fHelp);
 
 
 bool StartRPC();

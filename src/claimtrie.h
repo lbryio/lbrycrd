@@ -231,12 +231,14 @@ public:
     bool supportQueueEmpty() const;
     bool expirationQueueEmpty() const;
     void setExpirationTime(int t);
-    bool getQueueRow(int nHeight, std::vector<CValueQueueEntry>& row);
+    bool getQueueRow(int nHeight, std::vector<CValueQueueEntry>& row) const;
     bool getExpirationQueueRow(int nHeight, std::vector<CValueQueueEntry>& row);
     bool getSupportNode(std::string name, supportMapNodeType& node);
     bool getSupportNode(std::string name, supportMapNodeType& node) const;
     bool getSupportQueueRow(int nHeight, std::vector<CSupportValueQueueEntry>& row);
     bool haveClaim(const std::string& name, const uint256& txhash, uint32_t nOut) const;
+    bool haveClaimInQueue(const std::string& name, const uint256& txhash, uint32_t nOut, int nHeight, int& nValidAtHeight) const;
+    bool haveClaimInQueueRow(const std::string& name, const uint256& txhash, uint32_t nOut, int nHeight, const std::vector<CValueQueueEntry>& row) const;
     bool haveSupport(const std::string& name, const uint256& txhash, uint32_t nOut) const;
     unsigned int getTotalNamesInTrie() const;
     unsigned int getTotalClaimsInTrie() const;
