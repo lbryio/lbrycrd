@@ -162,9 +162,11 @@ public:
     bool queueEmpty() const;
     bool expirationQueueEmpty() const;
     void setExpirationTime(int t);
-    bool getQueueRow(int nHeight, std::vector<CValueQueueEntry>& row);
+    bool getQueueRow(int nHeight, std::vector<CValueQueueEntry>& row) const;
     bool getExpirationQueueRow(int nHeight, std::vector<CValueQueueEntry>& row);
     bool haveClaim(const std::string& name, const uint256& txhash, uint32_t nOut) const;
+    bool haveClaimInQueue(const std::string& name, const uint256& txhash, uint32_t nOut, int nHeight, int& nValidAtHeight) const;
+    bool haveClaimInQueueRow(const std::string& name, const uint256& txhash, uint32_t nOut, int nHeight, const std::vector<CValueQueueEntry>& row) const;
     unsigned int getTotalNamesInTrie() const;
     unsigned int getTotalClaimsInTrie() const;
     CAmount getTotalValueOfClaimsInTrie(bool fControllingOnly) const;

@@ -160,3 +160,112 @@ UniValue gettotalvalueofclaims(const UniValue& params, bool fHelp)
     return ValueFromAmount(total_amount);
 }
 
+UniValue getclaimsfortx(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw std::runtime_error(
+            "getclaimsfortx\n"
+            "Return any claims or supports found in a transaction\n"
+            "Arguments:\n"
+            "1.  \"txid\"         (string) the txid of the transaction to check for unspent claims\n"
+            "Result:\n"
+            "[\n"
+            "  {\n"
+            "    \"nOut\"                   (numeric) the index of the claim in the transaction's list out outputs\n"
+            "    \"name\"                   (string) the name claimed\n"
+            "    \"value\"                  (string) the value of the claim\n"
+            "    \"depth\"                  (numeric) the depth of the transaction in the main chain\n"
+            "    \"in claim trie\"          (boolean) whether the claim has made it into the trie\n"
+            "    \"is controlling\"         (boolean) whether the claim is the current controlling claim for the name\n"
+            "    \"in queue\"               (boolean) whether the claim is in a queue waiting to be inserted into the trie\n"
+            "    \"blocks to valid\"        (numeric) if in a queue, the number of blocks until it's inserted into the trie\n"
+            "  }\n"
+            "]\n"
+        );
+
+    LOCK(cs_main);
+
+    uint256 hash;
+    hash.SetHex(params[0].get_str());
+
+    UniValue ret(UniValue::VARR);
+
+    int op;
+    std::vector<std::vector<unsigned char> > vvchParams;
+    
+    CCoinsViewCache view(pcoinsTip);
+    const CCoins* coin = view.AccessCoins(hash);
+    std::vector<CTxOut> txouts;
+    int nHeight = 0;
+    if (!coin)
+    {
+        CTransaction tx;
+        if (!mempool.lookup(hash, tx))
+        {
+            return NullUniValue;
+        }
+        else
+        {
+            txouts = tx.vout;
+        }
+    }
+    else
+    {
+        txouts = coin->vout;
+        nHeight = coin->nHeight;
+    }
+
+    for (unsigned int i = 0; i < txouts.size(); ++i)
+    {
+        if (!txouts[i].IsNull())
+        {
+            vvchParams.clear();
+            const CTxOut& txout = txouts[i];
+            UniValue o(UniValue::VOBJ);
+            if (DecodeNCCScript(txout.scriptPubKey, op, vvchParams))
+            {
+                o.push_back(Pair("nOut", (int64_t)i));
+                std::string sName(vvchParams[0].begin(), vvchParams[0].end());
+                o.push_back(Pair("name", sName));
+                std::string sValue(vvchParams[1].begin(), vvchParams[1].end());
+                o.push_back(Pair("value", sValue));
+                if (nHeight > 0)
+                {
+                    o.push_back(Pair("depth", chainActive.Height() - nHeight));
+                    bool inClaimTrie = pnccTrie->haveClaim(sName, hash, i);
+                    o.push_back(Pair("in claim trie", inClaimTrie));
+                    if (inClaimTrie)
+                    {
+                        CNodeValue val;
+                        if (!pnccTrie->getInfoForName(sName, val))
+                        {
+                            LogPrintf("HaveClaim was true but getInfoForName returned false.");
+                        }
+                        o.push_back(Pair("is controlling", (val.txhash == hash && val.nOut == i)));
+                    }
+                    else
+                    {
+                        int nValidAtHeight;
+                        if (pnccTrie->haveClaimInQueue(sName, hash, i, coin->nHeight, nValidAtHeight))
+                        {
+                            o.push_back(Pair("in queue", true));
+                            o.push_back(Pair("blocks to valid", nValidAtHeight - chainActive.Height()));
+                        }
+                        else
+                        {
+                            o.push_back(Pair("in queue", false));
+                        }
+                    }
+                }
+                else
+                {
+                    o.push_back(Pair("depth", 0));
+                    o.push_back(Pair("in claim trie", false));
+                    o.push_back(Pair("in queue", false));
+                }
+                ret.push_back(o);
+            }
+        }
+    }
+    return ret;
+}
