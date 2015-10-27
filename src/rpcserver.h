@@ -269,7 +269,6 @@ extern UniValue invalidateblock(const UniValue& params, bool fHelp);
 extern UniValue reconsiderblock(const UniValue& params, bool fHelp);
 
 extern UniValue getclaimtrie(const UniValue& params, bool fHelp); // in rpcclaimtrie.cpp
-extern UniValue gettxinfoforname(const UniValue& params, bool fHelp);
 extern UniValue getvalueforname(const UniValue& params, bool fHelp);
 extern UniValue gettotalclaimednames(const UniValue& params, bool fHelp);
 extern UniValue gettotalclaims(const UniValue& params, bool fHelp);

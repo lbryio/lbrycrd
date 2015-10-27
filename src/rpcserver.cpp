@@ -380,7 +380,6 @@ static const CRPCCommand vRPCCommands[] =
 
     /* Claim trie */
     { "claimtrie",           "getclaimtrie",           &getclaimtrie,           true  },
-    { "claimtrie",           "gettxinfoforname",       &gettxinfoforname,       true  },
     { "claimtrie",           "getvalueforname",        &getvalueforname,        true  },
     { "claimtrie",           "gettotalclaimednames",   &gettotalclaimednames,   true  },
     { "claimtrie",           "gettotalclaims",         &gettotalclaims,         true  },

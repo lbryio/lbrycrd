@@ -44,36 +44,6 @@ UniValue getclaimtrie(const UniValue& params, bool fHelp)
     return ret;
 }
 
-UniValue gettxinfoforname(const UniValue& params, bool fHelp)
-{
-    if (fHelp || params.size() != 1)
-        throw std::runtime_error(
-            "gettxinfoforname \"name\"\n"
-            "Return information about the transaction that has successfully claimed a name, if one exists\n"
-            "Arguments:\n"
-            "1. \"name\"          (string) the name about which to return info\n"
-            "Result: \n"
-            "\"txid\"             (string) the hash of the transaction which successfully claimed the name\n"
-            "\"n\"                (numeric) vout value\n"
-            "\"amount\"           (numeric) txout amount\n"
-            "\"height\"           (numeric) the height of the block in which this transaction is located\n"
-        ); 
-    LOCK(cs_main);
-
-    std::string name = params[0].get_str();
-    
-    UniValue ret(UniValue::VOBJ);
-    CNodeValue val;
-    if (pclaimTrie->getInfoForName(name, val))
-    {
-        ret.push_back(Pair("txid", val.txhash.GetHex()));
-        ret.push_back(Pair("n", (int)val.nOut));
-        ret.push_back(Pair("amount", val.nAmount));
-        ret.push_back(Pair("height", val.nHeight));
-    }
-    return ret;
-}
-
 UniValue getvalueforname(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
@@ -84,6 +54,10 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
             "1. \"name\"             (string) the name to look up\n"
             "Result: \n"
             "\"value\"               (string) the value of the name, if it exists\n"
+            "\"txid\"                (string) the hash of the transaction which successfully claimed the name\n"
+            "\"n\"                   (numeric) vout value\n"
+            "\"amount\"              (numeric) txout amount\n"
+            "\"height\"              (numeric) the height of the block in which this transaction is located\n"
         );
     LOCK(cs_main);
     std::string name = params[0].get_str();
@@ -113,6 +87,10 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
     }
     std::string sValue(vvchParams[1].begin(), vvchParams[1].end());
     ret.push_back(Pair("value", sValue));
+    ret.push_back(Pair("txid", val.txhash.GetHex()));
+    ret.push_back(Pair("n", (int)val.nOut));
+    ret.push_back(Pair("amount", val.nAmount));
+    ret.push_back(Pair("height", val.nHeight));
     return ret;
 }
 
