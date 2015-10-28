@@ -266,6 +266,41 @@ bool CClaimTrie::haveClaimInQueue(const std::string& name, const uint256& txhash
     return false;   
 }
 
+bool CClaimTrie::haveSupportInQueueRow(const std::string& name, const uint256& txhash, uint32_t nOut, int nHeight, const std::vector<CSupportValueQueueEntry>& row) const
+{
+    for (std::vector<CSupportValueQueueEntry>::const_iterator itRow = row.begin(); itRow != row.end(); ++itRow)
+    {
+        if (itRow->name == name && itRow->val.txhash == txhash && itRow->val.nOut == nOut && itRow->val.nHeight == nHeight)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool CClaimTrie::haveSupportInQueue(const std::string& name, const uint256& txhash, uint32_t nOut, int nHeight, int& nValidAtHeight) const
+{
+    std::vector<CSupportValueQueueEntry> row;
+    if (getSupportQueueRow(nHeight, row))
+    {
+        if (haveSupportInQueueRow(name, txhash, nOut, nHeight, row))
+         {
+             nValidAtHeight = nHeight;
+             return true;
+         }
+    }
+    row.clear();
+    if (getSupportQueueRow(nHeight + DEFAULT_DELAY, row))
+    {
+        if (haveSupportInQueueRow(name, txhash, nOut, nHeight, row))
+        {
+            nValidAtHeight = nHeight + DEFAULT_DELAY;
+            return true;
+        }
+    }
+    return false;
+}
+
 unsigned int CClaimTrie::getTotalNamesInTrie() const
 {
     if (empty())
@@ -502,9 +537,9 @@ bool CClaimTrie::getSupportNode(std::string name, supportMapNodeType& node) cons
     return db.Read(std::make_pair(SUPPORT, name), node);
 }
 
-bool CClaimTrie::getSupportQueueRow(int nHeight, std::vector<CSupportValueQueueEntry>& row)
+bool CClaimTrie::getSupportQueueRow(int nHeight, std::vector<CSupportValueQueueEntry>& row) const
 {
-    supportValueQueueType::iterator itQueueRow = dirtySupportQueueRows.find(nHeight);
+    supportValueQueueType::const_iterator itQueueRow = dirtySupportQueueRows.find(nHeight);
     if (itQueueRow != dirtySupportQueueRows.end())
     {
         row = itQueueRow->second;

@@ -172,14 +172,18 @@ UniValue getclaimsfortx(const UniValue& params, bool fHelp)
             "Result:\n"
             "[\n"
             "  {\n"
-            "    \"nOut\"                   (numeric) the index of the claim in the transaction's list out outputs\n"
-            "    \"name\"                   (string) the name claimed\n"
-            "    \"value\"                  (string) the value of the claim\n"
+            "    \"nOut\"                   (numeric) the index of the claim or support in the transaction's list out outputs\n"
+            "    \"claim type\"             (string) 'claim' or 'support'\n"
+            "    \"name\"                   (string) the name claimed or supported\n"
+            "    \"value\"                  (string) if a name claim, the value of the claim\n"
+            "    \"supported txid\"         (string) if a support, the txid of the supported claim\n"
+            "    \"supported nout\"         (numeric) if a support, the index of the supported claim in its transaction\n"
             "    \"depth\"                  (numeric) the depth of the transaction in the main chain\n"
-            "    \"in claim trie\"          (boolean) whether the claim has made it into the trie\n"
-            "    \"is controlling\"         (boolean) whether the claim is the current controlling claim for the name\n"
-            "    \"in queue\"               (boolean) whether the claim is in a queue waiting to be inserted into the trie\n"
-            "    \"blocks to valid\"        (numeric) if in a queue, the number of blocks until it's inserted into the trie\n"
+            "    \"in claim trie\"          (boolean) if a name claim, whether the claim is active, i.e. has made it into the trie\n"
+            "    \"is controlling\"         (boolean) if a name claim, whether the claim is the current controlling claim for the name\n"
+            "    \"in support map\"         (boolean) if a support, whether the support is active, i.e. has made it into the support map\n"
+            "    \"in queue\"               (boolean) whether the claim is in a queue waiting to be inserted into the trie or support map\n"
+            "    \"blocks to valid\"        (numeric) if in a queue, the number of blocks until it's inserted into the trie or support map\n"
             "  }\n"
             "]\n"
         );
@@ -228,40 +232,78 @@ UniValue getclaimsfortx(const UniValue& params, bool fHelp)
                 o.push_back(Pair("nOut", (int64_t)i));
                 std::string sName(vvchParams[0].begin(), vvchParams[0].end());
                 o.push_back(Pair("name", sName));
-                std::string sValue(vvchParams[1].begin(), vvchParams[1].end());
-                o.push_back(Pair("value", sValue));
+                if (op == OP_CLAIM_NAME)
+                {
+                    std::string sValue(vvchParams[1].begin(), vvchParams[1].end());
+                    o.push_back(Pair("value", sValue));
+                }
+                else if (op == OP_SUPPORT_CLAIM)
+                {
+                    uint256 supportedTxid(vvchParams[1]);
+                    uint32_t supportednOut = vch_to_uint32_t(vvchParams[2]);
+                    o.push_back(Pair("supported txid", supportedTxid.GetHex()));
+                    o.push_back(Pair("supported nout", (int64_t)supportednOut));
+                }
                 if (nHeight > 0)
                 {
                     o.push_back(Pair("depth", chainActive.Height() - nHeight));
-                    bool inClaimTrie = pclaimTrie->haveClaim(sName, hash, i);
-                    o.push_back(Pair("in claim trie", inClaimTrie));
-                    if (inClaimTrie)
+                    if (op == OP_CLAIM_NAME)
                     {
-                        CNodeValue val;
-                        if (!pclaimTrie->getInfoForName(sName, val))
+                        bool inClaimTrie = pclaimTrie->haveClaim(sName, hash, i);
+                        o.push_back(Pair("in claim trie", inClaimTrie));
+                        if (inClaimTrie)
                         {
-                            LogPrintf("HaveClaim was true but getInfoForName returned false.");
-                        }
-                        o.push_back(Pair("is controlling", (val.txhash == hash && val.nOut == i)));
-                    }
-                    else
-                    {
-                        int nValidAtHeight;
-                        if (pclaimTrie->haveClaimInQueue(sName, hash, i, coin->nHeight, nValidAtHeight))
-                        {
-                            o.push_back(Pair("in queue", true));
-                            o.push_back(Pair("blocks to valid", nValidAtHeight - chainActive.Height()));
+                            CNodeValue val;
+                            if (!pclaimTrie->getInfoForName(sName, val))
+                            {
+                                LogPrintf("HaveClaim was true but getInfoForName returned false.");
+                            }
+                            o.push_back(Pair("is controlling", (val.txhash == hash && val.nOut == i)));
                         }
                         else
                         {
-                            o.push_back(Pair("in queue", false));
+                            int nValidAtHeight;
+                            if (pclaimTrie->haveClaimInQueue(sName, hash, i, nHeight, nValidAtHeight))
+                            {
+                                o.push_back(Pair("in queue", true));
+                                o.push_back(Pair("blocks to valid", nValidAtHeight - chainActive.Height()));
+                            }
+                            else
+                            {
+                                o.push_back(Pair("in queue", false));
+                            }
+                        }
+                    }
+                    else if (op == OP_SUPPORT_CLAIM)
+                    {
+                        bool inSupportMap = pclaimTrie->haveSupport(sName, hash, i);
+                        o.push_back(Pair("in support map", inSupportMap));
+                        if (!inSupportMap)
+                        {
+                            int nValidAtHeight;
+                            if (pclaimTrie->haveSupportInQueue(sName, hash, i, nHeight, nValidAtHeight))
+                            {
+                                o.push_back(Pair("in queue", true));
+                                o.push_back(Pair("blocks to valid", nValidAtHeight - chainActive.Height()));
+                            }
+                            else
+                            {
+                                o.push_back(Pair("in queue", false));
+                            }
                         }
                     }
                 }
                 else
                 {
                     o.push_back(Pair("depth", 0));
-                    o.push_back(Pair("in claim trie", false));
+                    if (op == OP_CLAIM_NAME)
+                    {
+                        o.push_back(Pair("in claim trie", false));
+                    }
+                    else if (op == OP_SUPPORT_CLAIM)
+                    {
+                        o.push_back(Pair("in support map", false));
+                    }
                     o.push_back(Pair("in queue", false));
                 }
                 ret.push_back(o);

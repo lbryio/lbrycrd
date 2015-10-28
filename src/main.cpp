@@ -1539,7 +1539,7 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CClaimTr
             assert(vvchParams.size() == 3);
             std::string name(vvchParams[0].begin(), vvchParams[0].end());
             uint256 supportedTxid(vvchParams[1]);
-            uint32_t supportednOut = vch_to_uint32_t(vvchParams[2]);;
+            uint32_t supportednOut = vch_to_uint32_t(vvchParams[2]);
             int nValidHeight = undo.nClaimValidHeight;
             if (nValidHeight > 0 && nValidHeight >= coins->nHeight)
             {
