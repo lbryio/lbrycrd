@@ -448,9 +448,9 @@ bool CClaimTrie::getQueueRow(int nHeight, std::vector<CValueQueueEntry>& row) co
     return db.Read(std::make_pair(QUEUE_ROW, nHeight), row);
 }
 
-bool CClaimTrie::getExpirationQueueRow(int nHeight, std::vector<CValueQueueEntry>& row)
+bool CClaimTrie::getExpirationQueueRow(int nHeight, std::vector<CValueQueueEntry>& row) const
 {
-    valueQueueType::iterator itQueueRow = dirtyExpirationQueueRows.find(nHeight);
+    valueQueueType::const_iterator itQueueRow = dirtyExpirationQueueRows.find(nHeight);
     if (itQueueRow != dirtyExpirationQueueRows.end())
     {
         row = itQueueRow->second;
@@ -513,17 +513,6 @@ void CClaimTrie::updateSupportQueue(int nHeight, std::vector<CSupportValueQueueE
         itQueueRow = ret.first;
     }
     itQueueRow->second.swap(row);
-}
-
-bool CClaimTrie::getSupportNode(std::string name, supportMapNodeType& node)
-{
-    supportMapType::iterator itNode = dirtySupportNodes.find(name);
-    if (itNode != dirtySupportNodes.end())
-    {
-        node = itNode->second;
-        return true;
-    }
-    return db.Read(std::make_pair(SUPPORT, name), node);
 }
 
 bool CClaimTrie::getSupportNode(std::string name, supportMapNodeType& node) const

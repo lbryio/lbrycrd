@@ -232,8 +232,7 @@ public:
     bool expirationQueueEmpty() const;
     void setExpirationTime(int t);
     bool getQueueRow(int nHeight, std::vector<CValueQueueEntry>& row) const;
-    bool getExpirationQueueRow(int nHeight, std::vector<CValueQueueEntry>& row);
-    bool getSupportNode(std::string name, supportMapNodeType& node);
+    bool getExpirationQueueRow(int nHeight, std::vector<CValueQueueEntry>& row) const;
     bool getSupportNode(std::string name, supportMapNodeType& node) const;
     bool getSupportQueueRow(int nHeight, std::vector<CSupportValueQueueEntry>& row) const;
     bool haveClaim(const std::string& name, const uint256& txhash, uint32_t nOut) const;
