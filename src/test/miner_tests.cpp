@@ -91,17 +91,17 @@ struct {
 };*/
 
 const unsigned int nonces[] = {
-    114541, 40175, 23379, 121337, 4042, 35872, 42421, 145983, 4319, 8578,
-    41220, 74215, 146557, 50967, 88259, 58152, 268596, 5792, 143361, 44697,
-    43002, 21193, 70268, 162059, 38523, 30695, 138206, 87472, 134523, 57662,
-    9345, 155238, 43247, 16926, 275759, 12455, 28819, 106643, 45302, 60635,
-    154668, 2603, 450823, 53229, 165143, 105432, 165849, 25684, 75902, 56928,
-    14741, 30997, 8054, 37001, 18039, 1756, 121352, 93199, 34162, 30404,
-    40672, 8901, 67062, 36928, 29084, 73141, 61906, 12881, 114189, 47550,
-    9109, 118675, 12945, 190955, 5882, 144237, 38280, 56629, 69485, 32170,
-    51951, 117891, 6592, 22601, 5958, 70998, 193724, 11394, 40056, 14009,
-    8935, 15990, 22127, 13847, 6130, 60578, 13413, 33884, 91806, 44141,
-    24658, 5826, 148899, 32744, 42810, 9978, 54633, 153655, 28932, 73692
+    42473, 132922, 17014, 33293, 25205, 745, 3501, 91831, 345165, 212732,
+    7458, 27522, 18166, 10552, 135630, 54469, 1846, 80584, 12131, 5490,
+    16008, 2151, 22470, 126425, 39085, 88559, 20079, 38991, 124860, 123602,
+    68971, 98750, 62257, 127839, 22507, 8283, 50129, 123950, 102719, 180111,
+    149088, 7175, 67345, 64223, 79645, 93448, 2962, 67297, 92578, 5208,
+    111709, 77651, 196939, 18915, 115928, 15329, 52016, 19224, 43787, 38019,
+    5584, 28397, 13333, 3934, 153943, 15534, 3792, 26791, 13480, 34165,
+    33841, 22960, 2934, 21914, 121194, 4859, 31253, 221893, 38217, 38269,
+    70801, 1634, 38357, 233028, 37013, 19370, 38351, 156457, 17848, 8185,
+    107332, 20137, 47262, 101528, 22313, 54730, 1167, 202357, 134755, 34502,
+    46143, 56776, 20297, 57361, 160230, 45089, 39421, 66186, 20829, 4318,
 };
 
 // NOTE: These tests rely on CreateNewBlock doing its own self-validation!
@@ -133,6 +133,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         txCoinbase.vin[0].scriptSig.push_back(0);
         txCoinbase.vin[0].scriptSig.push_back(chainActive.Height());
         txCoinbase.vout[0].scriptPubKey = CScript();
+        txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
         pblock->vtx[0] = CTransaction(txCoinbase);
         if (txFirst.size() < 2)
             txFirst.push_back(new CTransaction(pblock->vtx[0]));
@@ -269,16 +270,6 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
     delete pblocktemplate;
     mempool.clear();
-
-    // subsidy changing
-    int nHeight = chainActive.Height();
-    chainActive.Tip()->nHeight = 2099999;
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    delete pblocktemplate;
-    chainActive.Tip()->nHeight = 2100000;
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
-    delete pblocktemplate;
-    chainActive.Tip()->nHeight = nHeight;
 
     // non-final txs in mempool
     SetMockTime(chainActive.Tip()->GetMedianTimePast()+1);

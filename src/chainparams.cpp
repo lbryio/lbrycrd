@@ -15,8 +15,28 @@
 #include <stdio.h>
 
 #include "chainparamsseeds.h"
+#include "arith_uint256.h"
 
-static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
+bool CheckProofOfWork2(uint256 hash, unsigned int nBits, const Consensus::Params& params)
+{
+    bool fNegative;
+    bool fOverflow;
+    arith_uint256 bnTarget;
+
+    bnTarget.SetCompact(nBits, &fNegative, &fOverflow);
+
+    // Check range
+    if (fNegative || bnTarget == 0 || fOverflow || bnTarget > UintToArith256(params.powLimit))
+        return error("CheckProofOfWork(): nBits below minimum work");
+
+    // Check proof of work matches claimed amount
+    if (UintToArith256(hash) > bnTarget)
+        return error("CheckProofOfWork(): hash doesn't match nBits");
+
+    return true;
+}
+
+static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward, const Consensus::Params& consensus)
 {
     CMutableTransaction txNew;
     txNew.nVersion = 1;
@@ -43,11 +63,10 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
     while (!found)
     {
         genesis.nNonce += 1;
-        consensus.hashGenesisBlock = genesis.GetHash();
-        if (CheckProofOfWork2(consensus.hashGenesisBlock, consensus.powLimit.GetCompact(), consensus))
+        if (CheckProofOfWork2(genesis.GetHash(), nBits, consensus))
         {
             std::cout << "nonce: " << genesis.nNonce << std::endl;
-            std::cout << "hex: " << consensus.hashGenesisBlock.GetHex() << std::endl;
+            std::cout << "hex: " << genesis.GetHash().GetHex() << std::endl;
             found = true;
         }
     }*/
@@ -65,11 +84,11 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
  *     CTxOut(nValue=50.00000000, scriptPubKey=0x5F1DF16B2B704C8A578D0B)
  *   vMerkleTree: 4a5e1e
  */
-static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
+static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward, const Consensus::Params& consensus)
 {
     const char* pszTimestamp = "insert timestamp string";//"The Times 03/Jan/2009 Chancellor on brink of second bailout for banks";
     const CScript genesisOutputScript = CScript() << OP_DUP << OP_HASH160 << ParseHex("345991dbf57bfb014b87006acdfafbfc5fe8292f") << OP_EQUALVERIFY << OP_CHECKSIG;
-    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward);
+    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward, consensus);
 }
 
 /**
@@ -87,7 +106,7 @@ class CMainParams : public CChainParams {
 public:
     CMainParams() {
         strNetworkID = "lbrycrd";
-        consensus.nSubsidyHalvingInterval = 2100000;
+        consensus.nSubsidyLevelInterval = 1<<5;
         consensus.nMajorityEnforceBlockUpgrade = 750;
         consensus.nMajorityRejectBlockOutdated = 950;
         consensus.nMajorityWindow = 1000;
@@ -110,16 +129,16 @@ public:
         nMaxTipAge = 24 * 60 * 60;
         nPruneAfterHeight = 100000;
 
-        genesis = CreateGenesisBlock(1417453734, 7885, 0x1f00ffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1446058291, 71748, 0x1f00ffff, 1, 400000000 * COIN, consensus);
         consensus.hashGenesisBlock = genesis.GetHash();
-        //printf("hex: %s\n", consensus.hashGenesisBlock.GetHex().c_str());
+        //std::cout << "hex: " << consensus.hashGenesisBlock.GetHex() << std::endl;
         //assert(consensus.hashGenesisBlock == uint256S("0x000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"));
         //assert(consensus.hashGenesisBlock == uint256S("0x00ef6ded2b610fc5e4f06d187d12136bd5fba7b932fa0b66bf353c7c1648ec9c"));
-        assert(consensus.hashGenesisBlock == uint256S("0x0000343f59c49eb433ba3a37ee4b3493ff014ee9b266f610bb3cd1b36927787a"));
-        //printf("%s\n", genesis.hashMerkleRoot.GetHex().c_str());
+        assert(consensus.hashGenesisBlock == uint256S("0x0000678ddce6b9b57e58fab6b89a1cf63519ffb4bc097debb1836577ead9a3be"));
+        //std::cout << "merkle root: " << genesis.hashMerkleRoot.GetHex() << std::endl;
         //assert(genesis.hashMerkleRoot == uint256("0x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"));
         //assert(genesis.hashMerkleRoot == uint256S("0xa7d51d407092059a2beeffab22e65d6176cfb3c33b93515109480aa7c81c9141"));
-        assert(genesis.hashMerkleRoot == uint256S("0x93621531f4de4b27d4ffdf785ef12855f2b18687e2141466ff50e2848d83f551"));
+        assert(genesis.hashMerkleRoot == uint256S("0xb8211c82c3d15bcd78bba57005b86fed515149a53a425eb592c07af99fe559cc"));
 
         vSeeds.clear();
         vFixedSeeds.clear();
@@ -159,7 +178,7 @@ public:
         strNetworkID = "test";
 
 
-        consensus.nSubsidyHalvingInterval = 2100000;
+        consensus.nSubsidyLevelInterval = 1 << 5;
         consensus.nMajorityEnforceBlockUpgrade = 750;
         consensus.nMajorityRejectBlockOutdated = 950;
         consensus.nMajorityWindow = 1000;
@@ -177,12 +196,12 @@ public:
         nMaxTipAge = 0x7fffffff;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1417453734, 7885, 0x1f00ffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1446058291, 71748, 0x1f00ffff, 1, 400000000 * COIN, consensus);
         consensus.hashGenesisBlock = genesis.GetHash();
         //std::cout << "testnet genesis hash: " << genesis.GetHash().GetHex() << std::endl;
         //std::cout << "testnet merkle hash: " << genesis.hashMerkleRoot.GetHex() << std::endl;
-        assert(consensus.hashGenesisBlock == uint256S("0x0000343f59c49eb433ba3a37ee4b3493ff014ee9b266f610bb3cd1b36927787a"));
-        assert(genesis.hashMerkleRoot == uint256S("0x93621531f4de4b27d4ffdf785ef12855f2b18687e2141466ff50e2848d83f551"));
+        assert(consensus.hashGenesisBlock == uint256S("0x0000678ddce6b9b57e58fab6b89a1cf63519ffb4bc097debb1836577ead9a3be"));
+        assert(genesis.hashMerkleRoot == uint256S("0xb8211c82c3d15bcd78bba57005b86fed515149a53a425eb592c07af99fe559cc"));
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -224,7 +243,7 @@ class CRegTestParams : public CChainParams {
 public:
     CRegTestParams() {
         strNetworkID = "regtest";
-        consensus.nSubsidyHalvingInterval = 150;
+        consensus.nSubsidyLevelInterval = 1 << 0;
         consensus.nMajorityEnforceBlockUpgrade = 750;
         consensus.nMajorityRejectBlockOutdated = 950;
         consensus.nMajorityWindow = 1000;
@@ -242,12 +261,12 @@ public:
         nDefaultPort = 29246;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1417453734, 0, 0x207fffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1446058291, 1, 0x207fffff, 1, 400000000 * COIN, consensus);
         consensus.hashGenesisBlock = genesis.GetHash();
         //std::cout << "regtest genensis hash: " << genesis.GetHash().GetHex() << std::endl;
         //std::cout << "regtest hashmerkleroot: " << genesis.hashMerkleRoot.GetHex() << std::endl;
-        assert(consensus.hashGenesisBlock == uint256S("0x080fcf370abe5a9d14698260e9a20313d35b0fa7ecbc3b0b5ea733f25c359a0b"));
-        assert(genesis.hashMerkleRoot == uint256S("0x93621531f4de4b27d4ffdf785ef12855f2b18687e2141466ff50e2848d83f551"));
+        assert(consensus.hashGenesisBlock == uint256S("0x6e3fcf1299d4ec5d79c3a4c91d624a4acf9e2e173d95a1a0504f677669687556"));
+        assert(genesis.hashMerkleRoot == uint256S("0xb8211c82c3d15bcd78bba57005b86fed515149a53a425eb592c07af99fe559cc"));
 
         vFixedSeeds.clear(); //! Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();  //! Regtest mode doesn't have any DNS seeds.
