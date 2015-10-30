@@ -140,6 +140,14 @@ TestChain100Setup::~TestChain100Setup()
 {
 }
 
+RegTestingSetup::RegTestingSetup() : TestingSetup(CBaseChainParams::REGTEST)
+{
+}
+
+RegTestingSetup::~RegTestingSetup()
+{
+}
+
 void Shutdown(void* parg)
 {
   exit(0);
