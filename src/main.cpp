@@ -3628,7 +3628,7 @@ bool LoadExternalBlockFile(FILE* fileIn, CDiskBlockPos *dbp)
                 }
 
                 // process in case the block isn't known yet
-                if (mapBlockIndex.count(hash) == 0 || (mapBlockIndex[hash]->nStatus & BLOCK_HAVE_DATA) == 0) {
+                if (hash != chainparams.GetConsensus().hashGenesisBlock && (mapBlockIndex.count(hash) == 0 || (mapBlockIndex[hash]->nStatus & BLOCK_HAVE_DATA) == 0)) {
                     CValidationState state;
                     if (ProcessNewBlock(state, NULL, &block, true, dbp))
                         nLoaded++;

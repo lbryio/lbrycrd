@@ -573,7 +573,8 @@ bool CNCCTrie::updateHash(const std::string& name, uint256& hash)
 
 void CNCCTrie::BatchWriteNode(CLevelDBBatch& batch, const std::string& name, const CNCCTrieNode* pNode) const
 {
-    LogPrintf("%s: Writing %s to disk with %d values\n", __func__, name, pNode->values.size());
+    if (pNode)
+        LogPrintf("%s: Writing %s to disk with %d values\n", __func__, name, pNode->values.size());
     if (pNode)
         batch.Write(std::make_pair('n', name), *pNode);
     else
