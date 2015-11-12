@@ -2,14 +2,11 @@
 
 *.exe
 src/bitcoin
-src/bitcoind
 src/lbrycrdd
-src/bitcoin-cli
 src/lbrycrd-cli
-src/bitcoin-tx
 src/lbrycrd-tx
-src/test/test_bitcoin
-src/qt/test/test_bitcoin-qt
+src/test/test_lbrycrd
+src/qt/test/test_lbrycrd-qt
 
 # autoreconf
 Makefile.in
