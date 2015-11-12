@@ -454,7 +454,7 @@ boost::filesystem::path GetDefaultDataDir()
     // Unix: ~/.lbrycrd
 #ifdef WIN32
     // Windows
-    return GetSpecialFolderPath(CSIDL_APPDATA) / "Bitcoin";
+    return GetSpecialFolderPath(CSIDL_APPDATA) / "lbrycrd";
 #else
     fs::path pathRet;
     char* pszHome = getenv("HOME");
@@ -466,7 +466,7 @@ boost::filesystem::path GetDefaultDataDir()
     // Mac
     pathRet /= "Library/Application Support";
     TryCreateDirectory(pathRet);
-    return pathRet / "Bitcoin";
+    return pathRet / "lbrycrd";
 #else
     // Unix
     return pathRet / ".lbrycrd";
