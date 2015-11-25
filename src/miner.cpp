@@ -434,9 +434,9 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         pblock->nBits          = GetNextWorkRequired(pindexPrev, pblock, Params().GetConsensus());
         pblock->nNonce         = 0;
         pblocktemplate->vTxSigOps[0] = GetLegacySigOpCount(pblock->vtx[0]);
-        CClaimTrieQueueUndo dummyInsertUndo;
-        CClaimTrieQueueUndo dummyExpireUndo;
-        CSupportValueQueueUndo dummyInsertSupportUndo;
+        claimQueueRowType dummyInsertUndo;
+        claimQueueRowType dummyExpireUndo;
+        supportQueueRowType dummyInsertSupportUndo;
         trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo, dummyInsertSupportUndo);
         pblock->hashClaimTrie = trieCache.getMerkleHash();
 

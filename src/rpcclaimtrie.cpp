@@ -32,13 +32,13 @@ UniValue getclaimtrie(const UniValue& params, bool fHelp)
         UniValue node(UniValue::VOBJ);
         node.push_back(Pair("name", it->first));                                                       
         node.push_back(Pair("hash", it->second.hash.GetHex()));
-        CNodeValue val;
-        if (it->second.getBestValue(val))
+        CClaimValue claim;
+        if (it->second.getBestClaim(claim))
         {
-            node.push_back(Pair("txid", val.txhash.GetHex()));                                    
-            node.push_back(Pair("n", (int)val.nOut));                                             
-            node.push_back(Pair("value", ValueFromAmount(val.nAmount)));                                           
-            node.push_back(Pair("height", val.nHeight));                                          
+            node.push_back(Pair("txid", claim.txhash.GetHex()));                                    
+            node.push_back(Pair("n", (int)claim.nOut));                                             
+            node.push_back(Pair("value", ValueFromAmount(claim.nAmount)));                                           
+            node.push_back(Pair("height", claim.nHeight));                                          
         }
         ret.push_back(node);
     }
@@ -62,36 +62,36 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
         );
     LOCK(cs_main);
     std::string name = params[0].get_str();
-    CNodeValue val;
+    CClaimValue claim;
     UniValue ret(UniValue::VOBJ);
-    if (!pclaimTrie->getInfoForName(name, val))
+    if (!pclaimTrie->getInfoForName(name, claim))
         return ret;
     CCoinsViewCache view(pcoinsTip);
-    const CCoins* coin = view.AccessCoins(val.txhash);
+    const CCoins* coin = view.AccessCoins(claim.txhash);
     if (!coin)
     {
         LogPrintf("%s: %s does not exist in the coins view, despite being associated with a name\n",
-                  __func__, val.txhash.GetHex());
+                  __func__, claim.txhash.GetHex());
         return ret;
     }
-    if (coin->vout.size() < val.nOut || coin->vout[val.nOut].IsNull())
+    if (coin->vout.size() < claim.nOut || coin->vout[claim.nOut].IsNull())
     {
-        LogPrintf("%s: the specified txout of %s appears to have been spent\n", __func__, val.txhash.GetHex());
+        LogPrintf("%s: the specified txout of %s appears to have been spent\n", __func__, claim.txhash.GetHex());
         return ret;
     }
     
     int op;
     std::vector<std::vector<unsigned char> > vvchParams;
-    if (!DecodeClaimScript(coin->vout[val.nOut].scriptPubKey, op, vvchParams))
+    if (!DecodeClaimScript(coin->vout[claim.nOut].scriptPubKey, op, vvchParams))
     {
-        LogPrintf("%s: the specified txout of %s does not have a name claim command\n", __func__, val.txhash.GetHex());
+        LogPrintf("%s: the specified txout of %s does not have a name claim command\n", __func__, claim.txhash.GetHex());
     }
     std::string sValue(vvchParams[1].begin(), vvchParams[1].end());
     ret.push_back(Pair("value", sValue));
-    ret.push_back(Pair("txid", val.txhash.GetHex()));
-    ret.push_back(Pair("n", (int)val.nOut));
-    ret.push_back(Pair("amount", val.nAmount));
-    ret.push_back(Pair("height", val.nHeight));
+    ret.push_back(Pair("txid", claim.txhash.GetHex()));
+    ret.push_back(Pair("n", (int)claim.nOut));
+    ret.push_back(Pair("amount", claim.nAmount));
+    ret.push_back(Pair("height", claim.nHeight));
     return ret;
 }
 
@@ -253,12 +253,12 @@ UniValue getclaimsfortx(const UniValue& params, bool fHelp)
                         o.push_back(Pair("in claim trie", inClaimTrie));
                         if (inClaimTrie)
                         {
-                            CNodeValue val;
-                            if (!pclaimTrie->getInfoForName(sName, val))
+                            CClaimValue claim;
+                            if (!pclaimTrie->getInfoForName(sName, claim))
                             {
                                 LogPrintf("HaveClaim was true but getInfoForName returned false.");
                             }
-                            o.push_back(Pair("is controlling", (val.txhash == hash && val.nOut == i)));
+                            o.push_back(Pair("is controlling", (claim.txhash == hash && claim.nOut == i)));
                         }
                         else
                         {

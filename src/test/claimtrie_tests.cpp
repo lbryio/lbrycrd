@@ -172,18 +172,18 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     BOOST_CHECK(pclaimTrie->empty());
 
     CClaimTrieCache ntState(pclaimTrie);
-    ntState.insertClaimIntoTrie(std::string("test"), CNodeValue(tx1.GetHash(), 0, 50, 100, 200));
-    ntState.insertClaimIntoTrie(std::string("test2"), CNodeValue(tx2.GetHash(), 0, 50, 100, 200));
+    ntState.insertClaimIntoTrie(std::string("test"), CClaimValue(tx1.GetHash(), 0, 50, 100, 200));
+    ntState.insertClaimIntoTrie(std::string("test2"), CClaimValue(tx2.GetHash(), 0, 50, 100, 200));
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!ntState.empty());
     BOOST_CHECK(ntState.getMerkleHash() == hash1);
 
-    ntState.insertClaimIntoTrie(std::string("test"), CNodeValue(tx3.GetHash(), 0, 50, 101, 201));
+    ntState.insertClaimIntoTrie(std::string("test"), CClaimValue(tx3.GetHash(), 0, 50, 101, 201));
     BOOST_CHECK(ntState.getMerkleHash() == hash1);
-    ntState.insertClaimIntoTrie(std::string("tes"), CNodeValue(tx4.GetHash(), 0, 50, 100, 200));
+    ntState.insertClaimIntoTrie(std::string("tes"), CClaimValue(tx4.GetHash(), 0, 50, 100, 200));
     BOOST_CHECK(ntState.getMerkleHash() == hash2);
-    ntState.insertClaimIntoTrie(std::string("testtesttesttest"), CNodeValue(tx5.GetHash(), 0, 50, 100, 200));
+    ntState.insertClaimIntoTrie(std::string("testtesttesttest"), CClaimValue(tx5.GetHash(), 0, 50, 100, 200));
     ntState.removeClaimFromTrie(std::string("testtesttesttest"), tx5.GetHash(), 0, unused);
     BOOST_CHECK(ntState.getMerkleHash() == hash2);
     ntState.flush();
@@ -201,7 +201,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     BOOST_CHECK(ntState1.getMerkleHash() == hash0);
 
     CClaimTrieCache ntState2(pclaimTrie);
-    ntState2.insertClaimIntoTrie(std::string("abab"), CNodeValue(tx6.GetHash(), 0, 50, 100, 200));
+    ntState2.insertClaimIntoTrie(std::string("abab"), CClaimValue(tx6.GetHash(), 0, 50, 100, 200));
     ntState2.removeClaimFromTrie(std::string("test"), tx1.GetHash(), 0, unused);
 
     BOOST_CHECK(ntState2.getMerkleHash() == hash3);
@@ -213,7 +213,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
     CClaimTrieCache ntState3(pclaimTrie);
-    ntState3.insertClaimIntoTrie(std::string("test"), CNodeValue(tx1.GetHash(), 0, 50, 100, 200));
+    ntState3.insertClaimIntoTrie(std::string("test"), CClaimValue(tx1.GetHash(), 0, 50, 100, 200));
     BOOST_CHECK(ntState3.getMerkleHash() == hash4);
     ntState3.flush();
     BOOST_CHECK(!pclaimTrie->empty());
@@ -238,7 +238,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
     CClaimTrieCache ntState6(pclaimTrie);
-    ntState6.insertClaimIntoTrie(std::string("test"), CNodeValue(tx3.GetHash(), 0, 50, 101, 201));
+    ntState6.insertClaimIntoTrie(std::string("test"), CClaimValue(tx3.GetHash(), 0, 50, 101, 201));
 
     BOOST_CHECK(ntState6.getMerkleHash() == hash2);
     ntState6.flush();
@@ -302,7 +302,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     tx8.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName1 << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
     tx8.vout[0].nValue = tx8.vout[0].nValue - 1;
     tx8.vout[1].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName1 << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
-    CNodeValue val;
+    CClaimValue val;
 
     std::vector<uint256> blocks_to_invalidate;
     
@@ -974,7 +974,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     CMutableTransaction tx6 = BuildTransaction(tx3);
     tx6.vout[0].scriptPubKey = CScript() << OP_TRUE;
 
-    CNodeValue val;
+    CClaimValue val;
     std::vector<uint256> blocks_to_invalidate;
 
     // Test 1: create 1 LBC claim (tx1), create 5 LBC support (tx3), create 5 LBC claim (tx2)
@@ -1301,7 +1301,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     CMutableTransaction tx6 = BuildTransaction(tx3);
     tx6.vout[0].scriptPubKey = CScript() << OP_TRUE;
 
-    CNodeValue val;
+    CClaimValue val;
     std::vector<uint256> blocks_to_invalidate;
     
     // Test 2: create 1 LBC claim (tx1), create 5 LBC claim (tx2), create 5 LBC support (tx3)
@@ -1846,7 +1846,7 @@ BOOST_AUTO_TEST_CASE(claimtrienode_serialize_unserialize)
 
     CClaimTrieNode n1;
     CClaimTrieNode n2;
-    CNodeValue throwaway;
+    CClaimValue throwaway;
     
     ss << n1;
     ss >> n2;
@@ -1864,28 +1864,28 @@ BOOST_AUTO_TEST_CASE(claimtrienode_serialize_unserialize)
     ss >> n2;
     BOOST_CHECK(n1 == n2);
 
-    CNodeValue v1(uint256S("0000000000000000000000000000000000000000000000000000000000000001"), 0, 50, 0, 100);
-    CNodeValue v2(uint256S("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"), 1, 100, 1, 101);
+    CClaimValue v1(uint256S("0000000000000000000000000000000000000000000000000000000000000001"), 0, 50, 0, 100);
+    CClaimValue v2(uint256S("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"), 1, 100, 1, 101);
 
-    n1.insertValue(v1);
+    n1.insertClaim(v1);
     BOOST_CHECK(n1 != n2);
     ss << n1;
     ss >> n2;
     BOOST_CHECK(n1 == n2);
 
-    n1.insertValue(v2);
+    n1.insertClaim(v2);
     BOOST_CHECK(n1 != n2);
     ss << n1;
     ss >> n2;
     BOOST_CHECK(n1 == n2);
 
-    n1.removeValue(v1.txhash, v1.nOut, throwaway);
+    n1.removeClaim(v1.txhash, v1.nOut, throwaway);
     BOOST_CHECK(n1 != n2);
     ss << n1;
     ss >> n2;
     BOOST_CHECK(n1 == n2);
 
-    n1.removeValue(v2.txhash, v2.nOut, throwaway);
+    n1.removeClaim(v2.txhash, v2.nOut, throwaway);
     BOOST_CHECK(n1 != n2);
     ss << n1;
     ss >> n2;
