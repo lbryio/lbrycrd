@@ -83,6 +83,7 @@ public:
     claimQueueRowType insertUndo; // any claims that went from the queue to the trie
     claimQueueRowType expireUndo; // any claims that expired
     supportQueueRowType insertSupportUndo; // any claims that went from the support queue to the support map
+    std::vector<std::pair<std::string, int> > takeoverHeightUndo; // for any name that was taken over, the previous time that name was taken over 
 
     ADD_SERIALIZE_METHODS;
 
@@ -92,6 +93,7 @@ public:
         READWRITE(insertUndo);
         READWRITE(expireUndo);
         READWRITE(insertSupportUndo);
+        READWRITE(takeoverHeightUndo);
     }
 };
 

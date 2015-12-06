@@ -56,57 +56,8 @@ public:
     {}
     
     uint256 GetHash() const;
-    
-    unsigned int GetSerializeSize(int nType, int nVersion) const
-    {
-        unsigned int nSize = 0;
-        nSize += ::GetSerializeSize(txhash, nType, nVersion);
-        nSize += ::GetSerializeSize(nOut, nType, nVersion);
-        nSize += ::GetSerializeSize(nAmount, nType, nVersion);
-        nSize += ::GetSerializeSize(nHeight, nType, nVersion);
-        nSize += ::GetSerializeSize(nValidAtHeight, nType, nVersion);
-        nSize += ::GetSerializeSize(fIsUpdate, nType, nVersion);
-        if (fIsUpdate)
-        {
-            nSize += ::GetSerializeSize(updateToTxhash, nType, nVersion);
-            nSize += ::GetSerializeSize(updateToNOut, nType, nVersion);
-        }
-        return nSize;
-    }
 
-    template<typename Stream>
-    void Serialize(Stream& s, int nType, int nVersion) const
-    {
-        ::Serialize(s, txhash, nType, nVersion);
-        ::Serialize(s, nOut, nType, nVersion);
-        ::Serialize(s, nAmount, nType, nVersion);
-        ::Serialize(s, nHeight, nType, nVersion);
-        ::Serialize(s, nValidAtHeight, nType, nVersion);
-        ::Serialize(s, fIsUpdate, nType, nVersion);
-        if (fIsUpdate)
-        {
-            ::Serialize(s, updateToTxhash, nType, nVersion);
-            ::Serialize(s, updateToNOut, nType, nVersion);
-        }
-    }
-
-    template<typename Stream>
-    void Unserialize(Stream& s, int nType, int nVersion)
-    {
-        ::Unserialize(s, txhash, nType, nVersion);
-        ::Unserialize(s, nOut, nType, nVersion);
-        ::Unserialize(s, nAmount, nType, nVersion);
-        ::Unserialize(s, nHeight, nType, nVersion);
-        ::Unserialize(s, nValidAtHeight, nType, nVersion);
-        ::Unserialize(s, fIsUpdate, nType, nVersion);
-        if (fIsUpdate)
-        {
-            ::Unserialize(s, updateToTxhash, nType, nVersion);
-            ::Unserialize(s, updateToNOut, nType, nVersion);
-        }
-    }
-
-    /*ADD_SERIALIZE_METHODS;
+    ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
@@ -115,7 +66,7 @@ public:
         READWRITE(nAmount);
         READWRITE(nHeight);
         READWRITE(nValidAtHeight);
-    }*/
+    }
     
     bool operator<(const CClaimValue& other) const
     {
@@ -204,11 +155,11 @@ typedef std::pair<std::string, CClaimTrieNode> namedNodeType;
 class CClaimTrieNode
 {
 public:
-    CClaimTrieNode() {}
-    CClaimTrieNode(uint256 hash) : hash(hash) {}
+    CClaimTrieNode() : nHeightOfLastTakeover(0) {}
+    CClaimTrieNode(uint256 hash) : hash(hash), nHeightOfLastTakeover(0) {}
     uint256 hash;
     nodeMapType children;
-    int nBlocksSinceTakeover;
+    int nHeightOfLastTakeover;
     std::vector<CClaimValue> claims;
 
     bool insertClaim(CClaimValue claim);
@@ -224,6 +175,7 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         READWRITE(hash);
         READWRITE(claims);
+        READWRITE(nHeightOfLastTakeover);
     }
     
     bool operator==(const CClaimTrieNode& other) const
@@ -270,10 +222,10 @@ class CClaimTrieCache;
 class CClaimTrie
 {
 public:
-    CClaimTrie(bool fMemory = false, bool fWipe = false)
+    CClaimTrie(bool fMemory = false, bool fWipe = false, bool fConstantDelay = false)
                : db(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false)
                , nCurrentHeight(0), nExpirationTime(262974)
-               , fConstantDelay(false), nConstantDelayHeight(100)
+               , fConstantDelay(fConstantDelay), nConstantDelayHeight(100)
                , nProportionalDelayBits(5)
                , root(uint256S("0000000000000000000000000000000000000000000000000000000000000001"))
     {}
@@ -283,13 +235,14 @@ public:
     bool empty() const;
     void clear();
     
-    bool checkConsistency();
+    bool checkConsistency() const;
     
     bool WriteToDisk();
     bool ReadFromDisk(bool check = false);
     
     std::vector<namedNodeType> flattenTrie() const;
     bool getInfoForName(const std::string& name, CClaimValue& claim) const;
+    bool getLastTakeoverForName(const std::string& name, int& lastTakeoverHeight) const;
     
     bool queueEmpty() const;
     bool supportEmpty() const;
@@ -331,8 +284,11 @@ public:
     int nProportionalDelayBits;
 private:
     void clear(CClaimTrieNode* current);
+
+    const CClaimTrieNode* getNodeForName(const std::string& name) const;
     
     bool update(nodeCacheType& cache, hashMapType& hashes,
+                std::map<std::string, int>& takeoverHeights,
                 const uint256& hashBlock, claimQueueType& queueCache,
                 claimQueueNamesType& queueNameCache,
                 claimQueueType& expirationQueueCache, int nNewHeight,
@@ -341,9 +297,10 @@ private:
                 supportQueueNamesType& supportQueueNameCache);
     bool updateName(const std::string& name, CClaimTrieNode* updatedNode);
     bool updateHash(const std::string& name, uint256& hash);
+    bool updateTakeoverHeight(const std::string& name, int nTakeoverHeight);
     bool recursiveNullify(CClaimTrieNode* node, std::string& name);
     
-    bool recursiveCheckConsistency(CClaimTrieNode* node);
+    bool recursiveCheckConsistency(const CClaimTrieNode* node) const;
     
     bool InsertFromDisk(const std::string& name, CClaimTrieNode* node);
     
@@ -393,7 +350,9 @@ private:
 class CClaimTrieCache
 {
 public:
-    CClaimTrieCache(CClaimTrie* base): base(base)
+    CClaimTrieCache(CClaimTrie* base, bool fRequireTakeoverHeights = true)
+                    : base(base),
+                      fRequireTakeoverHeights(fRequireTakeoverHeights)
     {
         assert(base);
         nCurrentHeight = base->nCurrentHeight;
@@ -437,18 +396,24 @@ public:
 
     bool incrementBlock(claimQueueRowType& insertUndo,
                         claimQueueRowType& expireUndo,
-                        supportQueueRowType& insertSupportUndo) const;
+                        supportQueueRowType& insertSupportUndo,
+                        std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
     bool decrementBlock(claimQueueRowType& insertUndo,
                         claimQueueRowType& expireUndo,
-                        supportQueueRowType& insertSupportUndo) const;
+                        supportQueueRowType& insertSupportUndo,
+                        std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
     
     ~CClaimTrieCache() { clear(); }
     
-    bool insertClaimIntoTrie(const std::string name, CClaimValue claim) const;
+    bool insertClaimIntoTrie(const std::string name, CClaimValue claim,
+                             bool fCheckTakeover = false) const;
     bool removeClaimFromTrie(const std::string name, uint256 txhash,
-                             uint32_t nOut, int& nValidAtHeight) const;
+                             uint32_t nOut, int& nValidAtHeight,
+                             bool fCheckTakeover = false) const;
 private:
     CClaimTrie* base;
+
+    bool fRequireTakeoverHeights;
 
     mutable nodeCacheType cache;
     mutable std::set<std::string> dirtyHashes;
@@ -458,7 +423,9 @@ private:
     mutable claimQueueType expirationQueueCache;
     mutable supportMapType supportCache;
     mutable supportQueueType supportQueueCache;
-    mutable supportQueueNamesType supportQueueNameCache; 
+    mutable supportQueueNamesType supportQueueNameCache;
+    mutable std::set<std::string> namesToCheckForTakeover;
+    mutable std::map<std::string, int> cacheTakeoverHeights; 
     mutable int nCurrentHeight; // Height of the block that is being worked on, which is
                                 // one greater than the height of the chain's tip
     
@@ -466,7 +433,7 @@ private:
     
     uint256 computeHash() const;
     
-    bool reorderTrieNode(const std::string name) const;
+    bool reorderTrieNode(const std::string name, bool fCheckTakeover) const;
     bool recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent,
                                     std::string sPos) const;
     bool recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos,
@@ -476,11 +443,9 @@ private:
     bool clear() const;
     
     bool removeClaim(const std::string name, uint256 txhash, uint32_t nOut,
-                     int nHeight, int& nValidAtHeight) const;
+                     int nHeight, int& nValidAtHeight, bool fCheckTakeover) const;
     
-    bool addClaimToQueues(const std::string name, uint256 txhash,
-                          uint32_t nOut, CAmount nAmount, int nHeight,
-                          int nValidAtHeight) const;
+    bool addClaimToQueues(const std::string name, CClaimValue& claim) const;
     bool removeClaimFromQueue(const std::string name, uint256 txhash,
                               uint32_t nOut, int& nValidAtHeight) const;
     void addToExpirationQueue(claimQueueEntryType& entry) const;
@@ -496,14 +461,16 @@ private:
     
     bool removeSupport(const std::string name, uint256 txhash, uint32_t nOut,
                        uint256 supportedTxhash, uint32_t supportednOut,
-                       int nHeight, int& nValidAtHeight) const;
+                       int nHeight, int& nValidAtHeight,
+                       bool fCheckTakeover) const;
     bool removeSupportFromMap(const std::string name, uint256 txhash,
                               uint32_t nOut, uint256 supportedTxhash,
                               uint32_t supportednOut, int nHeight,
-                              int& nValidAtHeight) const;
+                              int& nValidAtHeight, bool fCheckTakeover) const;
     
     bool insertSupportIntoMap(const std::string name,
-                              CSupportValue support) const;
+                              CSupportValue support,
+                              bool fCheckTakeover) const;
     
     supportQueueType::iterator getSupportQueueCacheRow(int nHeight,
                                                        bool createIfNotExists) const;
@@ -522,6 +489,8 @@ private:
     bool getSupportsForName(const std::string name,
                             supportMapEntryType& node) const;
 
+    bool getLastTakeoverForName(const std::string& name, int& lastTakeoverHeight) const;
+    
     int getDelayForName(const std::string name) const;
 };
 

@@ -158,20 +158,20 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     CMutableTransaction tx6 = BuildTransaction(tx5.GetHash());
 
     uint256 hash1;
-    hash1.SetHex("09732c6efebb4065a27f184285a6b66280a978cf972b1f41a563f0d3644f3e5c");
+    hash1.SetHex("4bbf61ec5669c721bf007c71c59f85e6658f1de7b4562078e22f69f8f7ebcafd");
     
     uint256 hash2;
-    hash2.SetHex("8db92b76b6b0416d7abda4fd7404ba69e340853dfe9ffc04843c50142b857471");
+    hash2.SetHex("33d00d8f4707eb0abef7297a7ff4975e7354fe1ed81455f28301dbceb939494d");
     
     uint256 hash3;
-    hash3.SetHex("2e38561067f3e83d6ca0b627861689de72bba77cb5aca69d13b3685b5229525b");
+    hash3.SetHex("eb19bbaeecfd6dee77a8cb69286ac01226caee3c3883f55b86d0ca5a2f4252d7");
     
     uint256 hash4;
-    hash4.SetHex("6ec84089eb4ca1aeead6cf3538d4def78baebb44715c31be8790e627e0dcbc28");
+    hash4.SetHex("a889778ba28603294c1e5c7cec469a9019332ec93838b2f1331ebba547c5fd22");
 
     BOOST_CHECK(pclaimTrie->empty());
 
-    CClaimTrieCache ntState(pclaimTrie);
+    CClaimTrieCache ntState(pclaimTrie, false);
     ntState.insertClaimIntoTrie(std::string("test"), CClaimValue(tx1.GetHash(), 0, 50, 100, 200));
     ntState.insertClaimIntoTrie(std::string("test2"), CClaimValue(tx2.GetHash(), 0, 50, 100, 200));
 
@@ -192,7 +192,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash2);
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CClaimTrieCache ntState1(pclaimTrie);
+    CClaimTrieCache ntState1(pclaimTrie, false);
     ntState1.removeClaimFromTrie(std::string("test"), tx1.GetHash(), 0, unused);
     ntState1.removeClaimFromTrie(std::string("test2"), tx2.GetHash(), 0, unused);
     ntState1.removeClaimFromTrie(std::string("test"), tx3.GetHash(), 0, unused);
@@ -200,7 +200,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
 
     BOOST_CHECK(ntState1.getMerkleHash() == hash0);
 
-    CClaimTrieCache ntState2(pclaimTrie);
+    CClaimTrieCache ntState2(pclaimTrie, false);
     ntState2.insertClaimIntoTrie(std::string("abab"), CClaimValue(tx6.GetHash(), 0, 50, 100, 200));
     ntState2.removeClaimFromTrie(std::string("test"), tx1.GetHash(), 0, unused);
 
@@ -212,7 +212,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash3);
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CClaimTrieCache ntState3(pclaimTrie);
+    CClaimTrieCache ntState3(pclaimTrie, false);
     ntState3.insertClaimIntoTrie(std::string("test"), CClaimValue(tx1.GetHash(), 0, 50, 100, 200));
     BOOST_CHECK(ntState3.getMerkleHash() == hash4);
     ntState3.flush();
@@ -220,7 +220,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash4);
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CClaimTrieCache ntState4(pclaimTrie);
+    CClaimTrieCache ntState4(pclaimTrie, false);
     ntState4.removeClaimFromTrie(std::string("abab"), tx6.GetHash(), 0, unused);
     BOOST_CHECK(ntState4.getMerkleHash() == hash2);
     ntState4.flush();
@@ -228,7 +228,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash2);
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CClaimTrieCache ntState5(pclaimTrie);
+    CClaimTrieCache ntState5(pclaimTrie, false);
     ntState5.removeClaimFromTrie(std::string("test"), tx3.GetHash(), 0, unused);
 
     BOOST_CHECK(ntState5.getMerkleHash() == hash2);
@@ -237,7 +237,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash2);
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CClaimTrieCache ntState6(pclaimTrie);
+    CClaimTrieCache ntState6(pclaimTrie, false);
     ntState6.insertClaimIntoTrie(std::string("test"), CClaimValue(tx3.GetHash(), 0, 50, 101, 201));
 
     BOOST_CHECK(ntState6.getMerkleHash() == hash2);
@@ -246,7 +246,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash2);
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CClaimTrieCache ntState7(pclaimTrie);
+    CClaimTrieCache ntState7(pclaimTrie, false);
     ntState7.removeClaimFromTrie(std::string("test"), tx3.GetHash(), 0, unused);
     ntState7.removeClaimFromTrie(std::string("test"), tx1.GetHash(), 0, unused);
     ntState7.removeClaimFromTrie(std::string("tes"), tx4.GetHash(), 0, unused);

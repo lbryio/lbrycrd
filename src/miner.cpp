@@ -437,7 +437,8 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         claimQueueRowType dummyInsertUndo;
         claimQueueRowType dummyExpireUndo;
         supportQueueRowType dummyInsertSupportUndo;
-        trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo, dummyInsertSupportUndo);
+        std::vector<std::pair<std::string, int> > dummyTakeoverHeightUndo;
+        trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo, dummyInsertSupportUndo, dummyTakeoverHeightUndo);
         pblock->hashClaimTrie = trieCache.getMerkleHash();
 
         CValidationState state;
