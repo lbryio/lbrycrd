@@ -904,12 +904,12 @@ bool CNCCTrieCache::removeClaimFromTrie(const std::string name, uint256 txhash, 
     if (!success)
     {
         LogPrintf("%s: Removing a value was unsuccessful. name = %s, txhash = %s, nOut = %d", __func__, name.c_str(), txhash.GetHex(), nOut);
+        return false;
     }
     else
     {
         nValidAtHeight = val.nValidAtHeight;
     }
-    assert(success);
     if (fChanged)
     {
         for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
