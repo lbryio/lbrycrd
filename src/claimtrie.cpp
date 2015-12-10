@@ -1222,12 +1222,12 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string name, uint256 txhash
     if (!success)
     {
         LogPrintf("%s: Removing a claim was unsuccessful. name = %s, txhash = %s, nOut = %d", __func__, name.c_str(), txhash.GetHex(), nOut);
+        return false;
     }
     else
     {
         nValidAtHeight = claim.nValidAtHeight;
     }
-    assert(success);
     if (fChanged)
     {
         for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)

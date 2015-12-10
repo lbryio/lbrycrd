@@ -324,8 +324,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                         assert(vvchParams.size() == 2);
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         int throwaway;
-                        if (!trieCache.spendClaim(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, throwaway))
-                            LogPrintf("%s: Something went wrong removing the name\n", __func__);
+                        trieCache.spendClaim(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, throwaway);
                         std::pair<uint256, unsigned int> val(txin.prevout.hash, txin.prevout.n);
                         std::pair<std::string, std::pair<uint256, unsigned int> >entry(name, val);
                         spentClaims.insert(entry);

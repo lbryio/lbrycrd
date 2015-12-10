@@ -706,13 +706,16 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP << OP_TRUE;
     CMutableTransaction tx2 = BuildTransaction(tx1);
     tx2.vout[0].scriptPubKey = CScript() << OP_TRUE;
-
+    CMutableTransaction tx3 = BuildTransaction(coinbases[1]);
+    tx3.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP << OP_TRUE;
+    tx3.vout[0].nValue = tx1.vout[0].nValue >> 1;
+    
     std::vector<uint256> blocks_to_invalidate;
     // set expiration time to 100 blocks after the block becomes valid. (more correctly, 200 blocks after the block is created)
 
     pclaimTrie->setExpirationTime(200);
 
-    // create a claim. verify no expiration event has been scheduled.
+    // create a claim. verify the expiration event has been scheduled.
 
     AddToMempool(tx1);
 
@@ -723,7 +726,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     BOOST_CHECK(!pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
-    // advance until the claim is valid. verify the expiration event is scheduled.
+    // advance until the claim is valid.
 
     BOOST_CHECK(CreateBlocks(99, 1));
 
@@ -921,6 +924,100 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+
+    // roll all the way back
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK(blocks_to_invalidate.empty());
+
+    // Make sure that when a claim expires, a lesser claim for the same name takes over
+
+    CClaimValue val;
+
+    // create one claims for the name
+
+    AddToMempool(tx1);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+
+    // advance a little while and insert the second claim
+
+    BOOST_CHECK(CreateBlocks(49, 1));
+
+    AddToMempool(tx3);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+    
+    // advance until tx1 is valid
+
+    BOOST_CHECK(CreateBlocks(49, 1));
+
+    BOOST_CHECK(pclaimTrie->empty());
+    
+    BOOST_CHECK(CreateBlocks(1, 1));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+
+    // advance until tx3 is valid, ensure tx1 is winning
+
+    BOOST_CHECK(CreateBlocks(49, 1));
+
+    BOOST_CHECK(CreateBlocks(1, 1));
+    
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+
+    // advance until the expiration event occurs. verify the expiration event occurs on time.
+
+    BOOST_CHECK(CreateBlocks(1, 1));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+    BOOST_CHECK(CreateBlocks(48, 1));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+
+    BOOST_CHECK(CreateBlocks(1, 1));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx3.GetHash());
+
+    // spend tx1
+
+    AddToMempool(tx2);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+
+    // roll back to when tx1 and tx3 are in the trie and tx1 is winning
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
 
     // roll all the way back
 
