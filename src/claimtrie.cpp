@@ -249,7 +249,7 @@ bool CClaimTrie::haveSupport(const std::string& name, const uint256& txhash, uin
     return false;
 }
 
-bool CClaimTrie::haveClaimInQueue(const std::string& name, const uint256& txhash, uint32_t nOut, int nHeight, int& nValidAtHeight) const
+bool CClaimTrie::haveClaimInQueue(const std::string& name, const uint256& txhash, uint32_t nOut, int& nValidAtHeight) const
 {
     std::vector<CClaimValue> nameRow;
     if (!getQueueNameRow(name, nameRow))
@@ -259,7 +259,7 @@ bool CClaimTrie::haveClaimInQueue(const std::string& name, const uint256& txhash
     std::vector<CClaimValue>::const_iterator itNameRow;
     for (itNameRow = nameRow.begin(); itNameRow != nameRow.end(); ++itNameRow)
     {
-        if (itNameRow->txhash == txhash && itNameRow->nOut == nOut && itNameRow->nHeight == nHeight)
+        if (itNameRow->txhash == txhash && itNameRow->nOut == nOut)
         {
             nValidAtHeight = itNameRow->nValidAtHeight;
             break;
@@ -274,7 +274,7 @@ bool CClaimTrie::haveClaimInQueue(const std::string& name, const uint256& txhash
     {
         for (claimQueueRowType::const_iterator itRow = row.begin(); itRow != row.end(); ++itRow)
         {
-            if (itRow->first == name && itRow->second.txhash == txhash && itRow->second.nOut == nOut && itRow->second.nHeight == nHeight)
+            if (itRow->first == name && itRow->second.txhash == txhash && itRow->second.nOut == nOut)
             {
                 if (itRow->second.nValidAtHeight != nValidAtHeight)
                 {
@@ -288,7 +288,7 @@ bool CClaimTrie::haveClaimInQueue(const std::string& name, const uint256& txhash
     return false;   
 }
 
-bool CClaimTrie::haveSupportInQueue(const std::string& name, const uint256& txhash, uint32_t nOut, int nHeight, int& nValidAtHeight) const
+bool CClaimTrie::haveSupportInQueue(const std::string& name, const uint256& txhash, uint32_t nOut, int& nValidAtHeight) const
 {
     std::vector<CSupportValue> nameRow;
     if (!getSupportQueueNameRow(name, nameRow))
@@ -298,7 +298,7 @@ bool CClaimTrie::haveSupportInQueue(const std::string& name, const uint256& txha
     std::vector<CSupportValue>::const_iterator itNameRow;
     for (itNameRow = nameRow.begin(); itNameRow != nameRow.end(); ++itNameRow)
     {
-        if (itNameRow->txhash == txhash && itNameRow->nOut == nOut && itNameRow->nHeight == nHeight)
+        if (itNameRow->txhash == txhash && itNameRow->nOut == nOut)
         {
             nValidAtHeight = itNameRow->nValidAtHeight;
             break;
@@ -309,11 +309,11 @@ bool CClaimTrie::haveSupportInQueue(const std::string& name, const uint256& txha
         return false;
     }
     supportQueueRowType row;
-    if (getSupportQueueRow(nHeight, row))
+    if (getSupportQueueRow(nValidAtHeight, row))
     {
         for (supportQueueRowType::const_iterator itRow = row.begin(); itRow != row.end(); ++itRow)
         {
-            if (itRow->first == name && itRow->second.txhash == txhash && itRow->second.nOut == nOut && itRow->second.nHeight == nHeight)
+            if (itRow->first == name && itRow->second.txhash == txhash && itRow->second.nOut == nOut)
             {
                 if (itRow->second.nValidAtHeight != nValidAtHeight)
                 {
@@ -1955,7 +1955,7 @@ bool CClaimTrieCache::incrementBlock(claimQueueRowType& insertUndo, claimQueueRo
                 takeoverHappened = true;
             }
         }
-        if (takeoverHappened && !base->fConstantDelay)
+        if (takeoverHappened)
         {
             // Get all claims in the queue for that name
             claimQueueNamesType::iterator itQueueNameRow = getQueueCacheNameRow(*itNamesToCheck, false);
@@ -2040,9 +2040,7 @@ bool CClaimTrieCache::incrementBlock(claimQueueRowType& insertUndo, claimQueueRo
                 // remove all supports from the queue for that name
                 itSupportQueueNameRow->second.clear();
             }
-        }
-        if (takeoverHappened)
-        {
+            
             // save the old last height so that it can be restored if the block is undone
             if (haveClaimInTrie)
             {
@@ -2127,23 +2125,16 @@ bool CClaimTrieCache::getLastTakeoverForName(const std::string& name, int& lastT
     return true;
 }
 
-int CClaimTrieCache::getDelayForName(const std::string name) const
+int CClaimTrieCache::getDelayForName(const std::string& name) const
 {
-    if (base->fConstantDelay)
+    int nHeightOfLastTakeover;
+    if (getLastTakeoverForName(name, nHeightOfLastTakeover))
     {
-        return base->nConstantDelayHeight;
+        return (nCurrentHeight - nHeightOfLastTakeover) / base->nProportionalDelayFactor;
     }
     else
     {
-        int nHeightOfLastTakeover;
-        if (getLastTakeoverForName(name, nHeightOfLastTakeover))
-        {
-            return nHeightOfLastTakeover >> base->nProportionalDelayBits;
-        }
-        else
-        {
-            return 0;
-        }
+        return 0;
     }
 }
 

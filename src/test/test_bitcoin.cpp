@@ -59,7 +59,7 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
         pblocktree = new CBlockTreeDB(1 << 20, true);
         pcoinsdbview = new CCoinsViewDB(1 << 23, true);
         pcoinsTip = new CCoinsViewCache(pcoinsdbview);
-        pclaimTrie = new CClaimTrie(true, false, true);
+        pclaimTrie = new CClaimTrie(true, false, 1);
         InitBlockIndex();
 #ifdef ENABLE_WALLET
         bool fFirstRun;

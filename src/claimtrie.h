@@ -222,11 +222,10 @@ class CClaimTrieCache;
 class CClaimTrie
 {
 public:
-    CClaimTrie(bool fMemory = false, bool fWipe = false, bool fConstantDelay = false)
+    CClaimTrie(bool fMemory = false, bool fWipe = false, int nProportionalDelayFactor = 32)
                : db(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false)
                , nCurrentHeight(0), nExpirationTime(262974)
-               , fConstantDelay(fConstantDelay), nConstantDelayHeight(100)
-               , nProportionalDelayBits(5)
+               , nProportionalDelayFactor(nProportionalDelayFactor)
                , root(uint256S("0000000000000000000000000000000000000000000000000000000000000001"))
     {}
     
@@ -261,14 +260,12 @@ public:
     bool haveClaim(const std::string& name, const uint256& txhash,
                    uint32_t nOut) const;
     bool haveClaimInQueue(const std::string& name, const uint256& txhash,
-                          uint32_t nOut, int nHeight,
-                          int& nValidAtHeight) const;
+                          uint32_t nOut, int& nValidAtHeight) const;
     
     bool haveSupport(const std::string& name, const uint256& txhash,
                      uint32_t nOut) const;
     bool haveSupportInQueue(const std::string& name, const uint256& txhash,
-                            uint32_t nOut, int nHeight,
-                            int& nValidAtHeight) const;
+                            uint32_t nOut, int& nValidAtHeight) const;
     
     unsigned int getTotalNamesInTrie() const;
     unsigned int getTotalClaimsInTrie() const;
@@ -279,9 +276,7 @@ public:
     CLevelDBWrapper db;
     int nCurrentHeight;
     int nExpirationTime;
-    bool fConstantDelay;
-    int nConstantDelayHeight;
-    int nProportionalDelayBits;
+    int nProportionalDelayFactor;
 private:
     void clear(CClaimTrieNode* current);
 
@@ -491,7 +486,7 @@ private:
 
     bool getLastTakeoverForName(const std::string& name, int& lastTakeoverHeight) const;
     
-    int getDelayForName(const std::string name) const;
+    int getDelayForName(const std::string& name) const;
 };
 
 #endif // BITCOIN_CLAIMTRIE_H

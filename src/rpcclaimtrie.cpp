@@ -263,7 +263,7 @@ UniValue getclaimsfortx(const UniValue& params, bool fHelp)
                         else
                         {
                             int nValidAtHeight;
-                            if (pclaimTrie->haveClaimInQueue(sName, hash, i, nHeight, nValidAtHeight))
+                            if (pclaimTrie->haveClaimInQueue(sName, hash, i, nValidAtHeight))
                             {
                                 o.push_back(Pair("in queue", true));
                                 o.push_back(Pair("blocks to valid", nValidAtHeight - chainActive.Height()));
@@ -281,7 +281,7 @@ UniValue getclaimsfortx(const UniValue& params, bool fHelp)
                         if (!inSupportMap)
                         {
                             int nValidAtHeight;
-                            if (pclaimTrie->haveSupportInQueue(sName, hash, i, nHeight, nValidAtHeight))
+                            if (pclaimTrie->haveSupportInQueue(sName, hash, i, nValidAtHeight))
                             {
                                 o.push_back(Pair("in queue", true));
                                 o.push_back(Pair("blocks to valid", nValidAtHeight - chainActive.Height()));

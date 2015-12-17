@@ -264,7 +264,6 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
     
     LOCK(cs_main);
-    //Checkpoints::fEnabled = false;
 
     std::string sName1("atest");
     std::string sName2("btest");
@@ -278,7 +277,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     std::vector<CTransaction> coinbases;
 
-    BOOST_CHECK(CreateCoinbases(4, coinbases));
+    BOOST_CHECK(CreateCoinbases(5, coinbases));
 
     uint256 hash0(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash0);
@@ -287,6 +286,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName1 << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
     CMutableTransaction tx2 = BuildTransaction(coinbases[1]);
     tx2.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName2 << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
+    tx2.vout[0].nValue = tx1.vout[0].nValue - 1;
     CMutableTransaction tx3 = BuildTransaction(tx1);
     tx3.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName1 << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
     CMutableTransaction tx4 = BuildTransaction(tx2);
@@ -302,74 +302,74 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     tx8.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName1 << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
     tx8.vout[0].nValue = tx8.vout[0].nValue - 1;
     tx8.vout[1].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName1 << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
+    CMutableTransaction tx9 = BuildTransaction(tx7);
+    tx9.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName1 << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
     CClaimValue val;
 
+    int nThrowaway;
+
     std::vector<uint256> blocks_to_invalidate;
-    
-    // Verify updates to the best claim get inserted immediately, and others don't.
-    
-    // Put tx1, tx2, and tx7 into the blockchain, and then advance 100 blocks to put them in the trie
-    
-    AddToMempool(tx1);
-    AddToMempool(tx2);
+
+    // Verify claims for uncontrolled names go in immediately
+
     AddToMempool(tx7);
 
-    BOOST_CHECK(CreateBlocks(1, 4));
+    BOOST_CHECK(CreateBlocks(1, 2));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
-
-    BOOST_CHECK(pcoinsTip->HaveCoins(tx1.GetHash()));
-    BOOST_CHECK(pcoinsTip->HaveCoins(tx2.GetHash()));
-    BOOST_CHECK(pcoinsTip->HaveCoins(tx7.GetHash()));
-
-    BOOST_CHECK(CreateBlocks(99, 1));
     
-    BOOST_CHECK(!pclaimTrie->getInfoForName(sName1, val));
-    BOOST_CHECK(!pclaimTrie->getInfoForName(sName2, val));
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(val.txhash == tx7.GetHash());
+
+    // Verify claims for controlled names are delayed, and that the bigger claim wins when inserted
+
+    BOOST_CHECK(CreateBlocks(5, 1));
     
+    AddToMempool(tx1);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+
+    BOOST_CHECK(CreateBlocks(5, 1));
+
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+
     BOOST_CHECK(CreateBlocks(1, 1));
-    
-    // Verify tx1 and tx2 are in the trie
 
+    BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
     BOOST_CHECK(val.txhash == tx1.GetHash());
-
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName2, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
-
-    // Verify tx7 is also in the trie
-
-    BOOST_CHECK(pclaimTrie->haveClaim(sName1, tx7.GetHash(), 0));
-
-    // Spend tx1 with tx3, tx2 with tx4, and put in tx5.
     
-    AddToMempool(tx3);
-    AddToMempool(tx4);
-    AddToMempool(tx5);
+    // Verify updates to the best claim get inserted immediately, and others don't.
 
-    BOOST_CHECK(CreateBlocks(1, 4));
+    AddToMempool(tx3);
+    AddToMempool(tx9);
+
+    BOOST_CHECK(CreateBlocks(1, 3));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
-    // Verify tx1, tx2, and tx5 are not in the trie, but tx3 is in the trie.
-
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx1.GetHash(), 0));
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx7.GetHash(), 0));
     BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
     BOOST_CHECK(val.txhash == tx3.GetHash());
-    BOOST_CHECK(!pclaimTrie->getInfoForName(sName2, val));
-
-    // Roll back the last block, make sure tx1 and tx2 are put back in the trie
+    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName1, tx9.GetHash(), 0, nThrowaway));
+    
+    // Roll back the last block, make sure tx1 and tx7 are put back in the trie
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
     BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
     BOOST_CHECK(val.txhash == tx1.GetHash());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName2, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
+    BOOST_CHECK(pclaimTrie->haveClaim(sName1, tx7.GetHash(), 0));
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
 
     // Roll all the way back, make sure all txs are out of the trie
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
     BOOST_CHECK(!pclaimTrie->getInfoForName(sName1, val));
-    BOOST_CHECK(!pclaimTrie->getInfoForName(sName2, val));
     mempool.clear();
     
     BOOST_CHECK(pclaimTrie->empty());
@@ -378,55 +378,47 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     // Test undoing a claim before the claim gets into the trie
 
-    // Put tx1 in the chain, and then undo that block.
+    // Put tx1 in the chain, then advance a few blocks.
     
     AddToMempool(tx1);
 
     BOOST_CHECK(CreateBlocks(1, 2));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+
+    BOOST_CHECK(CreateBlocks(10, 1));
+    
+    // Put tx7 in the chain, verify it goes into the queue
+
+    AddToMempool(tx7);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+
+    // Undo that block and make sure it's not in the queue
+
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
 
     // Make sure it's not in the queue
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     mempool.clear();
 
-    // Test undoing a claim that has gotten into the trie
-
-    // Put tx1 in the chain, and then advance until it's in the trie
-
-    AddToMempool(tx1);
-
-    BOOST_CHECK(CreateBlocks(1, 2));
-    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
-
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-
-    BOOST_CHECK(CreateBlocks(99, 1));
-
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-
-    BOOST_CHECK(CreateBlocks(1, 1));
-
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
-
-    // Remove it from the trie
+    // Go back to the beginning
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
-    mempool.clear();
 
-    // Test undoing a spend which involves a claim just inserted into the queue
+    // Test spend a claim which was just inserted into the trie
 
     // Immediately spend tx2 with tx4, verify nothing gets put in the trie
 
@@ -445,21 +437,31 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(pclaimTrie->queueEmpty());
     mempool.clear();
 
-    // Test undoing a spend which involves a claim inserted into the queue by a previous block
+    // Verify that if a claim in the queue is spent, it does not get into the trie
+
+    // Put tx5 into the chain, advance until it's in the trie for a few blocks
+
+    AddToMempool(tx5);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(CreateBlocks(5, 1));
     
     // Put tx2 into the chain, and then advance a few blocks but not far enough for it to get into the trie
 
     AddToMempool(tx2);
 
     BOOST_CHECK(CreateBlocks(1, 2));
-    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
     
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName2, tx2.GetHash(), 0, nThrowaway));
+    
+    BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
-    BOOST_CHECK(CreateBlocks(49, 1));
+    BOOST_CHECK(CreateBlocks(3, 1));
     
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
     // Spend tx2 with tx4, and then advance to where tx2 would be inserted into the trie and verify it hasn't happened
@@ -469,34 +471,38 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(CreateBlocks(1, 2));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
     
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
 
-    BOOST_CHECK(CreateBlocks(50, 1));
+    BOOST_CHECK(CreateBlocks(5, 1));
     
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName2, tx2.GetHash(), 0));
 
     // Undo spending tx2 with tx4, and then advance and verify tx2 is inserted into the trie when it should be
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-
+    
     mempool.clear();
-
-    BOOST_CHECK(CreateBlocks(50, 1));
-
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-
+    
     BOOST_CHECK(CreateBlocks(1, 1));
     
     BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+
+    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName2, tx2.GetHash(), 0, nThrowaway));
+    
+    BOOST_CHECK(CreateBlocks(2, 1));
+    
+    BOOST_CHECK(pclaimTrie->haveClaim(sName2, tx2.GetHash(), 0));
+
+    BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName2, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
+    BOOST_CHECK(val.txhash == tx5.GetHash());
+    BOOST_CHECK(pclaimTrie->haveClaim(sName2, tx2.GetHash(), 0));
 
     // Test undoing a spend which involves a claim in the trie
 
@@ -507,8 +513,9 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(CreateBlocks(1, 2));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName2, tx2.GetHash(), 0));
 
     // undo spending tx2 with tx4, and verify tx2 is back in the trie
     
@@ -516,6 +523,9 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     blocks_to_invalidate.pop_back();
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName2, val));
+    BOOST_CHECK(val.txhash == tx5.GetHash());
+    BOOST_CHECK(pclaimTrie->haveClaim(sName2, tx2.GetHash(), 0));
     mempool.clear();
 
     // roll back to the beginning
@@ -528,32 +538,42 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     // Test undoing a spent update which updated a claim still in the queue
 
+    // Create the claim that will cause the others to be in the queue
+
+    AddToMempool(tx7);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(CreateBlocks(5, 1));
+
     // Create the original claim (tx1)
 
     AddToMempool(tx1);
 
     BOOST_CHECK(CreateBlocks(1, 2));
-    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+    //blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName1, tx1.GetHash(), 0, nThrowaway));
 
     // move forward some, but not far enough for the claim to get into the trie
 
-    BOOST_CHECK(CreateBlocks(49, 1));
+    BOOST_CHECK(CreateBlocks(2, 1));
     
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-
     // update the original claim (tx3 spends tx1)
 
     AddToMempool(tx3);
 
     BOOST_CHECK(CreateBlocks(1, 2));
-    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+    //blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx1.GetHash(), 0, nThrowaway));
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx1.GetHash(), 0));
+    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName1, tx3.GetHash(), 0, nThrowaway));
 
     // spend the update (tx6 spends tx3)
 
@@ -562,47 +582,55 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(CreateBlocks(1, 2));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx3.GetHash(), 0));
 
     // undo spending the update (undo tx6 spending tx3)
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
     mempool.clear();
 
-    // make sure the update (tx3) still goes into effect in 100 blocks
+    // make sure the update (tx3) still goes into effect when it's supposed to
 
-    BOOST_CHECK(CreateBlocks(99, 1));
+    BOOST_CHECK(CreateBlocks(8, 1));
+    BOOST_CHECK(CreateBlocks(1, 1));
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(val.txhash == tx3.GetHash());
 
     BOOST_CHECK(CreateBlocks(1, 1));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->haveClaim(sName1, tx3.GetHash(), 0));
 
-    // undo updating the original claim (tx3 spends tx1)
+    // roll all the way back
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
     BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
     mempool.clear();
 
     // Test undoing an spent update which updated the best claim to a name
 
     // move forward until the original claim is inserted into the trie
 
-    BOOST_CHECK(CreateBlocks(50, 1));
+    AddToMempool(tx1);
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(CreateBlocks(1, 2));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
-    BOOST_CHECK(CreateBlocks(1, 1));
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+
+    BOOST_CHECK(CreateBlocks(5, 1));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -658,7 +686,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     // roll forward until tx8 output 1 gets into the trie
 
-    BOOST_CHECK(CreateBlocks(99, 1));
+    BOOST_CHECK(CreateBlocks(6, 1));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
@@ -709,9 +737,11 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     CMutableTransaction tx3 = BuildTransaction(coinbases[1]);
     tx3.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP << OP_TRUE;
     tx3.vout[0].nValue = tx1.vout[0].nValue >> 1;
+
+    int nThrowaway;
     
     std::vector<uint256> blocks_to_invalidate;
-    // set expiration time to 100 blocks after the block becomes valid. (more correctly, 200 blocks after the block is created)
+    // set expiration time to 200 blocks after the block is created
 
     pclaimTrie->setExpirationTime(200);
 
@@ -722,25 +752,15 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     BOOST_CHECK(CreateBlocks(1, 2));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
-
-    // advance until the claim is valid.
-
-    BOOST_CHECK(CreateBlocks(99, 1));
-
-    BOOST_CHECK(pclaimTrie->empty());
-
-    BOOST_CHECK(CreateBlocks(1, 1));
-    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
-
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
     // advance until the expiration event occurs. verify the expiration event occurs on time.
     
+    BOOST_CHECK(CreateBlocks(100, 1));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
     BOOST_CHECK(CreateBlocks(99, 1));
 
     BOOST_CHECK(!pclaimTrie->empty());
@@ -785,49 +805,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
     
-    // roll back to before the claim is valid. verify the claim is removed but the expiration event still exists.
-
-    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
-    blocks_to_invalidate.pop_back();
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
-
-    // advance until the claim is valid again. verify the expiration event is scheduled.
-
-    BOOST_CHECK(CreateBlocks(1, 1));
-    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
-
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
-
-    // advance until the expiration event occurs. verify the expiration event occurs on time.
-
-    BOOST_CHECK(CreateBlocks(50, 1));
-    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
-    BOOST_CHECK(CreateBlocks(49, 1));
-
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
-
-    BOOST_CHECK(CreateBlocks(1, 1));
-    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
-
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
-
-    // roll back to before the expiration event. verify the expiration event is scheduled.
-
-    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
-    blocks_to_invalidate.pop_back();
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
-
-    // roll back some.
+    // roll back some more.
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
@@ -858,7 +836,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     
     // advance until the expiration event occurs. verify the event occurs on time.
     
-    BOOST_CHECK(CreateBlocks(50, 1));
+    BOOST_CHECK(CreateBlocks(100, 1));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -917,15 +895,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
-    // roll back to before the claim is valid. verify the claim is removed but the expiration event is not.
-    
-    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
-    blocks_to_invalidate.pop_back();
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
-
-    // roll all the way back
+    // roll all the way back. verify the claim is removed and the expiration event is removed.
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
@@ -938,44 +908,35 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 
     CClaimValue val;
 
-    // create one claims for the name
+    // create one claim for the name
 
     AddToMempool(tx1);
 
     BOOST_CHECK(CreateBlocks(1, 2));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
 
     // advance a little while and insert the second claim
 
-    BOOST_CHECK(CreateBlocks(49, 1));
+    BOOST_CHECK(CreateBlocks(4, 1));
 
     AddToMempool(tx3);
 
     BOOST_CHECK(CreateBlocks(1, 2));
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
-    
-    // advance until tx1 is valid
-
-    BOOST_CHECK(CreateBlocks(49, 1));
-
-    BOOST_CHECK(pclaimTrie->empty());
-    
-    BOOST_CHECK(CreateBlocks(1, 1));
-
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
-
+    
     // advance until tx3 is valid, ensure tx1 is winning
 
-    BOOST_CHECK(CreateBlocks(49, 1));
+    BOOST_CHECK(CreateBlocks(4, 1));
+
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName, tx3.GetHash(), 0, nThrowaway));
 
     BOOST_CHECK(CreateBlocks(1, 1));
     
@@ -989,7 +950,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 
     BOOST_CHECK(CreateBlocks(1, 1));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
-    BOOST_CHECK(CreateBlocks(48, 1));
+    BOOST_CHECK(CreateBlocks(188, 1));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1095,14 +1056,14 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx1.GetHash()));
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
 
-    // advance 20 blocks
+    // advance a few blocks
 
-    BOOST_CHECK(CreateBlocks(19, 1));
+    BOOST_CHECK(CreateBlocks(5, 1));
 
     // Put tx3 into the blockchain
 
@@ -1112,12 +1073,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx3.GetHash()));
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
 
-    // advance 20 blocks
+    // advance a few blocks
 
-    BOOST_CHECK(CreateBlocks(19, 1));
+    BOOST_CHECK(CreateBlocks(3, 1));
 
     // Put tx2 into the blockchain
 
@@ -1126,58 +1087,35 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(CreateBlocks(1, 2));
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx2.GetHash()));
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-
-    // advance until tx1 is valid
-
-    BOOST_CHECK(CreateBlocks(59, 1));
-
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    
-    BOOST_CHECK(CreateBlocks(1, 1));
-
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
-
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
-    
-    // advance until tx3 is valid
-    
-    BOOST_CHECK(CreateBlocks(19, 1));
-
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
-
-    BOOST_CHECK(CreateBlocks(1, 1));
-    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
-
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
 
     // advance until tx2 is valid
 
-    BOOST_CHECK(CreateBlocks(19, 1));
+    BOOST_CHECK(CreateBlocks(9, 1));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
-
+    
     BOOST_CHECK(CreateBlocks(1, 1));
+
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.txhash == tx1.GetHash());
-
+    
     // spend tx3
 
     AddToMempool(tx6);
     
     BOOST_CHECK(CreateBlocks(1, 2));
+
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     // verify tx2 gains control
 
@@ -1188,62 +1126,10 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.txhash == tx2.GetHash());
     
-    // roll back to before tx3 is valid
+    // unspend tx3, verify tx1 regains control
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    
-    // advance until tx3 is valid
-    
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
-
-    BOOST_CHECK(CreateBlocks(1, 1));
-    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
-
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-
-    // advance until tx2 is valid
-
-    BOOST_CHECK(CreateBlocks(19, 1));
-
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-
-    BOOST_CHECK(CreateBlocks(1, 1));
-    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
-
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
-
-    // spend tx3
-    AddToMempool(tx6);
-
-    BOOST_CHECK(CreateBlocks(1, 2));
-    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
-
-    // verify tx2 gains control
-
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
-
-    // undo spending tx3
-
-    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
-    blocks_to_invalidate.pop_back();
-
-    // verify tx1 has control again
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -1251,7 +1137,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.txhash == tx1.GetHash());
-
+    
     // roll back to before tx2 is valid
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
@@ -1272,42 +1158,13 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.txhash == tx2.GetHash());
 
-    // roll back to before tx3 is valid
-
-    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
-    blocks_to_invalidate.pop_back();
-
-    // spend tx3
-
-    AddToMempool(tx6);
-
-    BOOST_CHECK(CreateBlocks(1, 2));
-
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-
-    // advance until tx2 is valid
-
-    BOOST_CHECK(CreateBlocks(19, 1));
-
-    BOOST_CHECK(CreateBlocks(1, 1));
-
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
-
     // roll back to before tx3 is inserted
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
 
-    // advance 20 blocks
+    // advance a few blocks
 
-    BOOST_CHECK(CreateBlocks(20, 1));
+    BOOST_CHECK(CreateBlocks(4, 1));
 
     // Put tx2 into the blockchain
 
@@ -1316,29 +1173,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(CreateBlocks(1, 2));
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx2.GetHash()));
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-
-    // advance until tx1 is valid
-
-    BOOST_CHECK(CreateBlocks(59, 1));
-
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    
-    BOOST_CHECK(CreateBlocks(1, 1));
-
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
 
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
-    
     // advance until tx2 is valid
 
-    BOOST_CHECK(CreateBlocks(39, 1));
+    BOOST_CHECK(CreateBlocks(9, 1));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
@@ -1354,6 +1194,123 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
+
+    // Make sure that when a support in the queue gets spent and then the spend is
+    // undone, it goes back into the queue in the right spot
+
+    // put tx2 and tx1 into the trie
+
+    AddToMempool(tx1);
+    AddToMempool(tx2);
+
+    BOOST_CHECK(CreateBlocks(1, 3));
+
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+    
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx2.GetHash());
+
+    // advance a few blocks
+
+    BOOST_CHECK(CreateBlocks(5, 1));
+
+    // put tx3 into the support queue
+
+    AddToMempool(tx3);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+
+    // advance a couple of blocks
+
+    BOOST_CHECK(CreateBlocks(2, 1));
+
+    // spend tx3
+
+    AddToMempool(tx6);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+
+    // undo spend of tx3, verify it gets back in the right place in the queue
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+
+    BOOST_CHECK(CreateBlocks(3, 1));
+    BOOST_CHECK(CreateBlocks(1, 1));
+
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+
+    // spend tx3 again, then undo the spend and roll back until it's back in the queue
+
+    AddToMempool(tx6);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx2.GetHash());
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+
+    mempool.clear();
+
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx2.GetHash());
+
+    // advance until tx3 is valid again
+
+    BOOST_CHECK(CreateBlocks(1, 1));
+    
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+
+    // roll all the way back
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(blocks_to_invalidate.empty());
 }
 
 BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
@@ -1398,6 +1355,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     CMutableTransaction tx6 = BuildTransaction(tx3);
     tx6.vout[0].scriptPubKey = CScript() << OP_TRUE;
 
+    int nThrowaway;
     CClaimValue val;
     std::vector<uint256> blocks_to_invalidate;
     
@@ -1411,14 +1369,14 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
     
     BOOST_CHECK(pcoinsTip->HaveCoins(tx1.GetHash()));
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     
-    // advance 20 blocks
+    // advance a few blocks
     
-    BOOST_CHECK(CreateBlocks(19, 1));
+    BOOST_CHECK(CreateBlocks(4, 1));
 
     // put tx2 into the blockchain
 
@@ -1427,14 +1385,26 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(CreateBlocks(1, 2));
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx2.GetHash()));
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
 
-    // advance 20 blocks
+    // advance until tx2 is in the trie
 
-    BOOST_CHECK(CreateBlocks(19, 1));
+    BOOST_CHECK(CreateBlocks(4, 1));
+
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName, tx2.GetHash(), 0, nThrowaway));
+
+    BOOST_CHECK(CreateBlocks(1, 1));
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.txhash == tx2.GetHash());
+
+    // advance a few blocks
+
+    BOOST_CHECK(CreateBlocks(4, 1));
 
     // put tx3 into the blockchain
 
@@ -1443,42 +1413,19 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(CreateBlocks(1, 2));
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx3.GetHash()));
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
-
-    // advance until tx1 is valid
-
-    BOOST_CHECK(CreateBlocks(59, 1));
-
-    BOOST_CHECK(CreateBlocks(1, 1));
-
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
-
-    // advance until tx2 is valid
-
-    BOOST_CHECK(CreateBlocks(19, 1));
-
-    BOOST_CHECK(CreateBlocks(1, 1));
-
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
 
     // advance until tx3 is valid
 
-    BOOST_CHECK(CreateBlocks(19, 1));
+    BOOST_CHECK(CreateBlocks(4, 1));
+
+    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
 
     BOOST_CHECK(CreateBlocks(1, 1));
+
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(!pclaimTrie->empty());
@@ -1547,23 +1494,16 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pcoinsTip->HaveCoins(tx1.GetHash()));
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-
-    // advance until tx1 is valid
-
-    BOOST_CHECK(CreateBlocks(99, 1));
-
-    BOOST_CHECK(CreateBlocks(1, 1));
-    
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.txhash == tx1.GetHash());
+
+    // advance a few blocks
+
+    BOOST_CHECK(CreateBlocks(5, 1));
 
     // put tx2 into the blockchain
 
@@ -1580,7 +1520,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
 
     // advance some, insert tx3, should be immediately valid
 
-    BOOST_CHECK(CreateBlocks(49, 1));
+    BOOST_CHECK(CreateBlocks(2, 1));
 
     AddToMempool(tx3);
 
@@ -1595,7 +1535,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
 
     // advance until tx2 is valid, verify tx1 retains control
 
-    BOOST_CHECK(CreateBlocks(49, 1));
+    BOOST_CHECK(CreateBlocks(2, 1));
 
     BOOST_CHECK(CreateBlocks(1, 1));
 
@@ -1605,6 +1545,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(pclaimTrie->haveClaim(sName, tx2.GetHash(), 0));
 
     // roll all the way back
 
@@ -1626,23 +1567,16 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(CreateBlocks(1, 2));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
     
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-
-    // advance until tx2 is valid
-
-    BOOST_CHECK(CreateBlocks(99, 1));
-
-    BOOST_CHECK(CreateBlocks(1, 1));
-
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.txhash == tx2.GetHash());
+
+    // advance a few blocks
+
+    BOOST_CHECK(CreateBlocks(9, 1));
 
     // insert tx1 into the block chain
 
@@ -1659,7 +1593,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
 
     // advance some
     
-    BOOST_CHECK(CreateBlocks(49, 1));
+    BOOST_CHECK(CreateBlocks(5, 1));
 
     // insert tx3 into the block chain
 
@@ -1676,7 +1610,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
 
     // advance until tx1 is valid
 
-    BOOST_CHECK(CreateBlocks(49, 1));
+    BOOST_CHECK(CreateBlocks(4, 1));
     BOOST_CHECK(CreateBlocks(1, 1));
     
     BOOST_CHECK(!pclaimTrie->empty());
@@ -1685,10 +1619,11 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.txhash == tx2.GetHash());
+    BOOST_CHECK(pclaimTrie->haveClaim(sName, tx1.GetHash(), 0));
 
     // advance until tx3 is valid
 
-    BOOST_CHECK(CreateBlocks(49, 1));
+    BOOST_CHECK(CreateBlocks(10, 1));
     BOOST_CHECK(CreateBlocks(1, 1));
     
     BOOST_CHECK(!pclaimTrie->empty());
@@ -1717,23 +1652,16 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(CreateBlocks(1, 2));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    
-    // advance until tx1 is valid
-
-    BOOST_CHECK(CreateBlocks(99, 1));
-
-    BOOST_CHECK(CreateBlocks(1, 1));
-
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.txhash == tx1.GetHash());
+    
+    // advance a few blocks
+
+    BOOST_CHECK(CreateBlocks(5, 1));
     
     // insert tx2 into the blockchain
 
@@ -1750,7 +1678,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     
     // advance some, insert tx3
 
-    BOOST_CHECK(CreateBlocks(49, 1));
+    BOOST_CHECK(CreateBlocks(2, 1));
 
     AddToMempool(tx3);
 
@@ -1765,7 +1693,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     
     // advance until tx2 is valid
 
-    BOOST_CHECK(CreateBlocks(49, 1));
+    BOOST_CHECK(CreateBlocks(2, 1));
 
     BOOST_CHECK(CreateBlocks(1, 1));
 
@@ -1821,16 +1749,6 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(CreateBlocks(1, 2));
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    
-    // advance until tx1 is valid
-
-    BOOST_CHECK(CreateBlocks(99, 1));
-    BOOST_CHECK(CreateBlocks(1, 1));
-
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->supportEmpty());
@@ -1867,74 +1785,6 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    
-    // Test 8: create 1 LBC claim (tx1), create 5 LBC support (tx3), wait till tx1 valid, spend tx1, wait till tx3 valid
-    // Verify name trie is empty
-
-    // insert tx1 into the blockchain
-
-    AddToMempool(tx1);
-
-    BOOST_CHECK(CreateBlocks(1, 2));
-    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
-
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    
-    // move forward a bit
-
-    BOOST_CHECK(CreateBlocks(49, 1));
-
-    // insert tx3 into the blockchain
-
-    AddToMempool(tx3);
-
-    BOOST_CHECK(CreateBlocks(1, 2));
-
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
-    
-    // advance until tx1 is valid
-
-    BOOST_CHECK(CreateBlocks(49, 1));
-
-    BOOST_CHECK(CreateBlocks(1, 1));
-
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
-    
-    // spend tx1
-
-    AddToMempool(tx4);
-
-    BOOST_CHECK(CreateBlocks(1, 2));
-
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
-    
-    // advance until tx3 is valid
-
-    BOOST_CHECK(CreateBlocks(48, 1));
-
-    BOOST_CHECK(CreateBlocks(1, 1));
-    
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-
-    // roll all the way back
-
-    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
-    blocks_to_invalidate.pop_back();
 }
 
 BOOST_AUTO_TEST_CASE(claimtrienode_serialize_unserialize)
