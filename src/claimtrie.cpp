@@ -2130,7 +2130,7 @@ int CClaimTrieCache::getDelayForName(const std::string& name) const
     int nHeightOfLastTakeover;
     if (getLastTakeoverForName(name, nHeightOfLastTakeover))
     {
-        return (nCurrentHeight - nHeightOfLastTakeover) / base->nProportionalDelayFactor;
+        return std::min((nCurrentHeight - nHeightOfLastTakeover) / base->nProportionalDelayFactor, 4032);
     }
     else
     {
