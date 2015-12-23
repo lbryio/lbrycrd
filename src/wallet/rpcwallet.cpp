@@ -701,11 +701,11 @@ void ListNameClaims(const CWalletTx& wtx, const string& strAccount, int nMinDept
                 entry.push_back(Pair("is spent", pwalletMain->IsSpent(wtx.GetHash(), s.vout)));
                 if (op == OP_CLAIM_NAME)
                 {
-                    entry.push_back(Pair("is in name trie", pclaimTrie->haveClaim(sName, wtx.GetHash(), s.vout)));
+                    entry.push_back(Pair("is in name trie", pclaimTrie->haveClaim(sName, COutPoint(wtx.GetHash(), s.vout))));
                 }
                 else if (op == OP_SUPPORT_CLAIM)
                 {
-                    entry.push_back(Pair("is in support map", pclaimTrie->haveSupport(sName, wtx.GetHash(), s.vout)));
+                    entry.push_back(Pair("is in support map", pclaimTrie->haveSupport(sName, COutPoint(wtx.GetHash(), s.vout))));
                 }
                 ret.push_back(entry);
             }

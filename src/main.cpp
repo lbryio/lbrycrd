@@ -1559,7 +1559,7 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CClaimTr
             if (nValidHeight > 0 && nValidHeight >= coins->nHeight)
             {
                 LogPrintf("%s: (txid: %s, nOut: %d) Restoring %s to the claim trie due to a block being disconnected\n", __func__, out.hash.ToString(), out.n, name.c_str());
-                if (!trieCache.undoSpendClaim(name, out.hash, out.n, claimId, undo.txout.nValue, coins->nHeight, nValidHeight))
+                if (!trieCache.undoSpendClaim(name, COutPoint(out.hash, out.n), claimId, undo.txout.nValue, coins->nHeight, nValidHeight))
                     LogPrintf("%s: Something went wrong inserting the claim\n", __func__);
             }
             else
@@ -1576,7 +1576,7 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CClaimTr
             if (nValidHeight > 0 && nValidHeight >= coins->nHeight)
             {
                 LogPrintf("%s: (txid: %s, nOut: %d) Restoring support for %s in claimid %s due to a block being disconnected\n", __func__, out.hash.ToString(), out.n, name, supportedClaimId.ToString());
-                if (!trieCache.undoSpendSupport(name, out.hash, out.n, supportedClaimId, undo.txout.nValue, coins->nHeight, nValidHeight))
+                if (!trieCache.undoSpendSupport(name, COutPoint(out.hash, out.n), supportedClaimId, undo.txout.nValue, coins->nHeight, nValidHeight))
                     LogPrintf("%s: Something went wrong inserting support for the claim\n", __func__);
             }
             else
@@ -1657,7 +1657,7 @@ bool DisconnectBlock(const CBlock& block, CValidationState& state, const CBlockI
                     }
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     LogPrintf("%s: (txid: %s, nOut: %d) Trying to remove %s from the claim trie due to its block being disconnected\n", __func__, hash.ToString(), i, name.c_str());
-                    if (!trieCache.undoAddClaim(name, hash, i, pindex->nHeight))
+                    if (!trieCache.undoAddClaim(name, COutPoint(hash, i), pindex->nHeight))
                     {
                         LogPrintf("%s: Could not find the claim in the trie or the cache\n", __func__);
                     }
@@ -1668,7 +1668,7 @@ bool DisconnectBlock(const CBlock& block, CValidationState& state, const CBlockI
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     uint160 supportedClaimId(vvchParams[1]);
                     LogPrintf("%s: (txid: %s, nOut: %d) Removing support for claim id %s on %s due to its block being disconnected\n", __func__, hash.ToString(), i, supportedClaimId.ToString(), name.c_str());
-                    if (!trieCache.undoAddSupport(name, hash, i, pindex->nHeight))
+                    if (!trieCache.undoAddSupport(name, COutPoint(hash, i), pindex->nHeight))
                         LogPrintf("%s: Something went wrong removing support for name %s in hash %s\n", __func__, name.c_str(), hash.ToString());
                 }
             }
@@ -1960,7 +1960,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         int nValidAtHeight;
                         LogPrintf("%s: Removing %s from the claim trie. Tx: %s, nOut: %d\n", __func__, name, txin.prevout.hash.GetHex(), txin.prevout.n);
-                        if (trieCache.spendClaim(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, nValidAtHeight))
+                        if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), coins->nHeight, nValidAtHeight))
                         {
                             mClaimUndoHeights[i] = nValidAtHeight;
                             std::pair<std::string, uint160> entry(name, claimId);
@@ -1974,7 +1974,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         uint160 supportedClaimId(vvchParams[1]);
                         int nValidAtHeight;
                         LogPrintf("%s: Removing support for %s in %s. Tx: %s, nOut: %d\n", __func__, supportedClaimId.ToString(), name, txin.prevout.hash.ToString(), txin.prevout.n);
-                        if (trieCache.spendSupport(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, nValidAtHeight))
+                        if (trieCache.spendSupport(name, COutPoint(txin.prevout.hash, txin.prevout.n), coins->nHeight, nValidAtHeight))
                         {
                             mClaimUndoHeights[0] = nValidAtHeight;
                         }
@@ -1995,7 +1995,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         assert(vvchParams.size() == 2);
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         LogPrintf("%s: Inserting %s into the claim trie. Tx: %s, nOut: %d\n", __func__, name, tx.GetHash().GetHex(), i);
-                        if (!trieCache.addClaim(name, tx.GetHash(), i, ClaimIdHash(tx.GetHash(), i), txout.nValue, pindex->nHeight))
+                        if (!trieCache.addClaim(name, COutPoint(tx.GetHash(), i), ClaimIdHash(tx.GetHash(), i), txout.nValue, pindex->nHeight))
                         {
                             LogPrintf("%s: Something went wrong inserting the claim\n", __func__);
                         }
@@ -2017,7 +2017,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         if (itSpent != spentClaims.end())
                         {
                             spentClaims.erase(itSpent);
-                            if (!trieCache.addClaim(name, tx.GetHash(), i, claimId, txout.nValue, pindex->nHeight))
+                            if (!trieCache.addClaim(name, COutPoint(tx.GetHash(), i), claimId, txout.nValue, pindex->nHeight))
                             {
                                 LogPrintf("%s: Something went wrong updating the claim\n", __func__);
                             }
@@ -2028,7 +2028,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         assert(vvchParams.size() == 2);
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         uint160 supportedClaimId(vvchParams[1]);
-                        if (!trieCache.addSupport(name, tx.GetHash(), i, txout.nValue, supportedClaimId, pindex->nHeight))
+                        if (!trieCache.addSupport(name, COutPoint(tx.GetHash(), i), txout.nValue, supportedClaimId, pindex->nHeight))
                         {
                             LogPrintf("%s: Something went wrong inserting the support\n", __func__);
                         }

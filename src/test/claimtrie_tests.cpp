@@ -148,15 +148,21 @@ bool CreateBlocks(unsigned int num_blocks, unsigned int num_txs)
 
 BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
 {
-    int unused;
+    CClaimValue unused;
     uint256 hash0(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
     uint160 hash160;
     CMutableTransaction tx1 = BuildTransaction(hash0);
+    COutPoint tx1OutPoint(tx1.GetHash(), 0);
     CMutableTransaction tx2 = BuildTransaction(tx1.GetHash());
+    COutPoint tx2OutPoint(tx2.GetHash(), 0);
     CMutableTransaction tx3 = BuildTransaction(tx2.GetHash());
+    COutPoint tx3OutPoint(tx3.GetHash(), 0);
     CMutableTransaction tx4 = BuildTransaction(tx3.GetHash());
+    COutPoint tx4OutPoint(tx4.GetHash(), 0);
     CMutableTransaction tx5 = BuildTransaction(tx4.GetHash());
+    COutPoint tx5OutPoint(tx5.GetHash(), 0);
     CMutableTransaction tx6 = BuildTransaction(tx5.GetHash());
+    COutPoint tx6OutPoint(tx6.GetHash(), 0);
 
     uint256 hash1;
     hash1.SetHex("4bbf61ec5669c721bf007c71c59f85e6658f1de7b4562078e22f69f8f7ebcafd");
@@ -173,19 +179,19 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     BOOST_CHECK(pclaimTrie->empty());
 
     CClaimTrieCache ntState(pclaimTrie, false);
-    ntState.insertClaimIntoTrie(std::string("test"), CClaimValue(tx1.GetHash(), 0, hash160, 50, 100, 200));
-    ntState.insertClaimIntoTrie(std::string("test2"), CClaimValue(tx2.GetHash(), 0, hash160, 50, 100, 200));
+    ntState.insertClaimIntoTrie(std::string("test"), CClaimValue(tx1OutPoint, hash160, 50, 100, 200));
+    ntState.insertClaimIntoTrie(std::string("test2"), CClaimValue(tx2OutPoint, hash160, 50, 100, 200));
 
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!ntState.empty());
     BOOST_CHECK(ntState.getMerkleHash() == hash1);
 
-    ntState.insertClaimIntoTrie(std::string("test"), CClaimValue(tx3.GetHash(), 0, hash160, 50, 101, 201));
+    ntState.insertClaimIntoTrie(std::string("test"), CClaimValue(tx3OutPoint, hash160, 50, 101, 201));
     BOOST_CHECK(ntState.getMerkleHash() == hash1);
-    ntState.insertClaimIntoTrie(std::string("tes"), CClaimValue(tx4.GetHash(), 0, hash160, 50, 100, 200));
+    ntState.insertClaimIntoTrie(std::string("tes"), CClaimValue(tx4OutPoint, hash160, 50, 100, 200));
     BOOST_CHECK(ntState.getMerkleHash() == hash2);
-    ntState.insertClaimIntoTrie(std::string("testtesttesttest"), CClaimValue(tx5.GetHash(), 0, hash160, 50, 100, 200));
-    ntState.removeClaimFromTrie(std::string("testtesttesttest"), tx5.GetHash(), 0, unused);
+    ntState.insertClaimIntoTrie(std::string("testtesttesttest"), CClaimValue(tx5OutPoint, hash160, 50, 100, 200));
+    ntState.removeClaimFromTrie(std::string("testtesttesttest"), tx5OutPoint, unused);
     BOOST_CHECK(ntState.getMerkleHash() == hash2);
     ntState.flush();
 
@@ -194,16 +200,16 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
     CClaimTrieCache ntState1(pclaimTrie, false);
-    ntState1.removeClaimFromTrie(std::string("test"), tx1.GetHash(), 0, unused);
-    ntState1.removeClaimFromTrie(std::string("test2"), tx2.GetHash(), 0, unused);
-    ntState1.removeClaimFromTrie(std::string("test"), tx3.GetHash(), 0, unused);
-    ntState1.removeClaimFromTrie(std::string("tes"), tx4.GetHash(), 0, unused);
+    ntState1.removeClaimFromTrie(std::string("test"), tx1OutPoint, unused);
+    ntState1.removeClaimFromTrie(std::string("test2"), tx2OutPoint, unused);
+    ntState1.removeClaimFromTrie(std::string("test"), tx3OutPoint, unused);
+    ntState1.removeClaimFromTrie(std::string("tes"), tx4OutPoint, unused);
 
     BOOST_CHECK(ntState1.getMerkleHash() == hash0);
 
     CClaimTrieCache ntState2(pclaimTrie, false);
-    ntState2.insertClaimIntoTrie(std::string("abab"), CClaimValue(tx6.GetHash(), 0, hash160, 50, 100, 200));
-    ntState2.removeClaimFromTrie(std::string("test"), tx1.GetHash(), 0, unused);
+    ntState2.insertClaimIntoTrie(std::string("abab"), CClaimValue(tx6OutPoint, hash160, 50, 100, 200));
+    ntState2.removeClaimFromTrie(std::string("test"), tx1OutPoint, unused);
 
     BOOST_CHECK(ntState2.getMerkleHash() == hash3);
 
@@ -214,7 +220,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
     CClaimTrieCache ntState3(pclaimTrie, false);
-    ntState3.insertClaimIntoTrie(std::string("test"), CClaimValue(tx1.GetHash(), 0, hash160, 50, 100, 200));
+    ntState3.insertClaimIntoTrie(std::string("test"), CClaimValue(tx1OutPoint, hash160, 50, 100, 200));
     BOOST_CHECK(ntState3.getMerkleHash() == hash4);
     ntState3.flush();
     BOOST_CHECK(!pclaimTrie->empty());
@@ -222,7 +228,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
     CClaimTrieCache ntState4(pclaimTrie, false);
-    ntState4.removeClaimFromTrie(std::string("abab"), tx6.GetHash(), 0, unused);
+    ntState4.removeClaimFromTrie(std::string("abab"), tx6OutPoint, unused);
     BOOST_CHECK(ntState4.getMerkleHash() == hash2);
     ntState4.flush();
     BOOST_CHECK(!pclaimTrie->empty());
@@ -230,7 +236,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
     CClaimTrieCache ntState5(pclaimTrie, false);
-    ntState5.removeClaimFromTrie(std::string("test"), tx3.GetHash(), 0, unused);
+    ntState5.removeClaimFromTrie(std::string("test"), tx3OutPoint, unused);
 
     BOOST_CHECK(ntState5.getMerkleHash() == hash2);
     ntState5.flush();
@@ -239,7 +245,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
     CClaimTrieCache ntState6(pclaimTrie, false);
-    ntState6.insertClaimIntoTrie(std::string("test"), CClaimValue(tx3.GetHash(), 0, hash160, 50, 101, 201));
+    ntState6.insertClaimIntoTrie(std::string("test"), CClaimValue(tx3OutPoint, hash160, 50, 101, 201));
 
     BOOST_CHECK(ntState6.getMerkleHash() == hash2);
     ntState6.flush();
@@ -248,10 +254,10 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
     CClaimTrieCache ntState7(pclaimTrie, false);
-    ntState7.removeClaimFromTrie(std::string("test"), tx3.GetHash(), 0, unused);
-    ntState7.removeClaimFromTrie(std::string("test"), tx1.GetHash(), 0, unused);
-    ntState7.removeClaimFromTrie(std::string("tes"), tx4.GetHash(), 0, unused);
-    ntState7.removeClaimFromTrie(std::string("test2"), tx2.GetHash(), 0, unused);
+    ntState7.removeClaimFromTrie(std::string("test"), tx3OutPoint, unused);
+    ntState7.removeClaimFromTrie(std::string("test"), tx1OutPoint, unused);
+    ntState7.removeClaimFromTrie(std::string("tes"), tx4OutPoint, unused);
+    ntState7.removeClaimFromTrie(std::string("test2"), tx2OutPoint, unused);
     
     BOOST_CHECK(ntState7.getMerkleHash() == hash0);
     ntState7.flush();
@@ -287,45 +293,58 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName1 << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
     uint160 tx1ClaimId = ClaimIdHash(tx1.GetHash(), 0);
     std::vector<unsigned char> vchTx1ClaimId(tx1ClaimId.begin(), tx1ClaimId.end());
-    
+    COutPoint tx1OutPoint(tx1.GetHash(), 0);
+
     CMutableTransaction tx2 = BuildTransaction(coinbases[1]);
     tx2.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName2 << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
     tx2.vout[0].nValue = tx1.vout[0].nValue - 1;
+    COutPoint tx2OutPoint(tx2.GetHash(), 0);
     
     CMutableTransaction tx3 = BuildTransaction(tx1);
     tx3.vout[0].scriptPubKey = CScript() << OP_UPDATE_CLAIM << vchName1 << vchTx1ClaimId << vchValue1 << OP_2DROP << OP_2DROP << OP_TRUE;
+    COutPoint tx3OutPoint(tx3.GetHash(), 0);
     
     CMutableTransaction tx4 = BuildTransaction(tx2);
     tx4.vout[0].scriptPubKey = CScript() << OP_TRUE;
+    COutPoint tx4OutPoint(tx4.GetHash(), 0);
     
     CMutableTransaction tx5 = BuildTransaction(coinbases[2]);
     tx5.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName2 << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
+    COutPoint tx5OutPoint(tx5.GetHash(), 0);
     
     CMutableTransaction tx6 = BuildTransaction(tx3);
     tx6.vout[0].scriptPubKey = CScript() << OP_TRUE;
+    COutPoint tx6OutPoint(tx6.GetHash(), 0);
     
     CMutableTransaction tx7 = BuildTransaction(coinbases[3]);
     tx7.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName1 << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
     tx7.vout[0].nValue = tx1.vout[0].nValue - 1;
     uint160 tx7ClaimId = ClaimIdHash(tx7.GetHash(), 0);
     std::vector<unsigned char> vchTx7ClaimId(tx7ClaimId.begin(), tx7ClaimId.end());
+    COutPoint tx7OutPoint(tx7.GetHash(), 0);
     
     CMutableTransaction tx8 = BuildTransaction(tx3, 0, 2);
     tx8.vout[0].scriptPubKey = CScript() << OP_UPDATE_CLAIM << vchName1 << vchTx1ClaimId << vchValue1 << OP_2DROP << OP_2DROP << OP_TRUE;
     tx8.vout[0].nValue = tx8.vout[0].nValue - 1;
     tx8.vout[1].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName1 << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
+    COutPoint tx8OutPoint0(tx8.GetHash(), 0);
+    COutPoint tx8OutPoint1(tx8.GetHash(), 1);
     
     CMutableTransaction tx9 = BuildTransaction(tx7);
     tx9.vout[0].scriptPubKey = CScript() << OP_UPDATE_CLAIM << vchName1 << vchTx7ClaimId << vchValue2 << OP_2DROP << OP_2DROP << OP_TRUE;
+    COutPoint tx9OutPoint(tx9.GetHash(), 0);
     
     CMutableTransaction tx10 = BuildTransaction(coinbases[4]);
     tx10.vout[0].scriptPubKey = CScript() << OP_UPDATE_CLAIM << vchName1 << vchTx1ClaimId << vchValue1 << OP_2DROP << OP_2DROP << OP_TRUE;
+    COutPoint tx10OutPoint(tx10.GetHash(), 0);
 
     CMutableTransaction tx11 = BuildTransaction(tx10);
     tx11.vout[0].scriptPubKey = CScript() << OP_UPDATE_CLAIM << vchName1 << vchTx1ClaimId << vchValue1 << OP_2DROP << OP_2DROP << OP_TRUE;
+    COutPoint tx11OutPoint(tx11.GetHash(), 0);
 
     CMutableTransaction tx12 = BuildTransaction(tx10);
     tx12.vout[0].scriptPubKey = CScript() << OP_TRUE;
+    COutPoint tx12OutPoint(tx12.GetHash(), 0);
     
     CClaimValue val;
 
@@ -341,7 +360,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
     
     BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
-    BOOST_CHECK(val.txhash == tx7.GetHash());
+    BOOST_CHECK(val.outPoint == tx7OutPoint);
 
     // Verify claims for controlled names are delayed, and that the bigger claim wins when inserted
 
@@ -361,7 +380,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
     
     // Verify updates to the best claim get inserted immediately, and others don't.
 
@@ -372,19 +391,19 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx1.GetHash(), 0));
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx7.GetHash(), 0));
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx1OutPoint));
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx7OutPoint));
     BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
-    BOOST_CHECK(val.txhash == tx3.GetHash());
-    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName1, tx9.GetHash(), 0, nThrowaway));
+    BOOST_CHECK(val.outPoint == tx3OutPoint);
+    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName1, tx9OutPoint, nThrowaway));
     
     // Roll back the last block, make sure tx1 and tx7 are put back in the trie
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
     BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
-    BOOST_CHECK(pclaimTrie->haveClaim(sName1, tx7.GetHash(), 0));
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
+    BOOST_CHECK(pclaimTrie->haveClaim(sName1, tx7OutPoint));
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->empty());
 
@@ -477,7 +496,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     BOOST_CHECK(CreateBlocks(1, 2));
     
-    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName2, tx2.GetHash(), 0, nThrowaway));
+    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName2, tx2OutPoint, nThrowaway));
     
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
@@ -501,7 +520,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName2, tx2.GetHash(), 0));
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName2, tx2OutPoint));
 
     // Undo spending tx2 with tx4, and then advance and verify tx2 is inserted into the trie when it should be
 
@@ -515,17 +534,17 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
-    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName2, tx2.GetHash(), 0, nThrowaway));
+    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName2, tx2OutPoint, nThrowaway));
     
     BOOST_CHECK(CreateBlocks(2, 1));
     
-    BOOST_CHECK(pclaimTrie->haveClaim(sName2, tx2.GetHash(), 0));
+    BOOST_CHECK(pclaimTrie->haveClaim(sName2, tx2OutPoint));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName2, val));
-    BOOST_CHECK(val.txhash == tx5.GetHash());
-    BOOST_CHECK(pclaimTrie->haveClaim(sName2, tx2.GetHash(), 0));
+    BOOST_CHECK(val.outPoint == tx5OutPoint);
+    BOOST_CHECK(pclaimTrie->haveClaim(sName2, tx2OutPoint));
 
     // Test undoing a spend which involves a claim in the trie
 
@@ -538,7 +557,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName2, tx2.GetHash(), 0));
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName2, tx2OutPoint));
 
     // undo spending tx2 with tx4, and verify tx2 is back in the trie
     
@@ -547,8 +566,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName2, val));
-    BOOST_CHECK(val.txhash == tx5.GetHash());
-    BOOST_CHECK(pclaimTrie->haveClaim(sName2, tx2.GetHash(), 0));
+    BOOST_CHECK(val.outPoint == tx5OutPoint);
+    BOOST_CHECK(pclaimTrie->haveClaim(sName2, tx2OutPoint));
     mempool.clear();
 
     // roll back to the beginning
@@ -579,7 +598,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName1, tx1.GetHash(), 0, nThrowaway));
+    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName1, tx1OutPoint, nThrowaway));
 
     // move forward some, but not far enough for the claim to get into the trie
 
@@ -594,9 +613,9 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx1.GetHash(), 0, nThrowaway));
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx1.GetHash(), 0));
-    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName1, tx3.GetHash(), 0, nThrowaway));
+    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx1OutPoint, nThrowaway));
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx1OutPoint));
+    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName1, tx3OutPoint, nThrowaway));
 
     // spend the update (tx6 spends tx3)
 
@@ -607,7 +626,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx3.GetHash(), 0));
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx3OutPoint));
 
     // undo spending the update (undo tx6 spending tx3)
 
@@ -625,13 +644,13 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
-    BOOST_CHECK(val.txhash == tx3.GetHash());
+    BOOST_CHECK(val.outPoint == tx3OutPoint);
 
     BOOST_CHECK(CreateBlocks(1, 1));
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->haveClaim(sName1, tx3.GetHash(), 0));
+    BOOST_CHECK(pclaimTrie->haveClaim(sName1, tx3OutPoint));
 
     // roll all the way back
 
@@ -658,7 +677,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
 
     // update the original claim (tx3 spends tx1)
     
@@ -669,7 +688,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
-    BOOST_CHECK(val.txhash == tx3.GetHash());
+    BOOST_CHECK(val.outPoint == tx3OutPoint);
     
     // spend the update (tx6 spends tx3)
     
@@ -688,7 +707,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
-    BOOST_CHECK(val.txhash == tx3.GetHash());
+    BOOST_CHECK(val.outPoint == tx3OutPoint);
 
     // Test having two updates to a claim in the same transaction
 
@@ -705,7 +724,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(!pclaimTrie->queueEmpty());
 
     BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
-    BOOST_CHECK(val.txhash == tx8.GetHash() && val.nOut == 0);
+    BOOST_CHECK(val.outPoint == tx8OutPoint0);
 
     // roll forward until tx8 output 1 gets into the trie
 
@@ -722,7 +741,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(pclaimTrie->queueEmpty());
 
     BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
-    BOOST_CHECK(val.txhash == tx8.GetHash() && val.nOut == 1);
+    BOOST_CHECK(val.outPoint == tx8OutPoint1);
 
     // roll back to before tx8
 
@@ -746,7 +765,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
     BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
     BOOST_CHECK(pclaimTrie->queueEmpty());
 
     // advance a few blocks
@@ -761,7 +780,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx10.GetHash(), 0, nThrowaway));
+    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx10OutPoint, nThrowaway));
     BOOST_CHECK(pclaimTrie->queueEmpty());
 
     // roll back, make sure nothing bad happens
@@ -777,7 +796,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     BOOST_CHECK(CreateBlocks(1, 2));
 
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx10.GetHash(), 0, nThrowaway));
+    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx10OutPoint, nThrowaway));
     BOOST_CHECK(pclaimTrie->queueEmpty());
 
     // update it
@@ -788,13 +807,13 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx11.GetHash(), 0, nThrowaway));
+    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx11OutPoint, nThrowaway));
     BOOST_CHECK(pclaimTrie->queueEmpty());
 
     BOOST_CHECK(CreateBlocks(10, 1));
 
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx11.GetHash(), 0, nThrowaway));
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx11.GetHash(), 0));
+    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx11OutPoint, nThrowaway));
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx11OutPoint));
     BOOST_CHECK(pclaimTrie->queueEmpty());
 
     // roll back to before the update
@@ -802,18 +821,18 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
 
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx11.GetHash(), 0));
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx11.GetHash(), 0, nThrowaway));
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx10.GetHash(), 0));
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx10.GetHash(), 0, nThrowaway));
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx11OutPoint));
+    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx11OutPoint, nThrowaway));
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx10OutPoint));
+    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx10OutPoint, nThrowaway));
     BOOST_CHECK(pclaimTrie->queueEmpty());
 
     // make sure tx10 would have gotten into the trie, then run tests again
     
     BOOST_CHECK(CreateBlocks(10, 1));
 
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx10.GetHash(), 0));
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx10.GetHash(), 0, nThrowaway));
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx10OutPoint));
+    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx10OutPoint, nThrowaway));
     BOOST_CHECK(pclaimTrie->queueEmpty());
 
     // update it
@@ -822,18 +841,18 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     BOOST_CHECK(CreateBlocks(1, 2));
 
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx11.GetHash(), 0, nThrowaway));
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx11.GetHash(), 0));
+    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx11OutPoint, nThrowaway));
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx11OutPoint));
     BOOST_CHECK(pclaimTrie->queueEmpty());
 
     // make sure tx11 would have gotten into the trie
 
     BOOST_CHECK(CreateBlocks(20, 1));
 
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx11.GetHash(), 0, nThrowaway));
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx11.GetHash(), 0));
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx10.GetHash(), 0, nThrowaway));
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx10.GetHash(), 0));
+    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx11OutPoint, nThrowaway));
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx11OutPoint));
+    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx10OutPoint, nThrowaway));
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx10OutPoint));
     BOOST_CHECK(pclaimTrie->queueEmpty());
 
     // roll all the way back
@@ -903,11 +922,16 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 
     CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
     tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP << OP_TRUE;
+    COutPoint tx1OutPoint(tx1.GetHash(), 0);
+
     CMutableTransaction tx2 = BuildTransaction(tx1);
     tx2.vout[0].scriptPubKey = CScript() << OP_TRUE;
+    COutPoint tx2OutPoint(tx2.GetHash(), 0);
+    
     CMutableTransaction tx3 = BuildTransaction(coinbases[1]);
     tx3.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP << OP_TRUE;
     tx3.vout[0].nValue = tx1.vout[0].nValue >> 1;
+    COutPoint tx3OutPoint(tx3.GetHash(), 0);
 
     int nThrowaway;
     
@@ -1107,15 +1131,32 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     BOOST_CHECK(CreateBlocks(4, 1));
 
     BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName, tx3.GetHash(), 0, nThrowaway));
+    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName, tx3OutPoint, nThrowaway));
 
     BOOST_CHECK(CreateBlocks(1, 1));
+
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
     
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
+
+    // roll back to before tx3 is valid
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+
+    // advance again until tx3 is valid
+
+    BOOST_CHECK(CreateBlocks(1, 1));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
 
     // advance until the expiration event occurs. verify the expiration event occurs on time.
 
@@ -1133,7 +1174,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx3.GetHash());
+    BOOST_CHECK(val.outPoint == tx3OutPoint);
 
     // spend tx1
 
@@ -1149,7 +1190,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
 
     // roll all the way back
 
@@ -1182,16 +1223,19 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
     tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
     tx1.vout[0].nValue = 100000000;
+    COutPoint tx1OutPoint(tx1.GetHash(), 0);
 
     CMutableTransaction tx2 = BuildTransaction(coinbases[1]);
     tx2.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
     tx2.vout[0].nValue = 500000000;
+    COutPoint tx2OutPoint(tx2.GetHash(), 0);
 
     CMutableTransaction tx3 = BuildTransaction(coinbases[2]);
     uint160 tx1ClaimId = ClaimIdHash(tx1.GetHash(), 0);
     std::vector<unsigned char> vchTx1ClaimId(tx1ClaimId.begin(), tx1ClaimId.end());
     tx3.vout[0].scriptPubKey = CScript() << OP_SUPPORT_CLAIM << vchName << vchTx1ClaimId << OP_2DROP << OP_DROP << OP_TRUE;
     tx3.vout[0].nValue = 500000000;
+    COutPoint tx3OutPoint(tx3.GetHash(), 0);
 
     CMutableTransaction tx4 = BuildTransaction(tx1);
     tx4.vout[0].scriptPubKey = CScript() << OP_TRUE;
@@ -1204,6 +1248,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     CMutableTransaction tx7 = BuildTransaction(tx1);
     tx7.vout[0].scriptPubKey = CScript() << OP_UPDATE_CLAIM << vchName << vchTx1ClaimId << vchValue1 << OP_2DROP << OP_2DROP << OP_TRUE;
+    COutPoint tx7OutPoint(tx7.GetHash(), 0);
 
     CClaimValue val;
     std::vector<uint256> blocks_to_invalidate;
@@ -1279,7 +1324,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
 
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
     
     // spend tx3
 
@@ -1296,7 +1341,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
     
     // unspend tx3, verify tx1 regains control
 
@@ -1308,7 +1353,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
 
     // update tx1 with tx7, verify tx7 has control
 
@@ -1323,7 +1368,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx7.GetHash());
+    BOOST_CHECK(val.outPoint == tx7OutPoint);
 
     // roll back to before tx7 is inserted, verify tx1 has control
     
@@ -1331,7 +1376,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     blocks_to_invalidate.pop_back();
 
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
     
     // roll back to before tx2 is valid
 
@@ -1351,7 +1396,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
 
     // roll back to before tx3 is inserted
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
@@ -1383,7 +1428,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
 
     // roll all the way back
 
@@ -1407,7 +1452,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
 
     // advance a few blocks
 
@@ -1455,7 +1500,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
 
     // spend tx3 again, then undo the spend and roll back until it's back in the queue
 
@@ -1468,7 +1513,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
@@ -1478,7 +1523,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
@@ -1486,7 +1531,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
 
     // advance until tx3 is valid again
 
@@ -1495,7 +1540,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
 
     // roll all the way back
 
@@ -1529,16 +1574,19 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
     tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
     tx1.vout[0].nValue = 100000000;
+    COutPoint tx1OutPoint(tx1.GetHash(), 0);
 
     CMutableTransaction tx2 = BuildTransaction(coinbases[1]);
     tx2.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
     tx2.vout[0].nValue = 500000000;
+    COutPoint tx2OutPoint(tx2.GetHash(), 0);
 
     CMutableTransaction tx3 = BuildTransaction(coinbases[2]);
     uint160 tx1ClaimId = ClaimIdHash(tx1.GetHash(), 0);
     std::vector<unsigned char> vchTx1ClaimId(tx1ClaimId.begin(), tx1ClaimId.end());
     tx3.vout[0].scriptPubKey = CScript() << OP_SUPPORT_CLAIM << vchName << vchTx1ClaimId << OP_2DROP << OP_DROP << OP_TRUE;
     tx3.vout[0].nValue = 500000000;
+    COutPoint tx3OutPoint(tx3.GetHash(), 0);
 
     CMutableTransaction tx4 = BuildTransaction(tx1);
     tx4.vout[0].scriptPubKey = CScript() << OP_TRUE;
@@ -1589,12 +1637,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(CreateBlocks(4, 1));
 
     BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName, tx2.GetHash(), 0, nThrowaway));
+    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName, tx2OutPoint, nThrowaway));
 
     BOOST_CHECK(CreateBlocks(1, 1));
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
 
     // advance a few blocks
 
@@ -1627,7 +1675,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
 
     // spend tx3
 
@@ -1641,7 +1689,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
 
     // undo spend
 
@@ -1653,7 +1701,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
 
     // roll back to before tx3 is valid
 
@@ -1665,7 +1713,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
 
     // roll all the way back
 
@@ -1693,7 +1741,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
 
     // advance a few blocks
 
@@ -1710,7 +1758,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
 
     // advance some, insert tx3, should be immediately valid
 
@@ -1725,7 +1773,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
 
     // advance until tx2 is valid, verify tx1 retains control
 
@@ -1738,8 +1786,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
-    BOOST_CHECK(pclaimTrie->haveClaim(sName, tx2.GetHash(), 0));
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
+    BOOST_CHECK(pclaimTrie->haveClaim(sName, tx2OutPoint));
 
     // roll all the way back
 
@@ -1766,7 +1814,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
 
     // advance a few blocks
 
@@ -1783,7 +1831,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
 
     // advance some
     
@@ -1800,7 +1848,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
 
     // advance until tx1 is valid
 
@@ -1812,8 +1860,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
-    BOOST_CHECK(pclaimTrie->haveClaim(sName, tx1.GetHash(), 0));
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
+    BOOST_CHECK(pclaimTrie->haveClaim(sName, tx1OutPoint));
 
     // advance until tx3 is valid
 
@@ -1825,7 +1873,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
 
     // roll all the way back
 
@@ -1851,7 +1899,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
     
     // advance a few blocks
 
@@ -1868,7 +1916,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
     
     // advance some, insert tx3
 
@@ -1883,7 +1931,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
     
     // advance until tx2 is valid
 
@@ -1896,7 +1944,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
     
     // spend tx1
 
@@ -1910,7 +1958,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx2.GetHash());
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
     
     // undo spend of tx1
 
@@ -1922,7 +1970,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
-    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
     
     // roll all the way back
 
@@ -2007,8 +2055,8 @@ BOOST_AUTO_TEST_CASE(claimtrienode_serialize_unserialize)
     ss >> n2;
     BOOST_CHECK(n1 == n2);
 
-    CClaimValue v1(uint256S("0000000000000000000000000000000000000000000000000000000000000001"), 0, hash160, 50, 0, 100);
-    CClaimValue v2(uint256S("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"), 1, hash160, 100, 1, 101);
+    CClaimValue v1(COutPoint(uint256S("0000000000000000000000000000000000000000000000000000000000000001"), 0), hash160, 50, 0, 100);
+    CClaimValue v2(COutPoint(uint256S("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"), 1), hash160, 100, 1, 101);
 
     n1.insertClaim(v1);
     BOOST_CHECK(n1 != n2);
@@ -2022,13 +2070,13 @@ BOOST_AUTO_TEST_CASE(claimtrienode_serialize_unserialize)
     ss >> n2;
     BOOST_CHECK(n1 == n2);
 
-    n1.removeClaim(v1.txhash, v1.nOut, throwaway);
+    n1.removeClaim(v1.outPoint, throwaway);
     BOOST_CHECK(n1 != n2);
     ss << n1;
     ss >> n2;
     BOOST_CHECK(n1 == n2);
 
-    n1.removeClaim(v2.txhash, v2.nOut, throwaway);
+    n1.removeClaim(v2.outPoint, throwaway);
     BOOST_CHECK(n1 != n2);
     ss << n1;
     ss >> n2;

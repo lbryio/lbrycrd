@@ -35,8 +35,8 @@ UniValue getclaimtrie(const UniValue& params, bool fHelp)
         CClaimValue claim;
         if (it->second.getBestClaim(claim))
         {
-            node.push_back(Pair("txid", claim.txhash.GetHex()));                                    
-            node.push_back(Pair("n", (int)claim.nOut));                                             
+            node.push_back(Pair("txid", claim.outPoint.hash.GetHex()));                                    
+            node.push_back(Pair("n", (int)claim.outPoint.n));                                             
             node.push_back(Pair("value", ValueFromAmount(claim.nAmount)));                                           
             node.push_back(Pair("height", claim.nHeight));                                          
         }
@@ -67,29 +67,29 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
     if (!pclaimTrie->getInfoForName(name, claim))
         return ret;
     CCoinsViewCache view(pcoinsTip);
-    const CCoins* coin = view.AccessCoins(claim.txhash);
+    const CCoins* coin = view.AccessCoins(claim.outPoint.hash);
     if (!coin)
     {
         LogPrintf("%s: %s does not exist in the coins view, despite being associated with a name\n",
-                  __func__, claim.txhash.GetHex());
+                  __func__, claim.outPoint.hash.GetHex());
         return ret;
     }
-    if (coin->vout.size() < claim.nOut || coin->vout[claim.nOut].IsNull())
+    if (coin->vout.size() < claim.outPoint.n || coin->vout[claim.outPoint.n].IsNull())
     {
-        LogPrintf("%s: the specified txout of %s appears to have been spent\n", __func__, claim.txhash.GetHex());
+        LogPrintf("%s: the specified txout of %s appears to have been spent\n", __func__, claim.outPoint.hash.GetHex());
         return ret;
     }
     
     int op;
     std::vector<std::vector<unsigned char> > vvchParams;
-    if (!DecodeClaimScript(coin->vout[claim.nOut].scriptPubKey, op, vvchParams))
+    if (!DecodeClaimScript(coin->vout[claim.outPoint.n].scriptPubKey, op, vvchParams))
     {
-        LogPrintf("%s: the specified txout of %s does not have a name claim command\n", __func__, claim.txhash.GetHex());
+        LogPrintf("%s: the specified txout of %s does not have a name claim command\n", __func__, claim.outPoint.hash.GetHex());
     }
     std::string sValue(vvchParams[1].begin(), vvchParams[1].end());
     ret.push_back(Pair("value", sValue));
-    ret.push_back(Pair("txid", claim.txhash.GetHex()));
-    ret.push_back(Pair("n", (int)claim.nOut));
+    ret.push_back(Pair("txid", claim.outPoint.hash.GetHex()));
+    ret.push_back(Pair("n", (int)claim.outPoint.n));
     ret.push_back(Pair("amount", claim.nAmount));
     ret.push_back(Pair("height", claim.nHeight));
     return ret;
@@ -256,7 +256,7 @@ UniValue getclaimsfortx(const UniValue& params, bool fHelp)
                     o.push_back(Pair("depth", chainActive.Height() - nHeight));
                     if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
                     {
-                        bool inClaimTrie = pclaimTrie->haveClaim(sName, hash, i);
+                        bool inClaimTrie = pclaimTrie->haveClaim(sName, COutPoint(hash, i));
                         o.push_back(Pair("in claim trie", inClaimTrie));
                         if (inClaimTrie)
                         {
@@ -265,12 +265,12 @@ UniValue getclaimsfortx(const UniValue& params, bool fHelp)
                             {
                                 LogPrintf("HaveClaim was true but getInfoForName returned false.");
                             }
-                            o.push_back(Pair("is controlling", (claim.txhash == hash && claim.nOut == i)));
+                            o.push_back(Pair("is controlling", (claim.outPoint.hash == hash && claim.outPoint.n == i)));
                         }
                         else
                         {
                             int nValidAtHeight;
-                            if (pclaimTrie->haveClaimInQueue(sName, hash, i, nValidAtHeight))
+                            if (pclaimTrie->haveClaimInQueue(sName, COutPoint(hash, i), nValidAtHeight))
                             {
                                 o.push_back(Pair("in queue", true));
                                 o.push_back(Pair("blocks to valid", nValidAtHeight - chainActive.Height()));
@@ -283,12 +283,12 @@ UniValue getclaimsfortx(const UniValue& params, bool fHelp)
                     }
                     else if (op == OP_SUPPORT_CLAIM)
                     {
-                        bool inSupportMap = pclaimTrie->haveSupport(sName, hash, i);
+                        bool inSupportMap = pclaimTrie->haveSupport(sName, COutPoint(hash, i));
                         o.push_back(Pair("in support map", inSupportMap));
                         if (!inSupportMap)
                         {
                             int nValidAtHeight;
-                            if (pclaimTrie->haveSupportInQueue(sName, hash, i, nValidAtHeight))
+                            if (pclaimTrie->haveSupportInQueue(sName, COutPoint(hash, i), nValidAtHeight))
                             {
                                 o.push_back(Pair("in queue", true));
                                 o.push_back(Pair("blocks to valid", nValidAtHeight - chainActive.Height()));

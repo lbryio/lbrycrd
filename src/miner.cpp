@@ -334,7 +334,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                         }
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         int throwaway;
-                        if (trieCache.spendClaim(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, throwaway))
+                        if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), coins->nHeight, throwaway))
                         {
                             std::pair<std::string, uint160> entry(name, claimId);
                             spentClaims.push_back(entry);
@@ -349,7 +349,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                         assert(vvchParams.size() == 2);
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         int throwaway;
-                        if (!trieCache.spendSupport(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, throwaway))
+                        if (!trieCache.spendSupport(name, COutPoint(txin.prevout.hash, txin.prevout.n), coins->nHeight, throwaway))
                         {
                             LogPrintf("%s(): The support was not found in the trie or queue\n", __func__);
                         }
@@ -371,7 +371,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                     {
                         assert(vvchParams.size() == 2);
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                        if (!trieCache.addClaim(name, tx.GetHash(), i, ClaimIdHash(tx.GetHash(), i), txout.nValue, nHeight))
+                        if (!trieCache.addClaim(name, COutPoint(tx.GetHash(), i), ClaimIdHash(tx.GetHash(), i), txout.nValue, nHeight))
                         {
                             LogPrintf("%s: Something went wrong inserting the name\n", __func__);
                         }
@@ -392,7 +392,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                         if (itSpent != spentClaims.end())
                         {
                             spentClaims.erase(itSpent);
-                            if (!trieCache.addClaim(name, tx.GetHash(), i, claimId, txout.nValue, nHeight))
+                            if (!trieCache.addClaim(name, COutPoint(tx.GetHash(), i), claimId, txout.nValue, nHeight))
                             {
                                 LogPrintf("%s: Something went wrong updating a claim\n", __func__);
                             }
@@ -407,7 +407,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                         assert(vvchParams.size() == 2);
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         uint160 supportedClaimId(vvchParams[1]);
-                        if (!trieCache.addSupport(name, tx.GetHash(), i, txout.nValue, supportedClaimId, nHeight))
+                        if (!trieCache.addSupport(name, COutPoint(tx.GetHash(), i), txout.nValue, supportedClaimId, nHeight))
                         {
                             LogPrintf("%s: Something went wrong inserting the claim support\n", __func__);
                         }
