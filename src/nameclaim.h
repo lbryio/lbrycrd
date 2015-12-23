@@ -2,6 +2,7 @@
 #define BITCOIN_NAMECLAIM_H
 
 #include "script/script.h"
+#include "uint256.h"
 
 #include <vector>
 
@@ -9,6 +10,7 @@ bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector
 bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams, CScript::const_iterator& pc);
 CScript StripClaimScriptPrefix(const CScript& scriptIn);
 CScript StripClaimScriptPrefix(const CScript& scriptIn, int& op);
+uint160 ClaimIdHash(const uint256& txhash, uint32_t nOut);
 std::vector<unsigned char> uint32_t_to_vch(uint32_t n);
 uint32_t vch_to_uint32_t(std::vector<unsigned char>& vchN);
 

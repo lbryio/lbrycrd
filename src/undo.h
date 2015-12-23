@@ -25,16 +25,18 @@ public:
     bool fCoinBase;       // if the outpoint was the last unspent: whether it belonged to a coinbase
     unsigned int nHeight; // if the outpoint was the last unspent: its height
     int nVersion;         // if the outpoint was the last unspent: its version
-    unsigned int nClaimValidHeight;   // If the outpoint was a name claim, the height at which the claim should be inserted into the trie
+    unsigned int nClaimValidHeight;   // If the outpoint was a claim or support, the height at which the claim or support should be inserted into the trie
+    bool fIsClaim;        // if the outpoint was a claim or support
 
-    CTxInUndo() : txout(), fLastUnspent(false), fCoinBase(false), nHeight(0), nVersion(0), nClaimValidHeight(0) {}
-    CTxInUndo(const CTxOut &txoutIn, bool fLastUnspent = false, bool fCoinBaseIn = false, unsigned int nHeightIn = 0, int nVersionIn = 0, unsigned int nClaimValidHeight = 0) : txout(txoutIn), fLastUnspent(fLastUnspent), fCoinBase(fCoinBaseIn), nHeight(nHeightIn), nVersion(nVersionIn), nClaimValidHeight(nClaimValidHeight) { }
+    CTxInUndo() : txout(), fLastUnspent(false), fCoinBase(false), nHeight(0), nVersion(0), nClaimValidHeight(0), fIsClaim(false) {}
+    CTxInUndo(const CTxOut &txoutIn, bool fLastUnspent = false, bool fCoinBaseIn = false, unsigned int nHeightIn = 0, int nVersionIn = 0, unsigned int nClaimValidHeight = 0, bool fIsClaim = false) : txout(txoutIn), fLastUnspent(fLastUnspent), fCoinBase(fCoinBaseIn), nHeight(nHeightIn), nVersion(nVersionIn), nClaimValidHeight(nClaimValidHeight), fIsClaim(fIsClaim) { }
 
     unsigned int GetSerializeSize(int nType, int nVersion) const {
         return ::GetSerializeSize(VARINT(nHeight*4+(fCoinBase ? 2 : 0)+(fLastUnspent ? 1: 0)), nType, nVersion) +
                (fLastUnspent ? ::GetSerializeSize(VARINT(this->nVersion), nType, nVersion) : 0) +
                ::GetSerializeSize(CTxOutCompressor(REF(txout)), nType, nVersion) +
-               ::GetSerializeSize(VARINT(nClaimValidHeight), nType, nVersion);
+               ::GetSerializeSize(VARINT(nClaimValidHeight), nType, nVersion) +
+               ::GetSerializeSize(fIsClaim, nType, nVersion);
     }
 
     template<typename Stream>
@@ -44,6 +46,7 @@ public:
             ::Serialize(s, VARINT(this->nVersion), nType, nVersion);
         ::Serialize(s, CTxOutCompressor(REF(txout)), nType, nVersion);
         ::Serialize(s, VARINT(nClaimValidHeight), nType, nVersion);
+        ::Serialize(s, fIsClaim, nType, nVersion);
     }
 
     template<typename Stream>
@@ -57,6 +60,7 @@ public:
             ::Unserialize(s, VARINT(this->nVersion), nType, nVersion);
         ::Unserialize(s, REF(CTxOutCompressor(REF(txout))), nType, nVersion);
         ::Unserialize(s, VARINT(nClaimValidHeight), nType, nVersion);
+        ::Unserialize(s, fIsClaim, nType, nVersion);
     }
 };
 

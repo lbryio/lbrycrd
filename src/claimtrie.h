@@ -26,33 +26,19 @@ class CClaimValue
 public:
     uint256 txhash;
     uint32_t nOut;
+    uint160 claimId;
     CAmount nAmount;
     CAmount nEffectiveAmount;
     int nHeight;
     int nValidAtHeight;
 
-    bool fIsUpdate;
-    uint256 updateToTxhash;
-    uint32_t updateToNOut;
-    
     CClaimValue() {};
 
-    CClaimValue(uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight,
+    CClaimValue(uint256 txhash, uint32_t nOut, uint160 claimId, CAmount nAmount, int nHeight,
                 int nValidAtHeight)
-                : txhash(txhash), nOut(nOut)
+                : txhash(txhash), nOut(nOut), claimId(claimId)
                 , nAmount(nAmount), nEffectiveAmount(nAmount)
                 , nHeight(nHeight), nValidAtHeight(nValidAtHeight)
-                , fIsUpdate(false)
-    {}
-    
-    CClaimValue(uint256 txhash, uint32_t nOut, CAmount nAmount, int nHeight,
-                int nValidAtHeight, uint256 updateToTxhash,
-                uint32_t updateToNOut)
-                : txhash(txhash), nOut(nOut)
-                , nAmount(nAmount), nEffectiveAmount(nAmount)
-                , nHeight(nHeight), nValidAtHeight(nValidAtHeight)
-                , fIsUpdate(true), updateToTxhash(updateToTxhash)
-                , updateToNOut(updateToNOut)
     {}
     
     uint256 GetHash() const;
@@ -63,6 +49,7 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         READWRITE(txhash);
         READWRITE(nOut);
+        READWRITE(claimId);
         READWRITE(nAmount);
         READWRITE(nHeight);
         READWRITE(nValidAtHeight);
@@ -90,7 +77,7 @@ public:
     
     bool operator==(const CClaimValue& other) const
     {
-        return txhash == other.txhash && nOut == other.nOut && nAmount == other.nAmount && nHeight == other.nHeight && nValidAtHeight == other.nValidAtHeight;
+        return txhash == other.txhash && nOut == other.nOut && claimId == other.claimId && nAmount == other.nAmount && nHeight == other.nHeight && nValidAtHeight == other.nValidAtHeight;
     }
     
     bool operator!=(const CClaimValue& other) const
@@ -104,19 +91,16 @@ class CSupportValue
 public:
     uint256 txhash;
     uint32_t nOut;
-    uint256 supportTxhash;
-    uint32_t supportnOut;
+    uint160 supportedClaimId;
     CAmount nAmount;
     int nHeight;
     int nValidAtHeight;
     
     CSupportValue() {};
-    CSupportValue(uint256 txhash, uint32_t nOut, uint256 supportTxhash,
-                  uint32_t supportnOut, CAmount nAmount, int nHeight,
-                  int nValidAtHeight)
+    CSupportValue(uint256 txhash, uint32_t nOut, uint160 supportedClaimId,
+                  CAmount nAmount, int nHeight, int nValidAtHeight)
                   : txhash(txhash), nOut(nOut)
-                  , supportTxhash(supportTxhash)
-                  , supportnOut(supportnOut), nAmount(nAmount)
+                  , supportedClaimId(supportedClaimId), nAmount(nAmount)
                   , nHeight(nHeight), nValidAtHeight(nValidAtHeight)
     {}
     
@@ -126,8 +110,7 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         READWRITE(txhash);
         READWRITE(nOut);
-        READWRITE(supportTxhash);
-        READWRITE(supportnOut);
+        READWRITE(supportedClaimId);
         READWRITE(nAmount);
         READWRITE(nHeight);
         READWRITE(nValidAtHeight);
@@ -135,7 +118,7 @@ public:
 
     bool operator==(const CSupportValue& other) const
     {
-        return txhash == other.txhash && nOut == other.nOut && supportTxhash == other.supportTxhash && supportnOut == other.supportnOut && nAmount == other.nAmount && nHeight == other.nHeight && nValidAtHeight == other.nValidAtHeight;
+        return txhash == other.txhash && nOut == other.nOut && supportedClaimId == other.supportedClaimId && nAmount == other.nAmount && nHeight == other.nHeight && nValidAtHeight == other.nValidAtHeight;
     }
     bool operator!=(const CSupportValue& other) const
     {
@@ -360,31 +343,25 @@ public:
     bool dirty() const { return !dirtyHashes.empty(); }
     
     bool addClaim(const std::string name, uint256 txhash, uint32_t nOut,
-                  CAmount nAmount, int nHeight) const;
-    bool addClaim(const std::string name, uint256 txhash, uint32_t nOut,
-                  CAmount nAmount, int nHeight, uint256 prevTxhash,
-                  uint32_t nPrevOut) const;
+                  uint160 claimId, CAmount nAmount, int nHeight) const;
     bool undoAddClaim(const std::string name, uint256 txhash, uint32_t nOut,
                       int nHeight) const;
     bool spendClaim(const std::string name, uint256 txhash, uint32_t nOut,
                     int nHeight, int& nValidAtHeight) const;
     bool undoSpendClaim(const std::string name, uint256 txhash, uint32_t nOut,
-                        CAmount nAmount, int nHeight,
+                        uint160 claimId, CAmount nAmount, int nHeight,
                         int nValidAtHeight) const;
     
     bool addSupport(const std::string name, uint256 txhash, uint32_t nOut,
-                    CAmount nAmount, uint256 supportedTxhash,
-                    uint32_t supportednOut, int nHeight) const;
+                    CAmount nAmount, uint160 supportedClaimId,
+                    int nHeight) const;
     bool undoAddSupport(const std::string name, uint256 txhash, uint32_t nOut,
-                        uint256 supportedTxhash, uint32_t supportednOut,
                         int nHeight) const;
     bool spendSupport(const std::string name, uint256 txhash, uint32_t nOut,
-                      uint256 supportedTxhash, uint32_t supportednOut,
                       int nHeight, int& nValidAtHeight) const;
     bool undoSpendSupport(const std::string name, uint256 txhash,
-                          uint32_t nOut, CAmount nAmount,
-                          uint256 supportedTxhash, uint32_t supportednOut,
-                          int nHeight, int nValidAtHeight) const;
+                          uint32_t nOut, uint160 supportedClaimId,
+                          CAmount nAmount, int nHeight, int nValidAtHeight) const;
     
     uint256 getBestBlock();
     void setBestBlock(const uint256& hashBlock);
@@ -455,13 +432,11 @@ private:
                                                         bool createIfNotExists) const;
     
     bool removeSupport(const std::string name, uint256 txhash, uint32_t nOut,
-                       uint256 supportedTxhash, uint32_t supportednOut,
                        int nHeight, int& nValidAtHeight,
                        bool fCheckTakeover) const;
     bool removeSupportFromMap(const std::string name, uint256 txhash,
-                              uint32_t nOut, uint256 supportedTxhash,
-                              uint32_t supportednOut, int nHeight,
-                              int& nValidAtHeight, bool fCheckTakeover) const;
+                              uint32_t nOut, int nHeight, int& nValidAtHeight,
+                              bool fCheckTakeover) const;
     
     bool insertSupportIntoMap(const std::string name,
                               CSupportValue support,
@@ -474,12 +449,10 @@ private:
     
     bool addSupportToQueue(const std::string name, uint256 txhash,
                            uint32_t nOut, CAmount nAmount,
-                           uint256 supportedTxhash, uint32_t supportednOut,
+                           uint160 supportedClaimId,
                            int nHeight, int nValidAtHeight) const;
     bool removeSupportFromQueue(const std::string name, uint256 txhash,
-                                uint32_t nOut, uint256 supportedTxhash,
-                                uint32_t supportednOut,
-                                int& nValidAtHeight) const;
+                                uint32_t nOut, int& nValidAtHeight) const;
     
     bool getSupportsForName(const std::string name,
                             supportMapEntryType& node) const;

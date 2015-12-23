@@ -1,4 +1,5 @@
 #include "nameclaim.h"
+#include "hash.h"
 #include "util.h"
 
 std::vector<unsigned char> uint32_t_to_vch(uint32_t n)
@@ -38,7 +39,7 @@ bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector
         return false;
     }
     
-    if (opcode != OP_CLAIM_NAME && opcode != OP_SUPPORT_CLAIM)
+    if (opcode != OP_CLAIM_NAME && opcode != OP_SUPPORT_CLAIM && opcode != OP_UPDATE_CLAIM)
     {
         return false;
     }
@@ -50,10 +51,10 @@ bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector
     std::vector<unsigned char> vchParam3;
     // Valid formats:
     // OP_CLAIM_NAME vchName vchValue OP_2DROP OP_DROP pubkeyscript
-    // OP_SUPPORT_CLAIM vchName vchClaimHash vchClaimIndex OP_2DROP OP_2DROP pubkeyscript
+    // OP_UPDATE_CLAIM vchName vchClaimId vchValue OP_2DROP OP_2DROP pubkeyscript
+    // OP_SUPPORT_CLAIM vchName vchClaimId OP_2DROP OP_DROP pubkeyscript
     // All others are invalid.
 
-    
     if (!scriptIn.GetOp(pc, opcode, vchParam1) || opcode < 0 || opcode > OP_PUSHDATA4)
     {
         return false;
@@ -62,13 +63,16 @@ bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector
     {
         return false;
     }
-    if (op == OP_SUPPORT_CLAIM)
+    if (op == OP_UPDATE_CLAIM || op == OP_SUPPORT_CLAIM)
     {
-        if (!scriptIn.GetOp(pc, opcode, vchParam3) || opcode < 0 || opcode > OP_PUSHDATA4)
+        if (vchParam2.size() != 160/8)
         {
             return false;
         }
-        if (vchParam3.size() != 4)
+    }
+    if (op == OP_UPDATE_CLAIM)
+    {
+        if (!scriptIn.GetOp(pc, opcode, vchParam3) || opcode < 0 || opcode > OP_PUSHDATA4)
         {
             return false;
         }
@@ -77,21 +81,34 @@ bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector
     {
         return false;
     }
-    if (!scriptIn.GetOp(pc, opcode) || (op == OP_CLAIM_NAME && opcode != OP_DROP) || (op == OP_SUPPORT_CLAIM && opcode != OP_2DROP))
+    if (!scriptIn.GetOp(pc, opcode))
+    {
+        return false;
+    }
+    if ((op == OP_CLAIM_NAME || op == OP_SUPPORT_CLAIM) && opcode != OP_DROP)
+    {
+        return false;
+    }
+    else if ((op == OP_UPDATE_CLAIM) && opcode != OP_2DROP)
     {
         return false;
     }
 
     vvchParams.push_back(vchParam1);
     vvchParams.push_back(vchParam2);
-    if (op == OP_SUPPORT_CLAIM)
+    if (op == OP_UPDATE_CLAIM)
     {
         vvchParams.push_back(vchParam3);
-        if (vchParam2.size() != (256/8))
-            return false;
     }
-    
     return true;
+}
+
+uint160 ClaimIdHash(const uint256& txhash, uint32_t nOut)
+{
+    std::vector<unsigned char> claimToHash(txhash.begin(), txhash.end());
+    std::vector<unsigned char> vchnOut = uint32_t_to_vch(nOut);
+    claimToHash.insert(claimToHash.end(), vchnOut.begin(), vchnOut.end());
+    return Hash160(claimToHash);
 }
 
 CScript StripClaimScriptPrefix(const CScript& scriptIn)

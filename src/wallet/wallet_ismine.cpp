@@ -47,7 +47,7 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
     CScript strippedScriptPubKey = StripClaimScriptPrefix(scriptPubKey, opcode);
     if (strippedScriptPubKey != scriptPubKey)
     {
-        if (opcode == OP_CLAIM_NAME)
+        if (opcode == OP_CLAIM_NAME || opcode == OP_UPDATE_CLAIM)
         {
             spendable_type = ISMINE_CLAIM;
         }

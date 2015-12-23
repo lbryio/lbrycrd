@@ -299,7 +299,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
             if (!CheckInputs(tx, state, view, true, MANDATORY_SCRIPT_VERIFY_FLAGS, true))
                 continue;
 
-            typedef std::map<std::string, std::pair<uint256, unsigned int> > spentClaimsType;
+            typedef std::vector<std::pair<std::string, uint160> > spentClaimsType;
             spentClaimsType spentClaims;
 
             BOOST_FOREACH(const CTxIn& txin, tx.vin)
@@ -319,25 +319,40 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
 
                 if (DecodeClaimScript(coins->vout[txin.prevout.n].scriptPubKey, op, vvchParams))
                 {
-                    if (op == OP_CLAIM_NAME)
+                    if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
+                    {
+                        uint160 claimId;
+                        if (op == OP_CLAIM_NAME)
+                        {
+                            assert(vvchParams.size() == 2);
+                            claimId = ClaimIdHash(txin.prevout.hash, txin.prevout.n);
+                        }
+                        else if (op == OP_UPDATE_CLAIM)
+                        {
+                            assert(vvchParams.size() == 3);
+                            claimId = uint160(vvchParams[1]);
+                        }
+                        std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                        int throwaway;
+                        if (trieCache.spendClaim(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, throwaway))
+                        {
+                            std::pair<std::string, uint160> entry(name, claimId);
+                            spentClaims.push_back(entry);
+                        }
+                        else
+                        {
+                            LogPrintf("%s(): The claim was not found in the trie or queue and therefore can't be updated\n", __func__);
+                        }
+                    }
+                    else if (op == OP_SUPPORT_CLAIM)
                     {
                         assert(vvchParams.size() == 2);
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         int throwaway;
-                        trieCache.spendClaim(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, throwaway);
-                        std::pair<uint256, unsigned int> val(txin.prevout.hash, txin.prevout.n);
-                        std::pair<std::string, std::pair<uint256, unsigned int> >entry(name, val);
-                        spentClaims.insert(entry);
-                    }
-                    else if (op == OP_SUPPORT_CLAIM)
-                    {
-                        assert(vvchParams.size() == 3);
-                        std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                        uint256 supportedTxid(vvchParams[1]);
-                        uint32_t supportednOut = vch_to_uint32_t(vvchParams[2]);
-                        int throwaway;
-                        if (!trieCache.spendSupport(name, txin.prevout.hash, txin.prevout.n, supportedTxid, supportednOut, coins->nHeight, throwaway))
-                            LogPrintf("%s: Something went wrong removing the support\n", __func__);
+                        if (!trieCache.spendSupport(name, txin.prevout.hash, txin.prevout.n, coins->nHeight, throwaway))
+                        {
+                            LogPrintf("%s(): The support was not found in the trie or queue\n", __func__);
+                        }
                     }
                 }
             }
@@ -356,29 +371,45 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
                     {
                         assert(vvchParams.size() == 2);
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                        spentClaimsType::iterator itSpent = spentClaims.find(name);
-                        bool success;
-                        if (itSpent != spentClaims.end())
+                        if (!trieCache.addClaim(name, tx.GetHash(), i, ClaimIdHash(tx.GetHash(), i), txout.nValue, nHeight))
                         {
-                            success = trieCache.addClaim(name, tx.GetHash(), i, txout.nValue, nHeight, itSpent->second.first, itSpent->second.second);
-                            spentClaims.erase(itSpent);
-                        }
-                        else
-                            success = trieCache.addClaim(name, tx.GetHash(), i, txout.nValue, nHeight);
-                        if (!success)
                             LogPrintf("%s: Something went wrong inserting the name\n", __func__);
+                        }
                     }
-                    else if (op == OP_SUPPORT_CLAIM)
+                    else if (op == OP_UPDATE_CLAIM)
                     {
                         assert(vvchParams.size() == 3);
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                        uint256 supportedTxid(vvchParams[1]);
-                        uint32_t supportednOut = vch_to_uint32_t(vvchParams[2]);
-                        //CScriptNum snOut(vvchParams[2], true);
-                        //int supportednOut = snOut.getint();
-                        if (!trieCache.addSupport(name, tx.GetHash(), i, txout.nValue, supportedTxid, supportednOut, nHeight))
+                        uint160 claimId(vvchParams[1]);
+                        spentClaimsType::iterator itSpent;
+                        for (itSpent = spentClaims.begin(); itSpent != spentClaims.end(); ++itSpent)
                         {
-                            LogPrintf("%s: Something went wrong inserting the name\n", __func__);
+                            if (itSpent->first == name && itSpent->second == claimId)
+                            {
+                                break;
+                            }
+                        }
+                        if (itSpent != spentClaims.end())
+                        {
+                            spentClaims.erase(itSpent);
+                            if (!trieCache.addClaim(name, tx.GetHash(), i, claimId, txout.nValue, nHeight))
+                            {
+                                LogPrintf("%s: Something went wrong updating a claim\n", __func__);
+                            }
+                        }
+                        else
+                        {
+                            LogPrintf("%s(): This update refers to a claim that was not found in the trie or queue, and therefore cannot be updated. The claim may have expired or it may have never existed.\n", __func__);
+                        }
+                    }
+                    else if (op == OP_SUPPORT_CLAIM)
+                    {
+                        assert(vvchParams.size() == 2);
+                        std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                        uint160 supportedClaimId(vvchParams[1]);
+                        if (!trieCache.addSupport(name, tx.GetHash(), i, txout.nValue, supportedClaimId, nHeight))
+                        {
+                            LogPrintf("%s: Something went wrong inserting the claim support\n", __func__);
                         }
                     }
                 }

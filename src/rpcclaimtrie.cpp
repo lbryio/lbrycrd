@@ -235,19 +235,26 @@ UniValue getclaimsfortx(const UniValue& params, bool fHelp)
                 if (op == OP_CLAIM_NAME)
                 {
                     std::string sValue(vvchParams[1].begin(), vvchParams[1].end());
+                    uint160 claimId = ClaimIdHash(hash, i);
+                    o.push_back(Pair("claimId", claimId.GetHex()));
+                    o.push_back(Pair("value", sValue));
+                }
+                else if (op == OP_UPDATE_CLAIM)
+                {
+                    uint160 claimId(vvchParams[1]);
+                    std::string sValue(vvchParams[2].begin(), vvchParams[2].end());
+                    o.push_back(Pair("claimId", claimId.GetHex()));
                     o.push_back(Pair("value", sValue));
                 }
                 else if (op == OP_SUPPORT_CLAIM)
                 {
-                    uint256 supportedTxid(vvchParams[1]);
-                    uint32_t supportednOut = vch_to_uint32_t(vvchParams[2]);
-                    o.push_back(Pair("supported txid", supportedTxid.GetHex()));
-                    o.push_back(Pair("supported nout", (int64_t)supportednOut));
+                    uint160 supportedClaimId(vvchParams[1]);
+                    o.push_back(Pair("supported claimId", supportedClaimId.GetHex()));
                 }
                 if (nHeight > 0)
                 {
                     o.push_back(Pair("depth", chainActive.Height() - nHeight));
-                    if (op == OP_CLAIM_NAME)
+                    if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
                     {
                         bool inClaimTrie = pclaimTrie->haveClaim(sName, hash, i);
                         o.push_back(Pair("in claim trie", inClaimTrie));
@@ -296,7 +303,7 @@ UniValue getclaimsfortx(const UniValue& params, bool fHelp)
                 else
                 {
                     o.push_back(Pair("depth", 0));
-                    if (op == OP_CLAIM_NAME)
+                    if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
                     {
                         o.push_back(Pair("in claim trie", false));
                     }
