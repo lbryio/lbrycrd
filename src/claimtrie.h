@@ -186,7 +186,8 @@ typedef std::map<std::string, supportMapEntryType> supportMapType;
 
 typedef std::vector<claimQueueEntryType> claimQueueRowType;
 typedef std::map<int, claimQueueRowType> claimQueueType;
-typedef std::map<std::string, std::vector<CClaimValue> > claimQueueNamesType;
+typedef std::pair<COutPoint, int> claimQueueNamesEntryType;
+typedef std::map<std::string, std::vector<claimQueueNamesEntryType> > claimQueueNamesType;
 
 typedef std::vector<supportQueueEntryType> supportQueueRowType;
 typedef std::map<int, supportQueueRowType> supportQueueType;
@@ -231,7 +232,7 @@ public:
     void setExpirationTime(int t);
     
     bool getQueueRow(int nHeight, claimQueueRowType& row) const;
-    bool getQueueNameRow(const std::string& name, std::vector<CClaimValue>& row) const;
+    bool getQueueNameRow(const std::string& name, std::vector<claimQueueNamesEntryType>& row) const;
     bool getExpirationQueueRow(int nHeight, claimQueueRowType& row) const;
     bool getSupportNode(std::string name, supportMapEntryType& node) const;
     bool getSupportQueueRow(int nHeight, supportQueueRowType& row) const;
@@ -290,7 +291,7 @@ private:
     void markNodeDirty(const std::string& name, CClaimTrieNode* node);
     void updateQueueRow(int nHeight, claimQueueRowType& row);
     void updateQueueNameRow(const std::string& name,
-                            std::vector<CClaimValue>& row); 
+                            std::vector<claimQueueNamesEntryType>& row); 
     void updateExpirationRow(int nHeight, claimQueueRowType& row);
     void updateSupportMap(const std::string& name, supportMapEntryType& node);
     void updateSupportQueue(int nHeight, supportQueueRowType& row);

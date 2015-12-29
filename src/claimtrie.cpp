@@ -255,17 +255,17 @@ bool CClaimTrie::haveSupport(const std::string& name, const COutPoint& outPoint)
 
 bool CClaimTrie::haveClaimInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const
 {
-    std::vector<CClaimValue> nameRow;
+    std::vector<claimQueueNamesEntryType> nameRow;
     if (!getQueueNameRow(name, nameRow))
     {
         return false;
     }
-    std::vector<CClaimValue>::const_iterator itNameRow;
+    std::vector<claimQueueNamesEntryType>::const_iterator itNameRow;
     for (itNameRow = nameRow.begin(); itNameRow != nameRow.end(); ++itNameRow)
     {
-        if (itNameRow->outPoint == outPoint)
+        if (itNameRow->first == outPoint)
         {
-            nValidAtHeight = itNameRow->nValidAtHeight;
+            nValidAtHeight = itNameRow->second;
             break;
         }
     }
@@ -289,7 +289,7 @@ bool CClaimTrie::haveClaimInQueue(const std::string& name, const COutPoint& outP
         }
     }
     LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, nCurrentHeight);
-    return false;   
+    return false;
 }
 
 bool CClaimTrie::haveSupportInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const
@@ -499,7 +499,7 @@ bool CClaimTrie::getQueueRow(int nHeight, claimQueueRowType& row) const
     return db.Read(std::make_pair(CLAIM_QUEUE_ROW, nHeight), row);
 }
 
-bool CClaimTrie::getQueueNameRow(const std::string& name, std::vector<CClaimValue>& row) const
+bool CClaimTrie::getQueueNameRow(const std::string& name, std::vector<claimQueueNamesEntryType>& row) const
 {
     claimQueueNamesType::const_iterator itQueueNameRow = dirtyQueueNameRows.find(name);
     if (itQueueNameRow != dirtyQueueNameRows.end())
@@ -535,14 +535,14 @@ void CClaimTrie::updateQueueRow(int nHeight, claimQueueRowType& row)
     itQueueRow->second.swap(row);
 }
 
-void CClaimTrie::updateQueueNameRow(const std::string& name, std::vector<CClaimValue>& row)
+void CClaimTrie::updateQueueNameRow(const std::string& name, std::vector<claimQueueNamesEntryType>& row)
 {
     claimQueueNamesType::iterator itQueueRow = dirtyQueueNameRows.find(name);
     if (itQueueRow == dirtyQueueNameRows.end())
     {
-        std::vector<CClaimValue> newRow;
+        std::vector<claimQueueNamesEntryType> newRow;
         std::pair<claimQueueNamesType::iterator, bool> ret;
-        ret = dirtyQueueNameRows.insert(std::pair<std::string, std::vector<CClaimValue> >(name, newRow));
+        ret = dirtyQueueNameRows.insert(std::pair<std::string, std::vector<claimQueueNamesEntryType> >(name, newRow));
         assert(ret.second);
         itQueueRow = ret.first;
     }
@@ -1389,7 +1389,7 @@ claimQueueNamesType::iterator CClaimTrieCache::getQueueCacheNameRow(const std::s
     if (itQueueNameRow == claimQueueNameCache.end())
     {
         // Have to make a new name row and put it in the cache, if createIfNotExists is true
-        std::vector<CClaimValue> queueNameRow;
+        std::vector<claimQueueNamesEntryType> queueNameRow;
         // If the row exists in the base, copy its claims into the new row.
         bool exists = base->getQueueNameRow(name, queueNameRow);
         if (!exists)
@@ -1397,7 +1397,7 @@ claimQueueNamesType::iterator CClaimTrieCache::getQueueCacheNameRow(const std::s
                 return itQueueNameRow;
         // Stick the new row in the cache
         std::pair<claimQueueNamesType::iterator, bool> ret;
-        ret = claimQueueNameCache.insert(std::pair<std::string, std::vector<CClaimValue> >(name, queueNameRow));
+        ret = claimQueueNameCache.insert(std::pair<std::string, std::vector<claimQueueNamesEntryType> >(name, queueNameRow));
         assert(ret.second);
         itQueueNameRow = ret.first;
     }
@@ -1446,7 +1446,7 @@ bool CClaimTrieCache::addClaimToQueues(const std::string& name, CClaimValue& cla
     claimQueueType::iterator itQueueRow = getQueueCacheRow(claim.nValidAtHeight, true);
     claimQueueNamesType::iterator itQueueNameRow = getQueueCacheNameRow(name, true);
     itQueueRow->second.push_back(entry);
-    itQueueNameRow->second.push_back(claim);
+    itQueueNameRow->second.push_back(std::make_pair(claim.outPoint, claim.nValidAtHeight));
     addToExpirationQueue(entry);
     return true;
 }
@@ -1458,10 +1458,10 @@ bool CClaimTrieCache::removeClaimFromQueue(const std::string& name, const COutPo
     {
         return false;
     }
-    std::vector<CClaimValue>::iterator itQueueName;
+    std::vector<claimQueueNamesEntryType>::iterator itQueueName;
     for (itQueueName = itQueueNameRow->second.begin(); itQueueName != itQueueNameRow->second.end(); ++itQueueName)
     {
-        if (itQueueName->outPoint == outPoint)
+        if (itQueueName->first == outPoint)
         {
             break;
         }
@@ -1470,7 +1470,7 @@ bool CClaimTrieCache::removeClaimFromQueue(const std::string& name, const COutPo
     {
         return false;
     }
-    claimQueueType::iterator itQueueRow = getQueueCacheRow(itQueueName->nValidAtHeight, false);
+    claimQueueType::iterator itQueueRow = getQueueCacheRow(itQueueName->second, false);
     if (itQueueRow != claimQueueCache.end())
     {
         claimQueueRowType::iterator itQueue;
@@ -1489,7 +1489,7 @@ bool CClaimTrieCache::removeClaimFromQueue(const std::string& name, const COutPo
             return true;
         }
     }
-    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, itQueueName->nValidAtHeight, nCurrentHeight);
+    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, itQueueName->second, nCurrentHeight);
     return false;
 }
 
@@ -1926,9 +1926,9 @@ bool CClaimTrieCache::incrementBlock(claimQueueRowType& insertUndo, claimQueueRo
             claimQueueNamesType::iterator itQueueNameRow = getQueueCacheNameRow(itEntry->first, false);
             if (itQueueNameRow != claimQueueNameCache.end())
             {
-                for (std::vector<CClaimValue>::iterator itQueueName = itQueueNameRow->second.begin(); itQueueName != itQueueNameRow->second.end(); ++itQueueName)
+                for (std::vector<claimQueueNamesEntryType>::iterator itQueueName = itQueueNameRow->second.begin(); itQueueName != itQueueNameRow->second.end(); ++itQueueName)
                 {
-                    if (*itQueueName == itEntry->second)
+                    if (itQueueName->first == itEntry->second.outPoint && itQueueName->second == nCurrentHeight)
                     {
                         found = true;
                         itQueueNameRow->second.erase(itQueueName);
@@ -1942,9 +1942,9 @@ bool CClaimTrieCache::incrementBlock(claimQueueRowType& insertUndo, claimQueueRo
                 if (itQueueNameRow != claimQueueNameCache.end())
                 {
                     LogPrintf("Claims found for that name:\n");
-                    for (std::vector<CClaimValue>::iterator itQueueName = itQueueNameRow->second.begin(); itQueueName != itQueueNameRow->second.end(); ++itQueueName)
+                    for (std::vector<claimQueueNamesEntryType>::iterator itQueueName = itQueueNameRow->second.begin(); itQueueName != itQueueNameRow->second.end(); ++itQueueName)
                     {
-                        LogPrintf("\ttxid: %s, nOut: %d, nValidAtHeight: %d\n", itQueueName->outPoint.hash.GetHex(), itQueueName->outPoint.n, itQueueName->nValidAtHeight);
+                        LogPrintf("\ttxid: %s, nOut: %d, nValidAtHeight: %d\n", itQueueName->first.hash.GetHex(), itQueueName->first.n, itQueueName->second);
                     }
                 }
                 else
@@ -1952,6 +1952,7 @@ bool CClaimTrieCache::incrementBlock(claimQueueRowType& insertUndo, claimQueueRo
                     LogPrintf("No claims found for that name\n");
                 }
             }
+            assert(found);
             insertClaimIntoTrie(itEntry->first, itEntry->second, true);
             insertUndo.push_back(*itEntry);
         }
@@ -2075,39 +2076,38 @@ bool CClaimTrieCache::incrementBlock(claimQueueRowType& insertUndo, claimQueueRo
             claimQueueNamesType::iterator itQueueNameRow = getQueueCacheNameRow(*itNamesToCheck, false);
             if (itQueueNameRow != claimQueueNameCache.end())
             {
-                for (std::vector<CClaimValue>::iterator itQueueName = itQueueNameRow->second.begin(); itQueueName != itQueueNameRow->second.end(); ++itQueueName)
+                for (std::vector<claimQueueNamesEntryType>::iterator itQueueName = itQueueNameRow->second.begin(); itQueueName != itQueueNameRow->second.end(); ++itQueueName)
                 {
+                    bool found = false;
                     // Pull those claims out of the height-based queue
-                    claimQueueType::iterator itQueueRow = getQueueCacheRow(itQueueName->nValidAtHeight, false);
+                    claimQueueType::iterator itQueueRow = getQueueCacheRow(itQueueName->second, false);
+                    claimQueueRowType::iterator itQueue;
                     if (itQueueRow != claimQueueCache.end())
                     {
-                        claimQueueRowType::iterator itQueue;
                         for (itQueue = itQueueRow->second.begin(); itQueue != itQueueRow->second.end(); ++itQueue)
                         {
-                            if (*itNamesToCheck == itQueue->first && itQueue->second == *itQueueName)
+                            if (*itNamesToCheck == itQueue->first && itQueue->second.outPoint == itQueueName->first && itQueue->second.nValidAtHeight == itQueueName->second)
                             {
+                                found = true;
                                 break;
                             }
                         }
-                        if (itQueue != itQueueRow->second.end())
-                        {
-                            // Insert them into the queue undo with their previous nValidAtHeight
-                            insertUndo.push_back(*itQueue);
-                            // Insert them into the name trie with the new nValidAtHeight
-                            itQueue->second.nValidAtHeight = nCurrentHeight;
-                            insertClaimIntoTrie(itQueue->first, itQueue->second, false);
-                            // Delete them from the height-based queue
-                            itQueueRow->second.erase(itQueue);
-                        }
-                        else
-                        {
-                            // here be problems
-                        }
+                    }
+                    if (found)
+                    {
+                        // Insert them into the queue undo with their previous nValidAtHeight
+                        insertUndo.push_back(*itQueue);
+                        // Insert them into the name trie with the new nValidAtHeight
+                        itQueue->second.nValidAtHeight = nCurrentHeight;
+                        insertClaimIntoTrie(itQueue->first, itQueue->second, false);
+                        // Delete them from the height-based queue
+                        itQueueRow->second.erase(itQueue);
                     }
                     else
                     {
-                        // here be problems
+                        LogPrintf("%s(): An inconsistency was found in the claim queue. Please report this to the developers:\nClaim found in name queue but not in height based queue:\nname: %s, txid: %s, nOut: %d, nValidAtHeight in name based queue: %d, current height: %d\n", __func__, *itNamesToCheck, itQueueName->first.hash.GetHex(), itQueueName->first.n, itQueueName->second, nCurrentHeight);
                     }
+                    assert(found);
                 }
                 // remove all claims from the queue for that name
                 itQueueNameRow->second.clear();
@@ -2184,8 +2184,8 @@ bool CClaimTrieCache::decrementBlock(claimQueueRowType& insertUndo, claimQueueRo
         CClaimValue claim;
         assert(removeClaimFromTrie(itInsertUndo->first, itInsertUndo->second.outPoint, claim, false));
         claimQueueNamesType::iterator itQueueNameRow = getQueueCacheNameRow(itInsertUndo->first, true);
-        itQueueRow->second.push_back(*itInsertUndo);
-        itQueueNameRow->second.push_back(itInsertUndo->second); 
+        itQueueRow->second.push_back(std::make_pair(itInsertUndo->first, claim));
+        itQueueNameRow->second.push_back(std::make_pair(itInsertUndo->second.outPoint, itInsertUndo->second.nValidAtHeight)); 
     }
     if (expireUndo.begin() != expireUndo.end())
     {
