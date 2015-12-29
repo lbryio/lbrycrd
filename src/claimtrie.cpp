@@ -605,6 +605,20 @@ void CClaimTrie::updateSupportNameQueue(const std::string& name, std::vector<CSu
     itQueueRow->second.swap(row);
 }
 
+void CClaimTrie::updateSupportExpirationQueue(int nHeight, supportQueueRowType& row)
+{
+    supportQueueType::iterator itQueueRow = dirtySupportExpirationQueueRows.find(nHeight);
+    if (itQueueRow == dirtySupportExpirationQueueRows.end())
+    {
+        supportQueueRowType newRow;
+        std::pair<supportQueueType::iterator, bool> ret;
+        ret = dirtySupportExpirationQueueRows.insert(std::pair<int, supportQueueRowType >(nHeight, newRow));
+        assert(ret.second);
+        itQueueRow = ret.first;
+    }
+    itQueueRow->second.swap(row);
+}
+
 bool CClaimTrie::getSupportNode(std::string name, supportMapEntryType& node) const
 {
     supportMapType::const_iterator itNode = dirtySupportNodes.find(name);
@@ -638,7 +652,18 @@ bool CClaimTrie::getSupportQueueNameRow(const std::string& name, std::vector<CSu
     return db.Read(std::make_pair(SUPPORT_QUEUE_NAME_ROW, name), row);
 }
 
-bool CClaimTrie::update(nodeCacheType& cache, hashMapType& hashes, std::map<std::string, int>& takeoverHeights, const uint256& hashBlockIn, claimQueueType& queueCache, claimQueueNamesType& queueNameCache, claimQueueType& expirationQueueCache, int nNewHeight, supportMapType& supportCache, supportQueueType& supportQueueCache, supportQueueNamesType& supportQueueNameCache)
+bool CClaimTrie::getSupportExpirationQueueRow(int nHeight, supportQueueRowType& row) const
+{
+    supportQueueType::const_iterator itQueueRow = dirtySupportExpirationQueueRows.find(nHeight);
+    if (itQueueRow != dirtySupportExpirationQueueRows.end())
+    {
+        row = itQueueRow->second;
+        return true;
+    }
+    return db.Read(std::make_pair(SUPPORT_EXP_QUEUE_ROW, nHeight), row);
+}
+
+bool CClaimTrie::update(nodeCacheType& cache, hashMapType& hashes, std::map<std::string, int>& takeoverHeights, const uint256& hashBlockIn, claimQueueType& queueCache, claimQueueNamesType& queueNameCache, claimQueueType& expirationQueueCache, int nNewHeight, supportMapType& supportCache, supportQueueType& supportQueueCache, supportQueueNamesType& supportQueueNameCache, supportQueueType& supportExpirationQueueCache)
 {
     for (nodeCacheType::iterator itcache = cache.begin(); itcache != cache.end(); ++itcache)
     {
@@ -678,6 +703,10 @@ bool CClaimTrie::update(nodeCacheType& cache, hashMapType& hashes, std::map<std:
     for (supportQueueNamesType::iterator itSupportNameQueue = supportQueueNameCache.begin(); itSupportNameQueue != supportQueueNameCache.end(); ++itSupportNameQueue)
     {
         updateSupportNameQueue(itSupportNameQueue->first, itSupportNameQueue->second);
+    }
+    for (supportQueueType::iterator itSupportExpirationQueue = supportExpirationQueueCache.begin(); itSupportExpirationQueue != supportExpirationQueueCache.end(); ++itSupportExpirationQueue)
+    {
+        updateSupportExpirationQueue(itSupportExpirationQueue->first, itSupportExpirationQueue->second);
     }
     hashBlock = hashBlockIn;
     nCurrentHeight = nNewHeight;
@@ -884,6 +913,21 @@ void CClaimTrie::BatchWriteSupportQueueNameRows(CLevelDBBatch& batch)
         else
         {
             batch.Write(std::make_pair(SUPPORT_QUEUE_NAME_ROW, itQueue->first), itQueue->second);
+        }
+    }
+}
+
+void CClaimTrie::BatchWriteSupportExpirationQueueRows(CLevelDBBatch& batch)
+{
+    for (supportQueueType::iterator itQueue = dirtySupportExpirationQueueRows.begin(); itQueue != dirtySupportExpirationQueueRows.end(); ++itQueue)
+    {
+        if (itQueue->second.empty())
+        {
+            batch.Erase(std::make_pair(SUPPORT_EXP_QUEUE_ROW, itQueue->first));
+        }
+        else
+        {
+            batch.Write(std::make_pair(SUPPORT_EXP_QUEUE_ROW, itQueue->first), itQueue->second);
         }
     }
 }
@@ -1711,7 +1755,7 @@ bool CClaimTrieCache::addSupportToQueues(const std::string& name, CSupportValue&
     supportQueueNamesType::iterator itQueueNameRow = getSupportQueueCacheNameRow(name, true);
     itQueueRow->second.push_back(entry);
     itQueueNameRow->second.push_back(support);
-    //addSupportToExpirationQueue(entry);
+    addSupportToExpirationQueue(entry);
     return true;
 }
 
@@ -1784,7 +1828,7 @@ bool CClaimTrieCache::undoSpendSupport(const std::string& name, const COutPoint&
     if (nValidAtHeight < nCurrentHeight)
     {
         supportQueueEntryType entry(name, support);
-        //addSupportToExpirationQueue(entry);
+        addSupportToExpirationQueue(entry);
         return insertSupportIntoMap(name, support, false);
     }
     else
@@ -1802,18 +1846,21 @@ bool CClaimTrieCache::removeSupport(const std::string& name, const COutPoint& ou
     if (removed == false && removeSupportFromMap(name, outPoint, support, fCheckTakeover))
         removed = true;
     if (removed)
+    {
+        removeSupportFromExpirationQueue(name, outPoint, nHeight);
         nValidAtHeight = support.nValidAtHeight;
+    }
     return removed;
 }
 
-/*void CClaimTrieCache::addSupportToExpirationQueue(supportQueueEntryType& entry) const
+void CClaimTrieCache::addSupportToExpirationQueue(supportQueueEntryType& entry) const
 {
     int expirationHeight = entry.second.nHeight + base->nExpirationTime;
     supportQueueType::iterator itQueueRow = getSupportExpirationQueueCacheRow(expirationHeight, true);
     itQueueRow->second.push_back(entry);
-}*/
+}
 
-/*void CClaimTrieCache::removeSupportFromExpirationQueue(const std::string& name, const COutPoint& outPoint, int nHeight) const
+void CClaimTrieCache::removeSupportFromExpirationQueue(const std::string& name, const COutPoint& outPoint, int nHeight) const
 {
     int expirationHeight = nHeight + base->nExpirationTime;
     supportQueueType::iterator itQueueRow = getSupportExpirationQueueCacheRow(expirationHeight, false);
@@ -1831,9 +1878,9 @@ bool CClaimTrieCache::removeSupport(const std::string& name, const COutPoint& ou
     {
         itQueueRow->second.erase(itQueue);
     }
-}*/
+}
 
-/*supportQueueType::iterator CClaimTrieCache::getSupportExpirationQueueCacheRow(int nHeight, bool createIfNotExists) const
+supportQueueType::iterator CClaimTrieCache::getSupportExpirationQueueCacheRow(int nHeight, bool createIfNotExists) const
 {
     supportQueueType::iterator itQueueRow = supportExpirationQueueCache.find(nHeight);
     if (itQueueRow == supportExpirationQueueCache.end())
@@ -1852,7 +1899,7 @@ bool CClaimTrieCache::removeSupport(const std::string& name, const COutPoint& ou
         itQueueRow = ret.first;
     }
     return itQueueRow;
-}*/
+}
 
 bool CClaimTrieCache::undoAddSupport(const std::string& name, const COutPoint& outPoint, int nHeight) const
 {
@@ -1867,7 +1914,7 @@ bool CClaimTrieCache::spendSupport(const std::string& name, const COutPoint& out
     return removeSupport(name, outPoint, nHeight, nValidAtHeight, true);
 }
 
-bool CClaimTrieCache::incrementBlock(claimQueueRowType& insertUndo, claimQueueRowType& expireUndo, supportQueueRowType& insertSupportUndo,/* supportQueueRowType& expireSupportUndo,*/ std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const
+bool CClaimTrieCache::incrementBlock(claimQueueRowType& insertUndo, claimQueueRowType& expireUndo, supportQueueRowType& insertSupportUndo, supportQueueRowType& expireSupportUndo, std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const
 {
     LogPrintf("%s: nCurrentHeight (before increment): %d\n", __func__, nCurrentHeight);
     claimQueueType::iterator itQueueRow = getQueueCacheRow(nCurrentHeight, false);
@@ -1961,16 +2008,17 @@ bool CClaimTrieCache::incrementBlock(claimQueueRowType& insertUndo, claimQueueRo
         }
         itSupportRow->second.clear();
     }
-    /*supportQueueType::iterator itSupportExpirationRow = getSupportExpirationQueueCacheRow(nCurrentHeight, false);
+    supportQueueType::iterator itSupportExpirationRow = getSupportExpirationQueueCacheRow(nCurrentHeight, false);
     if (itSupportExpirationRow != supportExpirationQueueCache.end())
     {
         for (supportQueueRowType::iterator itEntry = itSupportExpirationRow->second.begin(); itEntry != itSupportExpirationRow->second.end(); ++itEntry)
         {
-            int nValidAtHeight;
-            assert(removeSupportFromMap(itEntry->first, itEntry->second.outPoint, nValidAtHeight, true));
-            supportExpireUndo.push_back(*itEntry);
+            CSupportValue support;
+            assert(removeSupportFromMap(itEntry->first, itEntry->second.outPoint, support, true));
+            expireSupportUndo.push_back(std::make_pair(itEntry->first, support));
         }
-    }*/
+        itSupportExpirationRow->second.clear();
+    }
     // check each potentially taken over name to see if a takeover occurred.
     // if it did, then check the claim and support insertion queues for 
     // the names that have been taken over, immediately insert all claim and
@@ -2126,7 +2174,7 @@ bool CClaimTrieCache::incrementBlock(claimQueueRowType& insertUndo, claimQueueRo
     return true;
 }
 
-bool CClaimTrieCache::decrementBlock(claimQueueRowType& insertUndo, claimQueueRowType& expireUndo, supportQueueRowType& insertSupportUndo, std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const
+bool CClaimTrieCache::decrementBlock(claimQueueRowType& insertUndo, claimQueueRowType& expireUndo, supportQueueRowType& insertSupportUndo, supportQueueRowType& expireSupportUndo, std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const
 {
     LogPrintf("%s: nCurrentHeight (before decrement): %d\n", __func__, nCurrentHeight);
     nCurrentHeight--;
@@ -2156,6 +2204,15 @@ bool CClaimTrieCache::decrementBlock(claimQueueRowType& insertUndo, claimQueueRo
         supportQueueNamesType::iterator itSupportNameRow = getSupportQueueCacheNameRow(itSupportUndo->first, true);
         itSupportRow->second.push_back(*itSupportUndo);
         itSupportNameRow->second.push_back(itSupportUndo->second);
+    }
+    if (expireSupportUndo.begin() != expireSupportUndo.end())
+    {
+        supportQueueType::iterator itSupportExpireRow = getSupportExpirationQueueCacheRow(nCurrentHeight, true);
+        for (supportQueueRowType::iterator itSupportExpireUndo = expireSupportUndo.begin(); itSupportExpireUndo != expireSupportUndo.end(); ++itSupportExpireUndo)
+        {
+            insertSupportIntoMap(itSupportExpireUndo->first, itSupportExpireUndo->second, false);
+            itSupportExpireRow->second.push_back(*itSupportExpireUndo);
+        }
     }
 
     for (std::vector<std::pair<std::string, int> >::iterator itTakeoverHeightUndo = takeoverHeightUndo.begin(); itTakeoverHeightUndo != takeoverHeightUndo.end(); ++itTakeoverHeightUndo)
@@ -2241,7 +2298,7 @@ bool CClaimTrieCache::flush()
 {
     if (dirty())
         getMerkleHash();
-    bool success = base->update(cache, cacheHashes, cacheTakeoverHeights, getBestBlock(), claimQueueCache, claimQueueNameCache, expirationQueueCache, nCurrentHeight, supportCache, supportQueueCache, supportQueueNameCache);
+    bool success = base->update(cache, cacheHashes, cacheTakeoverHeights, getBestBlock(), claimQueueCache, claimQueueNameCache, expirationQueueCache, nCurrentHeight, supportCache, supportQueueCache, supportQueueNameCache, supportExpirationQueueCache);
     if (success)
     {
         success = clear();

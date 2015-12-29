@@ -20,7 +20,8 @@
 #define EXP_QUEUE_ROW 'e'
 #define SUPPORT 's'
 #define SUPPORT_QUEUE_ROW 'u'
-#define SUPPORT_QUEUE_NAME_ROW 'p' 
+#define SUPPORT_QUEUE_NAME_ROW 'p'
+#define SUPPORT_EXP_QUEUE_ROW 'x'
 
 class CClaimValue
 {
@@ -267,8 +268,8 @@ private:
                 claimQueueType& expirationQueueCache, int nNewHeight,
                 supportMapType& supportCache,
                 supportQueueType& supportQueueCache,
-                supportQueueNamesType& supportQueueNameCache);//,
-                //supportQueueType& supportExpirationQueueCache);
+                supportQueueNamesType& supportQueueNameCache,
+                supportQueueType& supportExpirationQueueCache);
     bool updateName(const std::string& name, CClaimTrieNode* updatedNode);
     bool updateHash(const std::string& name, uint256& hash);
     bool updateTakeoverHeight(const std::string& name, int nTakeoverHeight);
@@ -295,7 +296,7 @@ private:
     void updateSupportQueue(int nHeight, supportQueueRowType& row);
     void updateSupportNameQueue(const std::string& name,
                                 std::vector<CSupportValue>& row);
-    void updateSupportExpirationRow(int nHeight, supportQueueRowType& row);
+    void updateSupportExpirationQueue(int nHeight, supportQueueRowType& row);
     
     void BatchWriteNode(CLevelDBBatch& batch, const std::string& name,
                         const CClaimTrieNode* pNode) const;
@@ -368,12 +369,12 @@ public:
     bool incrementBlock(claimQueueRowType& insertUndo,
                         claimQueueRowType& expireUndo,
                         supportQueueRowType& insertSupportUndo,
-//                        supportQueueRowType& expireSupportUndo,
+                        supportQueueRowType& expireSupportUndo,
                         std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
     bool decrementBlock(claimQueueRowType& insertUndo,
                         claimQueueRowType& expireUndo,
                         supportQueueRowType& insertSupportUndo,
-//                        supportQueueRowType& expireSupportUndo,
+                        supportQueueRowType& expireSupportUndo,
                         std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
     
     ~CClaimTrieCache() { clear(); }

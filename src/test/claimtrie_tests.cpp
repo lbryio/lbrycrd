@@ -2029,6 +2029,246 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
 }
 
+BOOST_AUTO_TEST_CASE(claimtrie_expiring_supports)
+{
+    BOOST_CHECK(pclaimTrie->nCurrentHeight = chainActive.Height() + 1);
+
+    LOCK(cs_main);
+
+    std::string sName("atest");
+    std::string sValue1("testa");
+    std::string sValue2("testb");
+
+    std::vector<unsigned char> vchName(sName.begin(), sName.end());
+    std::vector<unsigned char> vchValue1(sValue1.begin(), sValue1.end());
+    std::vector<unsigned char> vchValue2(sValue2.begin(), sValue2.end());
+
+    std::vector<CTransaction> coinbases;
+
+    BOOST_CHECK(CreateCoinbases(3, coinbases));
+
+    CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
+    tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
+    tx1.vout[0].nValue = 100000000;
+    COutPoint tx1OutPoint(tx1.GetHash(), 0);
+
+    CMutableTransaction tx2 = BuildTransaction(coinbases[1]);
+    tx2.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
+    tx2.vout[0].nValue = 500000000;
+    COutPoint tx2OutPoint(tx2.GetHash(), 0);
+
+    CMutableTransaction tx3 = BuildTransaction(coinbases[2]);
+    uint160 tx1ClaimId = ClaimIdHash(tx1.GetHash(), 0);
+    std::vector<unsigned char> vchTx1ClaimId(tx1ClaimId.begin(), tx1ClaimId.end());
+    tx3.vout[0].scriptPubKey = CScript() << OP_SUPPORT_CLAIM << vchName << vchTx1ClaimId << OP_2DROP << OP_DROP << OP_TRUE;
+    tx3.vout[0].nValue = 500000000;
+    COutPoint tx3OutPoint(tx3.GetHash(), 0);
+
+    CMutableTransaction tx4 = BuildTransaction(tx1);
+    tx4.vout[0].scriptPubKey = CScript() << OP_UPDATE_CLAIM << vchName << vchTx1ClaimId << vchValue1 << OP_2DROP << OP_2DROP << OP_TRUE;
+    COutPoint tx4OutPoint(tx4.GetHash(), 0);
+
+    CMutableTransaction tx5 = BuildTransaction(tx3);
+    tx5.vout[0].scriptPubKey = CScript() << OP_TRUE;
+    COutPoint tx5OutPoint(tx5.GetHash(), 0);
+
+    CClaimValue val;
+    std::vector<uint256> blocks_to_invalidate;
+
+    pclaimTrie->setExpirationTime(200);
+
+    // Verify that supports expire
+
+    // Create a 1 LBC claim (tx1)
+
+    AddToMempool(tx1);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(pcoinsTip->HaveCoins(tx1.GetHash()));
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+
+    // Create a 5 LBC support (tx3)
+
+    AddToMempool(tx3);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+
+    // Advance some, then insert 5 LBC claim (tx2)
+
+    BOOST_CHECK(CreateBlocks(49, 1));
+
+    AddToMempool(tx2);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+
+    // Advance until tx2 is valid
+
+    BOOST_CHECK(CreateBlocks(50, 1));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+
+    BOOST_CHECK(CreateBlocks(1, 1));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
+
+    // Update tx1 so that it expires after tx3 expires
+
+    AddToMempool(tx4);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.outPoint == tx4OutPoint);
+
+    // Advance until the support expires
+
+    BOOST_CHECK(CreateBlocks(50, 1));
+
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(CreateBlocks(47, 1));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+
+    BOOST_CHECK(CreateBlocks(1, 1));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+    
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
+
+    // undo the block, make sure control goes back
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.outPoint == tx4OutPoint);
+
+    // redo the block, make sure it expires again
+
+    BOOST_CHECK(CreateBlocks(1, 1));
+    
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
+
+    // roll back some, spend the support, and make sure nothing unexpected
+    // happens at the time the support should have expired
+    
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.outPoint == tx4OutPoint);
+
+    AddToMempool(tx5);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
+
+    BOOST_CHECK(CreateBlocks(50, 1));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
+    
+    //undo the spend, and make sure it still expires on time
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.outPoint == tx4OutPoint);
+
+    BOOST_CHECK(CreateBlocks(48, 1));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(!pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.outPoint == tx4OutPoint);
+
+    BOOST_CHECK(CreateBlocks(1, 1));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
+
+    // roll all the way back
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+}
+
 BOOST_AUTO_TEST_CASE(claimtrienode_serialize_unserialize)
 {
     CDataStream ss(SER_DISK, 0);
