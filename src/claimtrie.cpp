@@ -2178,33 +2178,7 @@ bool CClaimTrieCache::decrementBlock(claimQueueRowType& insertUndo, claimQueueRo
 {
     LogPrintf("%s: nCurrentHeight (before decrement): %d\n", __func__, nCurrentHeight);
     nCurrentHeight--;
-    for (claimQueueRowType::iterator itInsertUndo = insertUndo.begin(); itInsertUndo != insertUndo.end(); ++itInsertUndo)
-    {
-        claimQueueType::iterator itQueueRow = getQueueCacheRow(itInsertUndo->second.nValidAtHeight, true);
-        CClaimValue claim;
-        assert(removeClaimFromTrie(itInsertUndo->first, itInsertUndo->second.outPoint, claim, false));
-        claimQueueNamesType::iterator itQueueNameRow = getQueueCacheNameRow(itInsertUndo->first, true);
-        itQueueRow->second.push_back(std::make_pair(itInsertUndo->first, claim));
-        itQueueNameRow->second.push_back(std::make_pair(itInsertUndo->second.outPoint, itInsertUndo->second.nValidAtHeight)); 
-    }
-    if (expireUndo.begin() != expireUndo.end())
-    {
-        claimQueueType::iterator itExpireRow = getExpirationQueueCacheRow(nCurrentHeight, true);
-        for (claimQueueRowType::iterator itExpireUndo = expireUndo.begin(); itExpireUndo != expireUndo.end(); ++itExpireUndo)
-        {
-            insertClaimIntoTrie(itExpireUndo->first, itExpireUndo->second, false);
-            itExpireRow->second.push_back(*itExpireUndo);
-        }
-    }
-    for (supportQueueRowType::iterator itSupportUndo = insertSupportUndo.begin(); itSupportUndo != insertSupportUndo.end(); ++itSupportUndo)
-    {
-        supportQueueType::iterator itSupportRow = getSupportQueueCacheRow(itSupportUndo->second.nValidAtHeight, true);
-        CSupportValue support;
-        assert(removeSupportFromMap(itSupportUndo->first, itSupportUndo->second.outPoint, support, false));
-        supportQueueNamesType::iterator itSupportNameRow = getSupportQueueCacheNameRow(itSupportUndo->first, true);
-        itSupportRow->second.push_back(*itSupportUndo);
-        itSupportNameRow->second.push_back(itSupportUndo->second);
-    }
+    
     if (expireSupportUndo.begin() != expireSupportUndo.end())
     {
         supportQueueType::iterator itSupportExpireRow = getSupportExpirationQueueCacheRow(nCurrentHeight, true);
@@ -2214,7 +2188,37 @@ bool CClaimTrieCache::decrementBlock(claimQueueRowType& insertUndo, claimQueueRo
             itSupportExpireRow->second.push_back(*itSupportExpireUndo);
         }
     }
+    
+    for (supportQueueRowType::iterator itSupportUndo = insertSupportUndo.begin(); itSupportUndo != insertSupportUndo.end(); ++itSupportUndo)
+    {
+        supportQueueType::iterator itSupportRow = getSupportQueueCacheRow(itSupportUndo->second.nValidAtHeight, true);
+        CSupportValue support;
+        assert(removeSupportFromMap(itSupportUndo->first, itSupportUndo->second.outPoint, support, false));
+        supportQueueNamesType::iterator itSupportNameRow = getSupportQueueCacheNameRow(itSupportUndo->first, true);
+        itSupportRow->second.push_back(*itSupportUndo);
+        itSupportNameRow->second.push_back(itSupportUndo->second);
+    }
+    
+    if (expireUndo.begin() != expireUndo.end())
+    {
+        claimQueueType::iterator itExpireRow = getExpirationQueueCacheRow(nCurrentHeight, true);
+        for (claimQueueRowType::iterator itExpireUndo = expireUndo.begin(); itExpireUndo != expireUndo.end(); ++itExpireUndo)
+        {
+            insertClaimIntoTrie(itExpireUndo->first, itExpireUndo->second, false);
+            itExpireRow->second.push_back(*itExpireUndo);
+        }
+    }
 
+    for (claimQueueRowType::iterator itInsertUndo = insertUndo.begin(); itInsertUndo != insertUndo.end(); ++itInsertUndo)
+    {
+        claimQueueType::iterator itQueueRow = getQueueCacheRow(itInsertUndo->second.nValidAtHeight, true);
+        CClaimValue claim;
+        assert(removeClaimFromTrie(itInsertUndo->first, itInsertUndo->second.outPoint, claim, false));
+        claimQueueNamesType::iterator itQueueNameRow = getQueueCacheNameRow(itInsertUndo->first, true);
+        itQueueRow->second.push_back(std::make_pair(itInsertUndo->first, claim));
+        itQueueNameRow->second.push_back(std::make_pair(itInsertUndo->second.outPoint, itInsertUndo->second.nValidAtHeight)); 
+    }
+    
     for (std::vector<std::pair<std::string, int> >::iterator itTakeoverHeightUndo = takeoverHeightUndo.begin(); itTakeoverHeightUndo != takeoverHeightUndo.end(); ++itTakeoverHeightUndo)
     {
         cacheTakeoverHeights[itTakeoverHeightUndo->first] = itTakeoverHeightUndo->second;
