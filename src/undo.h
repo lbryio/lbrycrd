@@ -84,7 +84,7 @@ class CBlockUndo
 {
 public:
     std::vector<CTxUndo> vtxundo; // for all but the coinbase
-    claimQueueRowType insertUndo; // any claims that went from the queue to the trie
+    namedValidHeightRowType insertUndo; // any claims that went from the queue to the trie
     claimQueueRowType expireUndo; // any claims that expired
     supportQueueRowType insertSupportUndo; // any supports that went from the support queue to the support map
     supportQueueRowType expireSupportUndo; // any supports that expired 

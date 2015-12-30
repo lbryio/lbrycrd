@@ -178,16 +178,63 @@ struct nodenamecompare
     }
 };
 
+struct validHeightType
+{
+    COutPoint outPoint;
+    int nValidAtHeight;
+
+    validHeightType() {}
+
+    validHeightType(COutPoint outPoint, int nValidAtHeight)
+    : outPoint(outPoint), nValidAtHeight(nValidAtHeight) {}
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    {
+        READWRITE(outPoint);
+        READWRITE(nValidAtHeight);
+    }
+
+};
+
+struct namedValidHeightType
+{
+    std::string name;
+    COutPoint outPoint;
+    int nValidAtHeight;
+
+    namedValidHeightType() {}
+
+    namedValidHeightType(std::string name, COutPoint outPoint,
+                         int nValidAtHeight)
+    : name(name), outPoint(outPoint), nValidAtHeight(nValidAtHeight) {}
+   
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    {
+        READWRITE(name);
+        READWRITE(outPoint);
+        READWRITE(nValidAtHeight);
+    }
+};
+
 typedef std::pair<std::string, CClaimValue> claimQueueEntryType;
 
 typedef std::pair<std::string, CSupportValue> supportQueueEntryType;
 
 typedef std::map<std::string, supportMapEntryType> supportMapType;
 
+typedef std::vector<validHeightType> validHeightRowType;
+
+typedef std::vector<namedValidHeightType> namedValidHeightRowType;
+
 typedef std::vector<claimQueueEntryType> claimQueueRowType;
 typedef std::map<int, claimQueueRowType> claimQueueType;
-typedef std::pair<COutPoint, int> claimQueueNamesEntryType;
-typedef std::map<std::string, std::vector<claimQueueNamesEntryType> > claimQueueNamesType;
+typedef std::map<std::string, validHeightRowType > claimQueueNamesType;
 
 typedef std::vector<supportQueueEntryType> supportQueueRowType;
 typedef std::map<int, supportQueueRowType> supportQueueType;
@@ -232,7 +279,7 @@ public:
     void setExpirationTime(int t);
     
     bool getQueueRow(int nHeight, claimQueueRowType& row) const;
-    bool getQueueNameRow(const std::string& name, std::vector<claimQueueNamesEntryType>& row) const;
+    bool getQueueNameRow(const std::string& name, validHeightRowType& row) const;
     bool getExpirationQueueRow(int nHeight, claimQueueRowType& row) const;
     bool getSupportNode(std::string name, supportMapEntryType& node) const;
     bool getSupportQueueRow(int nHeight, supportQueueRowType& row) const;
@@ -291,7 +338,7 @@ private:
     void markNodeDirty(const std::string& name, CClaimTrieNode* node);
     void updateQueueRow(int nHeight, claimQueueRowType& row);
     void updateQueueNameRow(const std::string& name,
-                            std::vector<claimQueueNamesEntryType>& row); 
+                            validHeightRowType& row); 
     void updateExpirationRow(int nHeight, claimQueueRowType& row);
     void updateSupportMap(const std::string& name, supportMapEntryType& node);
     void updateSupportQueue(int nHeight, supportQueueRowType& row);
@@ -367,12 +414,12 @@ public:
     uint256 getBestBlock();
     void setBestBlock(const uint256& hashBlock);
 
-    bool incrementBlock(claimQueueRowType& insertUndo,
+    bool incrementBlock(namedValidHeightRowType& insertUndo,
                         claimQueueRowType& expireUndo,
                         supportQueueRowType& insertSupportUndo,
                         supportQueueRowType& expireSupportUndo,
                         std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
-    bool decrementBlock(claimQueueRowType& insertUndo,
+    bool decrementBlock(namedValidHeightRowType& insertUndo,
                         claimQueueRowType& expireUndo,
                         supportQueueRowType& insertSupportUndo,
                         supportQueueRowType& expireSupportUndo,

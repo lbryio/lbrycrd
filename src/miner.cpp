@@ -464,7 +464,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         pblock->nBits          = GetNextWorkRequired(pindexPrev, pblock, Params().GetConsensus());
         pblock->nNonce         = 0;
         pblocktemplate->vTxSigOps[0] = GetLegacySigOpCount(pblock->vtx[0]);
-        claimQueueRowType dummyInsertUndo;
+        namedValidHeightRowType dummyInsertUndo;
         claimQueueRowType dummyExpireUndo;
         supportQueueRowType dummyInsertSupportUndo;
         supportQueueRowType dummyExpireSupportUndo;
