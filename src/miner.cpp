@@ -464,9 +464,9 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
         pblock->nBits          = GetNextWorkRequired(pindexPrev, pblock, Params().GetConsensus());
         pblock->nNonce         = 0;
         pblocktemplate->vTxSigOps[0] = GetLegacySigOpCount(pblock->vtx[0]);
-        namedValidHeightRowType dummyInsertUndo;
+        nameOutPointHeightRowType dummyInsertUndo;
         claimQueueRowType dummyExpireUndo;
-        supportQueueRowType dummyInsertSupportUndo;
+        nameOutPointHeightRowType dummyInsertSupportUndo;
         supportQueueRowType dummyExpireSupportUndo;
         std::vector<std::pair<std::string, int> > dummyTakeoverHeightUndo;
         trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo, dummyInsertSupportUndo, dummyExpireSupportUndo, dummyTakeoverHeightUndo);
