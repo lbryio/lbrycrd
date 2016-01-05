@@ -221,16 +221,39 @@ struct nameOutPointHeightType
     }
 };
 
+struct nameOutPointType
+{
+    std::string name;
+    COutPoint outPoint;
+
+    nameOutPointType() {}
+
+    nameOutPointType(std::string name, COutPoint outPoint)
+    : name(name), outPoint(outPoint) {}
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    {
+        READWRITE(name);
+        READWRITE(outPoint);
+    }
+};
+
 typedef std::pair<std::string, CClaimValue> claimQueueEntryType;
 
 typedef std::pair<std::string, CSupportValue> supportQueueEntryType;
 
 typedef std::map<std::string, supportMapEntryType> supportMapType;
 
-typedef std::vector<outPointHeightType> outPointHeightRowType;
+typedef std::vector<outPointHeightType> queueNameRowType;
+typedef std::map<std::string, queueNameRowType> queueNameType;
 
-typedef std::vector<nameOutPointHeightType> nameOutPointHeightRowType;
-typedef std::map<std::string, outPointHeightRowType > nameOutPointHeightMapType;
+typedef std::vector<nameOutPointHeightType> insertUndoType;
+
+typedef std::vector<nameOutPointType> expirationQueueRowType;
+typedef std::map<int, expirationQueueRowType> expirationQueueType;
 
 typedef std::vector<claimQueueEntryType> claimQueueRowType;
 typedef std::map<int, claimQueueRowType> claimQueueType;
@@ -277,12 +300,12 @@ public:
     void setExpirationTime(int t);
     
     bool getQueueRow(int nHeight, claimQueueRowType& row) const;
-    bool getQueueNameRow(const std::string& name, outPointHeightRowType& row) const;
-    bool getExpirationQueueRow(int nHeight, claimQueueRowType& row) const;
+    bool getQueueNameRow(const std::string& name, queueNameRowType& row) const;
+    bool getExpirationQueueRow(int nHeight, expirationQueueRowType& row) const;
     bool getSupportNode(std::string name, supportMapEntryType& node) const;
     bool getSupportQueueRow(int nHeight, supportQueueRowType& row) const;
-    bool getSupportQueueNameRow(const std::string& name, outPointHeightRowType& row) const;
-    bool getSupportExpirationQueueRow(int nHeight, supportQueueRowType& row) const;
+    bool getSupportQueueNameRow(const std::string& name, queueNameRowType& row) const;
+    bool getSupportExpirationQueueRow(int nHeight, expirationQueueRowType& row) const;
     
     bool haveClaim(const std::string& name, const COutPoint& outPoint) const;
     bool haveClaimInQueue(const std::string& name, const COutPoint& outPoint,
@@ -310,12 +333,12 @@ private:
     bool update(nodeCacheType& cache, hashMapType& hashes,
                 std::map<std::string, int>& takeoverHeights,
                 const uint256& hashBlock, claimQueueType& queueCache,
-                nameOutPointHeightMapType& queueNameCache,
-                claimQueueType& expirationQueueCache, int nNewHeight,
+                queueNameType& queueNameCache,
+                expirationQueueType& expirationQueueCache, int nNewHeight,
                 supportMapType& supportCache,
                 supportQueueType& supportQueueCache,
-                nameOutPointHeightMapType& supportQueueNameCache,
-                supportQueueType& supportExpirationQueueCache);
+                queueNameType& supportQueueNameCache,
+                expirationQueueType& supportExpirationQueueCache);
     bool updateName(const std::string& name, CClaimTrieNode* updatedNode);
     bool updateHash(const std::string& name, uint256& hash);
     bool updateTakeoverHeight(const std::string& name, int nTakeoverHeight);
@@ -336,13 +359,13 @@ private:
     void markNodeDirty(const std::string& name, CClaimTrieNode* node);
     void updateQueueRow(int nHeight, claimQueueRowType& row);
     void updateQueueNameRow(const std::string& name,
-                            outPointHeightRowType& row);
-    void updateExpirationRow(int nHeight, claimQueueRowType& row);
+                            queueNameRowType& row);
+    void updateExpirationRow(int nHeight, expirationQueueRowType& row);
     void updateSupportMap(const std::string& name, supportMapEntryType& node);
     void updateSupportQueue(int nHeight, supportQueueRowType& row);
     void updateSupportNameQueue(const std::string& name,
-                                outPointHeightRowType& row);
-    void updateSupportExpirationQueue(int nHeight, supportQueueRowType& row);
+                                queueNameRowType& row);
+    void updateSupportExpirationQueue(int nHeight, expirationQueueRowType& row);
     
     void BatchWriteNode(CLevelDBBatch& batch, const std::string& name,
                         const CClaimTrieNode* pNode) const;
@@ -360,12 +383,12 @@ private:
     uint256 hashBlock;
     
     claimQueueType dirtyQueueRows;
-    nameOutPointHeightMapType dirtyQueueNameRows;
-    claimQueueType dirtyExpirationQueueRows;
+    queueNameType dirtyQueueNameRows;
+    expirationQueueType dirtyExpirationQueueRows;
     
     supportQueueType dirtySupportQueueRows;
-    nameOutPointHeightMapType dirtySupportQueueNameRows;
-    supportQueueType dirtySupportExpirationQueueRows;
+    queueNameType dirtySupportQueueNameRows;
+    expirationQueueType dirtySupportExpirationQueueRows;
     
     nodeCacheType dirtyNodes;
     supportMapType dirtySupportNodes;
@@ -412,14 +435,14 @@ public:
     uint256 getBestBlock();
     void setBestBlock(const uint256& hashBlock);
 
-    bool incrementBlock(nameOutPointHeightRowType& insertUndo,
+    bool incrementBlock(insertUndoType& insertUndo,
                         claimQueueRowType& expireUndo,
-                        nameOutPointHeightRowType& insertSupportUndo,
+                        insertUndoType& insertSupportUndo,
                         supportQueueRowType& expireSupportUndo,
                         std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
-    bool decrementBlock(nameOutPointHeightRowType& insertUndo,
+    bool decrementBlock(insertUndoType& insertUndo,
                         claimQueueRowType& expireUndo,
-                        nameOutPointHeightRowType& insertSupportUndo,
+                        insertUndoType& insertSupportUndo,
                         supportQueueRowType& expireSupportUndo,
                         std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
     
@@ -439,12 +462,12 @@ private:
     mutable std::set<std::string> dirtyHashes;
     mutable hashMapType cacheHashes;
     mutable claimQueueType claimQueueCache;
-    mutable nameOutPointHeightMapType claimQueueNameCache;
-    mutable claimQueueType expirationQueueCache;
+    mutable queueNameType claimQueueNameCache;
+    mutable expirationQueueType expirationQueueCache;
     mutable supportMapType supportCache;
     mutable supportQueueType supportQueueCache;
-    mutable nameOutPointHeightMapType supportQueueNameCache;
-    mutable supportQueueType supportExpirationQueueCache;
+    mutable queueNameType supportQueueNameCache;
+    mutable expirationQueueType supportExpirationQueueCache;
     mutable std::set<std::string> namesToCheckForTakeover;
     mutable std::map<std::string, int> cacheTakeoverHeights; 
     mutable int nCurrentHeight; // Height of the block that is being worked on, which is
@@ -469,16 +492,16 @@ private:
     bool addClaimToQueues(const std::string& name, CClaimValue& claim) const;
     bool removeClaimFromQueue(const std::string& name, const COutPoint& outPoint,
                               CClaimValue& claim) const;
-    void addToExpirationQueue(claimQueueEntryType& entry) const;
+    void addToExpirationQueue(int nExpirationHeight, nameOutPointType& entry) const;
     void removeFromExpirationQueue(const std::string& name, const COutPoint& outPoint,
                                    int nHeight) const;
     
     claimQueueType::iterator getQueueCacheRow(int nHeight,
                                               bool createIfNotExists) const;
-    nameOutPointHeightMapType::iterator getQueueCacheNameRow(const std::string& name,
-                                                       bool createIfNotExists) const;
-    claimQueueType::iterator getExpirationQueueCacheRow(int nHeight,
-                                                        bool createIfNotExists) const;
+    queueNameType::iterator getQueueCacheNameRow(const std::string& name,
+                                                 bool createIfNotExists) const;
+    expirationQueueType::iterator getExpirationQueueCacheRow(int nHeight,
+                                                             bool createIfNotExists) const;
     
     bool removeSupport(const std::string& name, const COutPoint& outPoint,
                        int nHeight, int& nValidAtHeight,
@@ -493,16 +516,17 @@ private:
     
     supportQueueType::iterator getSupportQueueCacheRow(int nHeight,
                                                        bool createIfNotExists) const;
-    nameOutPointHeightMapType::iterator getSupportQueueCacheNameRow(const std::string& name,
+    queueNameType::iterator getSupportQueueCacheNameRow(const std::string& name,
                                                                  bool createIfNotExists) const;
-    supportQueueType::iterator getSupportExpirationQueueCacheRow(int nHeight,
-                                                          bool createIfNotExists) const;
+    expirationQueueType::iterator getSupportExpirationQueueCacheRow(int nHeight,
+                                                                     bool createIfNotExists) const;
 
     bool addSupportToQueues(const std::string& name, CSupportValue& support) const;
     bool removeSupportFromQueue(const std::string& name, const COutPoint& outPoint,
                                 CSupportValue& support) const;
 
-    void addSupportToExpirationQueue(supportQueueEntryType& entry) const;
+    void addSupportToExpirationQueue(int nExpirationHeight,
+                                     nameOutPointType& entry) const;
     void removeSupportFromExpirationQueue(const std::string& name,
                                           const COutPoint& outPoint,
                                           int nHeight) const;
