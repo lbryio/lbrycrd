@@ -1,9 +1,14 @@
-Bitcoin Core integration/staging tree
+LBRYcrd integration/staging tree
 =====================================
 
-[![Build Status](https://travis-ci.org/bitcoin/bitcoin.svg?branch=master)](https://travis-ci.org/bitcoin/bitcoin)
+http://lbry.io
 
-https://www.bitcoin.org
+What is LBRYcrd?
+----------------
+
+LBRYcrd is a fork of bitcoin core designed for use in the LBRY network.
+
+LBRYcrd uses a blockchain similar to bitcoin's to implement a unique naming system in which the person who dedicates the largest amount of LBC to a name has control over that name.
 
 What is Bitcoin?
 ----------------
