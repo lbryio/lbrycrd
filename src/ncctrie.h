@@ -16,6 +16,8 @@
 
 #define DEFAULT_DELAY 100
 
+uint256 getOutPointHash(uint256 txhash, uint32_t nOut);
+
 class CNodeValue
 {
 public:
@@ -199,6 +201,37 @@ private:
     void BatchWriteExpirationQueueRows(CLevelDBBatch& batch);
 };
 
+class CNCCTrieProofNode
+{
+public:
+    CNCCTrieProofNode() {};
+    CNCCTrieProofNode(std::vector<unsigned char> children, bool hasValue, uint256 valHash, uint256 nodeHash) : children(children), hasValue(hasValue), valHash(valHash), nodeHash(nodeHash) {};
+    std::vector<unsigned char> children;
+    bool hasValue;
+    uint256 valHash;
+    uint256 nodeHash;
+};
+
+class CNCCTrieProofLeafNode
+{
+public:
+    CNCCTrieProofLeafNode() {};
+    CNCCTrieProofLeafNode(uint256 nodeHash) : nodeHash(nodeHash) {};
+    uint256 nodeHash;
+};
+
+class CNCCTrieProof
+{
+public:
+    CNCCTrieProof() {};
+    CNCCTrieProof(std::map<std::string, CNCCTrieProofNode> nodes, std::map<std::string, CNCCTrieProofLeafNode> leafNodes, bool hasValue, uint256 txhash, uint32_t nOut) : nodes(nodes), leafNodes(leafNodes), hasValue(hasValue), txhash(txhash), nOut(nOut) {}
+    std::map<std::string, CNCCTrieProofNode> nodes;
+    std::map<std::string, CNCCTrieProofLeafNode> leafNodes;
+    bool hasValue;
+    uint256 txhash;
+    uint32_t nOut;
+};
+
 class CNCCTrieCache
 {
 public:
@@ -219,6 +252,7 @@ public:
     ~CNCCTrieCache() { clear(); }
     bool insertClaimIntoTrie(const std::string name, CNodeValue val) const;
     bool removeClaimFromTrie(const std::string name, uint256 txhash, uint32_t nOut, int& nValidAtHeight) const;
+    CNCCTrieProof getProofForName(const std::string& name) const;
 private:
     CNCCTrie* base;
     mutable nodeCacheType cache;
@@ -239,6 +273,7 @@ private:
     void removeFromExpirationQueue(const std::string name, uint256 txhash, uint32_t nOut, int nHeight) const;
     valueQueueType::iterator getQueueCacheRow(int nHeight, bool createIfNotExists) const;
     valueQueueType::iterator getExpirationQueueCacheRow(int nHeight, bool createIfNotExists) const;
+    std::pair<std::string, CNCCTrieProofLeafNode> getLeafNodeForProof(const std::string& currentPosition, unsigned char nodeChar, const CNCCTrieNode* currentNode) const;
     uint256 hashBlock;
 };
 

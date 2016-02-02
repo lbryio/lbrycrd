@@ -3,7 +3,7 @@
 
 #include <boost/scoped_ptr.hpp>
 
-uint256 CNodeValue::GetHash() const
+uint256 getOutPointHash(uint256 txhash, uint32_t nOut)
 {
     CHash256 valTxHasher;
     valTxHasher.Write(txhash.begin(), txhash.size());
@@ -26,6 +26,11 @@ uint256 CNodeValue::GetHash() const
     
     uint256 valHash(vchValHash);
     return valHash;
+}
+
+uint256 CNodeValue::GetHash() const
+{
+    return getOutPointHash(txhash, nOut);
 }
 
 bool CNCCTrieNode::insertValue(CNodeValue val, bool * pfChanged)
@@ -1266,4 +1271,106 @@ bool CNCCTrieCache::flush()
         success = clear();
     }
     return success;
+}
+
+std::pair<std::string, CNCCTrieProofLeafNode> CNCCTrieCache::getLeafNodeForProof(const std::string& currentPosition, unsigned char nodeChar, const CNCCTrieNode* currentNode) const
+{
+    std::stringstream leafPosition;
+    leafPosition << currentPosition << nodeChar;
+    hashMapType::iterator cachedHash = cacheHashes.find(leafPosition.str());
+    if (cachedHash != cacheHashes.end())
+    {
+        return std::make_pair(leafPosition.str(), CNCCTrieProofLeafNode(cachedHash->second));
+    }
+    else
+    {
+        return std::make_pair(leafPosition.str(), CNCCTrieProofLeafNode(currentNode->hash));
+    }
+}
+
+CNCCTrieProof CNCCTrieCache::getProofForName(const std::string& name) const
+{
+    if (dirty())
+        getMerkleHash();
+    std::map<std::string, CNCCTrieProofNode> nodes;
+    std::map<std::string, CNCCTrieProofLeafNode> leafNodes;
+    CNCCTrieNode* current = &(base->root);
+    nodeCacheType::const_iterator cachedNode;
+    CNodeValue nameVal;
+    bool fNameHasValue;
+    uint256 txhash;
+    uint32_t nOut;
+    for (std::string::const_iterator itName = name.begin(); itName != name.end(); ++itName)
+    {
+        std::string currentPosition(name.begin(), itName);
+        cachedNode = cache.find(currentPosition);
+        if (cachedNode != cache.end())
+            current = cachedNode->second;
+        hashMapType::const_iterator cachedHash = cacheHashes.find(currentPosition);
+        uint256 nodeHash;
+        if (cachedHash != cacheHashes.end())
+            nodeHash = cachedHash->second;
+        else
+            nodeHash = current->hash;
+        CNodeValue val;
+        bool fNodeHasValue = current->getBestValue(val);
+        uint256 valHash;
+        if (fNodeHasValue)
+            valHash = val.GetHash();
+        std::vector<unsigned char> child_chars;
+        CNCCTrieNode* nextCurrent = NULL;
+        for (nodeMapType::const_iterator itChildren = current->children.begin(); itChildren != current->children.end(); ++itChildren)
+        {
+            child_chars.push_back(itChildren->first);
+            if (itChildren->first != *itName) // Leaf node
+            {
+                std::pair<std::string, CNCCTrieProofLeafNode> leaf = getLeafNodeForProof(currentPosition, itChildren->first, itChildren->second);
+                leafNodes[leaf.first] = leaf.second;
+            }
+            else // Full node
+            {
+                nextCurrent = itChildren->second;
+            }
+        }
+        nodes[currentPosition] = CNCCTrieProofNode(child_chars, fNodeHasValue, valHash, nodeHash);
+        current = nextCurrent;
+        if (current == NULL)
+            break;
+    }
+    if (current != NULL)
+    {
+        cachedNode = cache.find(name);
+        if (cachedNode != cache.end())
+            current = cachedNode->second;
+        hashMapType::const_iterator cachedHash = cacheHashes.find(name);
+        uint256 nodeHash;
+        if (cachedHash != cacheHashes.end())
+            nodeHash = cachedHash->second;
+        else
+            nodeHash = current->hash;
+        fNameHasValue = current->getBestValue(nameVal);
+        uint256 valHash;
+        if (fNameHasValue)
+        {
+            txhash = nameVal.txhash;
+            nOut = nameVal.nOut;
+            valHash = nameVal.GetHash();
+        }
+        else
+            nOut = 0;
+        std::vector<unsigned char> child_chars;
+        for (nodeMapType::const_iterator itChildren = current->children.begin(); itChildren != current->children.end(); ++itChildren)
+        {
+            child_chars.push_back(itChildren->first);
+            std::pair<std::string, CNCCTrieProofLeafNode> leaf = getLeafNodeForProof(name, itChildren->first, itChildren->second);
+            leafNodes[leaf.first] = leaf.second;
+        }
+        nodes[name] = CNCCTrieProofNode(child_chars, fNameHasValue, valHash, nodeHash);
+    }
+    else
+    {
+        fNameHasValue = false;
+        nOut = 0;
+    }
+    return CNCCTrieProof(nodes, leafNodes, fNameHasValue, txhash, nOut);
 }

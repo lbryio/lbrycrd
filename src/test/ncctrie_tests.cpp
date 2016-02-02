@@ -163,6 +163,30 @@ const unsigned int expire_nonces[] = {
     120057, 8823, 5430, 44579, 61385, 84720, 64857, 70478, 116285, 8904,
     63423}; 
 
+const unsigned int proof_nonces[] = {
+    54804, 229797, 119107, 77644, 9782, 104842, 72332, 47116, 363729, 170598,
+    434, 48775, 15164, 51638, 63813, 21028, 31896, 117216, 26019, 7458,
+    101082, 48571, 84174, 56983, 4607, 176131, 60681, 11348, 42867, 152045,
+    162526, 48222, 9115, 162702, 7084, 49303, 34393, 67035, 72372, 81712,
+    58846, 123668, 37484, 69474, 77333, 104992, 71743, 9675, 12363, 39457,
+    29256, 190978, 55083, 171352, 82498, 94184, 110307, 25965, 53432, 193885,
+    3633, 74876, 15957, 252915, 119231, 32149, 84494, 139388, 141968, 9092,
+    216682, 4336, 62779, 24742, 46920, 249663, 223300, 64403, 128849, 56433,
+    30665, 174236, 77179, 18440, 217216, 45037, 35402, 135703, 15338, 126459,
+    14097, 21840, 1175, 37591, 82927, 37893, 121151, 54253, 15384, 2192,
+    12708, 74849, 39787, 15685, 37774, 13139, 34776, 159887, 6814, 3021,
+    53901, 24286, 110415, 72451, 130820, 111543, 1300, 98281, 48336, 220704,
+    51457, 91510, 148670, 41904, 16121, 41743, 63992, 27520, 15825, 108299,
+    107508, 49504, 31499, 132824, 96172, 71483, 26828, 2545, 29227, 7846,
+    114426, 221520, 9779, 594, 284222, 40381, 19645, 38653, 41721, 55469,
+    16191, 7360, 42980, 36694, 13660, 72041, 1305, 83146, 92665, 15203,
+    25428, 45068, 281892, 168851, 27104, 42352, 4321, 65234, 32459, 4261,
+    101678, 29995, 34940, 34278, 169292, 24555, 20685, 44997, 42753, 21555,
+    5974, 30, 59247, 17323, 10938, 78807, 17244, 68852, 17954, 26818,
+    131893, 87813, 31242, 86553, 119319, 20972, 142663, 73972, 35525, 4782,
+    20213, 13208, 35272, 229212, 203438,
+};
+
 BOOST_FIXTURE_TEST_SUITE(ncctrie_tests, TestingSetup)
 
 CMutableTransaction BuildTransaction(const uint256& prevhash)
@@ -1392,6 +1416,255 @@ BOOST_AUTO_TEST_CASE(ncctrienode_serialize_unserialize)
     ss << n1;
     ss >> n2;
     BOOST_CHECK(n1 == n2);
+}
+
+bool verify_proof(CNCCTrieProof proof, uint256 rootHash, const std::string& name)
+{
+    for (std::string::const_iterator itName = name.begin(); itName != name.end(); ++itName)
+    {
+        std::string currentPosition(name.begin(), itName);
+        std::map<std::string, CNCCTrieProofNode>::const_iterator itNode = proof.nodes.find(currentPosition);
+        if (itNode == proof.nodes.end())
+        {
+            return currentPosition != "" && !proof.hasValue;
+        }
+        std::vector<unsigned char> vchToHash;
+        for (std::vector<unsigned char>::const_iterator itChildren = itNode->second.children.begin(); itChildren != itNode->second.children.end(); ++itChildren)
+        {
+            vchToHash.push_back(*itChildren);
+            std::stringstream nextPosition;
+            nextPosition << currentPosition << *itChildren;
+            if (*itChildren == *itName)
+            {
+                std::map<std::string, CNCCTrieProofNode>::const_iterator itChildNode = proof.nodes.find(nextPosition.str());
+                if (itChildNode == proof.nodes.end())
+                {
+                    return false;
+                }
+                vchToHash.insert(vchToHash.end(), itChildNode->second.nodeHash.begin(), itChildNode->second.nodeHash.end());
+            }
+            else
+            {
+                std::map<std::string, CNCCTrieProofLeafNode>::const_iterator itChildNode = proof.leafNodes.find(nextPosition.str());
+                if (itChildNode == proof.leafNodes.end())
+                {
+                    return false;
+                }
+                vchToHash.insert(vchToHash.end(), itChildNode->second.nodeHash.begin(), itChildNode->second.nodeHash.end());
+            }
+        }
+        if (itNode->second.hasValue)
+        {
+            vchToHash.insert(vchToHash.end(), itNode->second.valHash.begin(), itNode->second.valHash.end());
+        }
+        CHash256 hasher;
+        std::vector<unsigned char> vchHash(hasher.OUTPUT_SIZE);
+        hasher.Write(vchToHash.data(), vchToHash.size());
+        hasher.Finalize(&(vchHash[0]));
+        uint256 calculatedHash(vchHash);
+        if (calculatedHash != itNode->second.nodeHash)
+        {
+            return false;
+        }
+        if (currentPosition == "" && calculatedHash != rootHash)
+        {
+            return false;
+        }
+    }
+    std::map<std::string, CNCCTrieProofNode>::const_iterator itNode = proof.nodes.find(name);
+    if (itNode == proof.nodes.end())
+    {
+        return name != "" && !proof.hasValue;
+    }
+    std::vector<unsigned char> vchToHash;
+    for (std::vector<unsigned char>::const_iterator itChildren = itNode->second.children.begin(); itChildren != itNode->second.children.end(); ++itChildren)
+    {
+        vchToHash.push_back(*itChildren);
+        std::stringstream nextPosition;
+        nextPosition << name << *itChildren;
+        std::map<std::string, CNCCTrieProofLeafNode>::const_iterator itChildNode = proof.leafNodes.find(nextPosition.str());
+        if (itChildNode == proof.leafNodes.end())
+        {
+            return false;
+        }
+        vchToHash.insert(vchToHash.end(), itChildNode->second.nodeHash.begin(), itChildNode->second.nodeHash.end());
+    }
+    if (itNode->second.hasValue != proof.hasValue)
+    {
+        return false;
+    }
+    if (itNode->second.hasValue)
+    {
+        uint256 valHash = getOutPointHash(proof.txhash, proof.nOut);
+        if (valHash != itNode->second.valHash)
+        {
+            return false;
+        }
+        vchToHash.insert(vchToHash.end(), valHash.begin(), valHash.end());
+    }
+    CHash256 hasher;
+    std::vector<unsigned char> vchHash(hasher.OUTPUT_SIZE);
+    hasher.Write(vchToHash.data(), vchToHash.size());
+    hasher.Finalize(&(vchHash[0]));
+    uint256 calculatedHash(vchHash);
+    if (calculatedHash != itNode->second.nodeHash)
+    {
+        return false;
+    }
+    if (name == "" && calculatedHash != rootHash)
+    {
+        return false;
+    }
+    return true;
+}
+
+BOOST_AUTO_TEST_CASE(ncctrievalue_proof)
+{
+    int block_counter = 0;
+    bool find_nonces = false;
+    BOOST_CHECK(pnccTrie->nCurrentHeight == chainActive.Height() + 1);
+
+    CBlockTemplate *pblocktemplate;
+    LOCK(cs_main);
+
+    CScript scriptPubKey = CScript() << OP_TRUE;
+
+    std::string sName1("a");
+    std::string sValue1("testa");
+    
+    std::string sName2("abc");
+    std::string sValue2("testabc");
+
+    std::string sName3("abd");
+    std::string sValue3("testabd");
+
+    std::string sName4("zyx");
+    std::string sValue4("testzyx");
+
+    std::string sName5("zyxa");
+    std::string sName6("omg");
+    std::string sName7("");
+
+    std::vector<unsigned char> vchName1(sName1.begin(), sName1.end());
+    std::vector<unsigned char> vchValue1(sValue1.begin(), sValue1.end());
+
+    std::vector<unsigned char> vchName2(sName2.begin(), sName2.end());
+    std::vector<unsigned char> vchValue2(sValue2.begin(), sValue2.end());
+
+    std::vector<unsigned char> vchName3(sName3.begin(), sName3.end());
+    std::vector<unsigned char> vchValue3(sValue3.begin(), sValue3.end());
+
+    std::vector<unsigned char> vchName4(sName4.begin(), sName4.end());
+    std::vector<unsigned char> vchValue4(sValue4.begin(), sValue4.end());
+
+    CNodeValue val;
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    std::vector<CTransaction> coinbases;
+    for (unsigned int i = 0; i < 104; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, proof_nonces[block_counter++]));
+        if (coinbases.size() < 4)
+            coinbases.push_back(CTransaction(pblocktemplate->block.vtx[0]));
+    }
+
+    delete pblocktemplate;
+
+    CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
+    tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName1 << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
+    CMutableTransaction tx2 = BuildTransaction(coinbases[1]);
+    tx2.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName2 << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
+    CMutableTransaction tx3 = BuildTransaction(coinbases[2]);
+    tx3.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName3 << vchValue3 << OP_2DROP << OP_DROP << OP_TRUE;
+    CMutableTransaction tx4 = BuildTransaction(coinbases[3]);
+    tx4.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName4 << vchValue4 << OP_2DROP << OP_DROP << OP_TRUE;
+
+    std::vector<uint256> blocks_to_invalidate;
+
+    // create a claim. verify the expiration event has been scheduled.
+
+    AddToMempool(tx1);
+    AddToMempool(tx2);
+    AddToMempool(tx3);
+    AddToMempool(tx4);
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate->block.vtx.size() == 5);
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, proof_nonces[block_counter++]));
+    blocks_to_invalidate.push_back(pblocktemplate->block.hashPrevBlock);
+    delete pblocktemplate;
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    for (unsigned int i = 1; i < 100; ++i)
+    {
+        BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, proof_nonces[block_counter++]));
+    }
+    delete pblocktemplate;
+
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(!pnccTrie->queueEmpty());
+
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    BOOST_CHECK(CreateBlock(pblocktemplate, find_nonces, proof_nonces[block_counter++]));
+    delete pblocktemplate;
+
+    BOOST_CHECK(!pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(pnccTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(val.txhash == tx1.GetHash());
+    BOOST_CHECK(pnccTrie->getInfoForName(sName2, val));
+    BOOST_CHECK(val.txhash == tx2.GetHash());
+    BOOST_CHECK(pnccTrie->getInfoForName(sName3, val));
+    BOOST_CHECK(val.txhash == tx3.GetHash());
+    BOOST_CHECK(pnccTrie->getInfoForName(sName4, val));
+    BOOST_CHECK(val.txhash == tx4.GetHash());
+
+    CNCCTrieCache cache(pnccTrie);
+
+    CNCCTrieProof proof;
+
+    proof = cache.getProofForName(sName1);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashNCCTrie, sName1));
+    BOOST_CHECK(proof.txhash == tx1.GetHash());
+    BOOST_CHECK(proof.nOut == 0);
+
+    proof = cache.getProofForName(sName2);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashNCCTrie, sName2));
+    BOOST_CHECK(proof.txhash == tx2.GetHash());
+    BOOST_CHECK(proof.nOut == 0);
+
+    proof = cache.getProofForName(sName3);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashNCCTrie, sName3));
+    BOOST_CHECK(proof.txhash == tx3.GetHash());
+    BOOST_CHECK(proof.nOut == 0);
+
+    proof = cache.getProofForName(sName4);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashNCCTrie, sName4));
+    BOOST_CHECK(proof.txhash == tx4.GetHash());
+    BOOST_CHECK(proof.nOut == 0);
+
+    proof = cache.getProofForName(sName5);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashNCCTrie, sName5));
+    BOOST_CHECK(proof.hasValue == false);
+
+    proof = cache.getProofForName(sName6);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashNCCTrie, sName6));
+    BOOST_CHECK(proof.hasValue == false);
+
+    proof = cache.getProofForName(sName7);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashNCCTrie, sName7));
+    BOOST_CHECK(proof.hasValue == false);
+    
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(pnccTrie->empty());
+    BOOST_CHECK(pnccTrie->queueEmpty());
+    BOOST_CHECK(blocks_to_invalidate.empty());
+    
 }
 
 BOOST_AUTO_TEST_SUITE_END()
