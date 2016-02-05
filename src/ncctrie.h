@@ -205,11 +205,10 @@ class CNCCTrieProofNode
 {
 public:
     CNCCTrieProofNode() {};
-    CNCCTrieProofNode(std::vector<unsigned char> children, bool hasValue, uint256 valHash, uint256 nodeHash) : children(children), hasValue(hasValue), valHash(valHash), nodeHash(nodeHash) {};
+    CNCCTrieProofNode(std::vector<unsigned char> children, bool hasValue, uint256 valHash) : children(children), hasValue(hasValue), valHash(valHash) {};
     std::vector<unsigned char> children;
     bool hasValue;
     uint256 valHash;
-    uint256 nodeHash;
 };
 
 class CNCCTrieProofLeafNode

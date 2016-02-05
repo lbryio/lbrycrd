@@ -386,6 +386,7 @@ static const CRPCCommand vRPCCommands[] =
     { "nametrie",           "gettotalclaims",         &gettotalclaims,         true  },
     { "nametrie",           "gettotalvalueofclaims",  &gettotalvalueofclaims,  true  },
     { "nametrie",           "getclaimsfortx",         &getclaimsfortx,         true  },
+    { "nametrie",           "getnameproof",           &getnameproof,           true  },
 };
 
 CRPCTable::CRPCTable()

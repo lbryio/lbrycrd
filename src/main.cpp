@@ -3491,6 +3491,42 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
     return true;
 }
 
+bool GetProofForName(const CBlockIndex* pindexProof, const std::string& name, CNCCTrieProof& proof)
+{
+    AssertLockHeld(cs_main);
+    if (!chainActive.Contains(pindexProof))
+    {
+        return false;
+    }
+    CCoinsViewCache coins(pcoinsTip);
+    CNCCTrieCache trieCache(pnccTrie);
+    CBlockIndex* pindexState = chainActive.Tip();
+    CValidationState state;
+    for (CBlockIndex *pindex = chainActive.Tip(); pindex && pindex->pprev && pindexState != pindexProof; pindex=pindex->pprev)
+    {
+        boost::this_thread::interruption_point();
+        CBlock block;
+        if (!ReadBlockFromDisk(block, pindex))
+        {
+            return false;
+        }
+        if (pindex == pindexState && (coins.DynamicMemoryUsage() + pcoinsTip->DynamicMemoryUsage()) <= nCoinCacheUsage)
+        {
+            bool fClean = true;
+            if (!DisconnectBlock(block, state, pindex, coins, trieCache, &fClean))
+            {
+                return false;
+            }
+            pindexState = pindex->pprev;
+        }
+        if (ShutdownRequested())
+            return false;
+    }
+    assert(pindexState == pindexProof);
+    proof = trieCache.getProofForName(name);
+    return true;
+}
+
 void UnloadBlockIndex()
 {
     LOCK(cs_main);

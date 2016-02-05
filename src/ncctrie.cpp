@@ -1307,11 +1307,6 @@ CNCCTrieProof CNCCTrieCache::getProofForName(const std::string& name) const
         if (cachedNode != cache.end())
             current = cachedNode->second;
         hashMapType::const_iterator cachedHash = cacheHashes.find(currentPosition);
-        uint256 nodeHash;
-        if (cachedHash != cacheHashes.end())
-            nodeHash = cachedHash->second;
-        else
-            nodeHash = current->hash;
         CNodeValue val;
         bool fNodeHasValue = current->getBestValue(val);
         uint256 valHash;
@@ -1332,7 +1327,7 @@ CNCCTrieProof CNCCTrieCache::getProofForName(const std::string& name) const
                 nextCurrent = itChildren->second;
             }
         }
-        nodes[currentPosition] = CNCCTrieProofNode(child_chars, fNodeHasValue, valHash, nodeHash);
+        nodes[currentPosition] = CNCCTrieProofNode(child_chars, fNodeHasValue, valHash);
         current = nextCurrent;
         if (current == NULL)
             break;
@@ -1343,11 +1338,6 @@ CNCCTrieProof CNCCTrieCache::getProofForName(const std::string& name) const
         if (cachedNode != cache.end())
             current = cachedNode->second;
         hashMapType::const_iterator cachedHash = cacheHashes.find(name);
-        uint256 nodeHash;
-        if (cachedHash != cacheHashes.end())
-            nodeHash = cachedHash->second;
-        else
-            nodeHash = current->hash;
         fNameHasValue = current->getBestValue(nameVal);
         uint256 valHash;
         if (fNameHasValue)
@@ -1365,7 +1355,7 @@ CNCCTrieProof CNCCTrieCache::getProofForName(const std::string& name) const
             std::pair<std::string, CNCCTrieProofLeafNode> leaf = getLeafNodeForProof(name, itChildren->first, itChildren->second);
             leafNodes[leaf.first] = leaf.second;
         }
-        nodes[name] = CNCCTrieProofNode(child_chars, fNameHasValue, valHash, nodeHash);
+        nodes[name] = CNCCTrieProofNode(child_chars, fNameHasValue, valHash);
     }
     else
     {

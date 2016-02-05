@@ -247,6 +247,7 @@ extern UniValue gettotalclaimednames(const UniValue& params, bool fHelp);
 extern UniValue gettotalclaims(const UniValue& params, bool fHelp);
 extern UniValue gettotalvalueofclaims(const UniValue& params, bool fHelp);
 extern UniValue getclaimsfortx(const UniValue& params, bool fHelp);
+extern UniValue getnameproof(const UniValue& params, bool fHelp);
 
 // in rest.cpp
 extern bool HTTPReq_REST(AcceptedConnection *conn,

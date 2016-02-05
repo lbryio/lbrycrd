@@ -269,3 +269,121 @@ UniValue getclaimsfortx(const UniValue& params, bool fHelp)
     }
     return ret;
 }
+
+UniValue proofToJSON(const CNCCTrieProof& proof)
+{
+    UniValue result(UniValue::VOBJ);
+    UniValue nodes(UniValue::VARR);
+    for (std::map<std::string, CNCCTrieProofNode>::const_iterator itNode = proof.nodes.begin(); itNode != proof.nodes.end(); ++itNode)
+    {
+        UniValue node(UniValue::VOBJ);
+        node.push_back(Pair("name", itNode->first));
+        UniValue children(UniValue::VARR);
+        for (std::vector<unsigned char>::const_iterator itChildren = itNode->second.children.begin(); itChildren != itNode->second.children.end(); ++itChildren)
+        {
+            children.push_back(*itChildren);
+        }
+        node.push_back(Pair("children", children));
+        if (itNode->second.hasValue)
+        {
+            node.push_back(Pair("valueHash", itNode->second.valHash.GetHex()));
+        }
+        nodes.push_back(node);
+    }
+    result.push_back(Pair("nodes", nodes));
+    UniValue leafNodes(UniValue::VARR);
+    for (std::map<std::string, CNCCTrieProofLeafNode>::const_iterator itLeafNode = proof.leafNodes.begin(); itLeafNode != proof.leafNodes.end(); ++itLeafNode)
+    {
+        UniValue leafNode(UniValue::VOBJ);
+        leafNode.push_back(Pair("name", itLeafNode->first));
+        leafNode.push_back(Pair("nodeHash", itLeafNode->second.nodeHash.GetHex()));
+        leafNodes.push_back(leafNode);
+    }
+    result.push_back(Pair("leafNodes", leafNodes));
+    if (proof.hasValue)
+    {
+        result.push_back(Pair("txhash", proof.txhash.GetHex()));
+        result.push_back(Pair("nOut", (int)proof.nOut));
+    }
+    return result;
+}
+
+UniValue getnameproof(const UniValue& params, bool fHelp)
+{
+    if (fHelp || (params.size() != 1 && params.size() != 2))
+        throw std::runtime_error(
+            "getnameproof\n"
+            "Return the cryptographic proof that a name maps to a value\n"
+            "or doesn't.\n"
+            "Arguments:\n"
+            "1. \"name\"             (string) the name to get a proof for\n"
+            "2. \"blockhash\"        (string, optional) the hash of the block\n"
+            "                                            which is the basis\n"
+            "                                            of the proof. If\n"
+            "                                            none is given, \n"
+            "                                            the latest block\n"
+            "                                            will be used.\n"
+            "Result: \n"
+            "{\n"
+            "  \"nodes\" : [       (array of object) full nodes (i.e.\n"
+            "                                        those which lead to\n"
+            "                                        the requested name)\n"
+            "    \"name\" : \"node name\" (string) The name of the node\n"
+            "    \"children\" : [ (array of numeric) the characters\n"
+            "                                        corresponding to\n"
+            "                                        the children of\n"
+            "                                        this node\n"
+            "      \"child\"     (numeric) a 0-255 number referring to\n"
+            "                              a child node of this node\n"
+            "      ]\n"
+            "    \"valueHash\"   (string, if exists) the hash of this\n"
+            "                                        node's value, if\n"
+            "                                        it has one\n"
+            "    ]\n"
+            "  \"leaf_nodes\" : [  (array of object) leaf nodes (i.e.\n"
+            "                                        those which do not\n"
+            "                                        lead to the requested\n"
+            "                                        name but nonetheless\n"
+            "                                        contribute to the proof\n"
+            "    \"name\" : \"node name\" (string) the name of the node\n"
+            "    \"nodeHash\" : \"hash\"  (string) the hash of the node\n"
+            "    ]\n"
+            "  \"txhash\" : \"hash\" (string, if exists) the txid of the\n"
+            "                                            claim which controls\n"
+            "                                            this name, if there\n"
+            "                                            is one.\n"
+            "  \"nOut\" : n,         (numeric) the nOut of the claim which\n"
+            "                                  controls this name, if there\n"
+            "                                  is one.\n"
+            "  }\n"
+            "}\n");
+
+    LOCK(cs_main);
+    std::string strName = params[0].get_str();
+    uint256 blockHash;
+    if (params.size() == 2)
+    {
+        std::string strBlockHash = params[1].get_str();
+        blockHash = uint256S(strBlockHash);
+    }
+    else
+    {
+        blockHash = chainActive.Tip()->GetBlockHash();
+    }
+
+    if (mapBlockIndex.count(blockHash) == 0)
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
+
+    CBlockIndex* pblockIndex = mapBlockIndex[blockHash];
+    if (!chainActive.Contains(pblockIndex))
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Block not in main chain");
+
+    if (chainActive.Tip()->nHeight > (pblockIndex->nHeight + 10))
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Block too deep to generate proof");
+
+    CNCCTrieProof proof;
+    if (!GetProofForName(pblockIndex, strName, proof))
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Failed to generate proof");
+
+    return proofToJSON(proof);
+}

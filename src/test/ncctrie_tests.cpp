@@ -1418,104 +1418,84 @@ BOOST_AUTO_TEST_CASE(ncctrienode_serialize_unserialize)
     BOOST_CHECK(n1 == n2);
 }
 
-bool verify_proof(CNCCTrieProof proof, uint256 rootHash, const std::string& name)
+bool get_node_hash(const std::string& name, const std::string& currentPosition, const std::string::const_iterator itName, CNCCTrieProof& proof, uint256& nodeHash)
 {
-    for (std::string::const_iterator itName = name.begin(); itName != name.end(); ++itName)
+    std::map<std::string, CNCCTrieProofNode>::const_iterator itNode = proof.nodes.find(currentPosition);
+    if (itNode == proof.nodes.end())
     {
-        std::string currentPosition(name.begin(), itName);
-        std::map<std::string, CNCCTrieProofNode>::const_iterator itNode = proof.nodes.find(currentPosition);
-        if (itNode == proof.nodes.end())
+        return false;
+    }
+    if (name == currentPosition && itName != name.end())
+    {
+        return false;
+    }
+    std::vector<unsigned char> vchToHash;
+    bool haveNextNode = false;
+    for (std::vector<unsigned char>::const_iterator itChildren = itNode->second.children.begin(); itChildren != itNode->second.children.end(); ++itChildren)
+    {
+        vchToHash.push_back(*itChildren);
+        std::stringstream nextPosition;
+        nextPosition << currentPosition << *itChildren;
+        if (name != currentPosition && *itChildren == *itName)
         {
-            return currentPosition != "" && !proof.hasValue;
+            uint256 childNodeHash;
+            if (!get_node_hash(name, nextPosition.str(), itName + 1, proof, childNodeHash))
+            {
+                return false;
+            }
+            haveNextNode = true;
+            vchToHash.insert(vchToHash.end(), childNodeHash.begin(), childNodeHash.end());
         }
-        std::vector<unsigned char> vchToHash;
-        for (std::vector<unsigned char>::const_iterator itChildren = itNode->second.children.begin(); itChildren != itNode->second.children.end(); ++itChildren)
+        else
         {
-            vchToHash.push_back(*itChildren);
-            std::stringstream nextPosition;
-            nextPosition << currentPosition << *itChildren;
-            if (*itChildren == *itName)
+            std::map<std::string, CNCCTrieProofLeafNode>::const_iterator itChildNode = proof.leafNodes.find(nextPosition.str());
+            if (itChildNode == proof.leafNodes.end())
             {
-                std::map<std::string, CNCCTrieProofNode>::const_iterator itChildNode = proof.nodes.find(nextPosition.str());
-                if (itChildNode == proof.nodes.end())
-                {
-                    return false;
-                }
-                vchToHash.insert(vchToHash.end(), itChildNode->second.nodeHash.begin(), itChildNode->second.nodeHash.end());
+                return false;
             }
-            else
-            {
-                std::map<std::string, CNCCTrieProofLeafNode>::const_iterator itChildNode = proof.leafNodes.find(nextPosition.str());
-                if (itChildNode == proof.leafNodes.end())
-                {
-                    return false;
-                }
-                vchToHash.insert(vchToHash.end(), itChildNode->second.nodeHash.begin(), itChildNode->second.nodeHash.end());
-            }
+            vchToHash.insert(vchToHash.end(), itChildNode->second.nodeHash.begin(), itChildNode->second.nodeHash.end());
+        }
+    }
+    if (name != currentPosition)
+    {
+        if (!haveNextNode && proof.hasValue)
+        {
+            return false;
         }
         if (itNode->second.hasValue)
         {
             vchToHash.insert(vchToHash.end(), itNode->second.valHash.begin(), itNode->second.valHash.end());
         }
-        CHash256 hasher;
-        std::vector<unsigned char> vchHash(hasher.OUTPUT_SIZE);
-        hasher.Write(vchToHash.data(), vchToHash.size());
-        hasher.Finalize(&(vchHash[0]));
-        uint256 calculatedHash(vchHash);
-        if (calculatedHash != itNode->second.nodeHash)
+    }
+    else
+    {
+        if (proof.hasValue != itNode->second.hasValue)
         {
             return false;
         }
-        if (currentPosition == "" && calculatedHash != rootHash)
+        if (proof.hasValue)
         {
-            return false;
+            uint256 valHash = getOutPointHash(proof.txhash, proof.nOut);
+            if (valHash != itNode->second.valHash)
+            {
+                return false;
+            }
+            vchToHash.insert(vchToHash.end(), valHash.begin(), valHash.end());
         }
-    }
-    std::map<std::string, CNCCTrieProofNode>::const_iterator itNode = proof.nodes.find(name);
-    if (itNode == proof.nodes.end())
-    {
-        return name != "" && !proof.hasValue;
-    }
-    std::vector<unsigned char> vchToHash;
-    for (std::vector<unsigned char>::const_iterator itChildren = itNode->second.children.begin(); itChildren != itNode->second.children.end(); ++itChildren)
-    {
-        vchToHash.push_back(*itChildren);
-        std::stringstream nextPosition;
-        nextPosition << name << *itChildren;
-        std::map<std::string, CNCCTrieProofLeafNode>::const_iterator itChildNode = proof.leafNodes.find(nextPosition.str());
-        if (itChildNode == proof.leafNodes.end())
-        {
-            return false;
-        }
-        vchToHash.insert(vchToHash.end(), itChildNode->second.nodeHash.begin(), itChildNode->second.nodeHash.end());
-    }
-    if (itNode->second.hasValue != proof.hasValue)
-    {
-        return false;
-    }
-    if (itNode->second.hasValue)
-    {
-        uint256 valHash = getOutPointHash(proof.txhash, proof.nOut);
-        if (valHash != itNode->second.valHash)
-        {
-            return false;
-        }
-        vchToHash.insert(vchToHash.end(), valHash.begin(), valHash.end());
     }
     CHash256 hasher;
     std::vector<unsigned char> vchHash(hasher.OUTPUT_SIZE);
     hasher.Write(vchToHash.data(), vchToHash.size());
     hasher.Finalize(&(vchHash[0]));
     uint256 calculatedHash(vchHash);
-    if (calculatedHash != itNode->second.nodeHash)
-    {
-        return false;
-    }
-    if (name == "" && calculatedHash != rootHash)
-    {
-        return false;
-    }
+    nodeHash = calculatedHash;
     return true;
+}
+
+bool verify_proof(CNCCTrieProof proof, uint256 rootHash, const std::string& name)
+{
+    uint256 computedRootHash;
+    return get_node_hash(name, "", name.begin(), proof, computedRootHash) && rootHash == computedRootHash;
 }
 
 BOOST_AUTO_TEST_CASE(ncctrievalue_proof)
