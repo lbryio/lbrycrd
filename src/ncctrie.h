@@ -205,27 +205,18 @@ class CNCCTrieProofNode
 {
 public:
     CNCCTrieProofNode() {};
-    CNCCTrieProofNode(std::vector<unsigned char> children, bool hasValue, uint256 valHash) : children(children), hasValue(hasValue), valHash(valHash) {};
-    std::vector<unsigned char> children;
+    CNCCTrieProofNode(std::vector<std::pair<unsigned char, uint256> > children, bool hasValue, uint256 valHash) : children(children), hasValue(hasValue), valHash(valHash) {};
+    std::vector<std::pair<unsigned char, uint256> > children;
     bool hasValue;
     uint256 valHash;
-};
-
-class CNCCTrieProofLeafNode
-{
-public:
-    CNCCTrieProofLeafNode() {};
-    CNCCTrieProofLeafNode(uint256 nodeHash) : nodeHash(nodeHash) {};
-    uint256 nodeHash;
 };
 
 class CNCCTrieProof
 {
 public:
     CNCCTrieProof() {};
-    CNCCTrieProof(std::map<std::string, CNCCTrieProofNode> nodes, std::map<std::string, CNCCTrieProofLeafNode> leafNodes, bool hasValue, uint256 txhash, uint32_t nOut) : nodes(nodes), leafNodes(leafNodes), hasValue(hasValue), txhash(txhash), nOut(nOut) {}
-    std::map<std::string, CNCCTrieProofNode> nodes;
-    std::map<std::string, CNCCTrieProofLeafNode> leafNodes;
+    CNCCTrieProof(std::vector<CNCCTrieProofNode> nodes, bool hasValue, uint256 txhash, uint32_t nOut) : nodes(nodes), hasValue(hasValue), txhash(txhash), nOut(nOut) {}
+    std::vector<CNCCTrieProofNode> nodes;
     bool hasValue;
     uint256 txhash;
     uint32_t nOut;
@@ -272,7 +263,7 @@ private:
     void removeFromExpirationQueue(const std::string name, uint256 txhash, uint32_t nOut, int nHeight) const;
     valueQueueType::iterator getQueueCacheRow(int nHeight, bool createIfNotExists) const;
     valueQueueType::iterator getExpirationQueueCacheRow(int nHeight, bool createIfNotExists) const;
-    std::pair<std::string, CNCCTrieProofLeafNode> getLeafNodeForProof(const std::string& currentPosition, unsigned char nodeChar, const CNCCTrieNode* currentNode) const;
+    uint256 getLeafHashForProof(const std::string& currentPosition, unsigned char nodeChar, const CNCCTrieNode* currentNode) const;
     uint256 hashBlock;
 };
 

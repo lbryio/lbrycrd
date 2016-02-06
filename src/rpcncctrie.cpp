@@ -274,32 +274,28 @@ UniValue proofToJSON(const CNCCTrieProof& proof)
 {
     UniValue result(UniValue::VOBJ);
     UniValue nodes(UniValue::VARR);
-    for (std::map<std::string, CNCCTrieProofNode>::const_iterator itNode = proof.nodes.begin(); itNode != proof.nodes.end(); ++itNode)
+    for (std::vector<CNCCTrieProofNode>::const_iterator itNode = proof.nodes.begin(); itNode != proof.nodes.end(); ++itNode)
     {
         UniValue node(UniValue::VOBJ);
-        node.push_back(Pair("name", itNode->first));
         UniValue children(UniValue::VARR);
-        for (std::vector<unsigned char>::const_iterator itChildren = itNode->second.children.begin(); itChildren != itNode->second.children.end(); ++itChildren)
+        for (std::vector<std::pair<unsigned char, uint256> >::const_iterator itChildren = itNode->children.begin(); itChildren != itNode->children.end(); ++itChildren)
         {
-            children.push_back(*itChildren);
+            UniValue child(UniValue::VOBJ);
+            child.push_back(Pair("character", itChildren->first));
+            if (!itChildren->second.IsNull())
+            {
+                child.push_back(Pair("nodeHash", itChildren->second.GetHex()));
+            }
+            children.push_back(child);
         }
         node.push_back(Pair("children", children));
-        if (itNode->second.hasValue)
+        if (itNode->hasValue && !itNode->valHash.IsNull())
         {
-            node.push_back(Pair("valueHash", itNode->second.valHash.GetHex()));
+            node.push_back(Pair("valueHash", itNode->valHash.GetHex()));
         }
         nodes.push_back(node);
     }
     result.push_back(Pair("nodes", nodes));
-    UniValue leafNodes(UniValue::VARR);
-    for (std::map<std::string, CNCCTrieProofLeafNode>::const_iterator itLeafNode = proof.leafNodes.begin(); itLeafNode != proof.leafNodes.end(); ++itLeafNode)
-    {
-        UniValue leafNode(UniValue::VOBJ);
-        leafNode.push_back(Pair("name", itLeafNode->first));
-        leafNode.push_back(Pair("nodeHash", itLeafNode->second.nodeHash.GetHex()));
-        leafNodes.push_back(leafNode);
-    }
-    result.push_back(Pair("leafNodes", leafNodes));
     if (proof.hasValue)
     {
         result.push_back(Pair("txhash", proof.txhash.GetHex()));
@@ -316,8 +312,8 @@ UniValue getnameproof(const UniValue& params, bool fHelp)
             "Return the cryptographic proof that a name maps to a value\n"
             "or doesn't.\n"
             "Arguments:\n"
-            "1. \"name\"             (string) the name to get a proof for\n"
-            "2. \"blockhash\"        (string, optional) the hash of the block\n"
+            "1. \"name\"           (string) the name to get a proof for\n"
+            "2. \"blockhash\"      (string, optional) the hash of the block\n"
             "                                            which is the basis\n"
             "                                            of the proof. If\n"
             "                                            none is given, \n"
@@ -328,25 +324,28 @@ UniValue getnameproof(const UniValue& params, bool fHelp)
             "  \"nodes\" : [       (array of object) full nodes (i.e.\n"
             "                                        those which lead to\n"
             "                                        the requested name)\n"
-            "    \"name\" : \"node name\" (string) The name of the node\n"
-            "    \"children\" : [ (array of numeric) the characters\n"
-            "                                        corresponding to\n"
-            "                                        the children of\n"
-            "                                        this node\n"
-            "      \"child\"     (numeric) a 0-255 number referring to\n"
-            "                              a child node of this node\n"
+            "    \"children\" : [  (array of object) the children of\n"
+            "                                       this node\n"
+            "      \"child\" : {   (object) a child node, either leaf or\n"
+            "                               reference to a full node\n"
+            "        \"character\" : \"char\" (string) the character which\n"
+            "                                          leads from the parent\n"
+            "                                          to this child node\n"
+            "        \"nodeHash\" :  \"hash\" (string, if exists) the hash of\n"
+            "                                                     the node if\n"
+            "                                                     this is a \n"
+            "                                                     leaf node\n"
+            "        }\n"
             "      ]\n"
-            "    \"valueHash\"   (string, if exists) the hash of this\n"
-            "                                        node's value, if\n"
-            "                                        it has one\n"
-            "    ]\n"
-            "  \"leaf_nodes\" : [  (array of object) leaf nodes (i.e.\n"
-            "                                        those which do not\n"
-            "                                        lead to the requested\n"
-            "                                        name but nonetheless\n"
-            "                                        contribute to the proof\n"
-            "    \"name\" : \"node name\" (string) the name of the node\n"
-            "    \"nodeHash\" : \"hash\"  (string) the hash of the node\n"
+            "    \"valueHash\"     (string, if exists) the hash of this\n"
+            "                                          node's value, if\n"
+            "                                          it has one. If \n"
+            "                                          this is the\n"
+            "                                          requested name\n"
+            "                                          this will not\n"
+            "                                          exist whether\n"
+            "                                          the node has a\n"
+            "                                          value or not\n"  
             "    ]\n"
             "  \"txhash\" : \"hash\" (string, if exists) the txid of the\n"
             "                                            claim which controls\n"
@@ -378,7 +377,7 @@ UniValue getnameproof(const UniValue& params, bool fHelp)
     if (!chainActive.Contains(pblockIndex))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Block not in main chain");
 
-    if (chainActive.Tip()->nHeight > (pblockIndex->nHeight + 10))
+    if (chainActive.Tip()->nHeight > (pblockIndex->nHeight + 20))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Block too deep to generate proof");
 
     CNCCTrieProof proof;
