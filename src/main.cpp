@@ -1694,6 +1694,7 @@ bool DisconnectBlock(const CBlock& block, CValidationState& state, const CBlockI
 
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
+    assert(trieCache.finalizeDecrement());
     trieCache.setBestBlock(pindex->pprev->GetBlockHash());
     assert(trieCache.getMerkleHash() == pindex->pprev->hashClaimTrie);
 
@@ -3544,6 +3545,42 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
 
     LogPrintf("No coin database inconsistencies in last %i blocks (%i transactions)\n", chainActive.Height() - pindexState->nHeight, nGoodTransactions);
 
+    return true;
+}
+
+bool GetProofForName(const CBlockIndex* pindexProof, const std::string& name, CClaimTrieProof& proof)
+{
+    AssertLockHeld(cs_main);
+    if (!chainActive.Contains(pindexProof))
+    {
+        return false;
+    }
+    CCoinsViewCache coins(pcoinsTip);
+    CClaimTrieCache trieCache(pclaimTrie);
+    CBlockIndex* pindexState = chainActive.Tip();
+    CValidationState state;
+    for (CBlockIndex *pindex = chainActive.Tip(); pindex && pindex->pprev && pindexState != pindexProof; pindex=pindex->pprev)
+    {
+        boost::this_thread::interruption_point();
+        CBlock block;
+        if (!ReadBlockFromDisk(block, pindex))
+        {
+            return false;
+        }
+        if (pindex == pindexState && (coins.DynamicMemoryUsage() + pcoinsTip->DynamicMemoryUsage()) <= nCoinCacheUsage)
+        {
+            bool fClean = true;
+            if (!DisconnectBlock(block, state, pindex, coins, trieCache, &fClean))
+            {
+                return false;
+            }
+            pindexState = pindex->pprev;
+        }
+        if (ShutdownRequested())
+            return false;
+    }
+    assert(pindexState == pindexProof);
+    proof = trieCache.getProofForName(name);
     return true;
 }
 

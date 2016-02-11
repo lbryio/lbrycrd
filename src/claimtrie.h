@@ -23,6 +23,8 @@
 #define SUPPORT_QUEUE_NAME_ROW 'p'
 #define SUPPORT_EXP_QUEUE_ROW 'x'
 
+uint256 getValueHash(COutPoint outPoint, int nHeightOfLastTakeover);
+
 class CClaimValue
 {
 public:
@@ -41,8 +43,6 @@ public:
                 , nAmount(nAmount), nEffectiveAmount(nAmount)
                 , nHeight(nHeight), nValidAtHeight(nValidAtHeight)
     {}
-    
-    uint256 GetHash() const;
 
     ADD_SERIALIZE_METHODS;
 
@@ -394,6 +394,30 @@ private:
     supportMapType dirtySupportNodes;
 };
 
+class CClaimTrieProofNode
+{
+public:
+    CClaimTrieProofNode() {};
+    CClaimTrieProofNode(std::vector<std::pair<unsigned char, uint256> > children,
+                        bool hasValue, uint256 valHash)
+        : children(children), hasValue(hasValue), valHash(valHash)
+        {};
+    std::vector<std::pair<unsigned char, uint256> > children;
+    bool hasValue;
+    uint256 valHash;
+};
+
+class CClaimTrieProof
+{
+public:
+    CClaimTrieProof() {};
+    CClaimTrieProof(std::vector<CClaimTrieProofNode> nodes, bool hasValue, COutPoint outPoint, int nHeightOfLastTakeover) : nodes(nodes), hasValue(hasValue), outPoint(outPoint), nHeightOfLastTakeover(nHeightOfLastTakeover) {}
+    std::vector<CClaimTrieProofNode> nodes;
+    bool hasValue;
+    COutPoint outPoint;
+    int nHeightOfLastTakeover;
+};
+
 class CClaimTrieCache
 {
 public:
@@ -453,12 +477,16 @@ public:
     bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint,
                              CClaimValue& claim,
                              bool fCheckTakeover = false) const;
+    CClaimTrieProof getProofForName(const std::string& name) const;
+
+    bool finalizeDecrement() const;
 private:
     CClaimTrie* base;
 
     bool fRequireTakeoverHeights;
 
     mutable nodeCacheType cache;
+    mutable nodeCacheType block_originals;
     mutable std::set<std::string> dirtyHashes;
     mutable hashMapType cacheHashes;
     mutable claimQueueType claimQueueCache;
@@ -537,6 +565,15 @@ private:
     bool getLastTakeoverForName(const std::string& name, int& lastTakeoverHeight) const;
     
     int getDelayForName(const std::string& name) const;
+
+    uint256 getLeafHashForProof(const std::string& currentPosition, unsigned char nodeChar,
+                                const CClaimTrieNode* currentNode) const;
+
+    CClaimTrieNode* addNodeToCache(const std::string& position, CClaimTrieNode* original) const;
+
+    bool getOriginalInfoForName(const std::string& name, CClaimValue& claim) const;
+
+    int getNumBlocksOfContinuousOwnership(const std::string& name) const;
 };
 
 #endif // BITCOIN_CLAIMTRIE_H

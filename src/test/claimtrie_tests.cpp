@@ -165,16 +165,16 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     COutPoint tx6OutPoint(tx6.GetHash(), 0);
 
     uint256 hash1;
-    hash1.SetHex("4bbf61ec5669c721bf007c71c59f85e6658f1de7b4562078e22f69f8f7ebcafd");
+    hash1.SetHex("71c7b8d35b9a3d7ad9a1272b68972979bbd18589f1efe6f27b0bf260a6ba78fa");
     
     uint256 hash2;
-    hash2.SetHex("33d00d8f4707eb0abef7297a7ff4975e7354fe1ed81455f28301dbceb939494d");
+    hash2.SetHex("c4fc0e2ad56562a636a0a237a96a5f250ef53495c2cb5edd531f087a8de83722");
     
     uint256 hash3;
-    hash3.SetHex("eb19bbaeecfd6dee77a8cb69286ac01226caee3c3883f55b86d0ca5a2f4252d7");
+    hash3.SetHex("baf52472bd7da19fe1e35116cfb3bd180d8770ffbe3ae9243df1fb58a14b0975");
     
     uint256 hash4;
-    hash4.SetHex("a889778ba28603294c1e5c7cec469a9019332ec93838b2f1331ebba547c5fd22");
+    hash4.SetHex("c73232a755bf015f22eaa611b283ff38100f2a23fb6222e86eca363452ba0c51");
 
     BOOST_CHECK(pclaimTrie->empty());
 
@@ -274,17 +274,21 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     std::string sName1("atest");
     std::string sName2("btest");
+    std::string sName3("atest123");
     std::string sValue1("testa");
     std::string sValue2("testb");
+    std::string sValue3("123testa");
 
     std::vector<unsigned char> vchName1(sName1.begin(), sName1.end());
     std::vector<unsigned char> vchName2(sName2.begin(), sName2.end());
+    std::vector<unsigned char> vchName3(sName3.begin(), sName3.end());
     std::vector<unsigned char> vchValue1(sValue1.begin(), sValue1.end());
     std::vector<unsigned char> vchValue2(sValue2.begin(), sValue2.end());
+    std::vector<unsigned char> vchValue3(sValue3.begin(), sValue3.end());
 
     std::vector<CTransaction> coinbases;
 
-    BOOST_CHECK(CreateCoinbases(5, coinbases));
+    BOOST_CHECK(CreateCoinbases(6, coinbases));
 
     uint256 hash0(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash0);
@@ -345,6 +349,10 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     CMutableTransaction tx12 = BuildTransaction(tx10);
     tx12.vout[0].scriptPubKey = CScript() << OP_TRUE;
     COutPoint tx12OutPoint(tx12.GetHash(), 0);
+
+    CMutableTransaction tx13 = BuildTransaction(coinbases[5]);
+    tx13.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName3 << vchValue3 << OP_2DROP << OP_DROP << OP_TRUE;
+    COutPoint tx13OutPoint(tx13.GetHash(), 0);
     
     CClaimValue val;
 
@@ -396,6 +404,34 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
     BOOST_CHECK(val.outPoint == tx3OutPoint);
     BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName1, tx9OutPoint, nThrowaway));
+
+    // Disconnect all blocks until the first block, and then reattach them, in memory only
+
+    //FlushStateToDisk();
+
+    CCoinsViewCache coins(pcoinsTip);
+    CClaimTrieCache trieCache(pclaimTrie);
+    CBlockIndex* pindexState = chainActive.Tip();
+    CValidationState state;
+    CBlockIndex* pindex;
+    for (pindex = chainActive.Tip(); pindex && pindex->pprev; pindex=pindex->pprev)
+    {
+        CBlock block;
+        BOOST_CHECK(ReadBlockFromDisk(block, pindex));
+        if (pindex == pindexState && (coins.DynamicMemoryUsage() + pcoinsTip->DynamicMemoryUsage()) <= nCoinCacheUsage)
+        {
+            bool fClean = true;
+            BOOST_CHECK(DisconnectBlock(block, state, pindex, coins, trieCache, &fClean));
+            pindexState = pindex->pprev;
+        }
+    }
+    while (pindex != chainActive.Tip())
+    {
+        pindex = chainActive.Next(pindex);
+        CBlock block;
+        BOOST_CHECK(ReadBlockFromDisk(block, pindex));
+        BOOST_CHECK(ConnectBlock(block, state, pindex, coins, trieCache));
+    }
     
     // Roll back the last block, make sure tx1 and tx7 are put back in the trie
 
@@ -898,6 +934,30 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(pclaimTrie->queueEmpty());
 
     // roll all the way back
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    mempool.clear();
+
+    // make sure all claim for names which exist in the trie but have no
+    // values get inserted immediately
+
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    AddToMempool(tx13);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+
+    AddToMempool(tx1);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+
+    // roll back
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
@@ -2322,5 +2382,262 @@ BOOST_AUTO_TEST_CASE(claimtrienode_serialize_unserialize)
     ss >> n2;
     BOOST_CHECK(n1 == n2);
 }
+
+bool verify_proof(const CClaimTrieProof proof, uint256 rootHash, const std::string& name)
+{
+    uint256 previousComputedHash;
+    std::string computedReverseName;
+    bool verifiedValue = false;
+
+    for (std::vector<CClaimTrieProofNode>::const_reverse_iterator itNodes = proof.nodes.rbegin(); itNodes != proof.nodes.rend(); ++itNodes)
+    {
+        bool foundChildInChain = false;
+        std::vector<unsigned char> vchToHash;
+        for (std::vector<std::pair<unsigned char, uint256> >::const_iterator itChildren = itNodes->children.begin(); itChildren != itNodes->children.end(); ++itChildren)
+        {
+            vchToHash.push_back(itChildren->first);
+            uint256 childHash;
+            if (itChildren->second.IsNull())
+            {
+                if (previousComputedHash.IsNull())
+                {
+                    return false;
+                }
+                if (foundChildInChain)
+                {
+                    return false;
+                }
+                foundChildInChain = true;
+                computedReverseName += itChildren->first;
+                childHash = previousComputedHash;
+            }
+            else
+            {
+                childHash = itChildren->second;
+            }
+            vchToHash.insert(vchToHash.end(), childHash.begin(), childHash.end());
+        }
+        if (itNodes != proof.nodes.rbegin() && !foundChildInChain)
+        {
+            return false;
+        }
+        if (itNodes->hasValue)
+        {
+            uint256 valHash;
+            if (itNodes->valHash.IsNull())
+            {
+                if (itNodes != proof.nodes.rbegin())
+                {
+                    return false;
+                }
+                if (!proof.hasValue)
+                {
+                    return false;
+                }
+                valHash = getValueHash(proof.outPoint,
+                                       proof.nHeightOfLastTakeover);
+
+                verifiedValue = true;
+            }
+            else
+            {
+                valHash = itNodes->valHash;
+            }
+            vchToHash.insert(vchToHash.end(), valHash.begin(), valHash.end());
+        }
+        else if (proof.hasValue && itNodes == proof.nodes.rbegin())
+        {
+            return false;
+        }
+        CHash256 hasher;
+        std::vector<unsigned char> vchHash(hasher.OUTPUT_SIZE);
+        hasher.Write(vchToHash.data(), vchToHash.size());
+        hasher.Finalize(&(vchHash[0]));
+        uint256 calculatedHash(vchHash);
+        previousComputedHash = calculatedHash;
+    }
+    if (previousComputedHash != rootHash)
+    {
+        return false;
+    }
+    if (proof.hasValue && !verifiedValue)
+    {
+        return false;
+    }
+    std::string::reverse_iterator itComputedName = computedReverseName.rbegin();
+    std::string::const_iterator itName = name.begin();
+    for (; itName != name.end() && itComputedName != computedReverseName.rend(); ++itName, ++itComputedName)
+    {
+        if (*itName != *itComputedName)
+        {
+            return false;
+        }
+    }
+    return (!proof.hasValue || itName == name.end());
+}
+
+BOOST_AUTO_TEST_CASE(claimtrievalue_proof)
+{
+    BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
+
+    LOCK(cs_main);
+
+    std::string sName1("a");
+    std::string sValue1("testa");
+    
+    std::string sName2("abc");
+    std::string sValue2("testabc");
+
+    std::string sName3("abd");
+    std::string sValue3("testabd");
+
+    std::string sName4("zyx");
+    std::string sValue4("testzyx");
+
+    std::string sName5("zyxa");
+    std::string sName6("omg");
+    std::string sName7("");
+
+    std::vector<unsigned char> vchName1(sName1.begin(), sName1.end());
+    std::vector<unsigned char> vchValue1(sValue1.begin(), sValue1.end());
+
+    std::vector<unsigned char> vchName2(sName2.begin(), sName2.end());
+    std::vector<unsigned char> vchValue2(sValue2.begin(), sValue2.end());
+
+    std::vector<unsigned char> vchName3(sName3.begin(), sName3.end());
+    std::vector<unsigned char> vchValue3(sValue3.begin(), sValue3.end());
+
+    std::vector<unsigned char> vchName4(sName4.begin(), sName4.end());
+    std::vector<unsigned char> vchValue4(sValue4.begin(), sValue4.end());
+
+    std::vector<unsigned char> vchName7(sName7.begin(), sName7.end());
+
+    std::vector<CTransaction> coinbases;
+
+    BOOST_CHECK(CreateCoinbases(5, coinbases));
+
+    CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
+    tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName1 << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
+    COutPoint tx1OutPoint(tx1.GetHash(), 0);
+    
+    CMutableTransaction tx2 = BuildTransaction(coinbases[1]);
+    tx2.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName2 << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
+    COutPoint tx2OutPoint(tx2.GetHash(), 0);
+    
+    CMutableTransaction tx3 = BuildTransaction(coinbases[2]);
+    tx3.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName3 << vchValue3 << OP_2DROP << OP_DROP << OP_TRUE;
+    COutPoint tx3OutPoint(tx3.GetHash(), 0);
+    
+    CMutableTransaction tx4 = BuildTransaction(coinbases[3]);
+    tx4.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName4 << vchValue4 << OP_2DROP << OP_DROP << OP_TRUE;
+    COutPoint tx4OutPoint(tx4.GetHash(), 0);
+
+    CMutableTransaction tx5 = BuildTransaction(coinbases[4]);
+    tx5.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName7 << vchValue4 << OP_2DROP << OP_DROP << OP_TRUE;
+    COutPoint tx5OutPoint(tx5.GetHash(), 0);
+
+    CClaimValue val;
+
+    std::vector<uint256> blocks_to_invalidate;
+
+    // create a claim. verify the expiration event has been scheduled.
+
+    AddToMempool(tx1);
+    AddToMempool(tx2);
+    AddToMempool(tx3);
+    AddToMempool(tx4);
+
+    BOOST_CHECK(CreateBlocks(1, 5));
+
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName2, val));
+    BOOST_CHECK(val.outPoint == tx2OutPoint);
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName3, val));
+    BOOST_CHECK(val.outPoint == tx3OutPoint);
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName4, val));
+    BOOST_CHECK(val.outPoint == tx4OutPoint);
+
+    CClaimTrieCache cache(pclaimTrie);
+
+    CClaimTrieProof proof;
+
+    proof = cache.getProofForName(sName1);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName1));
+    BOOST_CHECK(proof.outPoint == tx1OutPoint);
+
+    proof = cache.getProofForName(sName2);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName2));
+    BOOST_CHECK(proof.outPoint == tx2OutPoint);
+
+    proof = cache.getProofForName(sName3);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName3));
+    BOOST_CHECK(proof.outPoint == tx3OutPoint);
+
+    proof = cache.getProofForName(sName4);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName4));
+    BOOST_CHECK(proof.outPoint == tx4OutPoint);
+
+    proof = cache.getProofForName(sName5);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName5));
+    BOOST_CHECK(proof.hasValue == false);
+
+    proof = cache.getProofForName(sName6);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName6));
+    BOOST_CHECK(proof.hasValue == false);
+
+    proof = cache.getProofForName(sName7);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName7));
+    BOOST_CHECK(proof.hasValue == false);
+    
+    AddToMempool(tx5);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+    
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName7, val));
+    BOOST_CHECK(val.outPoint == tx5OutPoint);
+
+    cache = CClaimTrieCache(pclaimTrie);
+
+    proof = cache.getProofForName(sName1);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName1));
+    BOOST_CHECK(proof.outPoint == tx1OutPoint);
+
+    proof = cache.getProofForName(sName2);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName2));
+    BOOST_CHECK(proof.outPoint == tx2OutPoint);
+
+    proof = cache.getProofForName(sName3);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName3));
+    BOOST_CHECK(proof.outPoint == tx3OutPoint);
+
+    proof = cache.getProofForName(sName4);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName4));
+    BOOST_CHECK(proof.outPoint == tx4OutPoint);
+
+    proof = cache.getProofForName(sName5);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName5));
+    BOOST_CHECK(proof.hasValue == false);
+
+    proof = cache.getProofForName(sName6);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName6));
+    BOOST_CHECK(proof.hasValue == false);
+
+    proof = cache.getProofForName(sName7);
+    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName7));
+    BOOST_CHECK(proof.outPoint == tx5OutPoint);
+
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+    blocks_to_invalidate.pop_back();
+    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(blocks_to_invalidate.empty());
+    
+}
+
 
 BOOST_AUTO_TEST_SUITE_END()

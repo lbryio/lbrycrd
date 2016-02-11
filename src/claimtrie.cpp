@@ -21,7 +21,7 @@ std::vector<unsigned char> heightToVch(int n)
     return vchHeight;
 }
 
-uint256 CClaimValue::GetHash() const
+uint256 getValueHash(COutPoint outPoint, int nHeightOfLastTakeover)
 {
     CHash256 txHasher;
     txHasher.Write(outPoint.hash.begin(), outPoint.hash.size());
@@ -36,14 +36,21 @@ uint256 CClaimValue::GetHash() const
     std::vector<unsigned char> vchnOutHash(nOutHasher.OUTPUT_SIZE);
     nOutHasher.Finalize(&(vchnOutHash[0]));
 
+    CHash256 takeoverHasher;
+    std::vector<unsigned char> vchTakeoverHeightToHash = heightToVch(nHeightOfLastTakeover);
+    takeoverHasher.Write(vchTakeoverHeightToHash.data(), vchTakeoverHeightToHash.size());
+    std::vector<unsigned char> vchTakeoverHash(takeoverHasher.OUTPUT_SIZE);
+    takeoverHasher.Finalize(&(vchTakeoverHash[0]));
+
     CHash256 hasher;
     hasher.Write(vchtxHash.data(), vchtxHash.size());
     hasher.Write(vchnOutHash.data(), vchnOutHash.size());
+    hasher.Write(vchTakeoverHash.data(), vchTakeoverHash.size());
     std::vector<unsigned char> vchHash(hasher.OUTPUT_SIZE);
     hasher.Finalize(&(vchHash[0]));
     
-    uint256 claimHash(vchHash);
-    return claimHash;
+    uint256 valueHash(vchHash);
+    return valueHash;
 }
 
 bool CClaimTrieNode::insertClaim(CClaimValue claim)
@@ -86,7 +93,9 @@ bool CClaimTrieNode::removeClaim(const COutPoint& outPoint, CClaimValue& claim)
 bool CClaimTrieNode::getBestClaim(CClaimValue& claim) const
 {
     if (claims.empty())
+    {
         return false;
+    }
     else
     {
         claim = claims.front();
@@ -432,14 +441,16 @@ bool CClaimTrie::getInfoForName(const std::string& name, CClaimValue& claim) con
 {
     const CClaimTrieNode* current = getNodeForName(name);
     if (current)
+    {
         return current->getBestClaim(claim);
+    }
     return false;
 }
 
 bool CClaimTrie::getLastTakeoverForName(const std::string& name, int& lastTakeoverHeight) const
 {
     const CClaimTrieNode* current = getNodeForName(name);
-    if (current)
+    if (current && !current->claims.empty())
     {
         lastTakeoverHeight = current->nHeightOfLastTakeover;
         return true;
@@ -474,10 +485,8 @@ bool CClaimTrie::recursiveCheckConsistency(const CClaimTrieNode* node) const
 
     if (hasClaim)
     {
-        uint256 claimHash = claim.GetHash();
-        vchToHash.insert(vchToHash.end(), claimHash.begin(), claimHash.end());
-        std::vector<unsigned char> heightToHash = heightToVch(node->nHeightOfLastTakeover);
-        vchToHash.insert(vchToHash.end(), heightToHash.begin(), heightToHash.end());
+        uint256 valueHash = getValueHash(claim.outPoint, node->nHeightOfLastTakeover);
+        vchToHash.insert(vchToHash.end(), valueHash.begin(), valueHash.end());
     }
 
     CHash256 hasher;
@@ -1064,12 +1073,10 @@ bool CClaimTrieCache::recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent, std:
 
     if (hasClaim)
     {
-        uint256 claimHash = claim.GetHash();
-        vchToHash.insert(vchToHash.end(), claimHash.begin(), claimHash.end());
         int nHeightOfLastTakeover;
         assert(getLastTakeoverForName(sPos, nHeightOfLastTakeover));
-        std::vector<unsigned char> heightToHash = heightToVch(nHeightOfLastTakeover);
-        vchToHash.insert(vchToHash.end(), heightToHash.begin(), heightToHash.end());
+        uint256 valueHash = getValueHash(claim.outPoint, nHeightOfLastTakeover);
+        vchToHash.insert(vchToHash.end(), valueHash.begin(), valueHash.end());
     }
 
     CHash256 hasher;
@@ -1110,6 +1117,31 @@ bool CClaimTrieCache::empty() const
     return base->empty() && cache.empty();
 }
 
+CClaimTrieNode* CClaimTrieCache::addNodeToCache(const std::string& position, CClaimTrieNode* original) const
+{
+    if (!original)
+        original = new CClaimTrieNode();
+    CClaimTrieNode* cacheCopy = new CClaimTrieNode(*original);
+    cache[position] = cacheCopy;
+    nodeCacheType::const_iterator itOriginals = block_originals.find(position);
+    if (block_originals.end() == itOriginals)
+    {
+        CClaimTrieNode* originalCopy = new CClaimTrieNode(*original);
+        block_originals[position] = originalCopy;
+    }
+    return cacheCopy;
+}
+
+bool CClaimTrieCache::getOriginalInfoForName(const std::string& name, CClaimValue& claim) const
+{
+    nodeCacheType::const_iterator itOriginalCache = block_originals.find(name);
+    if (itOriginalCache == block_originals.end())
+    {
+        return base->getInfoForName(name, claim);
+    }
+    return itOriginalCache->second->getBestClaim(claim);
+}
+
 bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue claim, bool fCheckTakeover) const
 {
     assert(base);
@@ -1118,11 +1150,6 @@ bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue c
     cachedNode = cache.find("");
     if (cachedNode != cache.end())
         currentNode = cachedNode->second;
-    if (currentNode == NULL)
-    {
-        currentNode = new CClaimTrieNode();
-        cache[""] = currentNode;
-    }
     for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
     {
         std::string sCurrentSubstring(name.begin(), itCur);
@@ -1157,12 +1184,10 @@ bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue c
         }
         else
         {
-            currentNode = new CClaimTrieNode(*currentNode);
-            cache[sCurrentSubstring] = currentNode;
+            currentNode = addNodeToCache(sCurrentSubstring, currentNode);
         }
-        CClaimTrieNode* newNode = new CClaimTrieNode();
+        CClaimTrieNode* newNode = addNodeToCache(sNextSubstring, NULL);
         currentNode->children[*itCur] = newNode;
-        cache[sNextSubstring] = newNode;
         currentNode = newNode;
     }
 
@@ -1173,8 +1198,7 @@ bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue c
     }
     else
     {
-        currentNode = new CClaimTrieNode(*currentNode);
-        cache[name] = currentNode;
+        currentNode = addNodeToCache(name, currentNode);
     }
     bool fChanged = false;
     if (currentNode->claims.empty())
@@ -1241,8 +1265,7 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoi
         assert(cachedNode->second == currentNode);
     else
     {
-        currentNode = new CClaimTrieNode(*currentNode);
-        cache[name] = currentNode;
+        currentNode = addNodeToCache(name, currentNode);
     }
     bool fChanged = false;
     assert(currentNode != NULL);
@@ -1335,8 +1358,7 @@ bool CClaimTrieCache::recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int
             {
                 // it isn't, so make a copy, stick it in the cache,
                 // and make it the new current node
-                tnCurrent = new CClaimTrieNode(*tnCurrent);
-                cache[sCurrentSubstring] = tnCurrent;
+                tnCurrent = addNodeToCache(sCurrentSubstring, tnCurrent);
             }
             // erase the character from the current node, which is
             // now guaranteed to be in the cache
@@ -1412,7 +1434,7 @@ bool CClaimTrieCache::addClaim(const std::string& name, const COutPoint& outPoin
     assert(nHeight == nCurrentHeight);
     CClaimValue currentClaim;
     int delayForClaim;
-    if (base->getInfoForName(name, currentClaim) && currentClaim.claimId == claimId)
+    if (getOriginalInfoForName(name, currentClaim) && currentClaim.claimId == claimId)
     {
         LogPrintf("%s: This is an update to a best claim.\n", __func__);
         delayForClaim = 0;
@@ -1810,7 +1832,7 @@ bool CClaimTrieCache::addSupport(const std::string& name, const COutPoint& outPo
     assert(nHeight == nCurrentHeight);
     CClaimValue claim;
     int delayForSupport;
-    if (base->getInfoForName(name, claim) && claim.claimId == supportedClaimId)
+    if (getOriginalInfoForName(name, claim) && claim.claimId == supportedClaimId)
     {
         LogPrintf("%s: This is a support to a best claim.\n", __func__);
         delayForSupport = 0;
@@ -2037,7 +2059,7 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
         // claims in the queue for that name and the takeover height should be the current height
         // if the node is not in the cache, or getbestclaim fails, that means all of its claims were
         // deleted
-        // if base->getInfoForName returns false, that means it's new and shouldn't go into the undo
+        // if getOriginalInfoForName returns false, that means it's new and shouldn't go into the undo
         // if both exist, and the current best claim is not the same as or the parent to the new best
         // claim, then ownership has changed and the current height of last takeover should go into
         // the queue
@@ -2053,7 +2075,7 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
         {
             haveClaimInCache = itCachedNode->second->getBestClaim(claimInCache);
         }
-        haveClaimInTrie = base->getInfoForName(*itNamesToCheck, claimInTrie);
+        haveClaimInTrie = getOriginalInfoForName(*itNamesToCheck, claimInTrie);
         bool takeoverHappened = false;
         if (!haveClaimInTrie)
         {
@@ -2169,6 +2191,15 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
             }
         }
     }
+    for (nodeCacheType::const_iterator itOriginals = block_originals.begin(); itOriginals != block_originals.end(); ++itOriginals)
+    {
+        delete itOriginals->second;
+    }
+    block_originals.clear();
+    for (nodeCacheType::const_iterator itCache = cache.begin(); itCache != cache.end(); ++itCache)
+    {
+        block_originals[itCache->first] = new CClaimTrieNode(*(itCache->second));
+    }
     namesToCheckForTakeover.clear();
     nCurrentHeight++;
     return true;
@@ -2226,43 +2257,65 @@ bool CClaimTrieCache::decrementBlock(insertUndoType& insertUndo, claimQueueRowTy
     return true;
 }
 
-bool CClaimTrieCache::getLastTakeoverForName(const std::string& name, int& lastTakeoverHeight) const
+bool CClaimTrieCache::finalizeDecrement() const
 {
+    for (nodeCacheType::iterator itOriginals = block_originals.begin(); itOriginals != block_originals.end(); ++itOriginals)
+    {
+        delete itOriginals->second;
+    }
+    block_originals.clear();
+    for (nodeCacheType::const_iterator itCache = cache.begin(); itCache != cache.end(); ++itCache)
+    {
+        block_originals[itCache->first] = new CClaimTrieNode(*(itCache->second));
+    }
+    return true;
+}
+
+bool CClaimTrieCache::getLastTakeoverForName(const std::string& name, int& nLastTakeoverForName) const
+{
+    if (!fRequireTakeoverHeights)
+    {
+        nLastTakeoverForName = 0;
+        return true;
+    }
     std::map<std::string, int>::iterator itHeights = cacheTakeoverHeights.find(name);
     if (itHeights == cacheTakeoverHeights.end())
     {
-        if (base->getLastTakeoverForName(name, lastTakeoverHeight))
-        {
-            return true;
-        }
-        else
-        {
-            if (fRequireTakeoverHeights)
-            {
-                return false;
-            }
-            else
-            {
-                lastTakeoverHeight = 0;
-                return true;
-            }
-        }
+        return base->getLastTakeoverForName(name, nLastTakeoverForName);
     }
-    lastTakeoverHeight = itHeights->second;
+    nLastTakeoverForName = itHeights->second;
     return true;
+}
+
+int CClaimTrieCache::getNumBlocksOfContinuousOwnership(const std::string& name) const
+{
+    const CClaimTrieNode* node = NULL;
+    nodeCacheType::const_iterator itCache = cache.find(name);
+    if (itCache != cache.end())
+    {
+        node = itCache->second;
+    }
+    if (!node)
+    {
+        node = base->getNodeForName(name);
+    }
+    if (!node || node->claims.empty())
+    {
+        return 0;
+    }
+    int nLastTakeoverHeight;
+    assert(getLastTakeoverForName(name, nLastTakeoverHeight));
+    return nCurrentHeight - nLastTakeoverHeight;
 }
 
 int CClaimTrieCache::getDelayForName(const std::string& name) const
 {
-    int nHeightOfLastTakeover;
-    if (getLastTakeoverForName(name, nHeightOfLastTakeover))
-    {
-        return std::min((nCurrentHeight - nHeightOfLastTakeover) / base->nProportionalDelayFactor, 4032);
-    }
-    else
+    if (!fRequireTakeoverHeights)
     {
         return 0;
     }
+    int nBlocksOfContinuousOwnership = getNumBlocksOfContinuousOwnership(name);
+    return std::min(nBlocksOfContinuousOwnership / base->nProportionalDelayFactor, 4032);
 }
 
 uint256 CClaimTrieCache::getBestBlock()
@@ -2285,6 +2338,11 @@ bool CClaimTrieCache::clear() const
         delete itcache->second;
     }
     cache.clear();
+    for (nodeCacheType::iterator itOriginals = block_originals.begin(); itOriginals != block_originals.end(); ++itOriginals)
+    {
+        delete itOriginals->second;
+    }
+    block_originals.clear();
     dirtyHashes.clear();
     cacheHashes.clear();
     claimQueueCache.clear();
@@ -2308,4 +2366,78 @@ bool CClaimTrieCache::flush()
         success = clear();
     }
     return success;
+}
+
+uint256 CClaimTrieCache::getLeafHashForProof(const std::string& currentPosition, unsigned char nodeChar, const CClaimTrieNode* currentNode) const
+{
+    std::stringstream leafPosition;
+    leafPosition << currentPosition << nodeChar;
+    hashMapType::iterator cachedHash = cacheHashes.find(leafPosition.str());
+    if (cachedHash != cacheHashes.end())
+    {
+        return cachedHash->second;
+    }
+    else
+    {
+        return currentNode->hash;
+    }
+}
+
+CClaimTrieProof CClaimTrieCache::getProofForName(const std::string& name) const
+{
+    if (dirty())
+        getMerkleHash();
+    std::vector<CClaimTrieProofNode> nodes;
+    CClaimTrieNode* current = &(base->root);
+    nodeCacheType::const_iterator cachedNode;
+    bool fNameHasValue = false;
+    COutPoint outPoint;
+    int nHeightOfLastTakeover = 0;
+    for (std::string::const_iterator itName = name.begin(); current; ++itName)
+    {
+        std::string currentPosition(name.begin(), itName);
+        cachedNode = cache.find(currentPosition);
+        if (cachedNode != cache.end())
+            current = cachedNode->second;
+        CClaimValue claim;
+        bool fNodeHasValue = current->getBestClaim(claim);
+        uint256 valueHash;
+        if (fNodeHasValue)
+        {
+            int nHeightOfLastTakeover;
+            assert(getLastTakeoverForName(currentPosition, nHeightOfLastTakeover));
+            valueHash = getValueHash(claim.outPoint, nHeightOfLastTakeover);
+        }
+        std::vector<std::pair<unsigned char, uint256> > children;
+        CClaimTrieNode* nextCurrent = NULL;
+        for (nodeMapType::const_iterator itChildren = current->children.begin(); itChildren != current->children.end(); ++itChildren)
+        {
+            if (itName == name.end() || itChildren->first != *itName) // Leaf node
+            {
+                uint256 childHash = getLeafHashForProof(currentPosition, itChildren->first, itChildren->second);
+                children.push_back(std::make_pair(itChildren->first, childHash));
+            }
+            else // Full node
+            {
+                nextCurrent = itChildren->second;
+                uint256 childHash;
+                children.push_back(std::make_pair(itChildren->first, childHash));
+            }
+        }
+        if (currentPosition == name)
+        {
+            fNameHasValue = fNodeHasValue;
+            if (fNameHasValue)
+            {
+                outPoint = claim.outPoint;
+                assert(getLastTakeoverForName(name, nHeightOfLastTakeover));
+            }
+            valueHash.SetNull();
+        }
+        CClaimTrieProofNode node(children, fNodeHasValue, valueHash);
+        nodes.push_back(node);
+        current = nextCurrent;
+    }
+    return CClaimTrieProof(nodes, fNameHasValue, outPoint,
+                           nHeightOfLastTakeover);
 }

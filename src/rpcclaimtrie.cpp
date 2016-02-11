@@ -319,3 +319,126 @@ UniValue getclaimsfortx(const UniValue& params, bool fHelp)
     }
     return ret;
 }
+
+UniValue proofToJSON(const CClaimTrieProof& proof)
+{
+    UniValue result(UniValue::VOBJ);
+    UniValue nodes(UniValue::VARR);
+    for (std::vector<CClaimTrieProofNode>::const_iterator itNode = proof.nodes.begin(); itNode != proof.nodes.end(); ++itNode)
+    {
+        UniValue node(UniValue::VOBJ);
+        UniValue children(UniValue::VARR);
+        for (std::vector<std::pair<unsigned char, uint256> >::const_iterator itChildren = itNode->children.begin(); itChildren != itNode->children.end(); ++itChildren)
+        {
+            UniValue child(UniValue::VOBJ);
+            child.push_back(Pair("character", itChildren->first));
+            if (!itChildren->second.IsNull())
+            {
+                child.push_back(Pair("nodeHash", itChildren->second.GetHex()));
+            }
+            children.push_back(child);
+        }
+        node.push_back(Pair("children", children));
+        if (itNode->hasValue && !itNode->valHash.IsNull())
+        {
+            node.push_back(Pair("valueHash", itNode->valHash.GetHex()));
+        }
+        nodes.push_back(node);
+    }
+    result.push_back(Pair("nodes", nodes));
+    if (proof.hasValue)
+    {
+        result.push_back(Pair("txhash", proof.outPoint.hash.GetHex()));
+        result.push_back(Pair("nOut", (int)proof.outPoint.n));
+        result.push_back(Pair("last takeover height", (int)proof.nHeightOfLastTakeover));
+    }
+    return result;
+}
+
+UniValue getnameproof(const UniValue& params, bool fHelp)
+{
+    if (fHelp || (params.size() != 1 && params.size() != 2))
+        throw std::runtime_error(
+            "getnameproof\n"
+            "Return the cryptographic proof that a name maps to a value\n"
+            "or doesn't.\n"
+            "Arguments:\n"
+            "1. \"name\"           (string) the name to get a proof for\n"
+            "2. \"blockhash\"      (string, optional) the hash of the block\n"
+            "                                            which is the basis\n"
+            "                                            of the proof. If\n"
+            "                                            none is given, \n"
+            "                                            the latest block\n"
+            "                                            will be used.\n"
+            "Result: \n"
+            "{\n"
+            "  \"nodes\" : [       (array of object) full nodes (i.e.\n"
+            "                                        those which lead to\n"
+            "                                        the requested name)\n"
+            "    \"children\" : [  (array of object) the children of\n"
+            "                                       this node\n"
+            "      \"child\" : {   (object) a child node, either leaf or\n"
+            "                               reference to a full node\n"
+            "        \"character\" : \"char\" (string) the character which\n"
+            "                                          leads from the parent\n"
+            "                                          to this child node\n"
+            "        \"nodeHash\" :  \"hash\" (string, if exists) the hash of\n"
+            "                                                     the node if\n"
+            "                                                     this is a \n"
+            "                                                     leaf node\n"
+            "        }\n"
+            "      ]\n"
+            "    \"valueHash\"     (string, if exists) the hash of this\n"
+            "                                          node's value, if\n"
+            "                                          it has one. If \n"
+            "                                          this is the\n"
+            "                                          requested name\n"
+            "                                          this will not\n"
+            "                                          exist whether\n"
+            "                                          the node has a\n"
+            "                                          value or not\n"  
+            "    ]\n"
+            "  \"txhash\" : \"hash\" (string, if exists) the txid of the\n"
+            "                                            claim which controls\n"
+            "                                            this name, if there\n"
+            "                                            is one.\n"
+            "  \"nOut\" : n,         (numeric) the nOut of the claim which\n"
+            "                                  controls this name, if there\n"
+            "                                  is one.\n"
+            "  \"last takeover height\"  (numeric) the most recent height at\n"
+            "                                      which the value of a name\n"
+            "                                      changed other than through\n"
+            "                                      an update to the winning\n"
+            "                                      bid\n"
+            "  }\n"
+            "}\n");
+
+    LOCK(cs_main);
+    std::string strName = params[0].get_str();
+    uint256 blockHash;
+    if (params.size() == 2)
+    {
+        std::string strBlockHash = params[1].get_str();
+        blockHash = uint256S(strBlockHash);
+    }
+    else
+    {
+        blockHash = chainActive.Tip()->GetBlockHash();
+    }
+
+    if (mapBlockIndex.count(blockHash) == 0)
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
+
+    CBlockIndex* pblockIndex = mapBlockIndex[blockHash];
+    if (!chainActive.Contains(pblockIndex))
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Block not in main chain");
+
+    if (chainActive.Tip()->nHeight > (pblockIndex->nHeight + 20))
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Block too deep to generate proof");
+
+    CClaimTrieProof proof;
+    if (!GetProofForName(pblockIndex, strName, proof))
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Failed to generate proof");
+
+    return proofToJSON(proof);
+}
