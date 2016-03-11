@@ -36,11 +36,9 @@ UniValue getclaimsintrie(const UniValue& params, bool fHelp)
     CCoinsViewCache view(pcoinsTip);
     std::vector<namedNodeType> nodes = pclaimTrie->flattenTrie();
 
-    CClaimValue claimVal;
-    
     for (std::vector<namedNodeType>::iterator it = nodes.begin(); it != nodes.end(); ++it)
     {
-        if (it->second.getBestClaim(claimVal))
+        if (!it->second.claims.empty())
         {
             UniValue node(UniValue::VOBJ);
             node.push_back(Pair("name", it->first));
@@ -56,21 +54,21 @@ UniValue getclaimsintrie(const UniValue& params, bool fHelp)
                 if (!coin)
                 {
                     LogPrintf("%s: %s does not exist in the coins view, despite being associated with a name\n",
-                              __func__, claimVal.outPoint.hash.GetHex());
+                              __func__, itClaims->outPoint.hash.GetHex());
                     claim.push_back(Pair("error", "No value found for claim"));
                 }
-                else if (coin->vout.size() < claimVal.outPoint.n || coin->vout[claimVal.outPoint.n].IsNull())
+                else if (coin->vout.size() < itClaims->outPoint.n || coin->vout[itClaims->outPoint.n].IsNull())
                 {
-                    LogPrintf("%s: the specified txout of %s appears to have been spent\n", __func__, claimVal.outPoint.hash.GetHex());
+                    LogPrintf("%s: the specified txout of %s appears to have been spent\n", __func__, itClaims->outPoint.hash.GetHex());
                     claim.push_back(Pair("error", "Txout spent"));
                 }
                 else
                 {
                     int op;
                     std::vector<std::vector<unsigned char> > vvchParams;
-                    if (!DecodeClaimScript(coin->vout[claimVal.outPoint.n].scriptPubKey, op, vvchParams))
+                    if (!DecodeClaimScript(coin->vout[itClaims->outPoint.n].scriptPubKey, op, vvchParams))
                     {
-                        LogPrintf("%s: the specified txout of %s does not have an claim command\n", __func__, claimVal.outPoint.hash.GetHex());
+                        LogPrintf("%s: the specified txout of %s does not have an claim command\n", __func__, itClaims->outPoint.hash.GetHex());
                     }
                     std::string sValue(vvchParams[1].begin(), vvchParams[1].end());
                     claim.push_back(Pair("value", sValue));
