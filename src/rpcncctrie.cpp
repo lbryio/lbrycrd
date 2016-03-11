@@ -34,11 +34,9 @@ UniValue getclaimsintrie(const UniValue& params, bool fHelp)
     CCoinsViewCache view(pcoinsTip);
     std::vector<namedNodeType> nodes = pnccTrie->flattenTrie();
 
-    CNodeValue val;
-    
     for (std::vector<namedNodeType>::iterator it = nodes.begin(); it != nodes.end(); ++it)
     {
-        if (it->second.getBestValue(val))
+        if (!it->second.values.empty())
         {
             UniValue node(UniValue::VOBJ);
             node.push_back(Pair("name", it->first));
@@ -50,25 +48,25 @@ UniValue getclaimsintrie(const UniValue& params, bool fHelp)
                 claim.push_back(Pair("n", (int)itClaims->nOut));
                 claim.push_back(Pair("amount", itClaims->nAmount));
                 claim.push_back(Pair("height", itClaims->nHeight));
-                const CCoins* coin = view.AccessCoins(val.txhash);
+                const CCoins* coin = view.AccessCoins(itClaims->txhash);
                 if (!coin)
                 {
                     LogPrintf("%s: %s does not exist in the coins view, despite being associated with a name\n",
-                              __func__, val.txhash.GetHex());
+                              __func__, itClaims->txhash.GetHex());
                     claim.push_back(Pair("error", "No value found for claim"));
                 }
-                else if (coin->vout.size() < val.nOut || coin->vout[val.nOut].IsNull())
+                else if (coin->vout.size() < itClaims->nOut || coin->vout[itClaims->nOut].IsNull())
                 {
-                    LogPrintf("%s: the specified txout of %s appears to have been spent\n", __func__, val.txhash.GetHex());
+                    LogPrintf("%s: the specified txout of %s appears to have been spent\n", __func__, itClaims->txhash.GetHex());
                     claim.push_back(Pair("error", "Txout spent"));
                 }
                 else
                 {
                     int op;
                     std::vector<std::vector<unsigned char> > vvchParams;
-                    if (!DecodeNCCScript(coin->vout[val.nOut].scriptPubKey, op, vvchParams))
+                    if (!DecodeNCCScript(coin->vout[itClaims->nOut].scriptPubKey, op, vvchParams))
                     {
-                        LogPrintf("%s: the specified txout of %s does not have an NCC command\n", __func__, val.txhash.GetHex());
+                        LogPrintf("%s: the specified txout of %s does not have an NCC command\n", __func__, itClaims->txhash.GetHex());
                     }
                     std::string sValue(vvchParams[1].begin(), vvchParams[1].end());
                     claim.push_back(Pair("value", sValue));
