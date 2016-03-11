@@ -379,6 +379,7 @@ static const CRPCCommand vRPCCommands[] =
 #endif // ENABLE_WALLET
 
     /* Claim trie */
+    { "claimtrie",           "getclaimsintrie",        &getclaimsintrie,        true  },
     { "claimtrie",           "getclaimtrie",           &getclaimtrie,           true  },
     { "claimtrie",           "getvalueforname",        &getvalueforname,        true  },
     { "claimtrie",           "gettotalclaimednames",   &gettotalclaimednames,   true  },

@@ -4,6 +4,86 @@
 #include "univalue.h"
 #include "txmempool.h"
 
+
+UniValue getclaimsintrie(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() > 0)
+        throw std::runtime_error(
+            "getclaimsintrie\n"
+            "Return all claims in the name trie.\n"
+            "Arguments:\n"
+            "None\n"
+            "Result: \n"
+            "[\n"
+            "  {\n"
+            "    \"name\"          (string) the name claimed\n"
+            "    \"claims\": [      (array of object) the claims for this name\n"
+            "      {\n"
+            "        \"txid\"    (string) the txid of the claim\n"
+            "        \"n\"       (numeric) the vout value of the claim\n"
+            "        \"amount\"  (numeric) txout amount\n"
+            "        \"height\"  (numeric) the height of the block in which this transaction is located\n"
+            "        \"value\"   (string) the value of this claim\n"
+            "      }\n"
+            "    ]\n"
+            "  }\n"
+            "]\n"
+        );
+    
+    LOCK(cs_main);
+    UniValue ret(UniValue::VARR);
+
+    CCoinsViewCache view(pcoinsTip);
+    std::vector<namedNodeType> nodes = pclaimTrie->flattenTrie();
+
+    CClaimValue claimVal;
+    
+    for (std::vector<namedNodeType>::iterator it = nodes.begin(); it != nodes.end(); ++it)
+    {
+        if (it->second.getBestClaim(claimVal))
+        {
+            UniValue node(UniValue::VOBJ);
+            node.push_back(Pair("name", it->first));
+            UniValue claims(UniValue::VARR);
+            for (std::vector<CClaimValue>::iterator itClaims = it->second.claims.begin(); itClaims != it->second.claims.end(); ++itClaims)
+            {
+                UniValue claim(UniValue::VOBJ);
+                claim.push_back(Pair("txid", itClaims->outPoint.hash.GetHex()));
+                claim.push_back(Pair("n", (int)itClaims->outPoint.n));
+                claim.push_back(Pair("amount", ValueFromAmount(itClaims->nAmount)));
+                claim.push_back(Pair("height", itClaims->nHeight));
+                const CCoins* coin = view.AccessCoins(itClaims->outPoint.hash);
+                if (!coin)
+                {
+                    LogPrintf("%s: %s does not exist in the coins view, despite being associated with a name\n",
+                              __func__, claimVal.outPoint.hash.GetHex());
+                    claim.push_back(Pair("error", "No value found for claim"));
+                }
+                else if (coin->vout.size() < claimVal.outPoint.n || coin->vout[claimVal.outPoint.n].IsNull())
+                {
+                    LogPrintf("%s: the specified txout of %s appears to have been spent\n", __func__, claimVal.outPoint.hash.GetHex());
+                    claim.push_back(Pair("error", "Txout spent"));
+                }
+                else
+                {
+                    int op;
+                    std::vector<std::vector<unsigned char> > vvchParams;
+                    if (!DecodeClaimScript(coin->vout[claimVal.outPoint.n].scriptPubKey, op, vvchParams))
+                    {
+                        LogPrintf("%s: the specified txout of %s does not have an claim command\n", __func__, claimVal.outPoint.hash.GetHex());
+                    }
+                    std::string sValue(vvchParams[1].begin(), vvchParams[1].end());
+                    claim.push_back(Pair("value", sValue));
+                }
+                claims.push_back(claim);
+            }
+            node.push_back(Pair("claims", claims));
+            ret.push_back(node);
+        }
+    }
+    return ret;
+}
+
 UniValue getclaimtrie(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() > 0)
