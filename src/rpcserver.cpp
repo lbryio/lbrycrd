@@ -380,6 +380,7 @@ static const CRPCCommand vRPCCommands[] =
 #endif // ENABLE_WALLET
 
     /* NCC trie */
+    { "nametrie",           "getclaimsintrie",        &getclaimsintrie,        true  },
     { "nametrie",           "getnametrie",            &getnametrie,            true  },
     { "nametrie",           "getvalueforname",        &getvalueforname,        true  },
     { "nametrie",           "gettotalclaimednames",   &gettotalclaimednames,   true  },
