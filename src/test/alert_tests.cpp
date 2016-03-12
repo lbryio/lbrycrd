@@ -14,6 +14,7 @@
 #include "streams.h"
 #include "util.h"
 #include "utilstrencodings.h"
+#include "key.h"
 
 #include "test/test_bitcoin.h"
 
@@ -23,12 +24,79 @@
 #include <boost/foreach.hpp>
 #include <boost/test/unit_test.hpp>
 
-#if 0
-//
+bool SignAlert(CAlert &alert)
+{
+    CKey key;
+    std::vector<unsigned char> vchkey = ParseHex("hex output of HexStr(CKey.GetPrivKey)");
+    CPrivKey privKey(vchkey.begin(), vchkey.end());
+    key.SetPrivKey(privKey, false);
+
+    CDataStream sMsg(SER_NETWORK, PROTOCOL_VERSION);
+    sMsg << *(CUnsignedAlert*)&alert;
+    alert.vchMsg = std::vector<unsigned char>(sMsg.begin(), sMsg.end());
+
+    if (!key.Sign(Hash(alert.vchMsg.begin(), alert.vchMsg.end()), alert.vchSig))
+    {
+        LogPrintf("Sign Alert() : key.Sign failed\n");
+        return false;
+    }
+    return true;
+}
+
+bool SignAndSave(CAlert &alert, CDataStream &buffer)
+{
+    if (!SignAlert(alert))
+    {
+        LogPrintf("SignAndSave() : could not sign alert\n");
+        return false;
+    }
+    buffer << alert;
+    return true;
+}
+
+template<typename T>
+std::string HexStrArray(const T itbegin, const T itend)
+{
+    std::string rv;
+    static const char hexmap[16] = { '0', '1', '2', '3', '4', '5', '6', '7',
+                                     '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
+    rv.reserve((itend-itbegin)*3);
+    int i = 0;
+    for(T it = itbegin; it < itend; ++it)
+    {
+        unsigned char val = (unsigned char)(*it);
+        if(it != itbegin)
+        {
+            if (i % 8 == 0)
+                rv.push_back('\n');
+            else
+                rv.push_back(' ');
+        }
+        rv.push_back('0');
+        rv.push_back('x');
+        rv.push_back(hexmap[val>>4]);
+        rv.push_back(hexmap[val&15]);
+        rv.push_back(',');
+        i++;
+    }
+
+    return rv;
+}
+
+template<typename T>
+inline std::string HexStrArray(const T& vch)
+{
+    return HexStrArray(vch.begin(), vch.end());
+}
+
+
 // alertTests contains 7 alerts, generated with this code:
 // (SignAndSave code not shown, alert signing key is secret)
 //
+void GenerateAlertTests()
 {
+    CDataStream sBuffer(SER_DISK, CLIENT_VERSION);
+
     CAlert alert;
     alert.nRelayUntil   = 60;
     alert.nExpiration   = 24 * 60 * 60;
@@ -40,45 +108,54 @@
     alert.strComment    = "Alert comment";
     alert.strStatusBar  = "Alert 1";
 
-    SignAndSave(alert, "test/alertTests");
+    SignAndSave(alert, sBuffer);
 
     alert.setSubVer.insert(std::string("/Satoshi:0.1.0/"));
     alert.strStatusBar  = "Alert 1 for Satoshi 0.1.0";
-    SignAndSave(alert, "test/alertTests");
+    SignAndSave(alert, sBuffer);
 
     alert.setSubVer.insert(std::string("/Satoshi:0.2.0/"));
     alert.strStatusBar  = "Alert 1 for Satoshi 0.1.0, 0.2.0";
-    SignAndSave(alert, "test/alertTests");
+    SignAndSave(alert, sBuffer);
 
     alert.setSubVer.clear();
     ++alert.nID;
     alert.nCancel = 1;
     alert.nPriority = 100;
     alert.strStatusBar  = "Alert 2, cancels 1";
-    SignAndSave(alert, "test/alertTests");
+    SignAndSave(alert, sBuffer);
 
     alert.nExpiration += 60;
     ++alert.nID;
-    SignAndSave(alert, "test/alertTests");
+    SignAndSave(alert, sBuffer);
 
     ++alert.nID;
     alert.nMinVer = 11;
     alert.nMaxVer = 22;
-    SignAndSave(alert, "test/alertTests");
+    SignAndSave(alert, sBuffer);
 
     ++alert.nID;
     alert.strStatusBar  = "Alert 2 for Satoshi 0.1.0";
     alert.setSubVer.insert(std::string("/Satoshi:0.1.0/"));
-    SignAndSave(alert, "test/alertTests");
+    SignAndSave(alert, sBuffer);
 
     ++alert.nID;
     alert.nMinVer = 0;
     alert.nMaxVer = 999999;
     alert.strStatusBar  = "Evil Alert'; /bin/ls; echo '";
     alert.setSubVer.clear();
-    SignAndSave(alert, "test/alertTests");
+    SignAndSave(alert, sBuffer);
+
+    std::vector<unsigned char> vch = std::vector<unsigned char>(sBuffer.begin(), sBuffer.end());
+
+    std::ofstream f;
+    f.open("alertTest.raw");
+    for (std::vector<unsigned char>::iterator itvch = vch.begin(); itvch != vch.end(); ++itvch)
+    {
+        f << *itvch;
+    }
+    f.close();
 }
-#endif
 
 struct ReadAlerts : public TestingSetup
 {
