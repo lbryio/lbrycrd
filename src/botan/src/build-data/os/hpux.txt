@@ -1,0 +1,11 @@
+os_type unix
+
+so_suffix sl
+
+<target_features>
+gettimeofday
+</target_features>
+
+<aliases>
+hp-ux
+</aliases>

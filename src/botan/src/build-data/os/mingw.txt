@@ -1,0 +1,26 @@
+os_type windows
+
+obj_suffix o
+so_suffix dll
+static_suffix a
+
+build_shared no
+
+ar_command "ar crs"
+ar_needs_ranlib yes
+
+install_root /mingw
+header_dir include
+lib_dir lib
+doc_dir share/doc
+
+<aliases>
+msys
+mingw32
+</aliases>
+
+<target_features>
+loadlibrary
+win32_virtual_lock
+win32_get_systemtime
+</target_features>

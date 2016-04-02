@@ -17,11 +17,19 @@ $(LIBLEVELDB) $(LIBMEMENV):
           OPT="$(CXXFLAGS) $(CPPFLAGS) -D__STDC_LIMIT_MACROS"
 endif
 
+LIBBOTAN = $(builddir)/botan/libbotan-1.10.a
+BOTANHEADERS = $(srcdir)/botan/build/include
+
+$(BOTANHEADERS)/botan/skein_512.h $(LIBBOTAN):
+	( cd $(srcdir)/botan && python2.7 configure.py && $(MAKE) static)
+BUILT_SOURCES= $(BOTANHEADERS)/botan/skein_512.h
+
 BITCOIN_CONFIG_INCLUDES=-I$(builddir)/config
 BITCOIN_INCLUDES=-I$(builddir) -I$(builddir)/obj $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS)
 
 BITCOIN_INCLUDES += -I$(srcdir)/secp256k1/include
 BITCOIN_INCLUDES += -I$(srcdir)/univalue/include
+BITCOIN_INCLUDES += -I$(BOTANHEADERS)
 
 LIBBITCOIN_SERVER=libbitcoin_server.a
 LIBBITCOIN_WALLET=libbitcoin_wallet.a
@@ -104,6 +112,7 @@ BITCOIN_CORE_H = \
   core_memusage.h \
   eccryptoverify.h \
   ecwrapper.h \
+  $(BOTANHEADERS)/botan/skein_512.h \
   hash.h \
   httprpc.h \
   httpserver.h \
@@ -338,6 +347,7 @@ lbrycrdd_LDADD = \
   $(LIBBITCOIN_CRYPTO) \
   $(LIBLEVELDB) \
   $(LIBMEMENV) \
+  $(LIBBOTAN) \
   $(LIBSECP256K1)
 
 if ENABLE_ZMQ
@@ -381,6 +391,7 @@ lbrycrd_tx_LDADD = \
   $(LIBBITCOIN_COMMON) \
   $(LIBBITCOIN_UTIL) \
   $(LIBBITCOIN_CRYPTO) \
+  $(LIBBOTAN) \
   $(LIBSECP256K1)
 
 lbrycrd_tx_LDADD += $(BOOST_LIBS) $(CRYPTO_LIBS)
@@ -397,6 +408,7 @@ libbitcoinconsensus_la_SOURCES = \
   crypto/sha512.cpp \
   eccryptoverify.cpp \
   ecwrapper.cpp \
+  $(BOTANHEADERS)/botan/skein_512.h \
   hash.cpp \
   primitives/transaction.cpp \
   pubkey.cpp \
@@ -412,12 +424,12 @@ endif
 
 libbitcoinconsensus_la_LDFLAGS = -no-undefined $(RELDFLAGS)
 libbitcoinconsensus_la_LIBADD = $(CRYPTO_LIBS)
-libbitcoinconsensus_la_CPPFLAGS = $(CRYPTO_CFLAGS) -I$(builddir)/obj -DBUILD_BITCOIN_INTERNAL
+libbitcoinconsensus_la_CPPFLAGS = $(CRYPTO_CFLAGS) -I$(builddir)/obj -I$(BOTANHEADERS) -DBUILD_BITCOIN_INTERNAL
 
 endif
 #
 
-CLEANFILES = leveldb/libleveldb.a leveldb/libmemenv.a *.gcda *.gcno
+CLEANFILES = leveldb/libleveldb.a leveldb/libmemenv.a *.gcda *.gcno botan/libbotan-1.10.a
 
 DISTCLEANFILES = obj/build.h
 
@@ -427,6 +439,7 @@ clean-local:
 	-$(MAKE) -C leveldb clean
 	-$(MAKE) -C secp256k1 clean
 	-$(MAKE) -C univalue clean
+	-$(MAKE) -C botan distclean
 	rm -f leveldb/*/*.gcno leveldb/helpers/memenv/*.gcno
 	-rm -f config.h
 

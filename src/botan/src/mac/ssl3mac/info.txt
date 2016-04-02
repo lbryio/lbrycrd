@@ -1,0 +1,5 @@
+define SSL3_MAC
+
+<requires>
+hash
+</requires>

@@ -1,0 +1,5 @@
+define AUTO_SEEDING_RNG
+
+<requires>
+libstate
+</requires>

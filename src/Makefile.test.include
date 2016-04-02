@@ -65,6 +65,7 @@ BITCOIN_TESTS =\
   test/pmt_tests.cpp \
   test/policyestimator_tests.cpp \
   test/pow_tests.cpp \
+  test/powhash_tests.cpp \
   test/reverselock_tests.cpp \
   test/rpc_tests.cpp \
   test/sanity_tests.cpp \
@@ -95,7 +96,7 @@ endif
 
 test_test_lbrycrd_SOURCES = $(BITCOIN_TESTS) $(JSON_TEST_FILES) $(RAW_TEST_FILES)
 test_test_lbrycrd_CPPFLAGS = $(BITCOIN_INCLUDES) -I$(builddir)/test/ $(TESTDEFS)
-test_test_lbrycrd_LDADD = $(LIBBITCOIN_SERVER) $(LIBBITCOIN_CLI) $(LIBBITCOIN_COMMON) $(LIBBITCOIN_UTIL) $(LIBBITCOIN_CRYPTO) $(LIBUNIVALUE) $(LIBLEVELDB) $(LIBMEMENV) \
+test_test_lbrycrd_LDADD = $(LIBBITCOIN_SERVER) $(LIBBITCOIN_CLI) $(LIBBITCOIN_COMMON) $(LIBBITCOIN_UTIL) $(LIBBITCOIN_CRYPTO) $(LIBUNIVALUE) $(LIBLEVELDB) $(LIBMEMENV) $(LIBBOTAN) \
   $(BOOST_LIBS) $(BOOST_UNIT_TEST_FRAMEWORK_LIB) $(LIBSECP256K1)
 if ENABLE_WALLET
 test_test_lbrycrd_LDADD += $(LIBBITCOIN_WALLET)

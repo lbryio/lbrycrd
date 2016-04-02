@@ -129,10 +129,10 @@ public:
         nMaxTipAge = 24 * 60 * 60;
         nPruneAfterHeight = 100000;
 
-        genesis = CreateGenesisBlock(1446058291, 92744, 0x1f00ffff, 1, 350000000 * COIN, consensus);
+        genesis = CreateGenesisBlock(1446058291, 11691, 0x1f00ffff, 1, 350000000 * COIN, consensus);
         consensus.hashGenesisBlock = genesis.GetHash();
         //std::cout << "hex: " << consensus.hashGenesisBlock.GetHex() << std::endl;
-        assert(consensus.hashGenesisBlock == uint256S("0x00005fa7f9e8fece6b2dfbeb0001b5b20f42f7fe49197fbbd170370f58d4c7d7"));
+        assert(consensus.hashGenesisBlock == uint256S("0x1ac3020b40c542e50ae3ef89cc2136551ea80cf71ee1d13a9c6d03a0cbb0a7d2"));
         //std::cout << "merkle root: " << genesis.hashMerkleRoot.GetHex() << std::endl;
         assert(genesis.hashMerkleRoot == uint256S("0xba64cd17d1a1d03b1e5db2dc477822ba8f858443a38b0640d918b211ab22c51d"));
 
@@ -194,11 +194,11 @@ public:
         nMaxTipAge = 0x7fffffff;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1446058291, 92744, 0x1f00ffff, 1, 350000000 * COIN, consensus);
+        genesis = CreateGenesisBlock(1446058291, 11691, 0x1f00ffff, 1, 350000000 * COIN, consensus);
         consensus.hashGenesisBlock = genesis.GetHash();
         //std::cout << "testnet genesis hash: " << genesis.GetHash().GetHex() << std::endl;
         //std::cout << "testnet merkle hash: " << genesis.hashMerkleRoot.GetHex() << std::endl;
-        assert(consensus.hashGenesisBlock == uint256S("0x00005fa7f9e8fece6b2dfbeb0001b5b20f42f7fe49197fbbd170370f58d4c7d7"));
+        assert(consensus.hashGenesisBlock == uint256S("0x1ac3020b40c542e50ae3ef89cc2136551ea80cf71ee1d13a9c6d03a0cbb0a7d2"));
         assert(genesis.hashMerkleRoot == uint256S("0xba64cd17d1a1d03b1e5db2dc477822ba8f858443a38b0640d918b211ab22c51d"));
 
         vFixedSeeds.clear();
@@ -259,11 +259,11 @@ public:
         nDefaultPort = 29246;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1446058291, 3, 0x207fffff, 1, 350000000 * COIN, consensus);
+        genesis = CreateGenesisBlock(1446058291, 1, 0x207fffff, 1, 350000000 * COIN, consensus);
         consensus.hashGenesisBlock = genesis.GetHash();
         //std::cout << "regtest genensis hash: " << genesis.GetHash().GetHex() << std::endl;
         //std::cout << "regtest hashmerkleroot: " << genesis.hashMerkleRoot.GetHex() << std::endl;
-        assert(consensus.hashGenesisBlock == uint256S("0x27cc4fec37b39831971deadcee7cf4725db7d693a0421fc1d9ca19b7420f5f27"));
+        assert(consensus.hashGenesisBlock == uint256S("0x66b0c4431ebcc099f91097a0b5dd857c2fa0050cadf8188b08743487c83c1db0"));
         assert(genesis.hashMerkleRoot == uint256S("0xba64cd17d1a1d03b1e5db2dc477822ba8f858443a38b0640d918b211ab22c51d"));
 
         vFixedSeeds.clear(); //! Regtest mode doesn't have any fixed seeds.

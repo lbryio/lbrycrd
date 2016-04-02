@@ -1,0 +1,35 @@
+define BIGINT_MATH
+
+load_on auto
+
+<header:public>
+numthry.h
+pow_mod.h
+reducer.h
+</header:public>
+
+<header:internal>
+def_powm.h
+</header:internal>
+
+<source>
+dsa_gen.cpp
+jacobi.cpp
+make_prm.cpp
+mp_numth.cpp
+numthry.cpp
+pow_mod.cpp
+powm_fw.cpp
+powm_mnt.cpp
+primes.cpp
+reducer.cpp
+ressol.cpp
+</source>
+
+<requires>
+algo_factory
+bigint
+hash
+libstate
+rng
+</requires>

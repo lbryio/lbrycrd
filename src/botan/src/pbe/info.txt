@@ -1,0 +1,7 @@
+define PASSWORD_BASED_ENCRYPTION
+
+<requires>
+filters
+libstate
+oid_lookup
+</requires>
