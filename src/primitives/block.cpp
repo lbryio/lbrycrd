@@ -9,10 +9,19 @@
 #include "tinyformat.h"
 #include "utilstrencodings.h"
 #include "crypto/common.h"
+#include "streams.h"
 
 uint256 CBlockHeader::GetHash() const
 {
     return SerializeHash(*this);
+}
+
+uint256 CBlockHeader::GetPoWHash() const
+{
+    CDataStream ds(SER_GETHASH, PROTOCOL_VERSION);
+    ds << *this;
+    std::vector<unsigned char> input(ds.begin(), ds.end());
+    return PoWHash(input);
 }
 
 uint256 CBlock::ComputeMerkleRoot(bool* fMutated) const

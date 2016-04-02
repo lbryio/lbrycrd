@@ -13,6 +13,15 @@ inline uint32_t ROTL32(uint32_t x, int8_t r)
     return (x << r) | (x >> (32 - r));
 }
 
+uint256 PoWHash(const std::vector<unsigned char>& input)
+{
+    CHash256 h;
+    h.Write(input.data(), input.size());
+    uint256 result;
+    h.Finalize((unsigned char*)&result);
+    return result;
+}
+
 unsigned int MurmurHash3(unsigned int nHashSeed, const std::vector<unsigned char>& vDataToHash)
 {
     // The following is MurmurHash3 (x86_32), see http://code.google.com/p/smhasher/source/browse/trunk/MurmurHash3.cpp

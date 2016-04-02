@@ -59,15 +59,15 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
     genesis.hashMerkleRoot = genesis.ComputeMerkleRoot();
     genesis.hashClaimTrie = uint256S("0x0000000000000000000000000000000000000000000000000000000000000001");
 
-    /*bool found = false;
-    while (!found)
+    /*while (true)
     {
         genesis.nNonce += 1;
-        if (CheckProofOfWork2(genesis.GetHash(), nBits, consensus))
+        if (CheckProofOfWork2(genesis.GetPoWHash(), nBits, consensus))
         {
             std::cout << "nonce: " << genesis.nNonce << std::endl;
             std::cout << "hex: " << genesis.GetHash().GetHex() << std::endl;
-            found = true;
+            std::cout << "pow hash: " << genesis.GetPoWHash().GetHex() << std::endl;
+            break;
         }
     }*/
     return genesis;

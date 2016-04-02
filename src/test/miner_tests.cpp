@@ -143,7 +143,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         for (int j = 0; !fFound; j++)
         {
             pblock->nNonce = j;
-            if (CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus()))
+            if (CheckProofOfWork(pblock->GetPoWHash(), pblock->nBits, Params().GetConsensus()))
             {
                 fFound = true;
                 std::cout << pblock->nNonce << ",";

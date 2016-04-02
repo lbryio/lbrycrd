@@ -89,7 +89,7 @@ bool CreateBlock(CBlockTemplate* pblocktemplate)
     for (int i = 0; ; ++i)
     {
         pblock->nNonce = i;
-        if (CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus()))
+        if (CheckProofOfWork(pblock->GetPoWHash(), pblock->nBits, Params().GetConsensus()))
         {
             break;
         }

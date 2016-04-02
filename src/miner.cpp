@@ -504,39 +504,6 @@ void IncrementExtraNonce(CBlock* pblock, const CBlockIndex* pindexPrev, unsigned
 // Internal miner
 //
 
-//
-// ScanHash scans nonces looking for a hash with at least some zero bits.
-// The nonce is usually preserved between calls, but periodically or if the
-// nonce is 0xffff0000 or above, the block is rebuilt and nNonce starts over at
-// zero.
-//
-bool static ScanHash(const CBlockHeader *pblock, uint32_t& nNonce, uint256 *phash)
-{
-    // Write the first 108 bytes of the block header to a double-SHA256 state.
-    CHash256 hasher;
-    CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-    ss << *pblock;
-    assert(ss.size() == 112);
-    hasher.Write((unsigned char*)&ss[0], 108);
-
-    while (true) {
-        nNonce++;
-
-        // Write the last 4 bytes of the block header (the nonce) to a copy of
-        // the double-SHA256 state, and compute the result.
-        CHash256(hasher).Write((unsigned char*)&nNonce, 4).Finalize((unsigned char*)phash);
-
-        // Return the nonce if the hash has at least some zero bits,
-        // caller will check if it has enough to reach the target
-        if (((uint16_t*)phash)[15] == 0)
-            return true;
-
-        // If nothing found after trying for a while, return -1
-        if ((nNonce & 0xfff) == 0)
-            return false;
-    }
-}
-
 static bool ProcessBlockFound(const CBlock* pblock, const CChainParams& chainparams)
 {
     LogPrintf("%s\n", pblock->ToString());
@@ -618,17 +585,17 @@ void static BitcoinMiner(const CChainParams& chainparams)
             int64_t nStart = GetTime();
             arith_uint256 hashTarget = arith_uint256().SetCompact(pblock->nBits);
             uint256 hash;
-            uint32_t nNonce = 0;
+            pblock->nNonce = 0;
+            bool found = false;
             while (true) {
                 // Check if something found
-                if (ScanHash(pblock, nNonce, &hash))
+                while (true)
                 {
-                    if (UintToArith256(hash) <= hashTarget)
+                    hash = pblock->GetPoWHash();
+                    if (((uint16_t*)&hash)[15] == 0 && UintToArith256(hash) <= hashTarget)
                     {
+                        found = true;
                         // Found a solution
-                        pblock->nNonce = nNonce;
-                        assert(hash == pblock->GetHash());
-
                         SetThreadPriority(THREAD_PRIORITY_NORMAL);
                         LogPrintf("LBRYcrdMiner:\n");
                         LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", hash.GetHex(), hashTarget.GetHex());
@@ -642,14 +609,19 @@ void static BitcoinMiner(const CChainParams& chainparams)
 
                         break;
                     }
+                    pblock->nNonce += 1;
+                    if ((pblock->nNonce & 0xFF) == 0)
+                        break;
                 }
+                if (found)
+                    break;
 
                 // Check for stop or if block needs to be rebuilt
                 boost::this_thread::interruption_point();
                 // Regtest mode doesn't require peers
                 if (vNodes.empty() && chainparams.MiningRequiresPeers())
                     break;
-                if (nNonce >= 0xffff0000)
+                if (pblock->nNonce >= 0xffff0000)
                     break;
                 if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > 60)
                     break;
