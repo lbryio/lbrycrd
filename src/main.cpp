@@ -717,6 +717,8 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state)
         nValueOut += txout.nValue;
         if (!MoneyRange(nValueOut))
             return state.DoS(100, false, REJECT_INVALID, "bad-txns-txouttotal-toolarge");
+        if (ClaimScriptSize(txout.scriptPubKey) > MAX_CLAIM_SCRIPT_SIZE)
+            return state.DoS(100, false, REJECT_INVALID, "bad-txns-claimscriptsize-toolarg");
     }
 
     // Check for duplicate inputs

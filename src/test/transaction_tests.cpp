@@ -408,4 +408,43 @@ BOOST_AUTO_TEST_CASE(test_IsStandard)
     BOOST_CHECK(IsStandardTx(t, reason));
 }
 
+BOOST_AUTO_TEST_CASE(test_claimsValid)
+{
+    LOCK(cs_main);
+    CBasicKeyStore keystore;
+    CCoinsView coinsDummy;
+    CCoinsViewCache coins(&coinsDummy);
+    std::vector<CMutableTransaction> dummyTransactions = SetupDummyInputs(keystore, coins);
+
+    CMutableTransaction t;
+    t.vin.resize(1);
+    t.vin[0].prevout.hash = dummyTransactions[0].GetHash();
+    t.vin[0].prevout.n = 1;
+    t.vin[0].scriptSig << std::vector<unsigned char>(65, 0);
+    t.vout.resize(1);
+    t.vout[0].nValue = 90*CENT;
+
+    std::vector<unsigned char> vchName;
+    std::vector<unsigned char> vchValue;
+
+    vchName.resize(0);
+    vchValue.resize(0);
+
+    t.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP << OP_TRUE;
+
+    CValidationState state;
+    
+    BOOST_CHECK(CheckTransaction(t, state));
+    BOOST_CHECK(state.IsValid());
+
+    vchName = std::vector<unsigned char>(2<<12, '0');
+    vchValue = std::vector<unsigned char>(2<<12, '0');    
+
+    t.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP << OP_TRUE;
+    
+    state = CValidationState();
+    
+    BOOST_CHECK(!CheckTransaction(t, state));
+    BOOST_CHECK(!state.IsValid());
+}
 BOOST_AUTO_TEST_SUITE_END()
