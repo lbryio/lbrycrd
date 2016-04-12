@@ -17,7 +17,7 @@
 #include <string>
 #include <vector>
 
-static const unsigned int MAX_SCRIPT_ELEMENT_SIZE = 520; // bytes
+static const unsigned int MAX_SCRIPT_ELEMENT_SIZE = 20000; // bytes
 
 // Threshold for nLockTime: below this value it is interpreted as block number,
 // otherwise as UNIX timestamp.
