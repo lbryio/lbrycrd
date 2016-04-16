@@ -130,3 +130,9 @@ CScript StripClaimScriptPrefix(const CScript& scriptIn, int& op)
     return CScript(pc, scriptIn.end());
 }
 
+size_t ClaimScriptSize(const CScript& scriptIn)
+{
+    CScript strippedScript = StripClaimScriptPrefix(scriptIn);
+    return scriptIn.size() - strippedScript.size();
+}
+

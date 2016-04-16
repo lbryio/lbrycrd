@@ -717,6 +717,8 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state)
         nValueOut += txout.nValue;
         if (!MoneyRange(nValueOut))
             return state.DoS(100, false, REJECT_INVALID, "bad-txns-txouttotal-toolarge");
+        if (ClaimScriptSize(txout.scriptPubKey) > MAX_CLAIM_SCRIPT_SIZE)
+            return state.DoS(100, false, REJECT_INVALID, "bad-txns-claimscriptsize-toolarg");
     }
 
     // Check for duplicate inputs
@@ -1104,10 +1106,24 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 {
     if (nHeight == 0)
     {
-        return 350000000 * COIN;
+        return 400000000 * COIN;
+    }
+    else if (nHeight <= 5100)
+    {
+        return 1 * COIN;
+    }
+    else if (nHeight <= 55000)
+    {
+        int l = nHeight - 5000;
+        int nLevel = 0;
+        for (int i = 0; i < l; i+=100)
+        {
+            nLevel++;
+        }
+        return nLevel * COIN;
     }
     CAmount nStartingSubsidy = 500 * COIN;
-    int nLevel = (nHeight - 1) / consensusParams.nSubsidyLevelInterval;
+    int nLevel = (nHeight - 55001) / consensusParams.nSubsidyLevelInterval;
     int nReduction = ((-1 + (int)sqrt((8 * nLevel) + 1)) / 2);
     while (!(withinLevelBounds(nReduction, nLevel)))
     {
