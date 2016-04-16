@@ -95,13 +95,13 @@ const unsigned int nonces[] = {
     194459, 110761, 23732, 7293, 171766, 61663, 11548, 120419, 55377, 16735,
     22878, 134905, 212010, 386284, 64559, 40003, 74327, 94247, 285391, 23496,
     15196, 72827, 7657, 54628, 128507, 85977, 110355, 7423, 2783, 10412,
-    101705, 371190, 48999, 107613, 277276, 64945, 5153, 13299, 17459, 72684,
-    44823, 35441, 26420, 86802, 167748, 146648, 55512, 3028, 7617, 39578,
-    20422, 9399, 2315, 16152, 38659, 92561, 8113, 65207, 7377, 50940,
-    7990, 5850, 26984, 52164, 178476, 149852, 47843, 158113, 41067, 19083,
-    1327, 59064, 31805, 255902, 183334, 45615, 93019, 57065, 12571, 12702,
-    139221, 5794, 33802, 1231, 23462, 6155, 7592, 25306, 112808, 1155,
-    12771, 48467, 7670, 17533, 56443, 37742, 13555, 18969, 13887, 9033,
+    101705, 371190, 48999, 107613, 277276, 64945, 5153, 84763, 15821, 26367,
+    218930, 24372, 149133, 319882, 546029, 276981, 234459, 42544, 25492, 271478,
+    211922, 337435, 316666, 76817, 478054, 34093, 11356, 67492, 316269, 150493,
+    472164, 126274, 185348, 55992, 17084, 13907, 120452, 17353, 33428, 843,
+    4592, 242491, 55161, 22142, 120981, 318025, 70127, 41879, 138513, 98839,
+    55840, 475261, 176074, 114618, 195011, 890468, 760697, 46632, 740918, 481503,
+    259751, 282723, 1912906, 2630280, 1418854, 1477557, 1250567, 2533285, 2699754, 545072,
 };
 
 // NOTE: These tests rely on CreateNewBlock doing its own self-validation!
@@ -124,7 +124,9 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     std::vector<CTransaction*>txFirst;
     for (unsigned int i = 0; i < 110; ++i)
     {
+        BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
         CBlock *pblock = &pblocktemplate->block; // pointer for convenience
+        pblock->hashPrevBlock = chainActive.Tip()->GetBlockHash();
         pblock->nVersion = 1;
         pblock->nTime = chainActive.Tip()->GetMedianTimePast()+1;
         CMutableTransaction txCoinbase(pblock->vtx[0]);
@@ -156,9 +158,8 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         CValidationState state;
         BOOST_CHECK(ProcessNewBlock(state, NULL, pblock, true, NULL));
         BOOST_CHECK(state.IsValid());
-        pblock->hashPrevBlock = pblock->GetHash();
+        delete pblocktemplate;
     }
-    delete pblocktemplate;
 
     // Just to make sure we can still make simple blocks
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
