@@ -306,6 +306,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     
     CMutableTransaction tx3 = BuildTransaction(tx1);
     tx3.vout[0].scriptPubKey = CScript() << OP_UPDATE_CLAIM << vchName1 << vchTx1ClaimId << vchValue1 << OP_2DROP << OP_2DROP << OP_TRUE;
+    tx3.vout[0].nValue -= 10000;
     COutPoint tx3OutPoint(tx3.GetHash(), 0);
     
     CMutableTransaction tx4 = BuildTransaction(tx2);
@@ -322,7 +323,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     
     CMutableTransaction tx7 = BuildTransaction(coinbases[3]);
     tx7.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName1 << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
-    tx7.vout[0].nValue = tx1.vout[0].nValue - 1;
+    tx7.vout[0].nValue = tx1.vout[0].nValue - 10001;
     uint160 tx7ClaimId = ClaimIdHash(tx7.GetHash(), 0);
     std::vector<unsigned char> vchTx7ClaimId(tx7ClaimId.begin(), tx7ClaimId.end());
     COutPoint tx7OutPoint(tx7.GetHash(), 0);
@@ -336,6 +337,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     
     CMutableTransaction tx9 = BuildTransaction(tx7);
     tx9.vout[0].scriptPubKey = CScript() << OP_UPDATE_CLAIM << vchName1 << vchTx7ClaimId << vchValue2 << OP_2DROP << OP_2DROP << OP_TRUE;
+    tx9.vout[0].nValue -= 10000;
     COutPoint tx9OutPoint(tx9.GetHash(), 0);
     
     CMutableTransaction tx10 = BuildTransaction(coinbases[4]);
@@ -1282,19 +1284,19 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
     CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
     tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
-    tx1.vout[0].nValue = 100000000;
+    tx1.vout[0].nValue = 1;
     COutPoint tx1OutPoint(tx1.GetHash(), 0);
 
     CMutableTransaction tx2 = BuildTransaction(coinbases[1]);
     tx2.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
-    tx2.vout[0].nValue = 500000000;
+    tx2.vout[0].nValue = 5;
     COutPoint tx2OutPoint(tx2.GetHash(), 0);
 
     CMutableTransaction tx3 = BuildTransaction(coinbases[2]);
     uint160 tx1ClaimId = ClaimIdHash(tx1.GetHash(), 0);
     std::vector<unsigned char> vchTx1ClaimId(tx1ClaimId.begin(), tx1ClaimId.end());
     tx3.vout[0].scriptPubKey = CScript() << OP_SUPPORT_CLAIM << vchName << vchTx1ClaimId << OP_2DROP << OP_DROP << OP_TRUE;
-    tx3.vout[0].nValue = 500000000;
+    tx3.vout[0].nValue = 5;
     COutPoint tx3OutPoint(tx3.GetHash(), 0);
 
     CMutableTransaction tx4 = BuildTransaction(tx1);
@@ -1633,19 +1635,19 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
 
     CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
     tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
-    tx1.vout[0].nValue = 100000000;
+    tx1.vout[0].nValue = 1;
     COutPoint tx1OutPoint(tx1.GetHash(), 0);
 
     CMutableTransaction tx2 = BuildTransaction(coinbases[1]);
     tx2.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
-    tx2.vout[0].nValue = 500000000;
+    tx2.vout[0].nValue = 5;
     COutPoint tx2OutPoint(tx2.GetHash(), 0);
 
     CMutableTransaction tx3 = BuildTransaction(coinbases[2]);
     uint160 tx1ClaimId = ClaimIdHash(tx1.GetHash(), 0);
     std::vector<unsigned char> vchTx1ClaimId(tx1ClaimId.begin(), tx1ClaimId.end());
     tx3.vout[0].scriptPubKey = CScript() << OP_SUPPORT_CLAIM << vchName << vchTx1ClaimId << OP_2DROP << OP_DROP << OP_TRUE;
-    tx3.vout[0].nValue = 500000000;
+    tx3.vout[0].nValue = 5;
     COutPoint tx3OutPoint(tx3.GetHash(), 0);
 
     CMutableTransaction tx4 = BuildTransaction(tx1);
@@ -2109,19 +2111,19 @@ BOOST_AUTO_TEST_CASE(claimtrie_expiring_supports)
 
     CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
     tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
-    tx1.vout[0].nValue = 100000000;
+    tx1.vout[0].nValue = 1;
     COutPoint tx1OutPoint(tx1.GetHash(), 0);
 
     CMutableTransaction tx2 = BuildTransaction(coinbases[1]);
     tx2.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
-    tx2.vout[0].nValue = 500000000;
+    tx2.vout[0].nValue = 5;
     COutPoint tx2OutPoint(tx2.GetHash(), 0);
 
     CMutableTransaction tx3 = BuildTransaction(coinbases[2]);
     uint160 tx1ClaimId = ClaimIdHash(tx1.GetHash(), 0);
     std::vector<unsigned char> vchTx1ClaimId(tx1ClaimId.begin(), tx1ClaimId.end());
     tx3.vout[0].scriptPubKey = CScript() << OP_SUPPORT_CLAIM << vchName << vchTx1ClaimId << OP_2DROP << OP_DROP << OP_TRUE;
-    tx3.vout[0].nValue = 500000000;
+    tx3.vout[0].nValue = 5;
     COutPoint tx3OutPoint(tx3.GetHash(), 0);
 
     CMutableTransaction tx4 = BuildTransaction(tx1);

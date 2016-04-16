@@ -91,17 +91,17 @@ struct {
 };*/
 
 const unsigned int nonces[] = {
-    1702, 4426, 44803, 21, 88869, 40139, 16382, 13525, 114648, 1190,
-    194459, 110761, 23732, 7293, 171766, 61663, 11548, 120419, 55377, 16735,
-    22878, 134905, 212010, 386284, 64559, 40003, 74327, 94247, 285391, 23496,
-    15196, 72827, 7657, 54628, 128507, 85977, 110355, 7423, 2783, 10412,
-    101705, 371190, 48999, 107613, 277276, 64945, 5153, 84763, 15821, 26367,
-    218930, 24372, 149133, 319882, 546029, 276981, 234459, 42544, 25492, 271478,
-    211922, 337435, 316666, 76817, 478054, 34093, 11356, 67492, 316269, 150493,
-    472164, 126274, 185348, 55992, 17084, 13907, 120452, 17353, 33428, 843,
-    4592, 242491, 55161, 22142, 120981, 318025, 70127, 41879, 138513, 98839,
-    55840, 475261, 176074, 114618, 195011, 890468, 760697, 46632, 740918, 481503,
-    259751, 282723, 1912906, 2630280, 1418854, 1477557, 1250567, 2533285, 2699754, 545072,
+    79715, 115775, 224572, 12063, 35799, 81128, 7459, 3704, 74161, 174952,
+    179883, 1883, 24971, 12115, 7908, 24791, 78905, 135694, 24855, 6108,
+    45125, 6200, 326764, 105132, 1706, 243717, 3782, 90681, 130062, 7707,
+    77604, 62455, 49605, 21726, 119057, 27524, 73984, 1331, 51531, 38874,
+    52443, 99097, 36007, 27173, 88714, 287757, 235289, 353070, 239689, 1365413,
+    196645, 94742, 76681, 73463, 267621, 233818, 398669, 606185, 68966, 784609,
+    486234, 139093, 81707, 173497, 46683, 359339, 110459, 376803, 186202, 113121,
+    22549, 185881, 237077, 68777, 37739, 18754, 74470, 59347, 68344, 387196,
+    288599, 63477, 50646, 72807, 1276757, 311156, 350217, 824070, 268004, 203189,
+    11127, 512344, 101745, 161626, 7476, 92476, 807780, 183217, 1406078, 4693874,
+    1143704, 89400, 277776, 1555386, 2463291, 1965076, 2377228, 170135, 112842, 118000,
 };
 
 // NOTE: These tests rely on CreateNewBlock doing its own self-validation!
@@ -172,10 +172,10 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     tx.vin[0].prevout.hash = txFirst[0]->GetHash();
     tx.vin[0].prevout.n = 0;
     tx.vout.resize(1);
-    tx.vout[0].nValue = 5000000000LL;
+    tx.vout[0].nValue = 50000000LL;
     for (unsigned int i = 0; i < 1001; ++i)
     {
-        tx.vout[0].nValue -= 1000000;
+        tx.vout[0].nValue -= 10000;
         hash = tx.GetHash();
         mempool.addUnchecked(hash, CTxMemPoolEntry(tx, 11, GetTime(), 111.0, 11));
         tx.vin[0].prevout.hash = hash;
@@ -192,10 +192,10 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         tx.vin[0].scriptSig << vchData << OP_DROP;
     tx.vin[0].scriptSig << OP_1;
     tx.vin[0].prevout.hash = txFirst[0]->GetHash();
-    tx.vout[0].nValue = 5000000000LL;
+    tx.vout[0].nValue = 50000000LL;
     for (unsigned int i = 0; i < 128; ++i)
     {
-        tx.vout[0].nValue -= 10000000;
+        tx.vout[0].nValue -= 10000;
         hash = tx.GetHash();
         mempool.addUnchecked(hash, CTxMemPoolEntry(tx, 11, GetTime(), 111.0, 11));
         tx.vin[0].prevout.hash = hash;
@@ -214,7 +214,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     // child with higher priority than parent
     tx.vin[0].scriptSig = CScript() << OP_1;
     tx.vin[0].prevout.hash = txFirst[1]->GetHash();
-    tx.vout[0].nValue = 4900000000LL;
+    tx.vout[0].nValue = 49000000LL;
     hash = tx.GetHash();
     mempool.addUnchecked(hash, CTxMemPoolEntry(tx, 11, GetTime(), 111.0, 11));
     tx.vin[0].prevout.hash = hash;
@@ -222,7 +222,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     tx.vin[1].scriptSig = CScript() << OP_1;
     tx.vin[1].prevout.hash = txFirst[0]->GetHash();
     tx.vin[1].prevout.n = 0;
-    tx.vout[0].nValue = 5900000000LL;
+    tx.vout[0].nValue = 59000000LL;
     hash = tx.GetHash();
     mempool.addUnchecked(hash, CTxMemPoolEntry(tx, 11, GetTime(), 111.0, 11));
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
@@ -244,14 +244,14 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     tx.vin[0].prevout.hash = txFirst[0]->GetHash();
     tx.vin[0].prevout.n = 0;
     tx.vin[0].scriptSig = CScript() << OP_1;
-    tx.vout[0].nValue = 4900000000LL;
+    tx.vout[0].nValue = 49000000LL;
     script = CScript() << OP_0;
     tx.vout[0].scriptPubKey = GetScriptForDestination(CScriptID(script));
     hash = tx.GetHash();
     mempool.addUnchecked(hash, CTxMemPoolEntry(tx, 11, GetTime(), 111.0, 11));
     tx.vin[0].prevout.hash = hash;
     tx.vin[0].scriptSig = CScript() << (std::vector<unsigned char>)script;
-    tx.vout[0].nValue -= 1000000;
+    tx.vout[0].nValue -= 10000;
     hash = tx.GetHash();
     mempool.addUnchecked(hash, CTxMemPoolEntry(tx, 11, GetTime(), 111.0, 11));
     BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
@@ -261,7 +261,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     // double spend txn pair in mempool
     tx.vin[0].prevout.hash = txFirst[0]->GetHash();
     tx.vin[0].scriptSig = CScript() << OP_1;
-    tx.vout[0].nValue = 4900000000LL;
+    tx.vout[0].nValue = 49000000LL;
     tx.vout[0].scriptPubKey = CScript() << OP_1;
     hash = tx.GetHash();
     mempool.addUnchecked(hash, CTxMemPoolEntry(tx, 11, GetTime(), 111.0, 11));
@@ -279,7 +279,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     tx.vin[0].prevout.hash = txFirst[0]->GetHash();
     tx.vin[0].scriptSig = CScript() << OP_1;
     tx.vin[0].nSequence = 0;
-    tx.vout[0].nValue = 4900000000LL;
+    tx.vout[0].nValue = 49000000LL;
     tx.vout[0].scriptPubKey = CScript() << OP_1;
     tx.nLockTime = chainActive.Tip()->nHeight+1;
     hash = tx.GetHash();
@@ -293,7 +293,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     tx2.vin[0].scriptSig = CScript() << OP_1;
     tx2.vin[0].nSequence = 0;
     tx2.vout.resize(1);
-    tx2.vout[0].nValue = 4900000000LL;
+    tx2.vout[0].nValue = 49000000LL;
     tx2.vout[0].scriptPubKey = CScript() << OP_1;
     tx2.nLockTime = chainActive.Tip()->GetMedianTimePast()+1;
     hash = tx2.GetHash();
