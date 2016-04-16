@@ -1106,10 +1106,18 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 {
     if (nHeight == 0)
     {
-        return 350000000 * COIN;
+        return 400000000 * COIN;
+    }
+    else if (nHeight <= 5000)
+    {
+        return 1;
+    }
+    else if (nHeight <= 55000)
+    {
+        return ceil((nHeight - 5000) / 100);
     }
     CAmount nStartingSubsidy = 500 * COIN;
-    int nLevel = (nHeight - 1) / consensusParams.nSubsidyLevelInterval;
+    int nLevel = (nHeight - 55001) / consensusParams.nSubsidyLevelInterval;
     int nReduction = ((-1 + (int)sqrt((8 * nLevel) + 1)) / 2);
     while (!(withinLevelBounds(nReduction, nLevel)))
     {
