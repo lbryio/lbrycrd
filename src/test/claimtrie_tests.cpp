@@ -4,6 +4,7 @@
 
 #include "main.h"
 #include "consensus/validation.h"
+#include "consensus/merkle.h"
 #include "primitives/transaction.h"
 #include "miner.h"
 #include "txmempool.h"
@@ -12,6 +13,7 @@
 #include "coins.h"
 #include "streams.h"
 #include "chainparams.h"
+#include "policy/policy.h"
 #include <boost/test/unit_test.hpp>
 #include <iostream>
 #include "test/test_bitcoin.h"
@@ -72,7 +74,24 @@ CMutableTransaction BuildTransaction(const CTransaction& prev, uint32_t prevout=
 
 void AddToMempool(CMutableTransaction& tx)
 {
-    mempool.addUnchecked(tx.GetHash(), CTxMemPoolEntry(tx, 0, GetTime(), 111.0, chainActive.Height()));
+    //CCoinsView dummy;
+    //CCoinsViewCache view(&dummy);
+    //CAmount inChainInputValue;
+    //double dPriority = view.GetPriority(tx, chainActive.Height(), inChainInputValue);
+    //unsigned int nSigOps = GetLegacySigOpCount(tx);
+    //nSigOps += GetP2SHSigOpCount(tx, view);
+    //LockPoints lp;
+    //BOOST_CHECK(CheckSequenceLocks(tx, STANDARD_LOCKTIME_VERIFY_FLAGS, &lp));
+    //mempool.addUnchecked(tx.GetHash(), CTxMemPoolEntry(tx, 0, GetTime(), 111.1, chainActive.Height(), mempool.HasNoInputsOf(tx), 10000000000, false, nSigOps, lp));
+    CValidationState state;
+    bool *fMissingInputs;
+    CFeeRate txFeeRate = CFeeRate(0);
+    BOOST_CHECK(AcceptToMemoryPool(mempool, state, tx, false, fMissingInputs, &txFeeRate));
+    //TestMemPoolEntryHelper entry;
+    //entry.nFee = 11;
+    //entry.dPriority = 111.0;
+    //entry.nHeight = 11;
+    //mempool.addUnchecked(tx.GetHash(), entry.Fee(10000).Time(GetTime()).FromTx(tx));
 }
 
 bool CreateBlock(CBlockTemplate* pblocktemplate)
@@ -85,7 +104,7 @@ bool CreateBlock(CBlockTemplate* pblocktemplate)
     txCoinbase.vin[0].scriptSig = CScript() << CScriptNum(unique_block_counter++) << CScriptNum(chainActive.Height());
     txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
     pblock->vtx[0] = CTransaction(txCoinbase);
-    pblock->hashMerkleRoot = pblock->ComputeMerkleRoot();
+    pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
     for (int i = 0; ; ++i)
     {
         pblock->nNonce = i;
@@ -95,7 +114,7 @@ bool CreateBlock(CBlockTemplate* pblocktemplate)
         }
     }
     CValidationState state;
-    bool success = (ProcessNewBlock(state, NULL, pblock, true, NULL) && state.IsValid() && pblock->GetHash() == chainActive.Tip()->GetBlockHash());
+    bool success = (ProcessNewBlock(state, Params(), NULL, pblock, true, NULL) && state.IsValid() && pblock->GetHash() == chainActive.Tip()->GetBlockHash());
     pblock->hashPrevBlock = pblock->GetHash();
     return success;
 }
@@ -106,11 +125,12 @@ bool RemoveBlock(uint256& blockhash)
     if (mapBlockIndex.count(blockhash) == 0)
         return false;
     CBlockIndex* pblockindex = mapBlockIndex[blockhash];
-    InvalidateBlock(state, pblockindex);
+    InvalidateBlock(state, Params().GetConsensus(), pblockindex);
     if (state.IsValid())
     {
-        ActivateBestChain(state);
+        ActivateBestChain(state, Params());
     }
+    mempool.clear();
     return state.IsValid();
 
 }
@@ -119,7 +139,7 @@ bool CreateCoinbases(unsigned int num_coinbases, std::vector<CTransaction>& coin
 {
     CBlockTemplate *pblocktemplate;
     coinbases.clear();
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(Params(), scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == 1);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 0; i < 100 + num_coinbases; ++i)
@@ -135,7 +155,7 @@ bool CreateCoinbases(unsigned int num_coinbases, std::vector<CTransaction>& coin
 bool CreateBlocks(unsigned int num_blocks, unsigned int num_txs)
 {
     CBlockTemplate *pblocktemplate;
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(scriptPubKey));
+    BOOST_CHECK(pblocktemplate = CreateNewBlock(Params(), scriptPubKey));
     BOOST_CHECK(pblocktemplate->block.vtx.size() == num_txs);
     pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     for (unsigned int i = 0; i < num_blocks; ++i)
@@ -148,6 +168,7 @@ bool CreateBlocks(unsigned int num_blocks, unsigned int num_txs)
 
 BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
 {
+    fRequireStandard = false;
     CClaimValue unused;
     uint256 hash0(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
     uint160 hash160;
@@ -268,6 +289,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
 
 BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 {
+    fRequireStandard = false;
     BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
     
     LOCK(cs_main);
@@ -375,7 +397,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     // Verify claims for controlled names are delayed, and that the bigger claim wins when inserted
 
     BOOST_CHECK(CreateBlocks(5, 1));
-    
+
     AddToMempool(tx1);
 
     BOOST_CHECK(CreateBlocks(1, 2));
@@ -419,7 +441,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     for (pindex = chainActive.Tip(); pindex && pindex->pprev; pindex=pindex->pprev)
     {
         CBlock block;
-        BOOST_CHECK(ReadBlockFromDisk(block, pindex));
+        BOOST_CHECK(ReadBlockFromDisk(block, pindex, Params().GetConsensus()));
         if (pindex == pindexState && (coins.DynamicMemoryUsage() + pcoinsTip->DynamicMemoryUsage()) <= nCoinCacheUsage)
         {
             bool fClean = true;
@@ -431,7 +453,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     {
         pindex = chainActive.Next(pindex);
         CBlock block;
-        BOOST_CHECK(ReadBlockFromDisk(block, pindex));
+        BOOST_CHECK(ReadBlockFromDisk(block, pindex, Params().GetConsensus()));
         BOOST_CHECK(ConnectBlock(block, state, pindex, coins, trieCache));
     }
     
@@ -450,8 +472,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
     BOOST_CHECK(!pclaimTrie->getInfoForName(sName1, val));
-    mempool.clear();
     
+
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash0);
     BOOST_CHECK(pclaimTrie->queueEmpty());
@@ -489,7 +511,6 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
-    mempool.clear();
 
     // Go back to the beginning
 
@@ -515,7 +536,6 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     blocks_to_invalidate.pop_back();
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
-    mempool.clear();
 
     // Verify that if a claim in the queue is spent, it does not get into the trie
 
@@ -565,8 +585,6 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
     
-    mempool.clear();
-    
     BOOST_CHECK(CreateBlocks(1, 1));
     
     BOOST_CHECK(!pclaimTrie->empty());
@@ -606,7 +624,6 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(pclaimTrie->getInfoForName(sName2, val));
     BOOST_CHECK(val.outPoint == tx5OutPoint);
     BOOST_CHECK(pclaimTrie->haveClaim(sName2, tx2OutPoint));
-    mempool.clear();
 
     // roll back to the beginning
     
@@ -614,7 +631,6 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     blocks_to_invalidate.pop_back();
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
-    mempool.clear();
 
     // Test undoing a spent update which updated a claim still in the queue
 
@@ -672,7 +688,6 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     blocks_to_invalidate.pop_back();
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
-    mempool.clear();
 
     // make sure the update (tx3) still goes into effect when it's supposed to
 
@@ -696,7 +711,6 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     blocks_to_invalidate.pop_back();
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->queueEmpty());
-    mempool.clear();
 
     // Test undoing an spent update which updated the best claim to a name
 
@@ -826,8 +840,6 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
 
-    mempool.clear();
-
     // put it back in
 
     AddToMempool(tx10);
@@ -898,8 +910,6 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
 
-    mempool.clear();
-
     // Put tx10 and tx11 in without tx1 in
 
     AddToMempool(tx10);
@@ -924,7 +934,6 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    mempool.clear();
 
     // spent tx10 with tx12 instead which is not a claim operation of any kind
 
@@ -939,8 +948,6 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    mempool.clear();
-
     // make sure all claim for names which exist in the trie but have no
     // values get inserted immediately
 
@@ -963,11 +970,11 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
-    mempool.clear();
 }
 
 BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 {
+    fRequireStandard = false;
     BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
 
     LOCK(cs_main);
@@ -1089,8 +1096,6 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
    
-    mempool.clear();
-    
     // advance until the expiration event occurs. verify the event occurs on time.
     
     BOOST_CHECK(CreateBlocks(100, 1));
@@ -1125,8 +1130,6 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
 
-    mempool.clear();
-    
     // roll back to before the expiration event. verify the claim is reinserted. verify the expiration event is scheduled again.
 
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
@@ -1266,6 +1269,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 
 BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 {
+    fRequireStandard = false;
     BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
 
     LOCK(cs_main);
@@ -1389,6 +1393,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(val.outPoint == tx1OutPoint);
     
     // spend tx3
+
 
     AddToMempool(tx6);
     
@@ -1580,8 +1585,6 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
     BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
     blocks_to_invalidate.pop_back();
 
-    mempool.clear();
-
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
@@ -1617,6 +1620,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 
 BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
 {
+    fRequireStandard = false;
     BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
 
     LOCK(cs_main);
@@ -2093,6 +2097,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
 
 BOOST_AUTO_TEST_CASE(claimtrie_expiring_supports)
 {
+    fRequireStandard = false;
     BOOST_CHECK(pclaimTrie->nCurrentHeight = chainActive.Height() + 1);
 
     LOCK(cs_main);
@@ -2333,6 +2338,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_expiring_supports)
 
 BOOST_AUTO_TEST_CASE(claimtrienode_serialize_unserialize)
 {
+    fRequireStandard = false;
     CDataStream ss(SER_DISK, 0);
 
     uint160 hash160;
@@ -2480,6 +2486,7 @@ bool verify_proof(const CClaimTrieProof proof, uint256 rootHash, const std::stri
 
 BOOST_AUTO_TEST_CASE(claimtrievalue_proof)
 {
+    fRequireStandard = false;
     BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
 
     LOCK(cs_main);

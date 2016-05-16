@@ -1,5 +1,5 @@
 #!/usr/bin/env python2
-# Copyright (c) 2014 The Bitcoin Core developers
+# Copyright (c) 2014-2015 The Bitcoin Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -13,8 +13,20 @@ import shutil
 import tempfile
 import traceback
 
-from authproxy import AuthServiceProxy, JSONRPCException
-from util import *
+from .util import (
+    initialize_chain,
+    assert_equal,
+    start_nodes,
+    connect_nodes_bi,
+    sync_blocks,
+    sync_mempools,
+    stop_nodes,
+    wait_bitcoinds,
+    enable_coverage,
+    check_json_precision,
+    initialize_chain_clean,
+)
+from .authproxy import AuthServiceProxy, JSONRPCException
 
 
 class BitcoinTestFramework(object):
@@ -96,6 +108,8 @@ class BitcoinTestFramework(object):
                           help="Root directory for datadirs")
         parser.add_option("--tracerpc", dest="trace_rpc", default=False, action="store_true",
                           help="Print out all RPC calls as they are made")
+        parser.add_option("--coveragedir", dest="coveragedir",
+                          help="Write tested RPC commands into this directory")
         self.add_options(parser)
         (self.options, self.args) = parser.parse_args()
 
@@ -103,7 +117,10 @@ class BitcoinTestFramework(object):
             import logging
             logging.basicConfig(level=logging.DEBUG)
 
-        os.environ['PATH'] = self.options.srcdir+":"+os.environ['PATH']
+        if self.options.coveragedir:
+            enable_coverage(self.options.coveragedir)
+
+        os.environ['PATH'] = self.options.srcdir+":"+self.options.srcdir+"/qt:"+os.environ['PATH']
 
         check_json_precision()
 
@@ -123,7 +140,10 @@ class BitcoinTestFramework(object):
             print("JSONRPC error: "+e.error['message'])
             traceback.print_tb(sys.exc_info()[2])
         except AssertionError as e:
-            print("Assertion failed: "+e.message)
+            print("Assertion failed: "+ str(e))
+            traceback.print_tb(sys.exc_info()[2])
+        except KeyError as e:
+            print("key not found: "+ str(e))
             traceback.print_tb(sys.exc_info()[2])
         except Exception as e:
             print("Unexpected exception caught during testing: "+str(e))
@@ -173,7 +193,8 @@ class ComparisonTestFramework(BitcoinTestFramework):
         initialize_chain_clean(self.options.tmpdir, self.num_nodes)
 
     def setup_network(self):
-        self.nodes = start_nodes(self.num_nodes, self.options.tmpdir,
-                                    extra_args=[['-debug', '-whitelist=127.0.0.1']] * self.num_nodes,
-                                    binary=[self.options.testbinary] +
-                                           [self.options.refbinary]*(self.num_nodes-1))
+        self.nodes = start_nodes(
+            self.num_nodes, self.options.tmpdir,
+            extra_args=[['-debug', '-whitelist=127.0.0.1']] * self.num_nodes,
+            binary=[self.options.testbinary] +
+            [self.options.refbinary]*(self.num_nodes-1))

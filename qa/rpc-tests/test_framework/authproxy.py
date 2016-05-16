@@ -61,7 +61,7 @@ class JSONRPCException(Exception):
 
 def EncodeDecimal(o):
     if isinstance(o, decimal.Decimal):
-        return round(o, 8)
+        return str(o)
     raise TypeError(repr(o) + " is not JSON serializable")
 
 class AuthServiceProxy(object):
@@ -69,7 +69,7 @@ class AuthServiceProxy(object):
 
     def __init__(self, service_url, service_name=None, timeout=HTTP_TIMEOUT, connection=None):
         self.__service_url = service_url
-        self.__service_name = service_name
+        self._service_name = service_name
         self.__url = urlparse.urlparse(service_url)
         if self.__url.port is None:
             port = 80
@@ -92,18 +92,17 @@ class AuthServiceProxy(object):
             self.__conn = connection
         elif self.__url.scheme == 'https':
             self.__conn = httplib.HTTPSConnection(self.__url.hostname, port,
-                                                  None, None, False,
-                                                  timeout)
+                                                  timeout=timeout)
         else:
             self.__conn = httplib.HTTPConnection(self.__url.hostname, port,
-                                                 False, timeout)
+                                                 timeout=timeout)
 
     def __getattr__(self, name):
         if name.startswith('__') and name.endswith('__'):
             # Python internal stuff
             raise AttributeError
-        if self.__service_name is not None:
-            name = "%s.%s" % (self.__service_name, name)
+        if self._service_name is not None:
+            name = "%s.%s" % (self._service_name, name)
         return AuthServiceProxy(self.__service_url, name, connection=self.__conn)
 
     def _request(self, method, path, postdata):
@@ -129,10 +128,10 @@ class AuthServiceProxy(object):
     def __call__(self, *args):
         AuthServiceProxy.__id_count += 1
 
-        log.debug("-%s-> %s %s"%(AuthServiceProxy.__id_count, self.__service_name,
+        log.debug("-%s-> %s %s"%(AuthServiceProxy.__id_count, self._service_name,
                                  json.dumps(args, default=EncodeDecimal)))
         postdata = json.dumps({'version': '1.1',
-                               'method': self.__service_name,
+                               'method': self._service_name,
                                'params': args,
                                'id': AuthServiceProxy.__id_count}, default=EncodeDecimal)
         response = self._request('POST', self.__url.path, postdata)
@@ -154,6 +153,11 @@ class AuthServiceProxy(object):
         if http_response is None:
             raise JSONRPCException({
                 'code': -342, 'message': 'missing HTTP response from server'})
+
+        content_type = http_response.getheader('Content-Type')
+        if content_type != 'application/json':
+            raise JSONRPCException({
+                'code': -342, 'message': 'non-JSON HTTP response with \'%i %s\' from server' % (http_response.status, http_response.reason)})
 
         responsedata = http_response.read().decode('utf8')
         response = json.loads(responsedata, parse_float=decimal.Decimal)

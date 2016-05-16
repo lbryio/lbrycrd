@@ -1,5 +1,5 @@
 #!/usr/bin/env python2
-#
+# Copyright (c) 2015 The Bitcoin Core developers
 # Distributed under the MIT/X11 software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #
@@ -62,7 +62,6 @@ The test:
 class TestNode(NodeConnCB):
     def __init__(self):
         NodeConnCB.__init__(self)
-        self.create_callback_map()
         self.connection = None
         self.ping_counter = 1
         self.last_pong = msg_pong()
@@ -151,7 +150,7 @@ class AcceptBlockTest(BitcoinTestFramework):
         # 2. Send one block that builds on each tip.
         # This should be accepted.
         blocks_h2 = []  # the height 2 blocks on each node's chain
-        block_time = time.time() + 1
+        block_time = int(time.time()) + 1
         for i in xrange(2):
             blocks_h2.append(create_block(tips[i], create_coinbase(2), block_time))
             blocks_h2[i].solve()

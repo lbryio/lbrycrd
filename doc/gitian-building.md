@@ -47,7 +47,7 @@ You can also install Gitian on actual hardware instead of using virtualization.
 
 Create a new VirtualBox VM
 ---------------------------
-In the VirtualBox GUI click "Create" and choose the following parameters in the wizard:
+In the VirtualBox GUI click "New" and choose the following parameters in the wizard:
 
 ![](gitian-building/create_new_vm.png)
 
@@ -74,13 +74,6 @@ In the VirtualBox GUI click "Create" and choose the following parameters in the 
 - File location and size: at least 40GB; as low as 20GB *may* be possible, but better to err on the safe side
 - Click `Create`
 
-Get the [Debian 8.x net installer](http://cdimage.debian.org/debian-cd/8.2.0/amd64/iso-cd/debian-8.2.0-amd64-netinst.iso) (a more recent minor version should also work, see also [Debian Network installation](https://www.debian.org/CD/netinst/)).
-This DVD image can be validated using a SHA256 hashing tool, for example on
-Unixy OSes by entering the following in a terminal:
-
-    echo "d393d17ac6b3113c81186e545c416a00f28ed6e05774284bb5e8f0df39fcbcb9  debian-8.2.0-amd64-netinst.iso" | sha256sum -c
-    # (must return OK)
-
 After creating the VM, we need to configure it.
 
 - Click the `Settings` button, then go to the `Network` tab. Adapter 1 should be attached to `NAT`.
@@ -101,6 +94,13 @@ After creating the VM, we need to configure it.
   - Guest Port: `22`
 
 - Click `Ok` twice to save.
+
+Get the [Debian 8.x net installer](http://cdimage.debian.org/debian-cd/8.4.0/amd64/iso-cd/debian-8.4.0-amd64-netinst.iso) (a more recent minor version should also work, see also [Debian Network installation](https://www.debian.org/CD/netinst/)).
+This DVD image can be validated using a SHA256 hashing tool, for example on
+Unixy OSes by entering the following in a terminal:
+
+    echo "7a6b418e6a4ee3ca75dda04d79ed96c9e2c33bb0c703ca7e40c6374ab4590748  debian-8.4.0-amd64-netinst.iso" | sha256sum -c
+    # (must return OK)
 
 Then start the VM. On the first launch you will be asked for a CD or DVD image. Choose the downloaded iso.
 
@@ -159,6 +159,10 @@ To select a different button, press `Tab`.
   - Select disk to partition: SCSI1 (0,0,0)
 
 ![](gitian-building/debian_install_12_choose_disk.png)
+
+  - Partition Disks -> *All files in one partition*
+
+![](gitian-building/all_files_in_one_partition.png)
 
   - Finish partitioning and write changes to disk -> *Yes* (`Tab`, `Enter` to select the `Yes` button)
 
@@ -252,22 +256,23 @@ First we need to log in as `root` to set up dependencies and make sure that our
 user can use the sudo command. Type/paste the following in the terminal:
 
 ```bash
-apt-get install git ruby sudo apt-cacher-ng qemu-utils debootstrap lxc python-cheetah parted kpartx bridge-utils make ubuntu-archive-keyring
+apt-get install git ruby sudo apt-cacher-ng qemu-utils debootstrap lxc python-cheetah parted kpartx bridge-utils make ubuntu-archive-keyring curl
 adduser debian sudo
 ```
 
 Then set up LXC and the rest with the following, which is a complex jumble of settings and workarounds:
 
 ```bash
-# the version of lxc-start in Debian 7.4 needs to run as root, so make sure
+# the version of lxc-start in Debian needs to run as root, so make sure
 # that the build script can execute it without providing a password
 echo "%sudo ALL=NOPASSWD: /usr/bin/lxc-start" > /etc/sudoers.d/gitian-lxc
-# add cgroup for LXC
-echo "cgroup  /sys/fs/cgroup  cgroup  defaults  0   0" >> /etc/fstab
+echo "%sudo ALL=NOPASSWD: /usr/bin/lxc-execute" >> /etc/sudoers.d/gitian-lxc
 # make /etc/rc.local script that sets up bridge between guest and host
 echo '#!/bin/sh -e' > /etc/rc.local
 echo 'brctl addbr br0' >> /etc/rc.local
 echo 'ifconfig br0 10.0.3.2/24 up' >> /etc/rc.local
+echo 'iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE' >> /etc/rc.local
+echo 'echo 1 > /proc/sys/net/ipv4/ip_forward' >> /etc/rc.local
 echo 'exit 0' >> /etc/rc.local
 # make sure that USE_LXC is always set when logging in as debian,
 # and configure LXC IP addresses
@@ -289,11 +294,11 @@ The rest of the steps in this guide will be performed as that user.
 There is no `python-vm-builder` package in Debian, so we need to install it from source ourselves,
 
 ```bash
-wget http://archive.ubuntu.com/ubuntu/pool/universe/v/vm-builder/vm-builder_0.12.4+bzr489.orig.tar.gz
-echo "ec12e0070a007989561bfee5862c89a32c301992dd2771c4d5078ef1b3014f03  vm-builder_0.12.4+bzr489.orig.tar.gz" | sha256sum -c
+wget http://archive.ubuntu.com/ubuntu/pool/universe/v/vm-builder/vm-builder_0.12.4+bzr494.orig.tar.gz
+echo "76cbf8c52c391160b2641e7120dbade5afded713afaa6032f733a261f13e6a8e  vm-builder_0.12.4+bzr494.orig.tar.gz" | sha256sum -c
 # (verification -- must return OK)
-tar -zxvf vm-builder_0.12.4+bzr489.orig.tar.gz
-cd vm-builder-0.12.4+bzr489
+tar -zxvf vm-builder_0.12.4+bzr494.orig.tar.gz
+cd vm-builder-0.12.4+bzr494
 sudo python setup.py install
 cd ..
 ```
@@ -305,13 +310,14 @@ Clone the git repositories for bitcoin and Gitian.
 ```bash
 git clone https://github.com/devrandom/gitian-builder.git
 git clone https://github.com/bitcoin/bitcoin
+git clone https://github.com/bitcoin/gitian.sigs.git
 ```
 
 Setting up the Gitian image
 -------------------------
 
 Gitian needs a virtual image of the operating system to build in.
-Currently this is Ubuntu Precise x86_64.
+Currently this is Ubuntu Trusty x86_64.
 This image will be copied and used every time that a build is started to
 make sure that the build is deterministic.
 Creating the image will take a while, but only has to be done once.
@@ -320,7 +326,7 @@ Execute the following as user `debian`:
 
 ```bash
 cd gitian-builder
-bin/make-base-vm --lxc --arch amd64 --suite precise
+bin/make-base-vm --lxc --arch amd64 --suite trusty
 ```
 
 There will be a lot of warnings printed during the build of the image. These can be ignored.
@@ -361,7 +367,7 @@ Output from `gbuild` will look something like
     Resolving deltas: 100% (41590/41590), done.
     From https://github.com/bitcoin/bitcoin
     ... (new tags, new branch etc)
-    --- Building for precise amd64 ---
+    --- Building for trusty amd64 ---
     Stopping target if it is up
     Making a new image copy
     stdin: is not a tty
@@ -410,14 +416,14 @@ So, if you use LXC:
 export PATH="$PATH":/path/to/gitian-builder/libexec
 export USE_LXC=1
 cd /path/to/gitian-builder
-./libexec/make-clean-vm --suite precise --arch amd64
+./libexec/make-clean-vm --suite trusty --arch amd64
 
-LXC_ARCH=amd64 LXC_SUITE=precise on-target -u root apt-get update
-LXC_ARCH=amd64 LXC_SUITE=precise on-target -u root \
+LXC_ARCH=amd64 LXC_SUITE=trusty on-target -u root apt-get update
+LXC_ARCH=amd64 LXC_SUITE=trusty on-target -u root \
   -e DEBIAN_FRONTEND=noninteractive apt-get --no-install-recommends -y install \
   $( sed -ne '/^packages:/,/[^-] .*/ {/^- .*/{s/"//g;s/- //;p}}' ../bitcoin/contrib/gitian-descriptors/*|sort|uniq )
-LXC_ARCH=amd64 LXC_SUITE=precise on-target -u root apt-get -q -y purge grub
-LXC_ARCH=amd64 LXC_SUITE=precise on-target -u root -e DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
+LXC_ARCH=amd64 LXC_SUITE=trusty on-target -u root apt-get -q -y purge grub
+LXC_ARCH=amd64 LXC_SUITE=trusty on-target -u root -e DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
 ```
 
 And then set offline mode for apt-cacher-ng:

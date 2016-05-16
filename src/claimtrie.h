@@ -5,7 +5,7 @@
 #include "serialize.h"
 #include "uint256.h"
 #include "util.h"
-#include "leveldbwrapper.h"
+#include "dbwrapper.h"
 #include "primitives/transaction.h"
 
 #include <string>
@@ -321,7 +321,7 @@ public:
     
     friend class CClaimTrieCache;
     
-    CLevelDBWrapper db;
+    CDBWrapper db;
     int nCurrentHeight;
     int nExpirationTime;
     int nProportionalDelayFactor;
@@ -367,16 +367,16 @@ private:
                                 queueNameRowType& row);
     void updateSupportExpirationQueue(int nHeight, expirationQueueRowType& row);
     
-    void BatchWriteNode(CLevelDBBatch& batch, const std::string& name,
+    void BatchWriteNode(CDBBatch& batch, const std::string& name,
                         const CClaimTrieNode* pNode) const;
-    void BatchEraseNode(CLevelDBBatch& batch, const std::string& nome) const;
-    void BatchWriteQueueRows(CLevelDBBatch& batch);
-    void BatchWriteQueueNameRows(CLevelDBBatch& batch);
-    void BatchWriteExpirationQueueRows(CLevelDBBatch& batch);
-    void BatchWriteSupportNodes(CLevelDBBatch& batch);
-    void BatchWriteSupportQueueRows(CLevelDBBatch& batch);
-    void BatchWriteSupportQueueNameRows(CLevelDBBatch& batch);
-    void BatchWriteSupportExpirationQueueRows(CLevelDBBatch& batch);
+    void BatchEraseNode(CDBBatch& batch, const std::string& nome) const;
+    void BatchWriteQueueRows(CDBBatch& batch);
+    void BatchWriteQueueNameRows(CDBBatch& batch);
+    void BatchWriteExpirationQueueRows(CDBBatch& batch);
+    void BatchWriteSupportNodes(CDBBatch& batch);
+    void BatchWriteSupportQueueRows(CDBBatch& batch);
+    void BatchWriteSupportQueueNameRows(CDBBatch& batch);
+    void BatchWriteSupportExpirationQueueRows(CDBBatch& batch);
     template<typename K> bool keyTypeEmpty(char key, K& dummy) const;
     
     CClaimTrieNode root;
