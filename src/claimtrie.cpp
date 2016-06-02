@@ -149,7 +149,7 @@ bool CClaimTrie::empty() const
 
 template<typename K> bool CClaimTrie::keyTypeEmpty(char keyType, K& dummy) const
 {
-    boost::scoped_ptr<CLevelDBIterator> pcursor(const_cast<CLevelDBWrapper*>(&db)->NewIterator());
+    boost::scoped_ptr<CDBIterator> pcursor(const_cast<CDBWrapper*>(&db)->NewIterator());
     pcursor->SeekToFirst();
     
     while (pcursor->Valid())
@@ -824,7 +824,7 @@ bool CClaimTrie::updateTakeoverHeight(const std::string& name, int nTakeoverHeig
     return true;
 }
 
-void CClaimTrie::BatchWriteNode(CLevelDBBatch& batch, const std::string& name, const CClaimTrieNode* pNode) const
+void CClaimTrie::BatchWriteNode(CDBBatch& batch, const std::string& name, const CClaimTrieNode* pNode) const
 {
     uint32_t num_claims = 0;
     if (pNode)
@@ -836,7 +836,7 @@ void CClaimTrie::BatchWriteNode(CLevelDBBatch& batch, const std::string& name, c
         batch.Erase(std::make_pair(TRIE_NODE, name));
 }
 
-void CClaimTrie::BatchWriteQueueRows(CLevelDBBatch& batch)
+void CClaimTrie::BatchWriteQueueRows(CDBBatch& batch)
 {
     for (claimQueueType::iterator itQueue = dirtyQueueRows.begin(); itQueue != dirtyQueueRows.end(); ++itQueue)
     {
@@ -851,7 +851,7 @@ void CClaimTrie::BatchWriteQueueRows(CLevelDBBatch& batch)
     }
 }
 
-void CClaimTrie::BatchWriteQueueNameRows(CLevelDBBatch& batch)
+void CClaimTrie::BatchWriteQueueNameRows(CDBBatch& batch)
 {
     for (queueNameType::iterator itQueue = dirtyQueueNameRows.begin(); itQueue != dirtyQueueNameRows.end(); ++itQueue)
     {
@@ -866,7 +866,7 @@ void CClaimTrie::BatchWriteQueueNameRows(CLevelDBBatch& batch)
     }
 }
 
-void CClaimTrie::BatchWriteExpirationQueueRows(CLevelDBBatch& batch)
+void CClaimTrie::BatchWriteExpirationQueueRows(CDBBatch& batch)
 {
     for (expirationQueueType::iterator itQueue = dirtyExpirationQueueRows.begin(); itQueue != dirtyExpirationQueueRows.end(); ++itQueue)
     {
@@ -881,7 +881,7 @@ void CClaimTrie::BatchWriteExpirationQueueRows(CLevelDBBatch& batch)
     }
 }
 
-void CClaimTrie::BatchWriteSupportNodes(CLevelDBBatch& batch)
+void CClaimTrie::BatchWriteSupportNodes(CDBBatch& batch)
 {
     for (supportMapType::iterator itSupport = dirtySupportNodes.begin(); itSupport != dirtySupportNodes.end(); ++itSupport)
     {
@@ -896,7 +896,7 @@ void CClaimTrie::BatchWriteSupportNodes(CLevelDBBatch& batch)
     }
 }
 
-void CClaimTrie::BatchWriteSupportQueueRows(CLevelDBBatch& batch)
+void CClaimTrie::BatchWriteSupportQueueRows(CDBBatch& batch)
 {
     for (supportQueueType::iterator itQueue = dirtySupportQueueRows.begin(); itQueue != dirtySupportQueueRows.end(); ++itQueue)
     {
@@ -911,7 +911,7 @@ void CClaimTrie::BatchWriteSupportQueueRows(CLevelDBBatch& batch)
     }
 }
 
-void CClaimTrie::BatchWriteSupportQueueNameRows(CLevelDBBatch& batch)
+void CClaimTrie::BatchWriteSupportQueueNameRows(CDBBatch& batch)
 {
     for (queueNameType::iterator itQueue = dirtySupportQueueNameRows.begin(); itQueue != dirtySupportQueueNameRows.end(); ++itQueue)
     {
@@ -926,7 +926,7 @@ void CClaimTrie::BatchWriteSupportQueueNameRows(CLevelDBBatch& batch)
     }
 }
 
-void CClaimTrie::BatchWriteSupportExpirationQueueRows(CLevelDBBatch& batch)
+void CClaimTrie::BatchWriteSupportExpirationQueueRows(CDBBatch& batch)
 {
     for (expirationQueueType::iterator itQueue = dirtySupportExpirationQueueRows.begin(); itQueue != dirtySupportExpirationQueueRows.end(); ++itQueue)
     {
@@ -943,7 +943,7 @@ void CClaimTrie::BatchWriteSupportExpirationQueueRows(CLevelDBBatch& batch)
 
 bool CClaimTrie::WriteToDisk()
 {
-    CLevelDBBatch batch(&db.GetObfuscateKey());
+    CDBBatch batch(&db.GetObfuscateKey());
     for (nodeCacheType::iterator itcache = dirtyNodes.begin(); itcache != dirtyNodes.end(); ++itcache)
         BatchWriteNode(batch, itcache->first, itcache->second);
     dirtyNodes.clear();
@@ -991,7 +991,7 @@ bool CClaimTrie::ReadFromDisk(bool check)
         LogPrintf("%s: Couldn't read the best block's hash\n", __func__);
     if (!db.Read(CURRENT_HEIGHT, nCurrentHeight))
         LogPrintf("%s: Couldn't read the current height\n", __func__);
-    boost::scoped_ptr<CLevelDBIterator> pcursor(const_cast<CLevelDBWrapper*>(&db)->NewIterator());
+    boost::scoped_ptr<CDBIterator> pcursor(const_cast<CDBWrapper*>(&db)->NewIterator());
     pcursor->SeekToFirst();
     
     while (pcursor->Valid())
