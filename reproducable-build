@@ -16,7 +16,7 @@ cd openssl-1.0.1p
 ./Configure --prefix=$OPENSSL_PREFIX --openssldir=$OPENSSL_PREFIX/ssl [linux-generic32/linux-x86_64] -fPIC -static no-shared no-dso
 make
 make install
-export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_BUILD}/lib/pkgconfig/"
+export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig/"
 cd ..
 wget http://sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.bz2/download -O boost_1_59_0.tar.bz2
 tar xf boost_1_59_0.tar.bz2
