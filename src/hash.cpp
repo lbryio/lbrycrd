@@ -6,7 +6,7 @@
 #include "crypto/common.h"
 #include "crypto/hmac_sha512.h"
 #include "pubkey.h"
-#include "botan/skein_512.h"
+//#include "botan/skein_512.h"
 #include "botan/keccak.h"
 
 inline uint32_t ROTL32(uint32_t x, int8_t r)
@@ -16,13 +16,9 @@ inline uint32_t ROTL32(uint32_t x, int8_t r)
 
 uint256 PoWHash(const std::vector<unsigned char>& input)
 {
-    Botan::Skein_512 sk;
-    sk.update(input.data(), input.size());
     std::vector<unsigned char> out;
-    out.resize(64);
-    sk.final(&out[0]);
     Botan::Keccak_1600 kk(256);
-    kk.update(&out[0], 64);
+    kk.update(input.data(), input.size());
     out.resize(32);
     kk.final(&out[0]);
     uint256 h(out);

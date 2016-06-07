@@ -31,9 +31,9 @@ endif
 LIBBOTAN = $(builddir)/botan/libbotan-1.10.a
 BOTANHEADERS = $(srcdir)/botan/build/include
 
-$(BOTANHEADERS)/botan/skein_512.h $(LIBBOTAN):
+$(BOTANHEADERS)/botan/keccak.h $(LIBBOTAN):
 	( cd $(srcdir)/botan && python2.7 configure.py && $(MAKE) static)
-BUILT_SOURCES= $(BOTANHEADERS)/botan/skein_512.h
+BUILT_SOURCES= $(BOTANHEADERS)/botan/keccak.h
 
 BITCOIN_CONFIG_INCLUDES=-I$(builddir)/config
 BITCOIN_INCLUDES=-I$(builddir) -I$(builddir)/obj $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS)
