@@ -14,8 +14,9 @@ cd ../../
 wget https://www.openssl.org/source/openssl-1.0.1p.tar.gz
 tar xf openssl-1.0.1p.tar.gz
 export OPENSSL_PREFIX="`pwd`/openssl_build"
+mkdir $OPENSSL_PREFIX
 cd openssl-1.0.1p
-./Configure --prefix=$OPENSSL_PREFIX --openssldir=$OPENSSL_PREFIX/ssl [linux-generic32/linux-x86_64] -fPIC -static no-shared no-dso
+./Configure --prefix=$OPENSSL_PREFIX --openssldir=$OPENSSL_PREFIX/ssl linux-x86_64 -fPIC -static no-shared no-dso
 make
 make install
 export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig/"
@@ -41,6 +42,7 @@ cd ..
 
 git clone https://github.com/lbryio/lbrycrd
 cd lbrycrd
+git checkout real
 ./autogen.sh
 ./configure --without-gui LDFLAGS="-L${OPENSSL_PREFIX}/lib/ -L${BDB_PREFIX}/lib/ -L${LIBEVENT_PREFIX}/lib/ -static-libstdc++" CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/"
 make
