@@ -18,12 +18,12 @@
 #include "chainparamsseeds.h"
 #include "arith_uint256.h"
 
-#define GENESIS_MERKLE_ROOT "b8211c82c3d15bcd78bba57005b86fed515149a53a425eb592c07af99fe559cc"
+#define GENESIS_MERKLE_ROOT "16245e17252b65fca46a588a01b477f49f4d4ed4d6998b97de5a599fcc66332c"
 
-#define MAINNET_GENESIS_HASH "0000678ddce6b9b57e58fab6b89a1cf63519ffb4bc097debb1836577ead9a3be"
-#define MAINNET_GENESIS_NONCE 71748
+#define MAINNET_GENESIS_HASH "4696e50ae611caacea3c4d1f69484137628240bfd972bcd71d1520b93866dc98"
+#define MAINNET_GENESIS_NONCE 16959
 
-#define REGTEST_GENESIS_HASH "6e3fcf1299d4ec5d79c3a4c91d624a4acf9e2e173d95a1a0504f677669687556"
+#define REGTEST_GENESIS_HASH "ddfca77cf52e94b63ae05013e97af9db05538ae257fec15b7e234860e94daba1"
 #define REGTEST_GENESIS_NONCE 1
 
 bool CheckProofOfWork2(uint256 hash, unsigned int nBits, const Consensus::Params& params)
@@ -95,7 +95,7 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
  */
 static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward, const Consensus::Params& consensus)
 {
-    const char* pszTimestamp = "insert timestamp string";//"The Times 03/Jan/2009 Chancellor on brink of second bailout for banks";
+    const char* pszTimestamp = "NYT 2016-04-16 Pope Takes 12 Refugees Back to Rome After Visit to Camp";
     const CScript genesisOutputScript = CScript() << OP_DUP << OP_HASH160 << ParseHex("345991dbf57bfb014b87006acdfafbfc5fe8292f") << OP_EQUALVERIFY << OP_CHECKSIG;
     return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward, consensus);
 }

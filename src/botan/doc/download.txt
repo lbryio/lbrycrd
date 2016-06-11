@@ -1,0 +1,103 @@
+
+Getting The Latest Sources
+========================================
+
+All releases are signed with a :doc:`PGP key <pgpkey>`.
+
+Unsure which release you want? Check the :ref:`FAQ <devel_vs_stable>`.
+
+.. only:: not website
+
+   .. note::
+
+      If you are viewing this documentation offline, a more recent
+      release `may be available <http://botan.randombit.net/download.html>`_
+
+Current Stable Release (1.10)
+----------------------------------------
+
+The current stable release is `1.10.3
+<http://botan.randombit.net/relnotes/1_10_3.html>`_ which was
+released on 2012-07-10.
+
+Sources:
+
+`1.10.3 tar/gz <http://botan.randombit.net/files/Botan-1.10.3.tgz>`_
+(`1.10.3 tar/gz sig <http://botan.randombit.net/files/Botan-1.10.3.tgz.asc>`_),
+
+`1.10.3 tar/bzip <http://botan.randombit.net/files/Botan-1.10.3.tbz>`_
+(`1.10.3 tar/bzip sig <http://botan.randombit.net/files/Botan-1.10.3.tbz.asc>`_)
+
+..
+  Windows binary installer for use with Visual C++ 2010:
+
+  `1.10.1 x86-32 installer
+  <http://botan.randombit.net/files/win32/botan-1.10.1_win32.exe>`_
+
+  `1.10.1 x86-64 installer
+  <http://botan.randombit.net/files/win32/botan-1.10.1_win64.exe>`_
+
+Previous Stable Release (1.8)
+----------------------------------------
+
+The previous stable release is `1.8.13
+<http://botan.randombit.net/news/releases/1_8_13.html>`_ which was
+released on 2011-07-02.
+
+Sources:
+
+`1.8.13 tar/gz <http://botan.randombit.net/files/Botan-1.8.13.tgz>`_
+(`1.8.13 tar/gz sig <http://botan.randombit.net/files/Botan-1.8.13.tgz.asc>`_),
+
+`1.8.13 tar/bzip <http://botan.randombit.net/files/Botan-1.8.13.tbz>`_
+(`1.8.13 tar/bzip sig <http://botan.randombit.net/files/Botan-1.8.13.tbz.asc>`_)
+
+..
+  Windows binary installer for use with Visual C++ 2008:
+
+  `1.8.13 x86-32 installer
+  <http://botan.randombit.net/files/win32/botan-1.8.13_win32.exe>`_
+
+  `1.8.13 x86-64 installer
+  <http://botan.randombit.net/files/win32/botan-1.8.13_win64.exe>`_
+
+Accessing Version Control
+----------------------------------------
+
+Botan's development occurs using a distributed version control system
+called `Monotone <http://www.monotone.ca>`_.
+
+The main branch of development occurs on the branch named
+``net.randombit.botan``; this is probably the branch you want (for
+1.8, use ``net.randombit.botan.1_8`` instead). To download that branch
+and set up a new workspace, run::
+
+   $ mtn db init --db=botan.mtn
+   $ mtn pull --db=botan.mtn randombit.net 'net.randombit.botan'
+   [...]
+   $ mtn checkout --db=botan.mtn --branch=net.randombit.botan
+   [...]
+
+By default the ``checkout`` command will place the workspace in a directory
+with the same name as the branch you are checking out.  If you want a
+different directory name, just include it after the ``--branch`` option (you
+can also rename this directory at any time).
+
+If this is the first time you've connected to the server, Monotone
+will print::
+
+  mtn: first time connecting to server randombit.net
+  mtn: I'll assume it's really them, but you might want to double-check
+  mtn: their key's fingerprint: 8c0b868f2247215c63c96983b1c8ca0f0f0cfd9a
+
+The fingerprint shown above was the correct one as of September 21, 2010.
+
+To pull further changes, from anywhere in the workspace run these commands::
+
+  $ mtn pull
+  [...]
+  $ mtn update
+  [summary of changes]
+
+The ``mtn update`` command will give you a summary of which files changed;
+to view the full changelog, run ``mtn log``.

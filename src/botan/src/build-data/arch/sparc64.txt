@@ -1,0 +1,14 @@
+
+family sparc
+
+<submodels>
+ultrasparc
+ultrasparc3
+niagra
+niagra2
+</submodels>
+
+<submodel_aliases>
+# Functionally the same for optimization purposes
+ultrasparc2 -> ultrasparc
+</submodel_aliases>

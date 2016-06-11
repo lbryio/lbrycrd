@@ -1,0 +1,5 @@
+define BLOCK_CIPHER
+
+<requires>
+algo_base
+</requires>

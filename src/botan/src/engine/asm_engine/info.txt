@@ -1,0 +1,11 @@
+define ENGINE_ASSEMBLER
+
+load_on dep
+
+<source>
+asm_engine.cpp
+</source>
+
+<header:internal>
+asm_engine.h
+</header:internal>

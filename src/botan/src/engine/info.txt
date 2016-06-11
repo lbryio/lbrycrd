@@ -1,0 +1,20 @@
+define ENGINES
+
+<header:public>
+engine.h
+</header:public>
+
+<source>
+engine.cpp
+</source>
+
+<requires>
+block
+hash
+libstate
+mac
+numbertheory
+pbkdf
+pubkey
+stream
+</requires>

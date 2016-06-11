@@ -1,0 +1,14 @@
+<aliases>
+itanium
+itanic
+</aliases>
+
+<submodels>
+merced
+mckinley
+montvale
+</submodels>
+
+<submodel_aliases>
+itanium2 -> mckinley
+</submodel_aliases>

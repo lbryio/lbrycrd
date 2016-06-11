@@ -1,0 +1,25 @@
+load_on auto
+
+define ALGORITHM_FACTORY
+
+<header:public>
+algo_factory.h
+</header:public>
+
+<header:internal>
+algo_cache.h
+</header:internal>
+
+<source>
+algo_factory.cpp
+prov_weight.cpp
+</source>
+
+<requires>
+block
+engine
+hash
+mac
+mutex
+stream
+</requires>

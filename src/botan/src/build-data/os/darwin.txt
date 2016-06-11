@@ -1,0 +1,17 @@
+os_type unix
+
+so_suffix dylib
+
+# It doesn't have the 's' option; you need to use needs ranlib
+ar_command "ar cr"
+ar_needs_ranlib yes
+
+doc_dir doc
+
+<target_features>
+gettimeofday
+</target_features>
+
+<aliases>
+macosx
+</aliases>
