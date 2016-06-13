@@ -159,7 +159,10 @@ public:
         vSeeds.clear();
         vFixedSeeds.clear();
 
-        vSeeds.push_back(CDNSSeedData("lighthouse.lbry.io", "seed.lighthouse.lbry.io")); // lbry.io
+        vSeeds.push_back(CDNSSeedData("lbry.io", "dnsseed1.lbry.io")); // lbry.io
+        vSeeds.push_back(CDNSSeedData("lbry.io", "dnsseed2.lbry.io")); // lbry.io
+        vSeeds.push_back(CDNSSeedData("lbry.io", "dnsseed3.lbry.io")); // lbry.io
+
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,0x55);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,0x7a);
