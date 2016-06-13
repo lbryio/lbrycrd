@@ -1,4 +1,5 @@
 sudo apt-get install build-essential python-dev libbz2-dev libtool autotools-dev autoconf git pkg-config
+
 mkdir dependencies
 cd dependencies
 
@@ -24,8 +25,8 @@ cd ..
 
 wget http://sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.bz2/download -O boost_1_59_0.tar.bz2
 tar xf boost_1_59_0.tar.bz2
+export BOOST_ROOT="`pwd`/boost_1_59_0"
 cd boost_1_59_0
-export BOOST_ROOT=`pwd`
 ./bootstrap.sh
 ./b2 link=static cxxflags=-fPIC stage
 cd ../../

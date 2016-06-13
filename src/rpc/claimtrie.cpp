@@ -520,3 +520,22 @@ UniValue getnameproof(const UniValue& params, bool fHelp)
 
     return proofToJSON(proof);
 }
+
+static const CRPCCommand commands[] =
+{ //  category              name                           actor (function)        okSafeMode
+  //  --------------------- ------------------------     -----------------------  ----------
+    { "Claimtrie",             "getclaimsintrie",         &getclaimsintrie,         true  },
+    { "Claimtrie",             "getclaimtrie",            &getclaimtrie,            true  },
+    { "Claimtrie",             "getvalueforname",         &getvalueforname,         true  },
+    { "Claimtrie",             "gettotalclaimednames",    &gettotalclaimednames,    true  },
+    { "Claimtrie",             "gettotalclaims",          &gettotalclaims,          true  },
+    { "Claimtrie",             "gettotalvalueofclaims",   &gettotalvalueofclaims,   true  },
+    { "Claimtrie",             "getclaimsfortx",          &getclaimsfortx,          true  },
+    { "Claimtrie",             "getnameproof",            &getnameproof,            true  },
+};
+
+void RegisterClaimTrieRPCCommands(CRPCTable &tableRPC)
+{
+    for (unsigned int vcidx = 0; vcidx < ARRAYLEN(commands); vcidx++)
+        tableRPC.appendCommand(commands[vcidx].name, &commands[vcidx]);
+}
