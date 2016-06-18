@@ -18,6 +18,8 @@
 #include "chainparamsseeds.h"
 #include "arith_uint256.h"
 
+//#define FIND_GENESIS
+
 #define GENESIS_MERKLE_ROOT "b8211c82c3d15bcd78bba57005b86fed515149a53a425eb592c07af99fe559cc"
 
 #define MAINNET_GENESIS_HASH "0000678ddce6b9b57e58fab6b89a1cf63519ffb4bc097debb1836577ead9a3be"
@@ -68,7 +70,8 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
     genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
     genesis.hashClaimTrie = uint256S("0x0000000000000000000000000000000000000000000000000000000000000001");
 
-    /*while (true)
+#ifdef FIND_GENESIS
+    while (true)
     {
         genesis.nNonce += 1;
         if (CheckProofOfWork2(genesis.GetPoWHash(), nBits, consensus))
@@ -78,7 +81,8 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
             std::cout << "pow hash: " << genesis.GetPoWHash().GetHex() << std::endl;
             break;
         }
-    }*/
+    }
+#endif
     return genesis;
 }
 
@@ -151,11 +155,13 @@ public:
 
         genesis = CreateGenesisBlock(1446058291, MAINNET_GENESIS_NONCE, 0x1f00ffff, 1, 400000000 * COIN, consensus);
         consensus.hashGenesisBlock = genesis.GetHash();
-        //std::cout << "hex: " << consensus.hashGenesisBlock.GetHex() << std::endl;
-        //std::cout << "merkle root: " << genesis.hashMerkleRoot.GetHex() << std::endl;
+#ifdef FIND_GENESIS
+        std::cout << "hex: " << consensus.hashGenesisBlock.GetHex() << std::endl;
+        std::cout << "merkle root: " << genesis.hashMerkleRoot.GetHex() << std::endl;
+#else
         assert(consensus.hashGenesisBlock == uint256S(MAINNET_GENESIS_HASH));
         assert(genesis.hashMerkleRoot == uint256S(GENESIS_MERKLE_ROOT));
-
+#endif
         vSeeds.clear();
         vFixedSeeds.clear();
 
@@ -225,10 +231,13 @@ public:
 
         genesis = CreateGenesisBlock(1446058291, MAINNET_GENESIS_NONCE, 0x1f00ffff, 1, 400000000 * COIN, consensus);
         consensus.hashGenesisBlock = genesis.GetHash();
-        //std::cout << "testnet genesis hash: " << genesis.GetHash().GetHex() << std::endl;
-        //std::cout << "testnet merkle hash: " << genesis.hashMerkleRoot.GetHex() << std::endl;
+#ifdef FIND_GENESIS
+        std::cout << "testnet genesis hash: " << genesis.GetHash().GetHex() << std::endl;
+        std::cout << "testnet merkle hash: " << genesis.hashMerkleRoot.GetHex() << std::endl;
+#else
         assert(consensus.hashGenesisBlock == uint256S(MAINNET_GENESIS_HASH));
         assert(genesis.hashMerkleRoot == uint256S(GENESIS_MERKLE_ROOT));
+#endif
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -298,10 +307,13 @@ public:
 
         genesis = CreateGenesisBlock(1446058291, REGTEST_GENESIS_NONCE, 0x207fffff, 1, 400000000 * COIN, consensus);
         consensus.hashGenesisBlock = genesis.GetHash();
-        //std::cout << "regtest genensis hash: " << genesis.GetHash().GetHex() << std::endl;
-        //std::cout << "regtest hashmerkleroot: " << genesis.hashMerkleRoot.GetHex() << std::endl;
+#ifdef FIND_GENESIS
+        std::cout << "regtest genensis hash: " << genesis.GetHash().GetHex() << std::endl;
+        std::cout << "regtest hashmerkleroot: " << genesis.hashMerkleRoot.GetHex() << std::endl;
+#else
         assert(consensus.hashGenesisBlock == uint256S(REGTEST_GENESIS_HASH));
         assert(genesis.hashMerkleRoot == uint256S(GENESIS_MERKLE_ROOT));
+#endif
 
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();      //!< Regtest mode doesn't have any DNS seeds.
