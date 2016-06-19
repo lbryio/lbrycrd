@@ -17,7 +17,7 @@
 #include "utilstrencodings.h"
 
 #include "test/test_bitcoin.h"
-
+#include <cstdio>
 #include <boost/test/unit_test.hpp>
 
 BOOST_FIXTURE_TEST_SUITE(miner_tests, TestingSetup)
@@ -93,17 +93,17 @@ struct {
 };*/
 
 const unsigned int nonces[] = {
-    25847, 24375, 15084, 43119, 32778, 18489, 72464, 3066, 21699, 148524,
-    11755, 75956, 20849, 21954, 35157, 145272, 248297, 4826, 33638, 23323,
-    67779, 132944, 18863, 56090, 198531, 12291, 139396, 58208, 45077, 5032,
-    60910, 160315, 28228, 52228, 56715, 185713, 41299, 9809, 12440, 44195,
-    174243, 74222, 2824, 31928, 57317, 2301, 56474, 38742, 206678, 241219,
-    230802, 700108, 340728, 94773, 190539, 422314, 165285, 241662, 126464, 655554,
-    105922, 220360, 92001, 465473, 283326, 337895, 130951, 143184, 32737, 20130,
-    396207, 962689, 568567, 111795, 494699, 82970, 7992, 715083, 46184, 118701,
-    406960, 201220, 672245, 111503, 20150, 269794, 218458, 443980, 67694, 253945,
-    75069, 183171, 629799, 126886, 23608, 633958, 419889, 30723, 206984, 2290215,
-    104632, 2612510, 274546, 394861, 230744, 353025, 1291707, 1953717, 1471195, 94639,
+9715, 56480, 403383, 161192, 58621, 73382, 85226, 98311, 206519, 15440,
+176081, 28022, 3824, 23276, 22704, 69819, 79283, 4656, 30511, 6411,
+201628, 4501, 23558, 74540, 168, 12681, 16511, 7266, 10486, 83995,
+66238, 66, 26787, 14984, 73652, 6838, 22145, 103579, 65324, 283683,
+102001, 49586, 130264, 33672, 6912, 13815, 51036, 24127, 72967, 27871,
+5051, 193056, 77536, 20886, 34333, 53415, 11799, 64284, 37214, 23710,
+104020, 102819, 64378, 54221, 53838, 11188, 18847, 58036, 18297, 122279,
+7004, 53797, 11485, 91262, 61017, 71342, 48033, 18755, 42992, 26418,
+1410, 113720, 23320, 25180, 62603, 32101, 122149, 8533, 44719, 45796,
+92600, 4908, 13175, 8836, 20067, 165509, 94213, 22031, 3834, 14936,
+84587, 912, 1308, 66266, 11429, 28065, 23100, 9701, 10143, 23224,
 };
 
 CBlockIndex CreateBlockIndex(int nHeight)
@@ -151,7 +151,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         CBlock *pblock = &pblocktemplate->block; // pointer for convenience
         pblock->hashPrevBlock = chainActive.Tip()->GetBlockHash();
         pblock->nVersion = 1;
-        pblock->nTime = chainActive.Tip()->GetMedianTimePast()+1;
+        pblock->nTime = chainActive.Tip()->GetBlockTime()+150*(i+1);
         CMutableTransaction txCoinbase(pblock->vtx[0]);
         txCoinbase.nVersion = 1;
         txCoinbase.vin[0].scriptSig = CScript();
@@ -166,7 +166,11 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
             txFirst.push_back(new CTransaction(pblock->vtx[0]));
         pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
         pblock->nNonce = nonces[i];
-        /*bool fFound = false;
+
+
+        //Use below code to find nonces, in case we change hashing or difficulty retargeting algo
+        /*
+        bool fFound = false;
         for (int j = 0; !fFound; j++)
         {
             pblock->nNonce = j;
@@ -179,7 +183,9 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
                 else
                     std::cout << " ";
             }
-        }*/
+        }
+        */
+
         CValidationState state;
         BOOST_CHECK(ProcessNewBlock(state, chainparams, NULL, pblock, true, NULL));
         BOOST_CHECK(state.IsValid());
