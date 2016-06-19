@@ -17,7 +17,7 @@
 #include "utilstrencodings.h"
 
 #include "test/test_bitcoin.h"
-
+#include <cstdio>
 #include <boost/test/unit_test.hpp>
 
 BOOST_FIXTURE_TEST_SUITE(miner_tests, TestingSetup)
@@ -151,7 +151,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         CBlock *pblock = &pblocktemplate->block; // pointer for convenience
         pblock->hashPrevBlock = chainActive.Tip()->GetBlockHash();
         pblock->nVersion = 1;
-        pblock->nTime = chainActive.Tip()->GetMedianTimePast()+1;
+        pblock->nTime = chainActive.Tip()->GetBlockTime()+150*(i+1);
         CMutableTransaction txCoinbase(pblock->vtx[0]);
         txCoinbase.nVersion = 1;
         txCoinbase.vin[0].scriptSig = CScript();
@@ -166,7 +166,11 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
             txFirst.push_back(new CTransaction(pblock->vtx[0]));
         pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
         pblock->nNonce = nonces[i];
-        /*bool fFound = false;
+
+
+        //Use below code to find nonces, in case we change hashing or difficulty retargeting algo
+        /*
+        bool fFound = false;
         for (int j = 0; !fFound; j++)
         {
             pblock->nNonce = j;
@@ -179,7 +183,9 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
                 else
                     std::cout << " ";
             }
-        }*/
+        }
+        */
+
         CValidationState state;
         BOOST_CHECK(ProcessNewBlock(state, chainparams, NULL, pblock, true, NULL));
         BOOST_CHECK(state.IsValid());
