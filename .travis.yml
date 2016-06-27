@@ -18,12 +18,14 @@ env:
     - SDK_URL=https://bitcoincore.org/depends-sources/sdks
     - PYTHON_DEBUG=1
     - WINEDEBUG=fixme-all
+
 cache:
   apt: true
   directories:
   - depends/built
   - depends/sdk-sources
   - $HOME/.ccache
+
 matrix:
   fast_finish: true
   include:
