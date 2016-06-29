@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2014 The Bitcoin Core developers
+// Copyright (c) 2011-2015 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -59,6 +59,10 @@ BOOST_AUTO_TEST_CASE(util_ParseHex)
     // Spaces between bytes must be supported
     result = ParseHex("12 34 56 78");
     BOOST_CHECK(result.size() == 4 && result[0] == 0x12 && result[1] == 0x34 && result[2] == 0x56 && result[3] == 0x78);
+
+    // Leading space must be supported (used in CDBEnv::Salvage)
+    result = ParseHex(" 89 34 56 78");
+    BOOST_CHECK(result.size() == 4 && result[0] == 0x89 && result[1] == 0x34 && result[2] == 0x56 && result[3] == 0x78);
 
     // Stop parsing at invalid value
     result = ParseHex("1234 invalid 1234");
@@ -196,6 +200,8 @@ BOOST_AUTO_TEST_CASE(util_ParseMoney)
     BOOST_CHECK_EQUAL(ret, COIN*10);
     BOOST_CHECK(ParseMoney("1.00", ret));
     BOOST_CHECK_EQUAL(ret, COIN);
+    BOOST_CHECK(ParseMoney("1", ret));
+    BOOST_CHECK_EQUAL(ret, COIN);
     BOOST_CHECK(ParseMoney("0.1", ret));
     BOOST_CHECK_EQUAL(ret, COIN/10);
     BOOST_CHECK(ParseMoney("0.01", ret));
@@ -215,6 +221,9 @@ BOOST_AUTO_TEST_CASE(util_ParseMoney)
 
     // Attempted 63 bit overflow should fail
     BOOST_CHECK(!ParseMoney("92233720368.54775808", ret));
+
+    // Parsing negative amounts must fail
+    BOOST_CHECK(!ParseMoney("-1", ret));
 }
 
 BOOST_AUTO_TEST_CASE(util_IsHex)
@@ -399,12 +408,27 @@ BOOST_AUTO_TEST_CASE(test_FormatParagraph)
 {
     BOOST_CHECK_EQUAL(FormatParagraph("", 79, 0), "");
     BOOST_CHECK_EQUAL(FormatParagraph("test", 79, 0), "test");
-    BOOST_CHECK_EQUAL(FormatParagraph(" test", 79, 0), "test");
+    BOOST_CHECK_EQUAL(FormatParagraph(" test", 79, 0), " test");
     BOOST_CHECK_EQUAL(FormatParagraph("test test", 79, 0), "test test");
     BOOST_CHECK_EQUAL(FormatParagraph("test test", 4, 0), "test\ntest");
-    BOOST_CHECK_EQUAL(FormatParagraph("testerde test ", 4, 0), "testerde\ntest");
+    BOOST_CHECK_EQUAL(FormatParagraph("testerde test", 4, 0), "testerde\ntest");
     BOOST_CHECK_EQUAL(FormatParagraph("test test", 4, 4), "test\n    test");
-    BOOST_CHECK_EQUAL(FormatParagraph("This is a very long test string. This is a second sentence in the very long test string."), "This is a very long test string. This is a second sentence in the very long\ntest string.");
+
+    // Make sure we don't indent a fully-new line following a too-long line ending
+    BOOST_CHECK_EQUAL(FormatParagraph("test test\nabc", 4, 4), "test\n    test\nabc");
+
+    BOOST_CHECK_EQUAL(FormatParagraph("This_is_a_very_long_test_string_without_any_spaces_so_it_should_just_get_returned_as_is_despite_the_length until it gets here", 79), "This_is_a_very_long_test_string_without_any_spaces_so_it_should_just_get_returned_as_is_despite_the_length\nuntil it gets here");
+
+    // Test wrap length is exact
+    BOOST_CHECK_EQUAL(FormatParagraph("a b c d e f g h i j k l m n o p q r s t u v w x y z 1 2 3 4 5 6 7 8 9 a b c de f g h i j k l m n o p", 79), "a b c d e f g h i j k l m n o p q r s t u v w x y z 1 2 3 4 5 6 7 8 9 a b c de\nf g h i j k l m n o p");
+    BOOST_CHECK_EQUAL(FormatParagraph("x\na b c d e f g h i j k l m n o p q r s t u v w x y z 1 2 3 4 5 6 7 8 9 a b c de f g h i j k l m n o p", 79), "x\na b c d e f g h i j k l m n o p q r s t u v w x y z 1 2 3 4 5 6 7 8 9 a b c de\nf g h i j k l m n o p");
+    // Indent should be included in length of lines
+    BOOST_CHECK_EQUAL(FormatParagraph("x\na b c d e f g h i j k l m n o p q r s t u v w x y z 1 2 3 4 5 6 7 8 9 a b c de f g h i j k l m n o p q r s t u v w x y z 0 1 2 3 4 5 6 7 8 9 a b c d e fg h i j k", 79, 4), "x\na b c d e f g h i j k l m n o p q r s t u v w x y z 1 2 3 4 5 6 7 8 9 a b c de\n    f g h i j k l m n o p q r s t u v w x y z 0 1 2 3 4 5 6 7 8 9 a b c d e fg\n    h i j k");
+
+    BOOST_CHECK_EQUAL(FormatParagraph("This is a very long test string. This is a second sentence in the very long test string.", 79), "This is a very long test string. This is a second sentence in the very long\ntest string.");
+    BOOST_CHECK_EQUAL(FormatParagraph("This is a very long test string.\nThis is a second sentence in the very long test string. This is a third sentence in the very long test string.", 79), "This is a very long test string.\nThis is a second sentence in the very long test string. This is a third\nsentence in the very long test string.");
+    BOOST_CHECK_EQUAL(FormatParagraph("This is a very long test string.\n\nThis is a second sentence in the very long test string. This is a third sentence in the very long test string.", 79), "This is a very long test string.\n\nThis is a second sentence in the very long test string. This is a third\nsentence in the very long test string.");
+    BOOST_CHECK_EQUAL(FormatParagraph("Testing that normal newlines do not get indented.\nLike here.", 79), "Testing that normal newlines do not get indented.\nLike here.");
 }
 
 BOOST_AUTO_TEST_CASE(test_FormatSubVersion)
@@ -413,9 +437,75 @@ BOOST_AUTO_TEST_CASE(test_FormatSubVersion)
     comments.push_back(std::string("comment1"));
     std::vector<std::string> comments2;
     comments2.push_back(std::string("comment1"));
-    comments2.push_back(std::string("comment2"));
+    comments2.push_back(SanitizeString(std::string("Comment2; .,_?@-; !\"#$%&'()*+/<=>[]\\^`{|}~"), SAFE_CHARS_UA_COMMENT)); // Semicolon is discouraged but not forbidden by BIP-0014
     BOOST_CHECK_EQUAL(FormatSubVersion("Test", 99900, std::vector<std::string>()),std::string("/Test:0.9.99/"));
     BOOST_CHECK_EQUAL(FormatSubVersion("Test", 99900, comments),std::string("/Test:0.9.99(comment1)/"));
-    BOOST_CHECK_EQUAL(FormatSubVersion("Test", 99900, comments2),std::string("/Test:0.9.99(comment1; comment2)/"));
+    BOOST_CHECK_EQUAL(FormatSubVersion("Test", 99900, comments2),std::string("/Test:0.9.99(comment1; Comment2; .,_?@-; )/"));
 }
+
+BOOST_AUTO_TEST_CASE(test_ParseFixedPoint)
+{
+    int64_t amount = 0;
+    BOOST_CHECK(ParseFixedPoint("0", 8, &amount));
+    BOOST_CHECK_EQUAL(amount, 0LL);
+    BOOST_CHECK(ParseFixedPoint("1", 8, &amount));
+    BOOST_CHECK_EQUAL(amount, 100000000LL);
+    BOOST_CHECK(ParseFixedPoint("0.0", 8, &amount));
+    BOOST_CHECK_EQUAL(amount, 0LL);
+    BOOST_CHECK(ParseFixedPoint("-0.1", 8, &amount));
+    BOOST_CHECK_EQUAL(amount, -10000000LL);
+    BOOST_CHECK(ParseFixedPoint("1.1", 8, &amount));
+    BOOST_CHECK_EQUAL(amount, 110000000LL);
+    BOOST_CHECK(ParseFixedPoint("1.10000000000000000", 8, &amount));
+    BOOST_CHECK_EQUAL(amount, 110000000LL);
+    BOOST_CHECK(ParseFixedPoint("1.1e1", 8, &amount));
+    BOOST_CHECK_EQUAL(amount, 1100000000LL);
+    BOOST_CHECK(ParseFixedPoint("1.1e-1", 8, &amount));
+    BOOST_CHECK_EQUAL(amount, 11000000LL);
+    BOOST_CHECK(ParseFixedPoint("1000", 8, &amount));
+    BOOST_CHECK_EQUAL(amount, 100000000000LL);
+    BOOST_CHECK(ParseFixedPoint("-1000", 8, &amount));
+    BOOST_CHECK_EQUAL(amount, -100000000000LL);
+    BOOST_CHECK(ParseFixedPoint("0.00000001", 8, &amount));
+    BOOST_CHECK_EQUAL(amount, 1LL);
+    BOOST_CHECK(ParseFixedPoint("0.0000000100000000", 8, &amount));
+    BOOST_CHECK_EQUAL(amount, 1LL);
+    BOOST_CHECK(ParseFixedPoint("-0.00000001", 8, &amount));
+    BOOST_CHECK_EQUAL(amount, -1LL);
+    BOOST_CHECK(ParseFixedPoint("1000000000.00000001", 8, &amount));
+    BOOST_CHECK_EQUAL(amount, 100000000000000001LL);
+    BOOST_CHECK(ParseFixedPoint("9999999999.99999999", 8, &amount));
+    BOOST_CHECK_EQUAL(amount, 999999999999999999LL);
+    BOOST_CHECK(ParseFixedPoint("-9999999999.99999999", 8, &amount));
+    BOOST_CHECK_EQUAL(amount, -999999999999999999LL);
+
+    BOOST_CHECK(!ParseFixedPoint("", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("-", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("a-1000", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("-a1000", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("-1000a", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("-01000", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("00.1", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint(".1", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("--0.1", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("0.000000001", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("-0.000000001", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("0.00000001000000001", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("-10000000000.00000000", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("10000000000.00000000", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("-10000000000.00000001", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("10000000000.00000001", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("-10000000000.00000009", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("10000000000.00000009", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("-99999999999.99999999", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("99999909999.09999999", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("92233720368.54775807", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("92233720368.54775808", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("-92233720368.54775808", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("-92233720368.54775809", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("1.1e", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("1.1e-", 8, &amount));
+    BOOST_CHECK(!ParseFixedPoint("1.", 8, &amount));
+}
+
 BOOST_AUTO_TEST_SUITE_END()

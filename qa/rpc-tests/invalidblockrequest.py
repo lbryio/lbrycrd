@@ -1,15 +1,13 @@
 #!/usr/bin/env python2
-#
+# Copyright (c) 2015 The Bitcoin Core developers
 # Distributed under the MIT/X11 software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #
 
 from test_framework.test_framework import ComparisonTestFramework
 from test_framework.util import *
-from test_framework.comptool import TestManager, TestInstance
-from test_framework.mininode import *
+from test_framework.comptool import TestManager, TestInstance, RejectResult
 from test_framework.blocktools import *
-import logging
 import copy
 import time
 
@@ -46,12 +44,14 @@ class InvalidBlockRequestTest(ComparisonTestFramework):
         '''
         Create a new block with an anyone-can-spend coinbase
         '''
-        block = create_block(self.tip, create_coinbase(), self.block_time)
+        height = 1
+        block = create_block(self.tip, create_coinbase(height), self.block_time)
         self.block_time += 1
         block.solve()
         # Save the coinbase for later
         self.block1 = block
         self.tip = block.sha256
+        height += 1
         yield TestInstance([[block, True]])
 
         '''
@@ -59,11 +59,12 @@ class InvalidBlockRequestTest(ComparisonTestFramework):
         '''
         test = TestInstance(sync_every_block=False)
         for i in xrange(100):
-            block = create_block(self.tip, create_coinbase(), self.block_time)
+            block = create_block(self.tip, create_coinbase(height), self.block_time)
             block.solve()
             self.tip = block.sha256
             self.block_time += 1
             test.blocks_and_transactions.append([block, True])
+            height += 1
         yield test
 
         '''
@@ -73,12 +74,12 @@ class InvalidBlockRequestTest(ComparisonTestFramework):
         coinbase, spend of that spend).  Duplicate the 3rd transaction to 
         leave merkle root and blockheader unchanged but invalidate the block.
         '''
-        block2 = create_block(self.tip, create_coinbase(), self.block_time)
+        block2 = create_block(self.tip, create_coinbase(height), self.block_time)
         self.block_time += 1
 
-        # chr(81) is OP_TRUE
-        tx1 = create_transaction(self.block1.vtx[0], 0, chr(81), 50*100000000)
-        tx2 = create_transaction(tx1, 0, chr(81), 50*100000000)
+        # b'0x51' is OP_TRUE
+        tx1 = create_transaction(self.block1.vtx[0], 0, b'\x51', 50 * COIN)
+        tx2 = create_transaction(tx1, 0, b'\x51', 50 * COIN)
 
         block2.vtx.extend([tx1, tx2])
         block2.hashMerkleRoot = block2.calc_merkle_root()
@@ -94,21 +95,22 @@ class InvalidBlockRequestTest(ComparisonTestFramework):
         assert(block2_orig.vtx != block2.vtx)
 
         self.tip = block2.sha256
-        yield TestInstance([[block2, False], [block2_orig, True]])
+        yield TestInstance([[block2, RejectResult(16, b'bad-txns-duplicate')], [block2_orig, True]])
+        height += 1
 
         '''
         Make sure that a totally screwed up block is not valid.
         '''
-        block3 = create_block(self.tip, create_coinbase(), self.block_time)
+        block3 = create_block(self.tip, create_coinbase(height), self.block_time)
         self.block_time += 1
-        block3.vtx[0].vout[0].nValue = 100*100000000 # Too high!
+        block3.vtx[0].vout[0].nValue = 100 * COIN # Too high!
         block3.vtx[0].sha256=None
         block3.vtx[0].calc_sha256()
         block3.hashMerkleRoot = block3.calc_merkle_root()
         block3.rehash()
         block3.solve()
 
-        yield TestInstance([[block3, False]])
+        yield TestInstance([[block3, RejectResult(16, b'bad-cb-amount')]])
 
 
 if __name__ == '__main__':

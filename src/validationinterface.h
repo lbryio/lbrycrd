@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2014 The Bitcoin Core developers
+// Copyright (c) 2009-2015 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -7,9 +7,13 @@
 #define BITCOIN_VALIDATIONINTERFACE_H
 
 #include <boost/signals2/signal.hpp>
+#include <boost/shared_ptr.hpp>
 
 class CBlock;
+class CBlockIndex;
 struct CBlockLocator;
+class CBlockIndex;
+class CReserveScript;
 class CTransaction;
 class CValidationInterface;
 class CValidationState;
@@ -24,24 +28,29 @@ void UnregisterValidationInterface(CValidationInterface* pwalletIn);
 /** Unregister all wallets from core */
 void UnregisterAllValidationInterfaces();
 /** Push an updated transaction to all registered wallets */
-void SyncWithWallets(const CTransaction& tx, const CBlock* pblock = NULL);
+void SyncWithWallets(const CTransaction& tx, const CBlockIndex *pindex, const CBlock* pblock = NULL);
 
 class CValidationInterface {
 protected:
-    virtual void SyncTransaction(const CTransaction &tx, const CBlock *pblock) {}
+    virtual void UpdatedBlockTip(const CBlockIndex *pindex) {}
+    virtual void SyncTransaction(const CTransaction &tx, const CBlockIndex *pindex, const CBlock *pblock) {}
     virtual void SetBestChain(const CBlockLocator &locator) {}
     virtual void UpdatedTransaction(const uint256 &hash) {}
     virtual void Inventory(const uint256 &hash) {}
     virtual void ResendWalletTransactions(int64_t nBestBlockTime) {}
     virtual void BlockChecked(const CBlock&, const CValidationState&) {}
+    virtual void GetScriptForMining(boost::shared_ptr<CReserveScript>&) {};
+    virtual void ResetRequestCount(const uint256 &hash) {};
     friend void ::RegisterValidationInterface(CValidationInterface*);
     friend void ::UnregisterValidationInterface(CValidationInterface*);
     friend void ::UnregisterAllValidationInterfaces();
 };
 
 struct CMainSignals {
+    /** Notifies listeners of updated block chain tip */
+    boost::signals2::signal<void (const CBlockIndex *)> UpdatedBlockTip;
     /** Notifies listeners of updated transaction data (transaction, and optionally the block it is found in. */
-    boost::signals2::signal<void (const CTransaction &, const CBlock *)> SyncTransaction;
+    boost::signals2::signal<void (const CTransaction &, const CBlockIndex *pindex, const CBlock *)> SyncTransaction;
     /** Notifies listeners of an updated transaction without new data (for now: a coinbase potentially becoming visible). */
     boost::signals2::signal<void (const uint256 &)> UpdatedTransaction;
     /** Notifies listeners of a new active block chain. */
@@ -52,6 +61,10 @@ struct CMainSignals {
     boost::signals2::signal<void (int64_t nBestBlockTime)> Broadcast;
     /** Notifies listeners of a block validation result */
     boost::signals2::signal<void (const CBlock&, const CValidationState&)> BlockChecked;
+    /** Notifies listeners that a key for mining is required (coinbase) */
+    boost::signals2::signal<void (boost::shared_ptr<CReserveScript>&)> ScriptForMining;
+    /** Notifies listeners that a block has been successfully mined */
+    boost::signals2::signal<void (const uint256 &)> BlockFound;
 };
 
 CMainSignals& GetMainSignals();

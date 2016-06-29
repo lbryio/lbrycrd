@@ -57,6 +57,9 @@
     <name>AskPassphraseDialog</name>
     </context>
 <context>
+    <name>BanTableModel</name>
+    </context>
+<context>
     <name>BitcoinGUI</name>
     <message>
         <source>&amp;Options...</source>
@@ -118,6 +121,10 @@
     </context>
 <context>
     <name>ReceiveRequestDialog</name>
+    <message>
+        <source>Copy &amp;Address</source>
+        <translation>&amp;Salin Alamat</translation>
+    </message>
     <message>
         <source>Address</source>
         <translation>Alamat</translation>

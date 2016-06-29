@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2014 The Bitcoin Core developers
+// Copyright (c) 2009-2015 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -7,7 +7,7 @@
 
 #include "base58.h"
 #include "consensus/validation.h"
-#include "main.h"
+#include "main.h" // For CheckTransaction
 #include "protocol.h"
 #include "serialize.h"
 #include "sync.h"
@@ -15,6 +15,7 @@
 #include "utiltime.h"
 #include "wallet/wallet.h"
 
+#include <boost/version.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
 #include <boost/scoped_ptr.hpp>
@@ -113,30 +114,32 @@ bool CWalletDB::WriteMasterKey(unsigned int nID, const CMasterKey& kMasterKey)
 bool CWalletDB::WriteCScript(const uint160& hash, const CScript& redeemScript)
 {
     nWalletDBUpdated++;
-    return Write(std::make_pair(std::string("cscript"), hash), redeemScript, false);
+    return Write(std::make_pair(std::string("cscript"), hash), *(const CScriptBase*)(&redeemScript), false);
 }
 
 bool CWalletDB::WriteWatchOnly(const CScript &dest)
 {
     nWalletDBUpdated++;
-    return Write(std::make_pair(std::string("watchs"), dest), '1');
+    return Write(std::make_pair(std::string("watchs"), *(const CScriptBase*)(&dest)), '1');
 }
 
 bool CWalletDB::EraseWatchOnly(const CScript &dest)
 {
     nWalletDBUpdated++;
-    return Erase(std::make_pair(std::string("watchs"), dest));
+    return Erase(std::make_pair(std::string("watchs"), *(const CScriptBase*)(&dest)));
 }
 
 bool CWalletDB::WriteBestBlock(const CBlockLocator& locator)
 {
     nWalletDBUpdated++;
-    return Write(std::string("bestblock"), locator);
+    Write(std::string("bestblock"), CBlockLocator()); // Write empty block locator so versions that require a merkle branch automatically rescan
+    return Write(std::string("bestblock_nomerkle"), locator);
 }
 
 bool CWalletDB::ReadBestBlock(CBlockLocator& locator)
 {
-    return Read(std::string("bestblock"), locator);
+    if (Read(std::string("bestblock"), locator) && !locator.vHave.empty()) return true;
+    return Read(std::string("bestblock_nomerkle"), locator);
 }
 
 bool CWalletDB::WriteOrderPosNext(int64_t nOrderPosNext)
@@ -189,7 +192,7 @@ bool CWalletDB::WriteAccountingEntry(const uint64_t nAccEntryNum, const CAccount
     return Write(std::make_pair(std::string("acentry"), std::make_pair(acentry.strAccount, nAccEntryNum)), acentry);
 }
 
-bool CWalletDB::WriteAccountingEntry(const CAccountingEntry& acentry)
+bool CWalletDB::WriteAccountingEntry_Backend(const CAccountingEntry& acentry)
 {
     return WriteAccountingEntry(++nAccountingEntryNumber, acentry);
 }
@@ -419,7 +422,7 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
         else if (strType == "watchs")
         {
             CScript script;
-            ssKey >> script;
+            ssKey >> *(CScriptBase*)(&script);
             char fYes;
             ssValue >> fYes;
             if (fYes == '1')
@@ -510,8 +513,13 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
         }
         else if (strType == "ckey")
         {
-            vector<unsigned char> vchPubKey;
+            CPubKey vchPubKey;
             ssKey >> vchPubKey;
+            if (!vchPubKey.IsValid())
+            {
+                strErr = "Error reading wallet database: CPubKey corrupt";
+                return false;
+            }
             vector<unsigned char> vchPrivKey;
             ssValue >> vchPrivKey;
             wss.nCKeys++;
@@ -568,7 +576,7 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
             uint160 hash;
             ssKey >> hash;
             CScript script;
-            ssValue >> script;
+            ssValue >> *(CScriptBase*)(&script);
             if (!pwallet->LoadCScript(script))
             {
                 strErr = "Error reading wallet database: LoadCScript failed";
@@ -702,6 +710,12 @@ DBErrors CWalletDB::LoadWallet(CWallet* pwallet)
     if (wss.fAnyUnordered)
         result = ReorderTransactions(pwallet);
 
+    pwallet->laccentries.clear();
+    ListAccountCreditDebit("*", pwallet->laccentries);
+    BOOST_FOREACH(CAccountingEntry& entry, pwallet->laccentries) {
+        pwallet->wtxOrdered.insert(make_pair(entry.nOrderPos, CWallet::TxPair((CWalletTx*)0, &entry)));
+    }
+
     return result;
 }
 
@@ -771,6 +785,45 @@ DBErrors CWalletDB::FindWalletTx(CWallet* pwallet, vector<uint256>& vTxHash, vec
     return result;
 }
 
+DBErrors CWalletDB::ZapSelectTx(CWallet* pwallet, vector<uint256>& vTxHashIn, vector<uint256>& vTxHashOut)
+{
+    // build list of wallet TXs and hashes
+    vector<uint256> vTxHash;
+    vector<CWalletTx> vWtx;
+    DBErrors err = FindWalletTx(pwallet, vTxHash, vWtx);
+    if (err != DB_LOAD_OK) {
+        return err;
+    }
+
+    std::sort(vTxHash.begin(), vTxHash.end());
+    std::sort(vTxHashIn.begin(), vTxHashIn.end());
+
+    // erase each matching wallet TX
+    bool delerror = false;
+    vector<uint256>::iterator it = vTxHashIn.begin();
+    BOOST_FOREACH (uint256 hash, vTxHash) {
+        while (it < vTxHashIn.end() && (*it) < hash) {
+            it++;
+        }
+        if (it == vTxHashIn.end()) {
+            break;
+        }
+        else if ((*it) == hash) {
+            pwallet->mapWallet.erase(hash);
+            if(!EraseTx(hash)) {
+                LogPrint("db", "Transaction was found for deletion but returned database error: %s\n", hash.GetHex());
+                delerror = true;
+            }
+            vTxHashOut.push_back(hash);
+        }
+    }
+
+    if (delerror) {
+        return DB_CORRUPT;
+    }
+    return DB_LOAD_OK;
+}
+
 DBErrors CWalletDB::ZapWalletTx(CWallet* pwallet, vector<CWalletTx>& vWtx)
 {
     // build list of wallet TXs
@@ -797,7 +850,7 @@ void ThreadFlushWalletDB(const string& strFile)
     if (fOneThread)
         return;
     fOneThread = true;
-    if (!GetBoolArg("-flushwallet", true))
+    if (!GetBoolArg("-flushwallet", DEFAULT_FLUSHWALLET))
         return;
 
     unsigned int nLastSeen = nWalletDBUpdated;
@@ -833,16 +886,16 @@ void ThreadFlushWalletDB(const string& strFile)
                     map<string, int>::iterator mi = bitdb.mapFileUseCount.find(strFile);
                     if (mi != bitdb.mapFileUseCount.end())
                     {
-                        LogPrint("db", "Flushing wallet.dat\n");
+                        LogPrint("db", "Flushing %s\n", strFile);
                         nLastFlushed = nWalletDBUpdated;
                         int64_t nStart = GetTimeMillis();
 
-                        // Flush wallet.dat so it's self contained
+                        // Flush wallet file so it's self contained
                         bitdb.CloseDb(strFile);
                         bitdb.CheckpointLSN(strFile);
 
                         bitdb.mapFileUseCount.erase(mi++);
-                        LogPrint("db", "Flushed wallet.dat %dms\n", GetTimeMillis() - nStart);
+                        LogPrint("db", "Flushed %s %dms\n", strFile, GetTimeMillis() - nStart);
                     }
                 }
             }
@@ -865,7 +918,7 @@ bool BackupWallet(const CWallet& wallet, const string& strDest)
                 bitdb.CheckpointLSN(wallet.strWalletFile);
                 bitdb.mapFileUseCount.erase(wallet.strWalletFile);
 
-                // Copy wallet.dat
+                // Copy wallet file
                 boost::filesystem::path pathSrc = GetDataDir() / wallet.strWalletFile;
                 boost::filesystem::path pathDest(strDest);
                 if (boost::filesystem::is_directory(pathDest))
@@ -877,10 +930,10 @@ bool BackupWallet(const CWallet& wallet, const string& strDest)
 #else
                     boost::filesystem::copy_file(pathSrc, pathDest);
 #endif
-                    LogPrintf("copied wallet.dat to %s\n", pathDest.string());
+                    LogPrintf("copied %s to %s\n", wallet.strWalletFile, pathDest.string());
                     return true;
                 } catch (const boost::filesystem::filesystem_error& e) {
-                    LogPrintf("error copying wallet.dat to %s - %s\n", pathDest.string(), e.what());
+                    LogPrintf("error copying %s to %s - %s\n", wallet.strWalletFile, pathDest.string(), e.what());
                     return false;
                 }
             }
@@ -891,15 +944,15 @@ bool BackupWallet(const CWallet& wallet, const string& strDest)
 }
 
 //
-// Try to (very carefully!) recover wallet.dat if there is a problem.
+// Try to (very carefully!) recover wallet file if there is a problem.
 //
 bool CWalletDB::Recover(CDBEnv& dbenv, const std::string& filename, bool fOnlyKeys)
 {
     // Recovery procedure:
-    // move wallet.dat to wallet.timestamp.bak
+    // move wallet file to wallet.timestamp.bak
     // Call Salvage with fAggressive=true to
     // get as much data as possible.
-    // Rewrite salvaged data to wallet.dat
+    // Rewrite salvaged data to fresh wallet file
     // Set -rescan so any missing transactions will be
     // found.
     int64_t now = GetTime();
@@ -947,8 +1000,13 @@ bool CWalletDB::Recover(CDBEnv& dbenv, const std::string& filename, bool fOnlyKe
             CDataStream ssKey(row.first, SER_DISK, CLIENT_VERSION);
             CDataStream ssValue(row.second, SER_DISK, CLIENT_VERSION);
             string strType, strErr;
-            bool fReadOK = ReadKeyValue(&dummyWallet, ssKey, ssValue,
+            bool fReadOK;
+            {
+                // Required in LoadKeyMetadata():
+                LOCK(dummyWallet.cs_wallet);
+                fReadOK = ReadKeyValue(&dummyWallet, ssKey, ssValue,
                                         wss, strType, strErr);
+            }
             if (!IsKeyType(strType))
                 continue;
             if (!fReadOK)

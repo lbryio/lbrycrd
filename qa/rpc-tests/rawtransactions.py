@@ -1,5 +1,5 @@
 #!/usr/bin/env python2
-# Copyright (c) 2014 The Bitcoin Core developers
+# Copyright (c) 2014-2015 The Bitcoin Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -10,8 +10,6 @@
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import *
-from pprint import pprint
-from time import sleep
 
 # Create one-input, one-output, no-fee transaction:
 class RawTransactionsTest(BitcoinTestFramework):
@@ -40,11 +38,12 @@ class RawTransactionsTest(BitcoinTestFramework):
 
         #prepare some coins for multiple *rawtransaction commands
         self.nodes[2].generate(1)
+        self.sync_all()
         self.nodes[0].generate(101)
         self.sync_all()
-        self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(),1.5);
-        self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(),1.0);
-        self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(),5.0);
+        self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(),1.5)
+        self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(),1.0)
+        self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(),5.0)
         self.sync_all()
         self.nodes[0].generate(5)
         self.sync_all()
@@ -57,13 +56,13 @@ class RawTransactionsTest(BitcoinTestFramework):
         rawtx   = self.nodes[2].createrawtransaction(inputs, outputs)
         rawtx   = self.nodes[2].signrawtransaction(rawtx)
 
-        errorString = ""
         try:
             rawtx   = self.nodes[2].sendrawtransaction(rawtx['hex'])
-        except JSONRPCException,e:
-            errorString = e.error['message']
+        except JSONRPCException as e:
+            assert("Missing inputs" in e.error['message'])
+        else:
+            assert(False)
 
-        assert_equal("Missing inputs" in errorString, True);
 
         #########################
         # RAW TX MULTISIG TESTS #
@@ -82,13 +81,11 @@ class RawTransactionsTest(BitcoinTestFramework):
         bal = self.nodes[2].getbalance()
 
         # send 1.2 BTC to msig adr
-        txId       = self.nodes[0].sendtoaddress(mSigObj, 1.2);
+        txId = self.nodes[0].sendtoaddress(mSigObj, 1.2)
         self.sync_all()
         self.nodes[0].generate(1)
         self.sync_all()
         assert_equal(self.nodes[2].getbalance(), bal+Decimal('1.20000000')) #node2 has both keys of the 2of2 ms addr., tx should affect the balance
-
-
 
 
         # 2of3 test from different nodes
@@ -104,7 +101,7 @@ class RawTransactionsTest(BitcoinTestFramework):
         mSigObj = self.nodes[2].addmultisigaddress(2, [addr1Obj['pubkey'], addr2Obj['pubkey'], addr3Obj['pubkey']])
         mSigObjValid = self.nodes[2].validateaddress(mSigObj)
 
-        txId       = self.nodes[0].sendtoaddress(mSigObj, 2.2);
+        txId = self.nodes[0].sendtoaddress(mSigObj, 2.2)
         decTx = self.nodes[0].gettransaction(txId)
         rawTx = self.nodes[0].decoderawtransaction(decTx['hex'])
         sPK = rawTx['vout'][0]['scriptPubKey']['hex']
@@ -122,7 +119,7 @@ class RawTransactionsTest(BitcoinTestFramework):
         for outpoint in rawTx['vout']:
             if outpoint['value'] == Decimal('2.20000000'):
                 vout = outpoint
-                break;
+                break
 
         bal = self.nodes[0].getbalance()
         inputs = [{ "txid" : txId, "vout" : vout['n'], "scriptPubKey" : vout['scriptPubKey']['hex']}]

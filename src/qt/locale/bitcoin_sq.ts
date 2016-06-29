@@ -46,14 +46,38 @@
         <translation>Duke marr adresen</translation>
     </message>
     <message>
+        <source>These are your Bitcoin addresses for sending payments. Always check the amount and the receiving address before sending coins.</source>
+        <translation>Këto janë Bitcoin adresat e juaja për të dërguar pagesa. Gjithmon kontrolloni shumën dhe adresën pranuese para se të dërgoni monedha.</translation>
+    </message>
+    <message>
+        <source>These are your Bitcoin addresses for receiving payments. It is recommended to use a new receiving address for each transaction.</source>
+        <translation>Këto janë Bitcoin adresat e juaja për të pranuar pagesa. Rekomandohet që gjithmon të përdorni një adresë të re për çdo transaksion.</translation>
+    </message>
+    <message>
+        <source>Copy &amp;Label</source>
+        <translation>Kopjo &amp;Etiketë</translation>
+    </message>
+    <message>
         <source>&amp;Edit</source>
         <translation>&amp;Ndrysho</translation>
+    </message>
+    <message>
+        <source>Export Address List</source>
+        <translation>Eksporto listën e adresave</translation>
     </message>
     <message>
         <source>Comma separated file (*.csv)</source>
         <translation>Skedar i ndarë me pikëpresje(*.csv)</translation>
     </message>
-    </context>
+    <message>
+        <source>Exporting Failed</source>
+        <translation>Eksportimi dështoj</translation>
+    </message>
+    <message>
+        <source>There was an error trying to save the address list to %1. Please try again.</source>
+        <translation>Gabim gjatë ruajtjes së listës së adresave në %1. Ju lutem provoni prapë.</translation>
+    </message>
+</context>
 <context>
     <name>AddressTableModel</name>
     <message>
@@ -145,6 +169,9 @@
     </message>
     </context>
 <context>
+    <name>BanTableModel</name>
+    </context>
+<context>
     <name>BitcoinGUI</name>
     <message>
         <source>Synchronizing with network...</source>
@@ -173,6 +200,10 @@
     <message>
         <source>&amp;Options...</source>
         <translation>&amp;Opsione</translation>
+    </message>
+    <message>
+        <source>&amp;Receiving addresses...</source>
+        <translation>Duke marr adresen</translation>
     </message>
     <message>
         <source>Change the passphrase used for wallet encryption</source>
@@ -394,6 +425,10 @@
         <source>Options</source>
         <translation>Opsionet</translation>
     </message>
+    <message>
+        <source>W&amp;allet</source>
+        <translation>Portofol</translation>
+    </message>
     </context>
 <context>
     <name>OverviewPage</name>
@@ -421,6 +456,10 @@
 <context>
     <name>RPCConsole</name>
     <message>
+        <source>&amp;Information</source>
+        <translation>Informacion</translation>
+    </message>
+    <message>
         <source>&amp;Open</source>
         <translation>&amp;Hap</translation>
     </message>
@@ -436,16 +475,28 @@
         <source>Unknown</source>
         <translation>i/e panjohur</translation>
     </message>
-    </context>
+</context>
 <context>
     <name>ReceiveCoinsDialog</name>
+    <message>
+        <source>&amp;Amount:</source>
+        <translation>Shuma:</translation>
+    </message>
     <message>
         <source>&amp;Label:</source>
         <translation>&amp;Etiketë:</translation>
     </message>
+    <message>
+        <source>Clear</source>
+        <translation>Pastro</translation>
+    </message>
     </context>
 <context>
     <name>ReceiveRequestDialog</name>
+    <message>
+        <source>Copy &amp;Address</source>
+        <translation>&amp;Kopjo adresen</translation>
+    </message>
     <message>
         <source>Address</source>
         <translation>Adresë</translation>
@@ -483,6 +534,10 @@
     <message>
         <source>Send Coins</source>
         <translation>Dërgo Monedha</translation>
+    </message>
+    <message>
+        <source>Insufficient funds!</source>
+        <translation>Fonde te pamjaftueshme</translation>
     </message>
     <message>
         <source>Amount:</source>
@@ -543,6 +598,10 @@
         <source>Alt+P</source>
         <translation>Alt+P</translation>
     </message>
+    <message>
+        <source>Pay To:</source>
+        <translation>Paguaj drejt:</translation>
+    </message>
     </context>
 <context>
     <name>ShutdownWindow</name>
@@ -593,6 +652,10 @@
     <message>
         <source>Date</source>
         <translation>Data</translation>
+    </message>
+    <message>
+        <source>Transaction</source>
+        <translation>transaksionit</translation>
     </message>
     <message>
         <source>Amount</source>
@@ -688,6 +751,10 @@
         <translation>Kopjo adresën</translation>
     </message>
     <message>
+        <source>Exporting Failed</source>
+        <translation>Eksportimi dështoj</translation>
+    </message>
+    <message>
         <source>Comma separated file (*.csv)</source>
         <translation>Skedar i ndarë me pikëpresje(*.csv)</translation>
     </message>
@@ -726,6 +793,10 @@
     </context>
 <context>
     <name>bitcoin-core</name>
+    <message>
+        <source>Options:</source>
+        <translation>Opsionet:</translation>
+    </message>
     <message>
         <source>Information</source>
         <translation>Informacion</translation>

@@ -1,9 +1,9 @@
-// Copyright (c) 2013-2014 The Bitcoin Core developers
+// Copyright (c) 2013-2015 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "rpcserver.h"
-#include "rpcclient.h"
+#include "rpc/server.h"
+#include "rpc/client.h"
 
 #include "base58.h"
 #include "main.h"
@@ -14,7 +14,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/test/unit_test.hpp>
 
-#include "univalue/univalue.h"
+#include <univalue.h>
 
 using namespace std;
 
@@ -27,8 +27,6 @@ BOOST_FIXTURE_TEST_SUITE(rpc_wallet_tests, TestingSetup)
 
 BOOST_AUTO_TEST_CASE(rpc_addmultisig)
 {
-    LOCK(pwalletMain->cs_wallet);
-
     rpcfn_type addmultisig = tableRPC["addmultisigaddress"]->actor;
 
     // old, 65-byte-long:
@@ -68,25 +66,28 @@ BOOST_AUTO_TEST_CASE(rpc_wallet)
 {
     // Test RPC calls for various wallet statistics
     UniValue r;
-
-    LOCK2(cs_main, pwalletMain->cs_wallet);
-
-    CPubKey demoPubkey = pwalletMain->GenerateNewKey();
-    CBitcoinAddress demoAddress = CBitcoinAddress(CTxDestination(demoPubkey.GetID()));
+    CPubKey demoPubkey;
+    CBitcoinAddress demoAddress;
     UniValue retValue;
     string strAccount = "walletDemoAccount";
-    string strPurpose = "receive";
-    BOOST_CHECK_NO_THROW({ /*Initialize Wallet with an account */
-        CWalletDB walletdb(pwalletMain->strWalletFile);
-        CAccount account;
-        account.vchPubKey = demoPubkey;
-        pwalletMain->SetAddressBook(account.vchPubKey.GetID(), strAccount, strPurpose);
-        walletdb.WriteAccount(strAccount, account);
-    });
+    CBitcoinAddress setaccountDemoAddress;
+    {
+        LOCK(pwalletMain->cs_wallet);
 
-    CPubKey setaccountDemoPubkey = pwalletMain->GenerateNewKey();
-    CBitcoinAddress setaccountDemoAddress = CBitcoinAddress(CTxDestination(setaccountDemoPubkey.GetID()));
+        demoPubkey = pwalletMain->GenerateNewKey();
+        demoAddress = CBitcoinAddress(CTxDestination(demoPubkey.GetID()));
+        string strPurpose = "receive";
+        BOOST_CHECK_NO_THROW({ /*Initialize Wallet with an account */
+            CWalletDB walletdb(pwalletMain->strWalletFile);
+            CAccount account;
+            account.vchPubKey = demoPubkey;
+            pwalletMain->SetAddressBook(account.vchPubKey.GetID(), strAccount, strPurpose);
+            walletdb.WriteAccount(strAccount, account);
+        });
 
+        CPubKey setaccountDemoPubkey = pwalletMain->GenerateNewKey();
+        setaccountDemoAddress = CBitcoinAddress(CTxDestination(setaccountDemoPubkey.GetID()));
+    }
     /*********************************
      * 			setaccount
      *********************************/
@@ -203,7 +204,7 @@ BOOST_AUTO_TEST_CASE(rpc_wallet)
     /* Illegal address */
     BOOST_CHECK_THROW(CallRPC("verifymessage 1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4X " + retValue.get_str() + " mymessage"), runtime_error);
     /* wrong address */
-    BOOST_CHECK(CallRPC("verifymessage 1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ " + retValue.get_str() + " mymessage").get_bool() == false);
+    BOOST_CHECK(CallRPC("verifymessage bQjqYni8PdsGdQpyPtrVdNY31W49TL31kR " + retValue.get_str() + " mymessage").get_bool() == false);
     /* Correct address and signature but wrong message */
     BOOST_CHECK(CallRPC("verifymessage " + demoAddress.ToString() + " " + retValue.get_str() + " wrongmessage").get_bool() == false);
     /* Correct address, message and signature*/
@@ -217,6 +218,12 @@ BOOST_AUTO_TEST_CASE(rpc_wallet)
     UniValue arr = retValue.get_array();
     BOOST_CHECK(arr.size() > 0);
     BOOST_CHECK(CBitcoinAddress(arr[0].get_str()).Get() == demoAddress.Get());
+
+    /*********************************
+     * 	     fundrawtransaction
+     *********************************/
+    BOOST_CHECK_THROW(CallRPC("fundrawtransaction 28z"), runtime_error);
+    BOOST_CHECK_THROW(CallRPC("fundrawtransaction 01000000000180969800000000001976a91450ce0a4b0ee0ddeb633da85199728b940ac3fe9488ac00000000"), runtime_error);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -1,9 +1,10 @@
-// Copyright (c) 2009-2014 The Bitcoin Core developers
+// Copyright (c) 2009-2015 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "base58.h"
-#include "rpcserver.h"
+#include "chain.h"
+#include "rpc/server.h"
 #include "init.h"
 #include "main.h"
 #include "script/script.h"
@@ -12,6 +13,8 @@
 #include "util.h"
 #include "utiltime.h"
 #include "wallet.h"
+#include "merkleblock.h"
+#include "core_io.h"
 
 #include <fstream>
 #include <stdint.h>
@@ -19,7 +22,9 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 
-#include "univalue/univalue.h"
+#include <univalue.h>
+
+#include <boost/foreach.hpp>
 
 using namespace std;
 
@@ -94,8 +99,6 @@ UniValue importprivkey(const UniValue& params, bool fHelp)
             + HelpExampleRpc("importprivkey", "\"mykey\", \"testing\", false")
         );
 
-    if (fPruneMode)
-        throw JSONRPCError(RPC_WALLET_ERROR, "Importing keys is disabled in pruned mode");
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
@@ -110,6 +113,9 @@ UniValue importprivkey(const UniValue& params, bool fHelp)
     bool fRescan = true;
     if (params.size() > 2)
         fRescan = params[2].get_bool();
+
+    if (fRescan && fPruneMode)
+        throw JSONRPCError(RPC_WALLET_ERROR, "Rescan is disabled in pruned mode");
 
     CBitcoinSecret vchSecret;
     bool fGood = vchSecret.SetString(strSecret);
@@ -146,45 +152,58 @@ UniValue importprivkey(const UniValue& params, bool fHelp)
     return NullUniValue;
 }
 
+void ImportAddress(const CBitcoinAddress& address, const string& strLabel);
+void ImportScript(const CScript& script, const string& strLabel, bool isRedeemScript)
+{
+    if (!isRedeemScript && ::IsMine(*pwalletMain, script) == ISMINE_SPENDABLE)
+        throw JSONRPCError(RPC_WALLET_ERROR, "The wallet already contains the private key for this address or script");
+
+    pwalletMain->MarkDirty();
+
+    if (!pwalletMain->HaveWatchOnly(script) && !pwalletMain->AddWatchOnly(script))
+        throw JSONRPCError(RPC_WALLET_ERROR, "Error adding address to wallet");
+
+    if (isRedeemScript) {
+        if (!pwalletMain->HaveCScript(script) && !pwalletMain->AddCScript(script))
+            throw JSONRPCError(RPC_WALLET_ERROR, "Error adding p2sh redeemScript to wallet");
+        ImportAddress(CBitcoinAddress(CScriptID(script)), strLabel);
+    }
+}
+
+void ImportAddress(const CBitcoinAddress& address, const string& strLabel)
+{
+    CScript script = GetScriptForDestination(address.Get());
+    ImportScript(script, strLabel, false);
+    // add to address book or update label
+    if (address.IsValid())
+        pwalletMain->SetAddressBook(address.Get(), strLabel, "receive");
+}
+
 UniValue importaddress(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
     
-    if (fHelp || params.size() < 1 || params.size() > 3)
+    if (fHelp || params.size() < 1 || params.size() > 4)
         throw runtime_error(
-            "importaddress \"address\" ( \"label\" rescan )\n"
-            "\nAdds an address or script (in hex) that can be watched as if it were in your wallet but cannot be used to spend.\n"
+            "importaddress \"address\" ( \"label\" rescan p2sh )\n"
+            "\nAdds a script (in hex) or address that can be watched as if it were in your wallet but cannot be used to spend.\n"
             "\nArguments:\n"
-            "1. \"address\"          (string, required) The address\n"
+            "1. \"script\"           (string, required) The hex-encoded script (or address)\n"
             "2. \"label\"            (string, optional, default=\"\") An optional label\n"
             "3. rescan               (boolean, optional, default=true) Rescan the wallet for transactions\n"
+            "4. p2sh                 (boolean, optional, default=false) Add the P2SH version of the script as well\n"
             "\nNote: This call can take minutes to complete if rescan is true.\n"
+            "If you have the full public key, you should call importpubkey instead of this.\n"
             "\nExamples:\n"
-            "\nImport an address with rescan\n"
-            + HelpExampleCli("importaddress", "\"myaddress\"") +
+            "\nImport a script with rescan\n"
+            + HelpExampleCli("importaddress", "\"myscript\"") +
             "\nImport using a label without rescan\n"
-            + HelpExampleCli("importaddress", "\"myaddress\" \"testing\" false") +
+            + HelpExampleCli("importaddress", "\"myscript\" \"testing\" false") +
             "\nAs a JSON-RPC call\n"
-            + HelpExampleRpc("importaddress", "\"myaddress\", \"testing\", false")
+            + HelpExampleRpc("importaddress", "\"myscript\", \"testing\", false")
         );
 
-    if (fPruneMode)
-        throw JSONRPCError(RPC_WALLET_ERROR, "Importing addresses is disabled in pruned mode");
-
-    LOCK2(cs_main, pwalletMain->cs_wallet);
-
-    CScript script;
-
-    CBitcoinAddress address(params[0].get_str());
-    if (address.IsValid()) {
-        script = GetScriptForDestination(address.Get());
-    } else if (IsHex(params[0].get_str())) {
-        std::vector<unsigned char> data(ParseHex(params[0].get_str()));
-        script = CScript(data.begin(), data.end());
-    } else {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid lbrycrd address or script");
-    }
 
     string strLabel = "";
     if (params.size() > 1)
@@ -195,32 +214,197 @@ UniValue importaddress(const UniValue& params, bool fHelp)
     if (params.size() > 2)
         fRescan = params[2].get_bool();
 
+    if (fRescan && fPruneMode)
+        throw JSONRPCError(RPC_WALLET_ERROR, "Rescan is disabled in pruned mode");
+
+    // Whether to import a p2sh version, too
+    bool fP2SH = false;
+    if (params.size() > 3)
+        fP2SH = params[3].get_bool();
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
+    CBitcoinAddress address(params[0].get_str());
+    if (address.IsValid()) {
+        if (fP2SH)
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Cannot use the p2sh flag with an address - use a script instead");
+        ImportAddress(address, strLabel);
+    } else if (IsHex(params[0].get_str())) {
+        std::vector<unsigned char> data(ParseHex(params[0].get_str()));
+        ImportScript(CScript(data.begin(), data.end()), strLabel, fP2SH);
+    } else {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid lbrycrd address or script");
+    }
+
+    if (fRescan)
     {
-        if (::IsMine(*pwalletMain, script) == ISMINE_SPENDABLE)
-            throw JSONRPCError(RPC_WALLET_ERROR, "The wallet already contains the private key for this address or script");
-
-        // add to address book or update label
-        if (address.IsValid())
-            pwalletMain->SetAddressBook(address.Get(), strLabel, "receive");
-
-        // Don't throw error in case an address is already there
-        if (pwalletMain->HaveWatchOnly(script))
-            return NullUniValue;
-
-        pwalletMain->MarkDirty();
-
-        if (!pwalletMain->AddWatchOnly(script))
-            throw JSONRPCError(RPC_WALLET_ERROR, "Error adding address to wallet");
-
-        if (fRescan)
-        {
-            pwalletMain->ScanForWalletTransactions(chainActive.Genesis(), true);
-            pwalletMain->ReacceptWalletTransactions();
-        }
+        pwalletMain->ScanForWalletTransactions(chainActive.Genesis(), true);
+        pwalletMain->ReacceptWalletTransactions();
     }
 
     return NullUniValue;
 }
+
+UniValue importprunedfunds(const UniValue& params, bool fHelp)
+{
+    if (!EnsureWalletIsAvailable(fHelp))
+        return NullUniValue;
+
+    if (fHelp || params.size() < 2 || params.size() > 3)
+        throw runtime_error(
+            "importprunedfunds\n"
+            "\nImports funds without rescan. Corresponding address or script must previously be included in wallet. Aimed towards pruned wallets. The end-user is responsible to import additional transactions that subsequently spend the imported outputs or rescan after the point in the blockchain the transaction is included.\n"
+            "\nArguments:\n"
+            "1. \"rawtransaction\" (string, required) A raw transaction in hex funding an already-existing address in wallet\n"
+            "2. \"txoutproof\"     (string, required) The hex output from gettxoutproof that contains the transaction\n"
+            "3. \"label\"          (string, optional) An optional label\n"
+        );
+
+    CTransaction tx;
+    if (!DecodeHexTx(tx, params[0].get_str()))
+        throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "TX decode failed");
+    uint256 hashTx = tx.GetHash();
+    CWalletTx wtx(pwalletMain,tx);
+
+    CDataStream ssMB(ParseHexV(params[1], "proof"), SER_NETWORK, PROTOCOL_VERSION);
+    CMerkleBlock merkleBlock;
+    ssMB >> merkleBlock;
+
+    string strLabel = "";
+    if (params.size() == 3)
+        strLabel = params[2].get_str();
+
+    //Search partial merkle tree in proof for our transaction and index in valid block
+    vector<uint256> vMatch;
+    vector<unsigned int> vIndex;
+    unsigned int txnIndex = 0;
+    if (merkleBlock.txn.ExtractMatches(vMatch, vIndex) == merkleBlock.header.hashMerkleRoot) {
+
+        LOCK(cs_main);
+
+        if (!mapBlockIndex.count(merkleBlock.header.GetHash()) || !chainActive.Contains(mapBlockIndex[merkleBlock.header.GetHash()]))
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found in chain");
+
+        vector<uint256>::const_iterator it;
+        if ((it = std::find(vMatch.begin(), vMatch.end(), hashTx))==vMatch.end()) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Transaction given doesn't exist in proof");
+        }
+
+        txnIndex = vIndex[it - vMatch.begin()];
+    }
+    else {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Something wrong with merkleblock");
+    }
+
+    wtx.nIndex = txnIndex;
+    wtx.hashBlock = merkleBlock.header.GetHash();
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
+    if (pwalletMain->IsMine(tx)) {
+        CWalletDB walletdb(pwalletMain->strWalletFile, "r+", false);
+        pwalletMain->AddToWallet(wtx, false, &walletdb);
+        return NullUniValue;
+    }
+
+    throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No addresses in wallet correspond to included transaction");
+}
+
+UniValue removeprunedfunds(const UniValue& params, bool fHelp)
+{
+    if (!EnsureWalletIsAvailable(fHelp))
+        return NullUniValue;
+
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "removeprunedfunds \"txid\"\n"
+            "\nDeletes the specified transaction from the wallet. Meant for use with pruned wallets and as a companion to importprunedfunds. This will effect wallet balances.\n"
+            "\nArguments:\n"
+            "1. \"txid\"           (string, required) The hex-encoded id of the transaction you are deleting\n"
+            "\nExamples:\n"
+            + HelpExampleCli("removeprunedfunds", "\"a8d0c0184dde994a09ec054286f1ce581bebf46446a512166eae7628734ea0a5\"") +
+            "\nAs a JSON-RPC call\n"
+            + HelpExampleRpc("removprunedfunds", "\"a8d0c0184dde994a09ec054286f1ce581bebf46446a512166eae7628734ea0a5\"")
+        );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
+    uint256 hash;
+    hash.SetHex(params[0].get_str());
+    vector<uint256> vHash;
+    vHash.push_back(hash);
+    vector<uint256> vHashOut;
+
+    if(pwalletMain->ZapSelectTx(vHash, vHashOut) != DB_LOAD_OK) {
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Could not properly delete the transaction.");
+    }
+
+    if(vHashOut.empty()) {
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Transaction does not exist in wallet.");
+    }
+
+    ThreadFlushWalletDB(pwalletMain->strWalletFile);
+
+    return NullUniValue;
+}
+
+UniValue importpubkey(const UniValue& params, bool fHelp)
+{
+    if (!EnsureWalletIsAvailable(fHelp))
+        return NullUniValue;
+
+    if (fHelp || params.size() < 1 || params.size() > 4)
+        throw runtime_error(
+            "importpubkey \"pubkey\" ( \"label\" rescan )\n"
+            "\nAdds a public key (in hex) that can be watched as if it were in your wallet but cannot be used to spend.\n"
+            "\nArguments:\n"
+            "1. \"pubkey\"           (string, required) The hex-encoded public key\n"
+            "2. \"label\"            (string, optional, default=\"\") An optional label\n"
+            "3. rescan               (boolean, optional, default=true) Rescan the wallet for transactions\n"
+            "\nNote: This call can take minutes to complete if rescan is true.\n"
+            "\nExamples:\n"
+            "\nImport a public key with rescan\n"
+            + HelpExampleCli("importpubkey", "\"mypubkey\"") +
+            "\nImport using a label without rescan\n"
+            + HelpExampleCli("importpubkey", "\"mypubkey\" \"testing\" false") +
+            "\nAs a JSON-RPC call\n"
+            + HelpExampleRpc("importpubkey", "\"mypubkey\", \"testing\", false")
+        );
+
+
+    string strLabel = "";
+    if (params.size() > 1)
+        strLabel = params[1].get_str();
+
+    // Whether to perform rescan after import
+    bool fRescan = true;
+    if (params.size() > 2)
+        fRescan = params[2].get_bool();
+
+    if (fRescan && fPruneMode)
+        throw JSONRPCError(RPC_WALLET_ERROR, "Rescan is disabled in pruned mode");
+
+    if (!IsHex(params[0].get_str()))
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Pubkey must be a hex string");
+    std::vector<unsigned char> data(ParseHex(params[0].get_str()));
+    CPubKey pubKey(data.begin(), data.end());
+    if (!pubKey.IsFullyValid())
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Pubkey is not a valid public key");
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
+    ImportAddress(CBitcoinAddress(pubKey.GetID()), strLabel);
+    ImportScript(GetScriptForRawPubKey(pubKey), strLabel, false);
+
+    if (fRescan)
+    {
+        pwalletMain->ScanForWalletTransactions(chainActive.Genesis(), true);
+        pwalletMain->ReacceptWalletTransactions();
+    }
+
+    return NullUniValue;
+}
+
 
 UniValue importwallet(const UniValue& params, bool fHelp)
 {

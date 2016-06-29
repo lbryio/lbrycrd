@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2014 The Bitcoin Core developers
+// Copyright (c) 2009-2015 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -40,7 +40,7 @@ static proxyType proxyInfo[NET_MAX];
 static proxyType nameProxy;
 static CCriticalSection cs_proxyInfos;
 int nConnectTimeout = DEFAULT_CONNECT_TIMEOUT;
-bool fNameLookup = false;
+bool fNameLookup = DEFAULT_NAME_LOOKUP;
 
 static const unsigned char pchIPv4[12] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff };
 
@@ -140,7 +140,7 @@ bool static LookupIntern(const char *pszName, std::vector<CNetAddr>& vIP, unsign
         return false;
 
     do {
-        // Should set the timeout limit to a resonable value to avoid
+        // Should set the timeout limit to a reasonable value to avoid
         // generating unnecessary checking call during the polling loop,
         // while it can still response to stop request quick enough.
         // 2 seconds looks fine in our situation.
@@ -170,7 +170,8 @@ bool static LookupIntern(const char *pszName, std::vector<CNetAddr>& vIP, unsign
         if (aiTrav->ai_family == AF_INET6)
         {
             assert(aiTrav->ai_addrlen >= sizeof(sockaddr_in6));
-            vIP.push_back(CNetAddr(((struct sockaddr_in6*)(aiTrav->ai_addr))->sin6_addr));
+            struct sockaddr_in6* s6 = (struct sockaddr_in6*) aiTrav->ai_addr;
+            vIP.push_back(CNetAddr(s6->sin6_addr, s6->sin6_scope_id));
         }
 
         aiTrav = aiTrav->ai_next;
@@ -227,10 +228,7 @@ bool LookupNumeric(const char *pszName, CService& addr, int portDefault)
     return Lookup(pszName, addr, portDefault, false);
 }
 
-/**
- * Convert milliseconds to a struct timeval for select.
- */
-struct timeval static MillisToTimeval(int64_t nTimeout)
+struct timeval MillisToTimeval(int64_t nTimeout)
 {
     struct timeval timeout;
     timeout.tv_sec  = nTimeout / 1000;
@@ -266,6 +264,9 @@ bool static InterruptibleRecv(char* data, size_t len, int timeout, SOCKET& hSock
         } else { // Other error or blocking
             int nErr = WSAGetLastError();
             if (nErr == WSAEINPROGRESS || nErr == WSAEWOULDBLOCK || nErr == WSAEINVAL) {
+                if (!IsSelectableSocket(hSocket)) {
+                    return false;
+                }
                 struct timeval tval = MillisToTimeval(std::min(endTime - curTime, maxWait));
                 fd_set fdset;
                 FD_ZERO(&fdset);
@@ -346,7 +347,7 @@ static bool Socks5(const std::string& strDest, int port, const ProxyCredentials 
         }
         if (pchRetA[0] != 0x01 || pchRetA[1] != 0x00) {
             CloseSocket(hSocket);
-            return error("Proxy authentication unsuccesful");
+            return error("Proxy authentication unsuccessful");
         }
     } else if (pchRet1[1] == 0x00) {
         // Perform no authentication
@@ -441,10 +442,17 @@ bool static ConnectSocketDirectly(const CService &addrConnect, SOCKET& hSocketRe
     if (hSocket == INVALID_SOCKET)
         return false;
 
-#ifdef SO_NOSIGPIPE
     int set = 1;
+#ifdef SO_NOSIGPIPE
     // Different way of disabling SIGPIPE on BSD
     setsockopt(hSocket, SOL_SOCKET, SO_NOSIGPIPE, (void*)&set, sizeof(int));
+#endif
+
+    //Disable Nagle's algorithm
+#ifdef WIN32
+    setsockopt(hSocket, IPPROTO_TCP, TCP_NODELAY, (const char*)&set, sizeof(int));
+#else
+    setsockopt(hSocket, IPPROTO_TCP, TCP_NODELAY, (void*)&set, sizeof(int));
 #endif
 
     // Set to non-blocking
@@ -622,6 +630,7 @@ bool ConnectSocketByName(CService &addr, SOCKET& hSocketRet, const char *pszDest
 void CNetAddr::Init()
 {
     memset(ip, 0, sizeof(ip));
+    scopeId = 0;
 }
 
 void CNetAddr::SetIP(const CNetAddr& ipIn)
@@ -671,9 +680,10 @@ CNetAddr::CNetAddr(const struct in_addr& ipv4Addr)
     SetRaw(NET_IPV4, (const uint8_t*)&ipv4Addr);
 }
 
-CNetAddr::CNetAddr(const struct in6_addr& ipv6Addr)
+CNetAddr::CNetAddr(const struct in6_addr& ipv6Addr, const uint32_t scope)
 {
     SetRaw(NET_IPV6, (const uint8_t*)&ipv6Addr);
+    scopeId = scope;
 }
 
 CNetAddr::CNetAddr(const char *pszIp, bool fAllowLookup)
@@ -980,7 +990,7 @@ std::vector<unsigned char> CNetAddr::GetGroup() const
         nBits -= 8;
     }
     if (nBits > 0)
-        vchRet.push_back(GetByte(15 - nStartByte) | ((1 << nBits) - 1));
+        vchRet.push_back(GetByte(15 - nStartByte) | ((1 << (8 - nBits)) - 1));
 
     return vchRet;
 }
@@ -1092,7 +1102,7 @@ CService::CService(const struct sockaddr_in& addr) : CNetAddr(addr.sin_addr), po
     assert(addr.sin_family == AF_INET);
 }
 
-CService::CService(const struct sockaddr_in6 &addr) : CNetAddr(addr.sin6_addr), port(ntohs(addr.sin6_port))
+CService::CService(const struct sockaddr_in6 &addr) : CNetAddr(addr.sin6_addr, addr.sin6_scope_id), port(ntohs(addr.sin6_port))
 {
    assert(addr.sin6_family == AF_INET6);
 }
@@ -1185,6 +1195,7 @@ bool CService::GetSockAddr(struct sockaddr* paddr, socklen_t *addrlen) const
         memset(paddrin6, 0, *addrlen);
         if (!GetIn6Addr(&paddrin6->sin6_addr))
             return false;
+        paddrin6->sin6_scope_id = scopeId;
         paddrin6->sin6_family = AF_INET6;
         paddrin6->sin6_port = htons(port);
         return true;
@@ -1291,6 +1302,13 @@ CSubNet::CSubNet(const std::string &strSubnet, bool fAllowLookup)
         network.ip[x] &= netmask[x];
 }
 
+CSubNet::CSubNet(const CNetAddr &addr):
+    valid(addr.IsValid())
+{
+    memset(netmask, 255, sizeof(netmask));
+    network = addr;
+}
+
 bool CSubNet::Match(const CNetAddr &addr) const
 {
     if (!valid || !addr.IsValid())
@@ -1301,17 +1319,57 @@ bool CSubNet::Match(const CNetAddr &addr) const
     return true;
 }
 
+static inline int NetmaskBits(uint8_t x)
+{
+    switch(x) {
+    case 0x00: return 0; break;
+    case 0x80: return 1; break;
+    case 0xc0: return 2; break;
+    case 0xe0: return 3; break;
+    case 0xf0: return 4; break;
+    case 0xf8: return 5; break;
+    case 0xfc: return 6; break;
+    case 0xfe: return 7; break;
+    case 0xff: return 8; break;
+    default: return -1; break;
+    }
+}
+
 std::string CSubNet::ToString() const
 {
+    /* Parse binary 1{n}0{N-n} to see if mask can be represented as /n */
+    int cidr = 0;
+    bool valid_cidr = true;
+    int n = network.IsIPv4() ? 12 : 0;
+    for (; n < 16 && netmask[n] == 0xff; ++n)
+        cidr += 8;
+    if (n < 16) {
+        int bits = NetmaskBits(netmask[n]);
+        if (bits < 0)
+            valid_cidr = false;
+        else
+            cidr += bits;
+        ++n;
+    }
+    for (; n < 16 && valid_cidr; ++n)
+        if (netmask[n] != 0x00)
+            valid_cidr = false;
+
+    /* Format output */
     std::string strNetmask;
-    if (network.IsIPv4())
-        strNetmask = strprintf("%u.%u.%u.%u", netmask[12], netmask[13], netmask[14], netmask[15]);
-    else
-        strNetmask = strprintf("%x:%x:%x:%x:%x:%x:%x:%x",
-                         netmask[0] << 8 | netmask[1], netmask[2] << 8 | netmask[3],
-                         netmask[4] << 8 | netmask[5], netmask[6] << 8 | netmask[7],
-                         netmask[8] << 8 | netmask[9], netmask[10] << 8 | netmask[11],
-                         netmask[12] << 8 | netmask[13], netmask[14] << 8 | netmask[15]);
+    if (valid_cidr) {
+        strNetmask = strprintf("%u", cidr);
+    } else {
+        if (network.IsIPv4())
+            strNetmask = strprintf("%u.%u.%u.%u", netmask[12], netmask[13], netmask[14], netmask[15]);
+        else
+            strNetmask = strprintf("%x:%x:%x:%x:%x:%x:%x:%x",
+                             netmask[0] << 8 | netmask[1], netmask[2] << 8 | netmask[3],
+                             netmask[4] << 8 | netmask[5], netmask[6] << 8 | netmask[7],
+                             netmask[8] << 8 | netmask[9], netmask[10] << 8 | netmask[11],
+                             netmask[12] << 8 | netmask[13], netmask[14] << 8 | netmask[15]);
+    }
+
     return network.ToString() + "/" + strNetmask;
 }
 
@@ -1328,6 +1386,11 @@ bool operator==(const CSubNet& a, const CSubNet& b)
 bool operator!=(const CSubNet& a, const CSubNet& b)
 {
     return !(a==b);
+}
+
+bool operator<(const CSubNet& a, const CSubNet& b)
+{
+    return (a.network < b.network || (a.network == b.network && memcmp(a.netmask, b.netmask, 16) < 0));
 }
 
 #ifdef WIN32

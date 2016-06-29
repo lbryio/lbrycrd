@@ -1,5 +1,5 @@
 #!/usr/bin/env python2
-# Copyright (c) 2014 The Bitcoin Core developers
+# Copyright (c) 2014-2015 The Bitcoin Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -120,10 +120,7 @@ class GetBlockTemplateProposalTest(BitcoinTestFramework):
 
         # Test 3: Truncated final tx
         lastbyte = txlist[-1].pop()
-        try:
-            assert_template(node, tmpl, txlist, 'n/a')
-        except JSONRPCException:
-            pass  # Expected
+        assert_raises(JSONRPCException, assert_template, node, tmpl, txlist, 'n/a')
         txlist[-1].append(lastbyte)
 
         # Test 4: Add an invalid tx to the end (duplicate of gen tx)
@@ -133,7 +130,7 @@ class GetBlockTemplateProposalTest(BitcoinTestFramework):
 
         # Test 5: Add an invalid tx to the end (non-duplicate)
         txlist.append(bytearray(txlist[0]))
-        txlist[-1][4+1] = b'\xff'
+        txlist[-1][4+1] = 0xff
         assert_template(node, tmpl, txlist, 'bad-txns-inputs-missingorspent')
         txlist.pop()
 
@@ -144,10 +141,7 @@ class GetBlockTemplateProposalTest(BitcoinTestFramework):
 
         # Test 7: Bad tx count
         txlist.append(b'')
-        try:
-            assert_template(node, tmpl, txlist, 'n/a')
-        except JSONRPCException:
-            pass  # Expected
+        assert_raises(JSONRPCException, assert_template, node, tmpl, txlist, 'n/a')
         txlist.pop()
 
         # Test 8: Bad bits

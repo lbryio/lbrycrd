@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2013 The Bitcoin Core developers
+// Copyright (c) 2012-2015 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -86,7 +86,7 @@ BOOST_AUTO_TEST_CASE(bloom_create_insert_serialize_with_tweak)
 
 BOOST_AUTO_TEST_CASE(bloom_create_insert_key)
 {
-    string strSecret = string("5Kg1gnAjaLfKiwhhPpGS3QfRg2m6awQvaj98JCZBZQ5SuS2F15C");
+    string strSecret = string("y2Kag6A9fz5PRsuA5vKT5gd1XqxJRxvn6eKXGdovHkbCBsiKmW");
     CBitcoinSecret vchSecret;
     BOOST_CHECK(vchSecret.SetString(strSecret));
 
@@ -102,7 +102,7 @@ BOOST_AUTO_TEST_CASE(bloom_create_insert_key)
     CDataStream stream(SER_NETWORK, PROTOCOL_VERSION);
     filter.Serialize(stream, SER_NETWORK, PROTOCOL_VERSION);
 
-    vector<unsigned char> vch = ParseHex("038fc16b080000000000000001");
+    vector<unsigned char> vch = ParseHex("031ee0a1080000000000000001");
     vector<char> expected(vch.size());
 
     for (unsigned int i = 0; i < vch.size(); i++)
@@ -205,7 +205,8 @@ BOOST_AUTO_TEST_CASE(merkle_block_1)
     BOOST_CHECK(merkleBlock.vMatchedTxn[0].first == 8);
 
     vector<uint256> vMatched;
-    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched) == block.hashMerkleRoot);
+    vector<unsigned int> vIndex;
+    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched, vIndex) == block.hashMerkleRoot);
     BOOST_CHECK(vMatched.size() == merkleBlock.vMatchedTxn.size());
     for (unsigned int i = 0; i < vMatched.size(); i++)
         BOOST_CHECK(vMatched[i] == merkleBlock.vMatchedTxn[i].second);
@@ -222,7 +223,7 @@ BOOST_AUTO_TEST_CASE(merkle_block_1)
     BOOST_CHECK(merkleBlock.vMatchedTxn[0].second == uint256S("0xdd1fd2a6fc16404faf339881a90adbde7f4f728691ac62e8f168809cdfae1053"));
     BOOST_CHECK(merkleBlock.vMatchedTxn[0].first == 7);
 
-    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched) == block.hashMerkleRoot);
+    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched, vIndex) == block.hashMerkleRoot);
     BOOST_CHECK(vMatched.size() == merkleBlock.vMatchedTxn.size());
     for (unsigned int i = 0; i < vMatched.size(); i++)
         BOOST_CHECK(vMatched[i] == merkleBlock.vMatchedTxn[i].second);
@@ -250,7 +251,8 @@ BOOST_AUTO_TEST_CASE(merkle_block_2)
     BOOST_CHECK(merkleBlock.vMatchedTxn[0].first == 0);
 
     vector<uint256> vMatched;
-    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched) == block.hashMerkleRoot);
+    vector<unsigned int> vIndex;
+    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched, vIndex) == block.hashMerkleRoot);
     BOOST_CHECK(vMatched.size() == merkleBlock.vMatchedTxn.size());
     for (unsigned int i = 0; i < vMatched.size(); i++)
         BOOST_CHECK(vMatched[i] == merkleBlock.vMatchedTxn[i].second);
@@ -276,7 +278,7 @@ BOOST_AUTO_TEST_CASE(merkle_block_2)
     BOOST_CHECK(merkleBlock.vMatchedTxn[3].second == uint256S("0x3c1d7e82342158e4109df2e0b6348b6e84e403d8b4046d7007663ace63cddb23"));
     BOOST_CHECK(merkleBlock.vMatchedTxn[3].first == 3);
 
-    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched) == block.hashMerkleRoot);
+    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched, vIndex) == block.hashMerkleRoot);
     BOOST_CHECK(vMatched.size() == merkleBlock.vMatchedTxn.size());
     for (unsigned int i = 0; i < vMatched.size(); i++)
         BOOST_CHECK(vMatched[i] == merkleBlock.vMatchedTxn[i].second);
@@ -304,7 +306,8 @@ BOOST_AUTO_TEST_CASE(merkle_block_2_with_update_none)
     BOOST_CHECK(merkleBlock.vMatchedTxn[0].first == 0);
 
     vector<uint256> vMatched;
-    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched) == block.hashMerkleRoot);
+    vector<unsigned int> vIndex;
+    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched, vIndex) == block.hashMerkleRoot);
     BOOST_CHECK(vMatched.size() == merkleBlock.vMatchedTxn.size());
     for (unsigned int i = 0; i < vMatched.size(); i++)
         BOOST_CHECK(vMatched[i] == merkleBlock.vMatchedTxn[i].second);
@@ -327,7 +330,7 @@ BOOST_AUTO_TEST_CASE(merkle_block_2_with_update_none)
     BOOST_CHECK(merkleBlock.vMatchedTxn[2].second == uint256S("0x3c1d7e82342158e4109df2e0b6348b6e84e403d8b4046d7007663ace63cddb23"));
     BOOST_CHECK(merkleBlock.vMatchedTxn[2].first == 3);
 
-    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched) == block.hashMerkleRoot);
+    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched, vIndex) == block.hashMerkleRoot);
     BOOST_CHECK(vMatched.size() == merkleBlock.vMatchedTxn.size());
     for (unsigned int i = 0; i < vMatched.size(); i++)
         BOOST_CHECK(vMatched[i] == merkleBlock.vMatchedTxn[i].second);
@@ -354,7 +357,8 @@ BOOST_AUTO_TEST_CASE(merkle_block_3_and_serialize)
     BOOST_CHECK(merkleBlock.vMatchedTxn[0].first == 0);
 
     vector<uint256> vMatched;
-    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched) == block.hashMerkleRoot);
+    vector<unsigned int> vIndex;
+    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched, vIndex) == block.hashMerkleRoot);
     BOOST_CHECK(vMatched.size() == merkleBlock.vMatchedTxn.size());
     for (unsigned int i = 0; i < vMatched.size(); i++)
         BOOST_CHECK(vMatched[i] == merkleBlock.vMatchedTxn[i].second);
@@ -393,7 +397,8 @@ BOOST_AUTO_TEST_CASE(merkle_block_4)
     BOOST_CHECK(merkleBlock.vMatchedTxn[0].first == 6);
 
     vector<uint256> vMatched;
-    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched) == block.hashMerkleRoot);
+    vector<unsigned int> vIndex;
+    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched, vIndex) == block.hashMerkleRoot);
     BOOST_CHECK(vMatched.size() == merkleBlock.vMatchedTxn.size());
     for (unsigned int i = 0; i < vMatched.size(); i++)
         BOOST_CHECK(vMatched[i] == merkleBlock.vMatchedTxn[i].second);
@@ -410,7 +415,7 @@ BOOST_AUTO_TEST_CASE(merkle_block_4)
 
     BOOST_CHECK(merkleBlock.vMatchedTxn[1] == pair);
 
-    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched) == block.hashMerkleRoot);
+    BOOST_CHECK(merkleBlock.txn.ExtractMatches(vMatched, vIndex) == block.hashMerkleRoot);
     BOOST_CHECK(vMatched.size() == merkleBlock.vMatchedTxn.size());
     for (unsigned int i = 0; i < vMatched.size(); i++)
         BOOST_CHECK(vMatched[i] == merkleBlock.vMatchedTxn[i].second);
@@ -471,7 +476,7 @@ static std::vector<unsigned char> RandomData()
 BOOST_AUTO_TEST_CASE(rolling_bloom)
 {
     // last-100-entry, 1% false positive:
-    CRollingBloomFilter rb1(100, 0.01, 0);
+    CRollingBloomFilter rb1(100, 0.01);
 
     // Overfill:
     static const int DATASIZE=399;
@@ -502,7 +507,7 @@ BOOST_AUTO_TEST_CASE(rolling_bloom)
     BOOST_CHECK(nHits < 175);
 
     BOOST_CHECK(rb1.contains(data[DATASIZE-1]));
-    rb1.clear();
+    rb1.reset();
     BOOST_CHECK(!rb1.contains(data[DATASIZE-1]));
 
     // Now roll through data, make sure last 100 entries
@@ -529,7 +534,7 @@ BOOST_AUTO_TEST_CASE(rolling_bloom)
     BOOST_CHECK(nHits < 100);
 
     // last-1000-entry, 0.01% false positive:
-    CRollingBloomFilter rb2(1000, 0.001, 0);
+    CRollingBloomFilter rb2(1000, 0.001);
     for (int i = 0; i < DATASIZE; i++) {
         rb2.insert(data[i]);
     }
