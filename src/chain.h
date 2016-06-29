@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2014 The Bitcoin Core developers
+// Copyright (c) 2009-2015 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -13,8 +13,6 @@
 #include "uint256.h"
 
 #include <vector>
-
-#include <boost/foreach.hpp>
 
 struct CDiskBlockPos
 {
@@ -141,7 +139,7 @@ public:
     //! block header
     int nVersion;
     uint256 hashMerkleRoot;
-    uint256 hashNCCTrie;
+    uint256 hashClaimTrie;
     unsigned int nTime;
     unsigned int nBits;
     unsigned int nNonce;
@@ -166,7 +164,7 @@ public:
 
         nVersion       = 0;
         hashMerkleRoot = uint256();
-        hashNCCTrie    = uint256();
+        hashClaimTrie  = uint256();
         nTime          = 0;
         nBits          = 0;
         nNonce         = 0;
@@ -183,7 +181,7 @@ public:
 
         nVersion       = block.nVersion;
         hashMerkleRoot = block.hashMerkleRoot;
-        hashNCCTrie    = block.hashNCCTrie;
+        hashClaimTrie  = block.hashClaimTrie;
         nTime          = block.nTime;
         nBits          = block.nBits;
         nNonce         = block.nNonce;
@@ -214,7 +212,7 @@ public:
         if (pprev)
             block.hashPrevBlock = pprev->GetBlockHash();
         block.hashMerkleRoot = hashMerkleRoot;
-        block.hashNCCTrie    = hashNCCTrie;
+        block.hashClaimTrie  = hashClaimTrie;
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
@@ -224,6 +222,11 @@ public:
     uint256 GetBlockHash() const
     {
         return *phashBlock;
+    }
+
+    uint256 GetBlockPoWHash() const
+    {
+        return GetBlockHeader().GetPoWHash();
     }
 
     int64_t GetBlockTime() const
@@ -249,10 +252,10 @@ public:
 
     std::string ToString() const
     {
-        return strprintf("CBlockIndex(pprev=%p, nHeight=%d, merkle=%s, ncctrie=%s, hashBlock=%s)",
+        return strprintf("CBlockIndex(pprev=%p, nHeight=%d, merkle=%s, claimtrie=%s, hashBlock=%s)",
             pprev, nHeight,
             hashMerkleRoot.ToString(),
-            hashNCCTrie.ToString(),
+            hashClaimTrie.ToString(),
             GetBlockHash().ToString());
     }
 
@@ -286,6 +289,10 @@ public:
     CBlockIndex* GetAncestor(int height);
     const CBlockIndex* GetAncestor(int height) const;
 };
+
+arith_uint256 GetBlockProof(const CBlockIndex& block);
+/** Return the time it would take to redo the work difference between from and to, assuming the current hashrate corresponds to the difficulty at tip, in seconds. */
+int64_t GetBlockProofEquivalentTime(const CBlockIndex& to, const CBlockIndex& from, const CBlockIndex& tip, const Consensus::Params&);
 
 /** Used to marshal pointers into hashes for db storage. */
 class CDiskBlockIndex : public CBlockIndex
@@ -322,7 +329,7 @@ public:
         READWRITE(this->nVersion);
         READWRITE(hashPrev);
         READWRITE(hashMerkleRoot);
-        READWRITE(hashNCCTrie);
+        READWRITE(hashClaimTrie);
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
@@ -334,7 +341,7 @@ public:
         block.nVersion        = nVersion;
         block.hashPrevBlock   = hashPrev;
         block.hashMerkleRoot  = hashMerkleRoot;
-        block.hashNCCTrie     = hashNCCTrie;
+        block.hashClaimTrie   = hashClaimTrie;
         block.nTime           = nTime;
         block.nBits           = nBits;
         block.nNonce          = nNonce;

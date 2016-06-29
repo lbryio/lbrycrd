@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2013 The Bitcoin Core developers
+// Copyright (c) 2009-2014 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -7,7 +7,7 @@
 #define BITCOIN_UNDO_H
 
 #include "compressor.h" 
-#include "ncctrie.h"
+#include "claimtrie.h"
 #include "primitives/transaction.h"
 #include "serialize.h"
 
@@ -25,16 +25,18 @@ public:
     bool fCoinBase;       // if the outpoint was the last unspent: whether it belonged to a coinbase
     unsigned int nHeight; // if the outpoint was the last unspent: its height
     int nVersion;         // if the outpoint was the last unspent: its version
-    unsigned int nNCCValidHeight;   // If the outpoint was an NCC claim, the height at which the claim should be inserted into the trie
+    unsigned int nClaimValidHeight;   // If the outpoint was a claim or support, the height at which the claim or support should be inserted into the trie
+    bool fIsClaim;        // if the outpoint was a claim or support
 
-    CTxInUndo() : txout(), fLastUnspent(false), fCoinBase(false), nHeight(0), nVersion(0), nNCCValidHeight(0) {}
-    CTxInUndo(const CTxOut &txoutIn, bool fLastUnspent = false, bool fCoinBaseIn = false, unsigned int nHeightIn = 0, int nVersionIn = 0, unsigned int nNCCValidHeight = 0) : txout(txoutIn), fLastUnspent(fLastUnspent), fCoinBase(fCoinBaseIn), nHeight(nHeightIn), nVersion(nVersionIn), nNCCValidHeight(nNCCValidHeight) { }
+    CTxInUndo() : txout(), fLastUnspent(false), fCoinBase(false), nHeight(0), nVersion(0), nClaimValidHeight(0), fIsClaim(false) {}
+    CTxInUndo(const CTxOut &txoutIn, bool fLastUnspent = false, bool fCoinBaseIn = false, unsigned int nHeightIn = 0, int nVersionIn = 0, unsigned int nClaimValidHeight = 0, bool fIsClaim = false) : txout(txoutIn), fLastUnspent(fLastUnspent), fCoinBase(fCoinBaseIn), nHeight(nHeightIn), nVersion(nVersionIn), nClaimValidHeight(nClaimValidHeight), fIsClaim(fIsClaim) { }
 
     unsigned int GetSerializeSize(int nType, int nVersion) const {
         return ::GetSerializeSize(VARINT(nHeight*4+(fCoinBase ? 2 : 0)+(fLastUnspent ? 1: 0)), nType, nVersion) +
                (fLastUnspent ? ::GetSerializeSize(VARINT(this->nVersion), nType, nVersion) : 0) +
                ::GetSerializeSize(CTxOutCompressor(REF(txout)), nType, nVersion) +
-               ::GetSerializeSize(VARINT(nNCCValidHeight), nType, nVersion);
+               ::GetSerializeSize(VARINT(nClaimValidHeight), nType, nVersion) +
+               ::GetSerializeSize(fIsClaim, nType, nVersion);
     }
 
     template<typename Stream>
@@ -43,7 +45,8 @@ public:
         if (fLastUnspent)
             ::Serialize(s, VARINT(this->nVersion), nType, nVersion);
         ::Serialize(s, CTxOutCompressor(REF(txout)), nType, nVersion);
-        ::Serialize(s, VARINT(nNCCValidHeight), nType, nVersion);
+        ::Serialize(s, VARINT(nClaimValidHeight), nType, nVersion);
+        ::Serialize(s, fIsClaim, nType, nVersion);
     }
 
     template<typename Stream>
@@ -56,7 +59,8 @@ public:
         if (fLastUnspent)
             ::Unserialize(s, VARINT(this->nVersion), nType, nVersion);
         ::Unserialize(s, REF(CTxOutCompressor(REF(txout))), nType, nVersion);
-        ::Unserialize(s, VARINT(nNCCValidHeight), nType, nVersion);
+        ::Unserialize(s, VARINT(nClaimValidHeight), nType, nVersion);
+        ::Unserialize(s, fIsClaim, nType, nVersion);
     }
 };
 
@@ -80,8 +84,11 @@ class CBlockUndo
 {
 public:
     std::vector<CTxUndo> vtxundo; // for all but the coinbase
-    CNCCTrieQueueUndo insertUndo; // any claims that went from the queue to the trie
-    CNCCTrieQueueUndo expireUndo; // any claims that expired
+    insertUndoType insertUndo; // any claims that went from the queue to the trie
+    claimQueueRowType expireUndo; // any claims that expired
+    insertUndoType insertSupportUndo; // any supports that went from the support queue to the support map
+    supportQueueRowType expireSupportUndo; // any supports that expired 
+    std::vector<std::pair<std::string, int> > takeoverHeightUndo; // for any name that was taken over, the previous time that name was taken over 
 
     ADD_SERIALIZE_METHODS;
 
@@ -90,6 +97,9 @@ public:
         READWRITE(vtxundo);
         READWRITE(insertUndo);
         READWRITE(expireUndo);
+        READWRITE(insertSupportUndo);
+        READWRITE(expireSupportUndo);
+        READWRITE(takeoverHeightUndo);
     }
 };
 

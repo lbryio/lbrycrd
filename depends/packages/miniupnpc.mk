@@ -1,12 +1,12 @@
 package=miniupnpc
-$(package)_version=1.9.20140701
+$(package)_version=1.9.20160209
 $(package)_download_path=http://miniupnp.free.fr/files
 $(package)_file_name=$(package)-$($(package)_version).tar.gz
-$(package)_sha256_hash=26f3985bad7768b8483b793448ae49414cdc4451d0ec83e7c1944367e15f9f07
+$(package)_sha256_hash=572171eacc1d72537ce47b6f4571260757ab7bcfdaf54c3a55c7f88594d94b6f
 
 define $(package)_set_vars
 $(package)_build_opts=CC="$($(package)_cc)"
-$(package)_build_opts_darwin=OS=Darwin
+$(package)_build_opts_darwin=OS=Darwin LIBTOOL="$($(package)_libtool)"
 $(package)_build_opts_mingw32=-f Makefile.mingw
 $(package)_build_env+=CFLAGS="$($(package)_cflags) $($(package)_cppflags)" AR="$($(package)_ar)"
 endef

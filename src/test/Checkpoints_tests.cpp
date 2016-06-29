@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2013 The Bitcoin Core developers
+// Copyright (c) 2011-2015 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -20,7 +20,7 @@ BOOST_FIXTURE_TEST_SUITE(Checkpoints_tests, BasicTestingSetup)
 
 BOOST_AUTO_TEST_CASE(sanity)
 {
-    //const Checkpoints::CCheckpointData& checkpoints = Params(CBaseChainParams::MAIN).Checkpoints();
+    //const CCheckpointData& checkpoints = Params(CBaseChainParams::MAIN).Checkpoints();
     //BOOST_CHECK(Checkpoints::GetTotalBlocksEstimate(checkpoints) >= 134444);
 }
 

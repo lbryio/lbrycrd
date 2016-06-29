@@ -1,5 +1,5 @@
 #!/usr/bin/env python2
-# Copyright (c) 2014 The Bitcoin Core developers
+# Copyright (c) 2014-2015 The Bitcoin Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -13,34 +13,16 @@
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import *
-import os.path
 
 def calc_usage(blockdir):
-    return sum(os.path.getsize(blockdir+f) for f in os.listdir(blockdir) if os.path.isfile(blockdir+f))/(1024*1024)
+    return sum(os.path.getsize(blockdir+f) for f in os.listdir(blockdir) if os.path.isfile(blockdir+f)) / (1024. * 1024.)
 
 class PruneTest(BitcoinTestFramework):
 
     def __init__(self):
         self.utxo = []
         self.address = ["",""]
-
-        # Some pre-processing to create a bunch of OP_RETURN txouts to insert into transactions we create
-        # So we have big transactions and full blocks to fill up our block files
-
-        # create one script_pubkey
-        script_pubkey = "6a4d0200" #OP_RETURN OP_PUSH2 512 bytes
-        for i in xrange (512):
-            script_pubkey = script_pubkey + "01"
-        # concatenate 128 txouts of above script_pubkey which we'll insert before the txout for change
-        self.txouts = "81"
-        for k in xrange(128):
-            # add txout value
-            self.txouts = self.txouts + "0000000000000000"
-            # add length of script_pubkey
-            self.txouts = self.txouts + "fd0402"
-            # add script_pubkey
-            self.txouts = self.txouts + script_pubkey
-
+        self.txouts = gen_return_txouts()
 
     def setup_chain(self):
         print("Initializing test directory "+self.options.tmpdir)
@@ -61,6 +43,9 @@ class PruneTest(BitcoinTestFramework):
         self.address[0] = self.nodes[0].getnewaddress()
         self.address[1] = self.nodes[1].getnewaddress()
 
+        # Determine default relay fee
+        self.relayfee = self.nodes[0].getnetworkinfo()["relayfee"]
+
         connect_nodes(self.nodes[0], 1)
         connect_nodes(self.nodes[1], 2)
         connect_nodes(self.nodes[2], 0)
@@ -71,7 +56,7 @@ class PruneTest(BitcoinTestFramework):
         self.nodes[1].generate(200)
         sync_blocks(self.nodes[0:2])
         self.nodes[0].generate(150)
-        # Then mine enough full blocks to create more than 550MB of data
+        # Then mine enough full blocks to create more than 550MiB of data
         for i in xrange(645):
             self.mine_full_block(self.nodes[0], self.address[0])
 
@@ -81,7 +66,7 @@ class PruneTest(BitcoinTestFramework):
         if not os.path.isfile(self.prunedir+"blk00000.dat"):
             raise AssertionError("blk00000.dat is missing, pruning too early")
         print "Success"
-        print "Though we're already using more than 550MB, current usage:", calc_usage(self.prunedir)
+        print "Though we're already using more than 550MiB, current usage:", calc_usage(self.prunedir)
         print "Mining 25 more blocks should cause the first block file to be pruned"
         # Pruning doesn't run until we're allocating another chunk, 20 full blocks past the height cutoff will ensure this
         for i in xrange(25):
@@ -239,7 +224,7 @@ class PruneTest(BitcoinTestFramework):
             outputs = {}
             t = self.utxo.pop()
             inputs.append({ "txid" : t["txid"], "vout" : t["vout"]})
-            remchange = t["amount"] - Decimal("0.001000")
+            remchange = t["amount"] - 100*self.relayfee # Fee must be above min relay rate for 66kb tx
             outputs[address]=remchange
             # Create a basic transaction that will send change back to ourself after account for a fee
             # And then insert the 128 generated transaction outs in the middle rawtx[92] is where the #
@@ -326,7 +311,7 @@ class PruneTest(BitcoinTestFramework):
         #                   \                 \
         #                    ++...++(1044)     ..
         #
-        # N0    ********************(1032) @@...@@@(1552) 
+        # N0    ********************(1032) @@...@@@(1552)
         #                                 \
         #                                  *...**(1320)
 

@@ -117,6 +117,9 @@
     </message>
     </context>
 <context>
+    <name>BanTableModel</name>
+    </context>
+<context>
     <name>BitcoinGUI</name>
     <message>
         <source>Synchronizing with network...</source>
@@ -332,6 +335,10 @@
         <translation>विकल्प</translation>
     </message>
     <message>
+        <source>W&amp;allet</source>
+        <translation>वॉलेट</translation>
+    </message>
+    <message>
         <source>&amp;OK</source>
         <translation>&amp;ओके</translation>
     </message>
@@ -383,6 +390,10 @@
 <context>
     <name>ReceiveCoinsDialog</name>
     <message>
+        <source>&amp;Amount:</source>
+        <translation>राशि :</translation>
+    </message>
+    <message>
         <source>&amp;Label:</source>
         <translation>लेबल:</translation>
     </message>
@@ -397,6 +408,10 @@
 </context>
 <context>
     <name>ReceiveRequestDialog</name>
+    <message>
+        <source>Copy &amp;Address</source>
+        <translation>&amp;पता कॉपी करे</translation>
+    </message>
     <message>
         <source>Address</source>
         <translation>पता</translation>
@@ -497,6 +512,10 @@
     <message>
         <source>Alt+P</source>
         <translation>Alt-P</translation>
+    </message>
+    <message>
+        <source>Pay To:</source>
+        <translation>प्राप्तकर्ता:</translation>
     </message>
     </context>
 <context>
@@ -812,10 +831,6 @@
     <message>
         <source>Run in the background as a daemon and accept commands</source>
         <translation>बैकग्राउंड में डेमॉन बन कर रन करे तथा कमांड्स स्वीकार करें </translation>
-    </message>
-    <message>
-        <source>Use the test network</source>
-        <translation>टेस्ट नेटवर्क का इस्तेमाल करे </translation>
     </message>
     <message>
         <source>Verifying blocks...</source>

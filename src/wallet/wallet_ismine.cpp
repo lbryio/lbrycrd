@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2014 The Bitcoin Core developers
+// Copyright (c) 2009-2015 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -9,7 +9,8 @@
 #include "keystore.h"
 #include "script/script.h"
 #include "script/standard.h"
-#include "ncc.h"
+#include "nameclaim.h"
+#include "script/sign.h"
 
 #include <boost/foreach.hpp>
 
@@ -40,17 +41,29 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
     vector<valtype> vSolutions;
     txnouttype whichType;
     isminetype spendable_type = ISMINE_SPENDABLE;
+   
+    int opcode;
     
-    CScript strippedScriptPubKey = StripNCCScriptPrefix(scriptPubKey);
+    CScript strippedScriptPubKey = StripClaimScriptPrefix(scriptPubKey, opcode);
     if (strippedScriptPubKey != scriptPubKey)
     {
-        spendable_type = ISMINE_NCC;
+        if (opcode == OP_CLAIM_NAME || opcode == OP_UPDATE_CLAIM)
+        {
+            spendable_type = ISMINE_CLAIM;
+        }
+        else if (opcode == OP_SUPPORT_CLAIM)
+        {
+            spendable_type = ISMINE_SUPPORT;
+        }
+        else
+        {
+            spendable_type = ISMINE_NO;
+        }
     }
 
-
     if (!Solver(strippedScriptPubKey, whichType, vSolutions)) {
-        if (keystore.HaveWatchOnly(strippedScriptPubKey))
-            return ISMINE_WATCH_ONLY;
+        if (keystore.HaveWatchOnly(scriptPubKey))
+            return ISMINE_WATCH_UNSOLVABLE;
         return ISMINE_NO;
     }
 
@@ -95,7 +108,10 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
     }
     }
 
-    if (keystore.HaveWatchOnly(scriptPubKey))
-        return ISMINE_WATCH_ONLY;
+    if (keystore.HaveWatchOnly(scriptPubKey)) {
+        // TODO: This could be optimized some by doing some work after the above solver
+        CScript scriptSig;
+        return ProduceSignature(DummySignatureCreator(&keystore), scriptPubKey, scriptSig) ? ISMINE_WATCH_SOLVABLE : ISMINE_WATCH_UNSOLVABLE;
+    }
     return ISMINE_NO;
 }

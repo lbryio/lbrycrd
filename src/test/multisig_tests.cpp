@@ -1,10 +1,10 @@
-// Copyright (c) 2011-2013 The Bitcoin Core developers
+// Copyright (c) 2011-2014 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "key.h"
 #include "keystore.h"
-#include "main.h"
+#include "policy/policy.h"
 #include "script/script.h"
 #include "script/script_error.h"
 #include "script/interpreter.h"
