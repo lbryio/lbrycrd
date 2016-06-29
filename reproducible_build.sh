@@ -43,7 +43,6 @@ cd ..
 
 git clone https://github.com/lbryio/lbrycrd
 cd lbrycrd
-git checkout real
 ./autogen.sh
 ./configure --without-gui LDFLAGS="-L${OPENSSL_PREFIX}/lib/ -L${BDB_PREFIX}/lib/ -L${LIBEVENT_PREFIX}/lib/ -static-libstdc++" CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/"
 make
