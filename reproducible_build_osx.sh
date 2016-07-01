@@ -58,7 +58,9 @@ brew install automake
 brew install libtool
 brew install pkg-config
 brew install protobuf
-brew install gmp
+if [[ `brew ls | grep gmp` == 1 ]]; then
+    brew install gmp
+fi
 
 mkdir dependencies
 cd dependencies
