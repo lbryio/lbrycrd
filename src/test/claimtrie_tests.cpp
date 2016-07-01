@@ -99,7 +99,7 @@ bool CreateBlock(CBlockTemplate* pblocktemplate)
     static int unique_block_counter = 0;
     CBlock* pblock = &pblocktemplate->block;
     pblock->nVersion = 1;
-    pblock->nTime = chainActive.Tip()->GetMedianTimePast()+1;
+    pblock->nTime = chainActive.Tip()->GetBlockTime()+Params().GetConsensus().nPowTargetSpacing;
     CMutableTransaction txCoinbase(pblock->vtx[0]);
     txCoinbase.vin[0].scriptSig = CScript() << CScriptNum(unique_block_counter++) << CScriptNum(chainActive.Height());
     txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
@@ -289,9 +289,9 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
 
 BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 {
+    
     fRequireStandard = false;
     BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
-    
     LOCK(cs_main);
 
     std::string sName1("atest");
