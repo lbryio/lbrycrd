@@ -57,7 +57,7 @@ if [ "$CLONE" = false ]; then
     SOURCE_DIR=$PWD
 fi
 
-brew update
+brew update > /dev/null
 brew install autoconf
 brew install automake
 brew install libtool
