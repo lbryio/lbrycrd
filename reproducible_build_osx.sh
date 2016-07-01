@@ -57,6 +57,33 @@ if [ "$CLONE" = false ]; then
     SOURCE_DIR=$PWD
 fi
 
+# two arguments
+#  - pid (probably from $!)
+#  - echo message
+function wait_and_echo() {
+    PID=$1
+    (set -o | grep xtrace | grep -q on)
+    TRACE_STATUS=$?
+    # disable xtrace or else this will get verbose, which is what
+    # I'm trying to avoid by going through all of this nonsense anyway
+    set +o xtrace
+    TIME=0
+    SLEEP=5
+    # loop until the process is no longer running
+    # check every $SLEEP seconds, echoing a message every minute
+    while (ps -p ${PID} > /dev/null); do
+	sleep ${SLEEP}
+	let "TIME += ${SLEEP}"
+	if ! expr ${TIME} % 60 > /dev/null; then
+	    echo $2
+	fi
+    done
+    # restore the xtrace setting
+    if [ ${TRACE_STATUS} -eq 0 ]; then
+	set -o xtrace
+    fi
+}
+
 brew update > /dev/null
 brew install autoconf
 brew install automake
@@ -86,8 +113,10 @@ cd db-4.8.30.NC/build_unix
 BDB_LOG="${LOG_DIR}/bdb_build.log"
 echo "Building bdb.  tail -f $BDB_LOG to see the details and monitor progress"
 ../dist/configure --prefix=$BDB_PREFIX --enable-cxx --disable-shared --with-pic > "${BDB_LOG}"
-make >> "${BDB_LOG}" 2>&1
+make >> "${BDB_LOG}" 2>&1 &
+wait_and_echo $! "Waiting for bdb to finish building"
 make install >> "${BDB_LOG}" 2>&1
+
 
 #download and build openssl
 cd $LBRYCRD_DEPENDENCIES
@@ -100,7 +129,8 @@ cd openssl-1.0.1p
 OPENSSL_LOG="${LOG_DIR}/openssl_build.log"
 echo "Building bdb.  tail -f $OPENSSL_LOG to see the details and monitor progress"
 ./Configure --prefix=$OPENSSL_PREFIX --openssldir=$OPENSSL_PREFIX/ssl -fPIC darwin64-x86_64-cc no-shared no-dso no-engines > "${OPENSSL_LOG}"
-make >> "${OPENSSL_LOG}" 2>&1
+make >> "${OPENSSL_LOG}" 2>&1 &
+wait_and_echo $! "Waiting for openssl to finish building"
 make install >> "${OPENSSL_LOG}" 2>&1
 
 #download and build boost
@@ -112,7 +142,8 @@ cd boost_1_59_0
 BOOST_LOG="${LOG_DIR}/boost_build.log"
 echo "Building Boost.  tail -f ${BOOST_LOG} to see the details and monitor progress"
 ./bootstrap.sh > "${BOOST_LOG}"
-./b2 link=static cxxflags=-fPIC stage >> "${BOOST_LOG}"
+./b2 link=static cxxflags=-fPIC stage >> "${BOOST_LOG}" 2>&1 &
+wait_and echo $! "Waiting for boost to finish building"
 
 #download and build libevent
 cd $LBRYCRD_DEPENDENCIES
@@ -124,7 +155,8 @@ LIBEVENT_LOG="${LOG_DIR}/libevent_build.log"
 echo "Building libevent.  tail -f ${LIBEVENT_LOG} to see the details and monitor progress"
 ./autogen.sh > "${LIBEVENT_LOG}"
 ./configure --prefix=$LIBEVENT_PREFIX --enable-static --disable-shared --with-pic LDFLAGS="-L${OPENSSL_PREFIX}/lib/" CPPFLAGS="-I${OPENSSL_PREFIX}/include" >> "${LIBEVENT_LOG}"
-make >> "${LIBEVENT_LOG}"
+make >> "${LIBEVENT_LOG}" 2>&1 &
+wait_and_echo $! "Waiting for libevent to finish building"
 make install >> "${LIBEVENT_LOG}"
 
 set +u
