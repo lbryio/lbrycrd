@@ -143,7 +143,7 @@ BOOST_LOG="${LOG_DIR}/boost_build.log"
 echo "Building Boost.  tail -f ${BOOST_LOG} to see the details and monitor progress"
 ./bootstrap.sh > "${BOOST_LOG}"
 ./b2 link=static cxxflags=-fPIC stage >> "${BOOST_LOG}" 2>&1 &
-wait_and echo $! "Waiting for boost to finish building"
+wait_and_echo $! "Waiting for boost to finish building"
 
 #download and build libevent
 cd $LBRYCRD_DEPENDENCIES
