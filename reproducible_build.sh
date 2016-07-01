@@ -3,7 +3,7 @@
 set -euo pipefail
 
 function HELP {
-    echo "Build a lbrycrd"
+    echo "Build lbrycrd"
     echo "-----"
     echo "When run without any arguments, this script expects the current directory"
     echo "to be the lbrycrd repo and it builds what is in that directory"
