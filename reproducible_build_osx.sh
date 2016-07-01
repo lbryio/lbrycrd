@@ -58,7 +58,7 @@ brew install automake
 brew install libtool
 brew install pkg-config
 brew install protobuf
-if [[ `brew ls | grep gmp` == 1 ]]; then
+if ! brew ls | grep gmp --quiet; then
     brew install gmp
 fi
 
