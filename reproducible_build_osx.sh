@@ -101,7 +101,7 @@ function wait_and_echo() {
     TRACE_STATUS=$?
     # disable xtrace or else this will get verbose, which is what
     # I'm trying to avoid by going through all of this nonsense anyway
-    #set +o xtrace
+    set +o xtrace
     TIME=0
     SLEEP=5
     # loop until the process is no longer running
