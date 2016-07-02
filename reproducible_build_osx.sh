@@ -139,7 +139,7 @@ function build_dependencies() {
     fi
 
     if [ ! -d "${OPENSSL_PREFIX}" ]; then
-	trap "rm -rf \"${$OPENSSL_PREFIX}\"; exit 1" INT TERM EXIT
+	trap "rm -rf \"${OPENSSL_PREFIX}\"; exit 1" INT TERM EXIT
 	#download and build openssl
 	cd $LBRYCRD_DEPENDENCIES
 	wget https://www.openssl.org/source/openssl-1.0.1p.tar.gz
