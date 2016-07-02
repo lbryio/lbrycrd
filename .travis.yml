@@ -20,5 +20,5 @@ install:
 
 
 script: true
-  #- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./reproducible_build.sh -t; fi
-  #- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ./reproducible_build_osx.sh -t -l; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./reproducible_build.sh -t; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ./reproducible_build_osx.sh -t -l; fi
