@@ -71,7 +71,7 @@ $SUDO apt-get ${QUIET} install -y --no-install-recommends \
     ca-certificates automake bsdmainutils
 
 START_DIR=`pwd`
-LBRYCRD_DEPENDENCIES="`pwd`/dependencies/osx"
+LBRYCRD_DEPENDENCIES="`pwd`/dependencies/linux"
 LOG_DIR="${LBRYCRD_DEPENDENCIES}/log"
 BDB_PREFIX="${LBRYCRD_DEPENDENCIES}/bdb"
 OPENSSL_PREFIX="${LBRYCRD_DEPENDENCIES}/openssl_build"
