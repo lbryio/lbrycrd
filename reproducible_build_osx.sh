@@ -71,6 +71,7 @@ if [ "$CLONE" = false ]; then
     SOURCE_DIR=$PWD
 fi
 
+NEXT_TIME=60
 function exit_at_45() {
     if [ -f ${HOME}/start_time ]; then
 	NOW=`date +%s`
@@ -79,7 +80,12 @@ function exit_at_45() {
 	# expr returns 0 if its been less then 45 minutes
 	# and 1 if if its been more, so it is necessary
 	# to ! it.
-	if [ ! `expr $NOW - $START \> $TIMEOUT` ]; then
+	TIME=`expr $NOW - $START`
+	if expr ${TIME} \> ${NEXT_TIME} > /dev/null; then
+	    echo "Build has taken $(expr ${TIME} / 60) minutes: $1"
+	    NEXT_TIME=`expr ${TIME} + 60`
+	fi
+	if expr ${TIME} \> ${TIMEOUT} > /dev/null; then
 	    echo 'Exiting at 45 minutes to allow the cache to populate'
 	    exit 1
 	fi
@@ -95,18 +101,14 @@ function wait_and_echo() {
     TRACE_STATUS=$?
     # disable xtrace or else this will get verbose, which is what
     # I'm trying to avoid by going through all of this nonsense anyway
-    set +o xtrace
+    #set +o xtrace
     TIME=0
     SLEEP=5
     # loop until the process is no longer running
     # check every $SLEEP seconds, echoing a message every minute
     while (ps -p ${PID} > /dev/null); do
-	exit_at_45
+	exit_at_45 "$2"
 	sleep ${SLEEP}
-	let "TIME += ${SLEEP}"
-	if ! expr ${TIME} % 60 > /dev/null; then
-	    echo $2
-	fi
     done
     # restore the xtrace setting
     if [ ${TRACE_STATUS} -eq 0 ]; then
