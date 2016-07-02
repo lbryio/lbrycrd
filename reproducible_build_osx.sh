@@ -71,6 +71,21 @@ if [ "$CLONE" = false ]; then
     SOURCE_DIR=$PWD
 fi
 
+function exit_at_45() {
+    if [ -f ${HOME}/start_time ]; then
+	NOW=`date +%s`
+	START=`cat ${HOME}/start_time`
+	TIMEOUT=2700 # 45 * 60
+	# expr returns 0 if its been less then 45 minutes
+	# and 1 if if its been more, so it is necessary
+	# to ! it.
+	if [ ! `expr $NOW - $START \> $TIMEOUT` ]; then
+	    echo 'Exiting at 45 minutes to allow the cache to populate'
+	    exit 1
+	fi
+    fi
+}
+
 # two arguments
 #  - pid (probably from $!)
 #  - echo message
@@ -86,6 +101,7 @@ function wait_and_echo() {
     # loop until the process is no longer running
     # check every $SLEEP seconds, echoing a message every minute
     while (ps -p ${PID} > /dev/null); do
+	exit_at_45
 	sleep ${SLEEP}
 	let "TIME += ${SLEEP}"
 	if ! expr ${TIME} % 60 > /dev/null; then
@@ -100,6 +116,11 @@ function wait_and_echo() {
     return $?
 }
 
+function cleanup() {
+    rv=$?
+    rm -rf "$1"
+    exit $rv
+}
 
 function build_dependencies() {
     brew update > /dev/null
@@ -122,7 +143,7 @@ function build_dependencies() {
 
     if [ ! -d "${BDB_PREFIX}" ]; then
 	# cleanup if the build fails
-	trap "rm -rf \"${BDB_PREFIX}\"; exit 1" INT TERM EXIT
+	trap "cleanup \"${BDB_PREFIX}\"" INT TERM EXIT
 	#download, patch, and build bdb
 	cd "${LBRYCRD_DEPENDENCIES}"
 	wget http://download.oracle.com/berkeley-db/db-4.8.30.NC.tar.gz
@@ -141,7 +162,7 @@ function build_dependencies() {
     fi
 
     if [ ! -d "${OPENSSL_PREFIX}" ]; then
-	trap "rm -rf \"${OPENSSL_PREFIX}\"; exit 1" INT TERM EXIT
+	trap "cleanup \"${OPENSSL_PREFIX}\"" INT TERM EXIT
 	#download and build openssl
 	cd $LBRYCRD_DEPENDENCIES
 	wget https://www.openssl.org/source/openssl-1.0.1p.tar.gz
@@ -212,7 +233,7 @@ function build_lbrycrd() {
 		LDFLAGS="-L${OPENSSL_PREFIX}/lib/ -L${BDB_PREFIX}/lib/ -L${LIBEVENT_PREFIX}/lib/ -static-libstdc++" \
 		CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/"
     LBRYCRD_LOG="${LOG_DIR}/lbrycrd_build.log"
-    echo "Building libevent.  tail -f ${LBRYCRD_LOG} to see the details and monitor progress"
+    echo "Building lbrycrd.  tail -f ${LBRYCRD_LOG} to see the details and monitor progress"
     make > "${LBRYCRD_LOG}" 2>&1 &
     wait_and_echo $! "Waiting for lbrycrd to finish building"
     strip src/lbrycrdd

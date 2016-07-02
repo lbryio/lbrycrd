@@ -14,7 +14,7 @@ cache:
   - dependencies/linux
   - dependencies/osx
 
-before_install: date +%s > start_time
+before_install: date +%s > ${HOME}/start_time
 
 install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ./reproducible_build_osx.sh -t -d; fi
