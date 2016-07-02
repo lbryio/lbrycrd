@@ -70,47 +70,59 @@ $SUDO apt-get ${QUIET} install -y --no-install-recommends \
     autotools-dev autoconf git pkg-config wget \
     ca-certificates automake bsdmainutils
 
-mkdir -p dependencies/linux
-cd dependencies/linux
+START_DIR=`pwd`
+LBRYCRD_DEPENDENCIES="`pwd`/dependencies/osx"
+LOG_DIR="${LBRYCRD_DEPENDENCIES}/log"
+BDB_PREFIX="${LBRYCRD_DEPENDENCIES}/bdb"
+OPENSSL_PREFIX="${LBRYCRD_DEPENDENCIES}/openssl_build"
+export BOOST_ROOT="${LBRYCRD_DEPENDENCIES}/boost_1_59_0"
+LIBEVENT_PREFIX="${LBRYCRD_DEPENDENCIES}/libevent_build"
 
-wget http://download.oracle.com/berkeley-db/db-4.8.30.NC.tar.gz
-tar xf db-4.8.30.NC.tar.gz
-export BDB_PREFIX="`pwd`/bdb"
-cd db-4.8.30.NC/build_unix
-../dist/configure --prefix=$BDB_PREFIX --enable-cxx --disable-shared --with-pic
-make
-make install
-cd ../../
+mkdir -p "${LBRYCRD_DEPENDENCIES}"
 
-wget https://www.openssl.org/source/openssl-1.0.1p.tar.gz
-tar xf openssl-1.0.1p.tar.gz
-export OPENSSL_PREFIX="`pwd`/openssl_build"
-mkdir $OPENSSL_PREFIX
-cd openssl-1.0.1p
-./Configure --prefix=$OPENSSL_PREFIX --openssldir=$OPENSSL_PREFIX/ssl linux-x86_64 -fPIC -static no-shared no-dso
-make
-make install
-cd ..
+cd "${LBRYCRD_DEPENDENCIES}"
+if [ ! -d "${BDB_PREFIX}" ]; then
+    wget http://download.oracle.com/berkeley-db/db-4.8.30.NC.tar.gz
+    tar xf db-4.8.30.NC.tar.gz
+    cd db-4.8.30.NC/build_unix
+    ../dist/configure --prefix=$BDB_PREFIX --enable-cxx --disable-shared --with-pic
+    make
+    make install
+fi
 
-wget http://sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.bz2/download -O boost_1_59_0.tar.bz2
-tar xf boost_1_59_0.tar.bz2
-export BOOST_ROOT="`pwd`/boost_1_59_0"
-cd boost_1_59_0
-./bootstrap.sh
-./b2 link=static cxxflags=-fPIC stage
-cd ../../
+cd "${LBRYCRD_DEPENDENCIES}"
+if [ ! -d "${OPENSSL_PREFIX}" ]; then
+    wget https://www.openssl.org/source/openssl-1.0.1p.tar.gz
+    tar xf openssl-1.0.1p.tar.gz
+    mkdir $OPENSSL_PREFIX
+    cd openssl-1.0.1p
+    ./Configure --prefix=$OPENSSL_PREFIX --openssldir=$OPENSSL_PREFIX/ssl linux-x86_64 -fPIC -static no-shared no-dso
+    make
+    make install
+fi
 
+cd "${LBRYCRD_DEPENDENCIES}"
+if [ ! -d "${BOOST_ROOT}" ]; then
+    wget http://sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.bz2/download -O boost_1_59_0.tar.bz2
+    tar xf boost_1_59_0.tar.bz2
+    export BOOST_ROOT="`pwd`/boost_1_59_0"
+    cd boost_1_59_0
+    ./bootstrap.sh
+    ./b2 link=static cxxflags=-fPIC stage
+fi
 
-mkdir libevent_build
-git clone https://github.com/libevent/libevent.git
-export LIBEVENT_PREFIX="`pwd`/libevent_build"
-cd libevent
-./autogen.sh
-./configure --prefix=$LIBEVENT_PREFIX --enable-static --disable-shared --with-pic LDFLAGS="-L${OPENSSL_PREFIX}/lib/" CPPFLAGS="-I${OPENSSL_PREFIX}/include"
-make
-make install
+cd "${LBRYCRD_DEPENDENCIES}"
+if [ -d "${LIBEVENT_PREFIX}" ]; then
+    mkdir libevent_build
+    git clone https://github.com/libevent/libevent.git
+    cd libevent
+    ./autogen.sh
+    ./configure --prefix=$LIBEVENT_PREFIX --enable-static --disable-shared --with-pic LDFLAGS="-L${OPENSSL_PREFIX}/lib/" CPPFLAGS="-I${OPENSSL_PREFIX}/include"
+    make
+    make install
+fi
 
-cd ../..
+cd "${START_DIR}"
 
 set +u
 export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig/:${LIBEVENT_PREFIX}/lib/pkgconfig"
