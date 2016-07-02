@@ -25,6 +25,9 @@
 #define MAINNET_GENESIS_HASH "9c89283ba0f3227f6c03b70216b9f665f0118d5e0fa729cedf4fb34d6a34f463"
 #define MAINNET_GENESIS_NONCE 1287
 
+#define TESTNET_GENESIS_HASH "9c89283ba0f3227f6c03b70216b9f665f0118d5e0fa729cedf4fb34d6a34f463"
+#define TESTNET_GENESIS_NONCE 1287
+
 #define REGTEST_GENESIS_HASH "6e3fcf1299d4ec5d79c3a4c91d624a4acf9e2e173d95a1a0504f677669687556"
 #define REGTEST_GENESIS_NONCE 1
 
@@ -123,8 +126,8 @@ public:
         consensus.nMajorityEnforceBlockUpgrade = 750;
         consensus.nMajorityRejectBlockOutdated = 950;
         consensus.nMajorityWindow = 1000;
-        consensus.BIP34Height = 227931;
-        consensus.BIP34Hash = uint256S("0x000000000000024b89b42a942fe0d9fea3bb44ab7bd1b19115dd6a759c0808b8");
+        consensus.BIP34Height = 1; 
+        consensus.BIP34Hash = uint256S("0xdecb9e2cca03a419fd9cca0cb2b1d5ad11b088f22f8f38556d93ac4358b86c24"); 
         consensus.powLimit = uint256S("0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 150; //retarget every block
         consensus.nPowTargetSpacing = 150;
@@ -186,11 +189,11 @@ public:
 
         checkpointData = (CCheckpointData) {
             boost::assign::map_list_of
-            (     0, uint256S("0x0000343f59c49eb433ba3a37ee4b3493ff014ee9b266f610bb3cd1b36927787a")),
-            1417453734, // * UNIX timestamp of last checkpoint block
-            1,   // * total number of transactions between genesis and last checkpoint
+            (     4000, uint256S("0xa6bbb48f5343eb9b0287c22f3ea8b29f36cf10794a37f8a925a894d6f4519913")),
+            1467272478, // * UNIX timestamp of last checkpoint block
+            4146,   // * total number of transactions between genesis and last checkpoint
                         //   (the tx=... number in the SetBestChain debug.log lines)
-            0.0     // * estimated number of transactions per day after checkpoint
+            600.0     // * estimated number of transactions per day after checkpoint
         };
     }
 };
@@ -202,7 +205,7 @@ static CMainParams mainParams;
 class CTestNetParams : public CChainParams {
 public:
     CTestNetParams() {
-        strNetworkID = "test";
+        strNetworkID = "lbrycrdtest";
         consensus.nSubsidyLevelInterval = 1 << 5;
         consensus.nMajorityEnforceBlockUpgrade = 51;
         consensus.nMajorityRejectBlockOutdated = 75;
@@ -210,8 +213,8 @@ public:
         consensus.BIP34Height = 21111;
         consensus.BIP34Hash = uint256S("0x0000000023b3a96d3484e5abb3755c413e7d41500f8e2a5c3f0dd01299cd8ef8");
         consensus.powLimit = uint256S("0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
-        consensus.nPowTargetTimespan = 30 * 60 * 12;//14 * 24 * 60 * 60; // two weeks
-        consensus.nPowTargetSpacing = 30;
+        consensus.nPowTargetTimespan = 150;
+        consensus.nPowTargetSpacing = 150;
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1512; // 75% for testchains
@@ -225,20 +228,20 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_CSV].nStartTime = 1456790400; // March 1st, 2016
         consensus.vDeployments[Consensus::DEPLOYMENT_CSV].nTimeout = 1493596800; // May 1st, 2017
 
-        pchMessageStart[0] = 0x1d;
-        pchMessageStart[1] = 0x0c;
+        pchMessageStart[0] = 0xfa;
+        pchMessageStart[1] = 0xe4;
         pchMessageStart[2] = 0xaa;
-        pchMessageStart[3] = 0xd1;
+        pchMessageStart[3] = 0xe1;
         nDefaultPort = 19246;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1446058291, MAINNET_GENESIS_NONCE, 0x1f00ffff, 1, 400000000 * COIN, consensus);
+        genesis = CreateGenesisBlock(1446058291, TESTNET_GENESIS_NONCE, 0x1f00ffff, 1, 400000000 * COIN, consensus);
         consensus.hashGenesisBlock = genesis.GetHash();
 #ifdef FIND_GENESIS
         std::cout << "testnet genesis hash: " << genesis.GetHash().GetHex() << std::endl;
         std::cout << "testnet merkle hash: " << genesis.hashMerkleRoot.GetHex() << std::endl;
 #else
-        assert(consensus.hashGenesisBlock == uint256S(MAINNET_GENESIS_HASH));
+        assert(consensus.hashGenesisBlock == uint256S(TESTNET_GENESIS_HASH));
         assert(genesis.hashMerkleRoot == uint256S(GENESIS_MERKLE_ROOT));
 #endif
 
@@ -264,10 +267,10 @@ public:
 
         checkpointData = (CCheckpointData) {
             boost::assign::map_list_of
-            ( 546, uint256S("000000002a936ca763904c3c35fce2f3556c559c0214345d31b1bcebf76acb70")),
-            1337966069,
-            1488,
-            300
+            ( 0, uint256S(TESTNET_GENESIS_HASH)),
+            0,
+            0,
+            0
         };
 
     }
@@ -280,16 +283,16 @@ static CTestNetParams testNetParams;
 class CRegTestParams : public CChainParams {
 public:
     CRegTestParams() {
-        strNetworkID = "regtest";
-        consensus.nSubsidyLevelInterval = 1 << 4;
+        strNetworkID = "lbrycrdreg";
+        consensus.nSubsidyLevelInterval = 1 << 5;
         consensus.nMajorityEnforceBlockUpgrade = 750;
         consensus.nMajorityRejectBlockOutdated = 950;
         consensus.nMajorityWindow = 1000;
         consensus.BIP34Height = -1; // BIP34 has not necessarily activated on regtest
         consensus.BIP34Hash = uint256();
         consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
-        consensus.nPowTargetTimespan = 30 * 60 * 12;//14 * 24 * 60 * 60; // two weeks
-        consensus.nPowTargetSpacing = 30;
+        consensus.nPowTargetTimespan = 150;//14 * 24 * 60 * 60; // two weeks
+        consensus.nPowTargetSpacing = 150;
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 108; // 75% for testchains
@@ -301,10 +304,10 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_CSV].nStartTime = 0;
         consensus.vDeployments[Consensus::DEPLOYMENT_CSV].nTimeout = 999999999999ULL;
 
-        pchMessageStart[0] = 0xfb;
-        pchMessageStart[1] = 0xbe;
-        pchMessageStart[2] = 0xbf;
-        pchMessageStart[3] = 0xd9;
+        pchMessageStart[0] = 0xfa;
+        pchMessageStart[1] = 0xe4;
+        pchMessageStart[2] = 0xaa;
+        pchMessageStart[3] = 0xd1;
         nDefaultPort = 29246;
         nPruneAfterHeight = 1000;
 
@@ -329,7 +332,7 @@ public:
 
         checkpointData = (CCheckpointData){
             boost::assign::map_list_of
-            ( 0, uint256S("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206")),
+            ( 0, uint256S(REGTEST_GENESIS_HASH)),
             0,
             0,
             0
