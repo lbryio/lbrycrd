@@ -10,7 +10,8 @@ matrix:
 
 cache:
   directories:
-  - dependencies
+  - dependencies/linux
+  - dependencies/osx
 
 install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ./reproducible_build_osx.sh -t -d; fi
