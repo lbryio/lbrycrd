@@ -208,7 +208,7 @@ function build_lbrycrd() {
 }
 
 # these variables are needed in both functions
-LBRYCRD_DEPENDENCIES="`pwd`/dependencies"
+LBRYCRD_DEPENDENCIES="`pwd`/dependencies/osx"
 LOG_DIR="${LBRYCRD_DEPENDENCIES}/log"
 BDB_PREFIX="${LBRYCRD_DEPENDENCIES}/bdb"
 OPENSSL_PREFIX="${LBRYCRD_DEPENDENCIES}/openssl_build"

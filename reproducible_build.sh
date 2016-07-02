@@ -70,8 +70,8 @@ $SUDO apt-get ${QUIET} install -y --no-install-recommends \
     autotools-dev autoconf git pkg-config wget \
     ca-certificates automake bsdmainutils
 
-mkdir dependencies
-cd dependencies
+mkdir -p dependencies/linux
+cd dependencies/linux
 
 wget http://download.oracle.com/berkeley-db/db-4.8.30.NC.tar.gz
 tar xf db-4.8.30.NC.tar.gz
@@ -92,7 +92,6 @@ make
 make install
 cd ..
 
-
 wget http://sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.bz2/download -O boost_1_59_0.tar.bz2
 tar xf boost_1_59_0.tar.bz2
 export BOOST_ROOT="`pwd`/boost_1_59_0"
@@ -110,7 +109,8 @@ cd libevent
 ./configure --prefix=$LIBEVENT_PREFIX --enable-static --disable-shared --with-pic LDFLAGS="-L${OPENSSL_PREFIX}/lib/" CPPFLAGS="-I${OPENSSL_PREFIX}/include"
 make
 make install
-cd ..
+
+cd ../..
 
 set +u
 export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig/:${LIBEVENT_PREFIX}/lib/pkgconfig"
