@@ -114,65 +114,76 @@ function build_dependencies() {
 	rm -rf "${LBRYCRD_DEPENDENCIES}"
     fi
 
-    mkdir "${LBRYCRD_DEPENDENCIES}"
-    mkdir "${LOG_DIR}"
-
-    #download, patch, and build bdb
-    cd "${LBRYCRD_DEPENDENCIES}"
-    wget http://download.oracle.com/berkeley-db/db-4.8.30.NC.tar.gz
-    tar xf db-4.8.30.NC.tar.gz
-    curl -OL https://raw.github.com/narkoleptik/os-x-berkeleydb-patch/master/atomic.patch
-    patch db-4.8.30.NC/dbinc/atomic.h < atomic.patch
-    cd db-4.8.30.NC/build_unix
-    BDB_LOG="${LOG_DIR}/bdb_build.log"
-    echo "Building bdb.  tail -f $BDB_LOG to see the details and monitor progress"
-    ../dist/configure --prefix=$BDB_PREFIX --enable-cxx --disable-shared --with-pic > "${BDB_LOG}"
-    make >> "${BDB_LOG}" 2>&1 &
-    wait_and_echo $! "Waiting for bdb to finish building"
-    make install >> "${BDB_LOG}" 2>&1
+    mkdir -p "${LBRYCRD_DEPENDENCIES}"
+    mkdir -p "${LOG_DIR}"
 
 
-    #download and build openssl
-    cd $LBRYCRD_DEPENDENCIES
-    wget https://www.openssl.org/source/openssl-1.0.1p.tar.gz
-    tar xf openssl-1.0.1p.tar.gz
-    mkdir $OPENSSL_PREFIX
-    mkdir $OPENSSL_PREFIX/ssl
-    cd openssl-1.0.1p
-    OPENSSL_LOG="${LOG_DIR}/openssl_build.log"
-    echo "Building bdb.  tail -f $OPENSSL_LOG to see the details and monitor progress"
-    ./Configure --prefix=$OPENSSL_PREFIX --openssldir=$OPENSSL_PREFIX/ssl -fPIC darwin64-x86_64-cc no-shared no-dso no-engines > "${OPENSSL_LOG}"
-    make >> "${OPENSSL_LOG}" 2>&1 &
-    wait_and_echo $! "Waiting for openssl to finish building"
-    make install >> "${OPENSSL_LOG}" 2>&1
+    if [ ! -d "${BDB_PREFIX}" ]; then
+	#download, patch, and build bdb
+	cd "${LBRYCRD_DEPENDENCIES}"
+	wget http://download.oracle.com/berkeley-db/db-4.8.30.NC.tar.gz
+	tar xf db-4.8.30.NC.tar.gz
+	curl -OL https://raw.github.com/narkoleptik/os-x-berkeleydb-patch/master/atomic.patch
+	patch db-4.8.30.NC/dbinc/atomic.h < atomic.patch
+	cd db-4.8.30.NC/build_unix
+	BDB_LOG="${LOG_DIR}/bdb_build.log"
+	echo "Building bdb.  tail -f $BDB_LOG to see the details and monitor progress"
+	../dist/configure --prefix=$BDB_PREFIX --enable-cxx --disable-shared --with-pic > "${BDB_LOG}"
+	make >> "${BDB_LOG}" 2>&1 &
+	wait_and_echo $! "Waiting for bdb to finish building"
+	make install >> "${BDB_LOG}" 2>&1
+    fi
+
+    if [ ! -d "${OPENSSL_PREFIX}" ]; then
+	#download and build openssl
+	cd $LBRYCRD_DEPENDENCIES
+	wget https://www.openssl.org/source/openssl-1.0.1p.tar.gz
+	tar xf openssl-1.0.1p.tar.gz
+	mkdir $OPENSSL_PREFIX
+	mkdir $OPENSSL_PREFIX/ssl
+	cd openssl-1.0.1p
+	OPENSSL_LOG="${LOG_DIR}/openssl_build.log"
+	echo "Building bdb.  tail -f $OPENSSL_LOG to see the details and monitor progress"
+	./Configure --prefix=$OPENSSL_PREFIX --openssldir=$OPENSSL_PREFIX/ssl -fPIC darwin64-x86_64-cc \
+		    no-shared no-dso no-engines > "${OPENSSL_LOG}"
+	make >> "${OPENSSL_LOG}" 2>&1 &
+	wait_and_echo $! "Waiting for openssl to finish building"
+	make install >> "${OPENSSL_LOG}" 2>&1
+    fi
 
     set +u
     export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig/"
     set -u
-    
-    #download and build boost
-    cd $LBRYCRD_DEPENDENCIES
-    wget http://sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.bz2/download -O boost_1_59_0.tar.bz2
-    tar xf boost_1_59_0.tar.bz2
-    cd "${BOOST_ROOT}"
-    BOOST_LOG="${LOG_DIR}/boost_build.log"
-    echo "Building Boost.  tail -f ${BOOST_LOG} to see the details and monitor progress"
-    ./bootstrap.sh > "${BOOST_LOG}"
-    ./b2 link=static cxxflags=-fPIC stage >> "${BOOST_LOG}" 2>&1 &
-    wait_and_echo $! "Waiting for boost to finish building"
 
-    #download and build libevent
-    cd $LBRYCRD_DEPENDENCIES
-    mkdir libevent_build
-    git clone https://github.com/libevent/libevent.git
-    cd libevent
-    LIBEVENT_LOG="${LOG_DIR}/libevent_build.log"
-    echo "Building libevent.  tail -f ${LIBEVENT_LOG} to see the details and monitor progress"
-    ./autogen.sh > "${LIBEVENT_LOG}"
-    ./configure --prefix=$LIBEVENT_PREFIX --enable-static --disable-shared --with-pic LDFLAGS="-L${OPENSSL_PREFIX}/lib/" CPPFLAGS="-I${OPENSSL_PREFIX}/include" >> "${LIBEVENT_LOG}"
-    make >> "${LIBEVENT_LOG}" 2>&1 &
-    wait_and_echo $! "Waiting for libevent to finish building"
-    make install >> "${LIBEVENT_LOG}"
+    if [ ! -d "${BOOST_ROOT}" ]; then
+	#download and build boost
+	cd $LBRYCRD_DEPENDENCIES
+	wget http://sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.bz2/download \
+	     -O boost_1_59_0.tar.bz2
+	tar xf boost_1_59_0.tar.bz2
+	cd "${BOOST_ROOT}"
+	BOOST_LOG="${LOG_DIR}/boost_build.log"
+	echo "Building Boost.  tail -f ${BOOST_LOG} to see the details and monitor progress"
+	./bootstrap.sh > "${BOOST_LOG}"
+	./b2 link=static cxxflags=-fPIC stage >> "${BOOST_LOG}" 2>&1 &
+	wait_and_echo $! "Waiting for boost to finish building"
+    fi
+
+    if [ -d "${LIBEVENT_PREFIX}" ]; then
+	#download and build libevent
+	cd $LBRYCRD_DEPENDENCIES
+	mkdir libevent_build
+	git clone https://github.com/libevent/libevent.git
+	cd libevent
+	LIBEVENT_LOG="${LOG_DIR}/libevent_build.log"
+	echo "Building libevent.  tail -f ${LIBEVENT_LOG} to see the details and monitor progress"
+	./autogen.sh > "${LIBEVENT_LOG}"
+	./configure --prefix="${LIBEVENT_PREFIX}" --enable-static --disable-shared --with-pic \
+		    LDFLAGS="-L${OPENSSL_PREFIX}/lib/" CPPFLAGS="-I${OPENSSL_PREFIX}/include" >> "${LIBEVENT_LOG}"
+	make >> "${LIBEVENT_LOG}" 2>&1 &
+	wait_and_echo $! "Waiting for libevent to finish building"
+	make install >> "${LIBEVENT_LOG}"
+     fi
 }
 
 function build_lbrycrd() {
@@ -215,4 +226,5 @@ set -u
 if [ "${BUILD_LBRYCRD}" = true ]; then
     build_lbrycrd
 fi
+
 
