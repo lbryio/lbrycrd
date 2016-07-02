@@ -96,6 +96,8 @@ function wait_and_echo() {
     if [ ${TRACE_STATUS} -eq 0 ]; then
 	set -o xtrace
     fi
+    wait $PID
+    return $?
 }
 
 
@@ -209,8 +211,10 @@ function build_lbrycrd() {
 		--with-boost="${BOOST_PREFIX}" \
 		LDFLAGS="-L${OPENSSL_PREFIX}/lib/ -L${BDB_PREFIX}/lib/ -L${LIBEVENT_PREFIX}/lib/ -static-libstdc++" \
 		CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/"
-
-    make
+    LBRYCRD_LOG="${LOG_DIR}/lbrycrd_build.log"
+    echo "Building libevent.  tail -f ${LBRYCRD_LOG} to see the details and monitor progress"
+    make > "${LBRYCRD_LOG}" 2>&1 &
+    wait_and_echo $! "Waiting for lbrycrd to finish building"
     strip src/lbrycrdd
     strip src/lbrycrd-cli
     strip src/lbrycrd-tx
