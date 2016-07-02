@@ -13,10 +13,12 @@ cache:
   - dependencies/linux
   - dependencies/osx
 
+before_install: date +%s > start_time
+  
 install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ./reproducible_build_osx.sh -t -d; fi
-  - false
 
-script:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./reproducible_build.sh -t; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ./reproducible_build_osx.sh -t -l; fi
+
+script: true
+  #- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./reproducible_build.sh -t; fi
+  #- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ./reproducible_build_osx.sh -t -l; fi
