@@ -112,7 +112,7 @@ if [ ! -d "${BOOST_ROOT}" ]; then
 fi
 
 cd "${LBRYCRD_DEPENDENCIES}"
-if [ -d "${LIBEVENT_PREFIX}" ]; then
+if [ ! -d "${LIBEVENT_PREFIX}" ]; then
     mkdir libevent_build
     git clone https://github.com/libevent/libevent.git
     cd libevent
