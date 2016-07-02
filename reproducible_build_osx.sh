@@ -119,6 +119,8 @@ function build_dependencies() {
 
 
     if [ ! -d "${BDB_PREFIX}" ]; then
+	# cleanup if the build fails
+	trap "rm -rf \"${BDB_PREFIX}\"; exit 1" INT TERM EXIT
 	#download, patch, and build bdb
 	cd "${LBRYCRD_DEPENDENCIES}"
 	wget http://download.oracle.com/berkeley-db/db-4.8.30.NC.tar.gz
@@ -132,9 +134,12 @@ function build_dependencies() {
 	make >> "${BDB_LOG}" 2>&1 &
 	wait_and_echo $! "Waiting for bdb to finish building"
 	make install >> "${BDB_LOG}" 2>&1
+	rm -rf db-4.8.30.NC.tar.gz db-4.8.30.NC atomic.patch
+	trap - INT TERM EXIT
     fi
 
     if [ ! -d "${OPENSSL_PREFIX}" ]; then
+	trap "rm -rf \"${$OPENSSL_PREFIX}\"; exit 1" INT TERM EXIT
 	#download and build openssl
 	cd $LBRYCRD_DEPENDENCIES
 	wget https://www.openssl.org/source/openssl-1.0.1p.tar.gz
@@ -149,27 +154,30 @@ function build_dependencies() {
 	make >> "${OPENSSL_LOG}" 2>&1 &
 	wait_and_echo $! "Waiting for openssl to finish building"
 	make install >> "${OPENSSL_LOG}" 2>&1
+	rm -rf openssl-1.0.1p.tar.gz openssl-1.0.1p
+	trap - INT TERM EXIT
     fi
 
     set +u
     export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig/"
     set -u
 
-    if [ ! -d "${BOOST_ROOT}" ]; then
+    if [ ! -d "${BOOST_PREFIX}" ]; then
 	#download and build boost
 	cd $LBRYCRD_DEPENDENCIES
 	wget http://sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.bz2/download \
 	     -O boost_1_59_0.tar.bz2
 	tar xf boost_1_59_0.tar.bz2
-	cd "${BOOST_ROOT}"
+	cd boost_1_59_0
 	BOOST_LOG="${LOG_DIR}/boost_build.log"
 	echo "Building Boost.  tail -f ${BOOST_LOG} to see the details and monitor progress"
-	./bootstrap.sh > "${BOOST_LOG}"
-	./b2 link=static cxxflags=-fPIC stage >> "${BOOST_LOG}" 2>&1 &
+	./bootstrap.sh --prefix=${BOOST_PREFIX} > "${BOOST_LOG}"
+	./b2 link=static cxxflags=-fPIC install >> "${BOOST_LOG}" 2>&1 &
 	wait_and_echo $! "Waiting for boost to finish building"
+	rm -rf boost_1_59_0.tar.bz2 boost_1_59_0
     fi
 
-    if [ -d "${LIBEVENT_PREFIX}" ]; then
+    if [ ! -d "${LIBEVENT_PREFIX}" ]; then
 	#download and build libevent
 	cd $LBRYCRD_DEPENDENCIES
 	mkdir libevent_build
@@ -183,6 +191,7 @@ function build_dependencies() {
 	make >> "${LIBEVENT_LOG}" 2>&1 &
 	wait_and_echo $! "Waiting for libevent to finish building"
 	make install >> "${LIBEVENT_LOG}"
+	rm -rf libevent
      fi
 }
 
@@ -197,6 +206,7 @@ function build_lbrycrd() {
     fi
     ./autogen.sh
     ./configure --without-gui --enable-cxx --enable-static --disable-shared --with-pic \
+		--with-boost="${BOOST_PREFIX}" \
 		LDFLAGS="-L${OPENSSL_PREFIX}/lib/ -L${BDB_PREFIX}/lib/ -L${LIBEVENT_PREFIX}/lib/ -static-libstdc++" \
 		CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/"
 
@@ -209,10 +219,10 @@ function build_lbrycrd() {
 
 # these variables are needed in both functions
 LBRYCRD_DEPENDENCIES="`pwd`/dependencies/osx"
-LOG_DIR="${LBRYCRD_DEPENDENCIES}/log"
+LOG_DIR="`pwd`/logs"
 BDB_PREFIX="${LBRYCRD_DEPENDENCIES}/bdb"
 OPENSSL_PREFIX="${LBRYCRD_DEPENDENCIES}/openssl_build"
-export BOOST_ROOT="${LBRYCRD_DEPENDENCIES}/boost_1_59_0"
+BOOST_PREFIX="${LBRYCRD_DEPENDENCIES}/boost_build"
 LIBEVENT_PREFIX="${LBRYCRD_DEPENDENCIES}/libevent_build"
 
 if [ "${BUILD_DEPENDENCIES}" = true ]; then
