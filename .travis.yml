@@ -24,4 +24,5 @@ script:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ./reproducible_build_osx.sh -t -l; fi
 
 before_cache:
+  - rm -rf dependencies/osx/boost_1_59_0 dependencies/osx/db-4.8.30.NC dependencies/osx/libevent dependencies/osx/openssl-1.0.1p
   - du -h -d 2 dependencies
