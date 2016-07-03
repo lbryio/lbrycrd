@@ -20,9 +20,9 @@ install:
 
 script:
   - du -h -d 2 dependencies
-  #- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./reproducible_build.sh -t; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./reproducible_build.sh -t; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ./reproducible_build_osx.sh -t -l; fi
 
 before_cache:
-  - rm -rf dependencies/osx/boost_1_59_0 dependencies/osx/db-4.8.30.NC dependencies/osx/libevent dependencies/osx/openssl-1.0.1p
+  - rm -rf dependencies/osx/boost_1_59_0 dependencies/osx/db-4.8.30.NC dependencies/osx/libevent dependencies/osx/openssl-1.0.1p dependencies/osx/*.tar.* atomic.patch
   - du -h -d 2 dependencies
