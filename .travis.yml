@@ -9,17 +9,19 @@ matrix:
           osx_image: xcode7.3
 
 cache:
-  ccache: true
   directories:
   - dependencies/linux
   - dependencies/osx
 
 before_install: date +%s > ${HOME}/start_time
 
-install: true
-  #- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ./reproducible_build_osx.sh -t -d; fi
+install:
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ./reproducible_build_osx.sh -t -d; fi
 
 script:
   - du -h -d 2 dependencies
   #- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./reproducible_build.sh -t; fi
-  #- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ./reproducible_build_osx.sh -t -l; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ./reproducible_build_osx.sh -t -l; fi
+
+before_cache:
+  - du -h -d 2 dependencies
