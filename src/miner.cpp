@@ -479,6 +479,9 @@ void IncrementExtraNonce(CBlock* pblock, const CBlockIndex* pindexPrev, unsigned
 // Internal miner
 //
 
+double dHashesPerSec = 0.0;
+int64_t nHPSTimerStart = 0;
+
 static bool ProcessBlockFound(const CBlock* pblock, const CChainParams& chainparams)
 {
     LogPrintf("%s\n", pblock->ToString());
@@ -562,7 +565,10 @@ void static BitcoinMiner(const CChainParams& chainparams)
             uint256 hash;
             pblock->nNonce = 0;
             bool found = false;
-            while (true) {
+            while (true)
+            {
+                unsigned int nHashesDone = 0;
+                
                 // Check if something found
                 while (true)
                 {
@@ -586,10 +592,42 @@ void static BitcoinMiner(const CChainParams& chainparams)
                     }
                     pblock->nNonce += 1;
                     if ((pblock->nNonce & 0xFF) == 0)
+                    {
+                        nHashesDone = 0xFF+1;
                         break;
+                    }
                 }
                 if (found)
                     break;
+                
+                // Meter hashes/sec
+                static int64_t nHashCounter;
+                if (nHPSTimerStart == 0)
+                {
+                    nHPSTimerStart = GetTimeMillis();
+                    nHashCounter = 0;
+                }
+                else
+                    nHashCounter += nHashesDone;
+                if (GetTimeMillis() - nHPSTimerStart > 4000)
+                {
+                    static CCriticalSection cs;
+                    {
+                        LOCK(cs);
+                        if (GetTimeMillis() - nHPSTimerStart > 4000)
+                        {
+                            dHashesPerSec = 1000.0 * nHashCounter / (GetTimeMillis() - nHPSTimerStart);
+                            nHPSTimerStart = GetTimeMillis();
+                            nHashCounter = 0;
+                            static int64_t nLogTime;
+                            if (GetTime() - nLogTime > 30 * 60)
+                            {
+                                nLogTime = GetTime();
+                                LogPrintf("hashmeter %6.0f khash/s\n", dHashesPerSec/1000.0);
+                            }
+                        }
+                    }
+                }
 
                 // Check for stop or if block needs to be rebuilt
                 boost::this_thread::interruption_point();
