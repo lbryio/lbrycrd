@@ -72,6 +72,26 @@ UniValue GetNetworkHashPS(int lookup, int height) {
     return workDiff.getdouble() / timeDiff;
 }
 
+UniValue gethashespersec(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error(
+                            "gethashespersec\n"
+                            "\nReturns a recent hashes per second performance measurement while generating.\n"
+                            "See the getgenerate and setgenerate calls to turn generation on and off.\n"
+                            "\nResult:\n"
+                            "n            (numeric) The recent hashes per second when generation is on (will return 0 if generation is off)\n"
+                            "\nExamples:\n"
+                            + HelpExampleCli("gethashespersec", "")
+                            + HelpExampleRpc("gethashespersec", "")
+                            );
+    
+    if (GetTimeMillis() - nHPSTimerStart > 8000)
+        return (int64_t)0;
+    return (int64_t)dHashesPerSec;
+}
+
+
 UniValue getnetworkhashps(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() > 2)
@@ -291,6 +311,7 @@ UniValue getmininginfo(const UniValue& params, bool fHelp)
             "  \"errors\": \"...\"          (string) Current errors\n"
             "  \"generate\": true|false     (boolean) If the generation is on or off (see getgenerate or setgenerate calls)\n"
             "  \"genproclimit\": n          (numeric) The processor limit for generation. -1 if no generation. (see getgenerate or setgenerate calls)\n"
+            "  \"hashespersec\": n          (numeric) The hashes per second of the generation, or 0 if no generation.\n"
             "  \"pooledtx\": n              (numeric) The size of the mem pool\n"
             "  \"testnet\": true|false      (boolean) If using testnet or not\n"
             "  \"chain\": \"xxxx\",         (string) current network name as defined in BIP70 (main, test, regtest)\n"
@@ -315,6 +336,7 @@ UniValue getmininginfo(const UniValue& params, bool fHelp)
     obj.push_back(Pair("testnet",          Params().TestnetToBeDeprecatedFieldRPC()));
     obj.push_back(Pair("chain",            Params().NetworkIDString()));
     obj.push_back(Pair("generate",         getgenerate(params, false)));
+    obj.push_back(Pair("hashespersec",     gethashespersec(params, false)));
     return obj;
 }
 
@@ -853,6 +875,7 @@ static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
   //  --------------------- ------------------------  -----------------------  ----------
     { "mining",             "getnetworkhashps",       &getnetworkhashps,       true  },
+    { "mining",             "gethashespersec",        &gethashespersec,        true  },
     { "mining",             "getmininginfo",          &getmininginfo,          true  },
     { "mining",             "prioritisetransaction",  &prioritisetransaction,  true  },
     { "mining",             "getblocktemplate",       &getblocktemplate,       true  },
