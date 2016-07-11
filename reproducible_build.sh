@@ -68,7 +68,7 @@ done
 shift $((OPTIND-1))
 
 SUDO=''
-if (( $EUID != 0 )); then
+if (( EUID != 0 )); then
     SUDO='sudo'
 fi
 
@@ -109,11 +109,11 @@ function exit_at_45() {
 	START=$(cat "${START_TIME_FILE}")
 	TIMEOUT_SECS=2700 # 45 * 60
 	TIME=$((NOW - START))
-	if [ $((TIME > NEXT_TIME)) -eq 1 ]; then
+	if (( TIME > NEXT_TIME )); then
 	    echo "Build has taken $((TIME / 60)) minutes: $1"
 	    NEXT_TIME=$((TIME + 60))
 	fi
-	if [ "$TIMEOUT" = true ] && [ $((TIME > TIMEOUT_SECS)) -eq 1 ]; then
+	if [ "$TIMEOUT" = true ] && (( TIME > TIMEOUT_SECS )); then
 	    echo 'Exiting at 45 minutes to allow the cache to populate'
 	    exit 1
 	fi
@@ -216,7 +216,9 @@ function build_dependencies() {
 }
 
 function build_bdb() {
-    wget http://download.oracle.com/berkeley-db/db-4.8.30.NC.tar.gz
+    if [ ! -f db-4.8.30.NC.tar.gz ]; then
+	wget http://download.oracle.com/berkeley-db/db-4.8.30.NC.tar.gz
+    fi
     tar xf db-4.8.30.NC.tar.gz
     if [ ${OS_NAME} = "osx" ]; then
 	curl -OL https://raw.github.com/narkoleptik/os-x-berkeleydb-patch/master/atomic.patch
