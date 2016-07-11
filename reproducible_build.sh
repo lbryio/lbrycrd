@@ -15,7 +15,7 @@ function HELP {
     echo
     echo "Optional arguments:"
     echo
-    echo "-c: clone a fresh copy of the repo"
+    echo "-c: don't clone a fresh copy of the repo"
     echo "-r: remove intermediate files."
     echo "-l: build only lbrycrd"
     echo "-d: build only the dependencies"
@@ -25,7 +25,7 @@ function HELP {
     exit 1
 }
 
-CLONE=false
+CLONE=true
 CLEAN=false
 BUILD_DEPENDENCIES=true
 BUILD_LBRYCRD=true
@@ -34,7 +34,7 @@ TIMEOUT=false
 while getopts :crldoth:w:d: FLAG; do
     case $FLAG in
 	c)
-	    CLONE=true
+	    CLONE=false
 	    ;;
 	r)
 	    CLEAN=true
