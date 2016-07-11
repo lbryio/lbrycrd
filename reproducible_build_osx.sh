@@ -19,8 +19,9 @@ function HELP {
     echo "-r: remove intermediate files."
     echo "-l: build only lbrycrd"
     echo "-d: build only the dependencies"
-    echo "-h: show help"
+    echo "-o: ignore build timeOut"
     echo "-t: turn trace on"
+    echo "-h: show help"
     exit 1
 }
 
@@ -28,8 +29,9 @@ CLONE=false
 CLEAN=false
 BUILD_DEPENDENCIES=true
 BUILD_LBRYCRD=true
+TIMEOUT=true
 
-while getopts :crldth:w:d: FLAG; do
+while getopts :crldoth:w:d: FLAG; do
     case $FLAG in
 	c)
 	    CLONE=true
@@ -42,6 +44,9 @@ while getopts :crldth:w:d: FLAG; do
 	    ;;
 	d)
 	    BUILD_LBRYCRD=false
+	    ;;
+	o)
+	    TIMEOUT=false
 	    ;;
 	t)
 	    set -o xtrace
@@ -85,7 +90,7 @@ function exit_at_45() {
 	    echo "Build has taken $(expr ${TIME} / 60) minutes: $1"
 	    NEXT_TIME=`expr ${TIME} + 60`
 	fi
-	if expr ${TIME} \> ${TIMEOUT} > /dev/null; then
+	if [ "$TIMEOUT" = true ] && expr ${TIME} \> ${TIMEOUT} > /dev/null; then
 	    echo 'Exiting at 45 minutes to allow the cache to populate'
 	    exit 1
 	fi
