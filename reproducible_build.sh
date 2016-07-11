@@ -284,7 +284,7 @@ function build_dependency() {
     LOG=$2
     BUILD=$3
     if [ ! -d "${PREFIX}" ]; then
-	trap "cleanup \"${PREFIX}\" \"${LOG}\"" INT TERM EXIT
+	trap 'cleanup "${PREFIX}" "${LOG}"' INT TERM EXIT
 	cd $LBRYCRD_DEPENDENCIES
 	mkdir -p "${PREFIX}"
 	"${BUILD}" "${LOG}"
