@@ -442,7 +442,7 @@ UniValue claimname(const UniValue& params, bool fHelp)
 }
 
 
-void UpdateName(const std::vector<unsigned char> vchName, const std::vector<unsigned char> vchValue, CAmount nAmount, CWalletTx& wtxNew, CWalletTx wtxIn, unsigned int nTxOut)
+void UpdateName(const std::vector<unsigned char> vchName, const uint160 claimId, const std::vector<unsigned char> vchValue, CAmount nAmount, CWalletTx& wtxNew, CWalletTx wtxIn, unsigned int nTxOut)
 {
     // Check amount
     if (nAmount <= 0)
@@ -464,8 +464,9 @@ void UpdateName(const std::vector<unsigned char> vchName, const std::vector<unsi
     if (!pwalletMain->GetKeyFromPool(newKey))
         throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
 
+    std::vector<unsigned char> vchClaimId(claimId.begin(), claimId.end());
     CScript scriptPubKey = GetScriptForDestination(CTxDestination(newKey.GetID()));
-    CScript claimScript = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
+    CScript claimScript = CScript() << OP_UPDATE_CLAIM << vchName << vchClaimId << vchValue << OP_2DROP << OP_2DROP;
     claimScript = claimScript + scriptPubKey;
 
     vector<CRecipient> vecSend;
@@ -501,7 +502,7 @@ UniValue updateclaim(const UniValue& params, bool fHelp)
             "\nArguments:\n"
             "1.  \"txid\"  (string, required) The transaction containing the unspent txout which should be spent.\n"
             "2.  \"value\"  (string, required) The value to assign to the name.\n"
-            "3.  \"amount\"  (numeric, required) The amount in LBRYcrd to send. eg 0.1\n"
+            "3.  \"amount\"  (numeric, required) The amount in LBRYcrd to use to bid for the name. eg 0.1\n"
             "\nResult:\n"
             "\"transactionid\"  (string) The new transaction id.\n"
         );
@@ -523,6 +524,7 @@ UniValue updateclaim(const UniValue& params, bool fHelp)
     const CWalletTx& wtx = pwalletMain->mapWallet[hash];
     int op;
     std::vector<std::vector<unsigned char> > vvchParams;
+    uint160 claimId;
     CWalletTx wtxNew;
     bool fFound = false;
     for (unsigned int i = 0; !fFound && i < wtx.vout.size(); i++)
@@ -533,7 +535,15 @@ UniValue updateclaim(const UniValue& params, bool fHelp)
             {
                 vchName = vvchParams[0];
                 EnsureWalletIsUnlocked();
-                UpdateName(vchName, vchValue, nAmount, wtxNew, wtx, i);
+                if (op == OP_CLAIM_NAME)
+                {
+                    claimId = ClaimIdHash(wtx.GetHash(), i);
+                }
+                else if (op == OP_UPDATE_CLAIM)
+                {
+                    claimId = uint160(vvchParams[1]);
+                }
+                UpdateName(vchName, claimId, vchValue, nAmount, wtxNew, wtx, i);
                 fFound = true;
             }
         }
@@ -677,15 +687,15 @@ void ListNameClaims(const CWalletTx& wtx, const string& strAccount, int nMinDept
                 entry.push_back(Pair("name", sName));
                 if (op == OP_CLAIM_NAME)
                 {
+                    uint160 claimId = ClaimIdHash(wtx.GetHash(), s.vout);
+                    entry.push_back(Pair("claimId", claimId.GetHex()));
                     string sValue (vvchParams[1].begin(), vvchParams[1].end());
                     entry.push_back(Pair("value", sValue));
                 }
                 else if (op == OP_SUPPORT_CLAIM)
                 {
-                    uint256 txhash(vvchParams[1]);
-                    entry.push_back(Pair("supported_txid", txhash.GetHex()));
-                    int32_t nOut = vch_to_uint32_t(vvchParams[2]);
-                    entry.push_back(Pair("supported_nOut", nOut));
+                    uint256 claimId(vvchParams[1]);
+                    entry.push_back(Pair("supported_claimid", claimId.GetHex()));
                 }
                 entry.push_back(Pair("txid", wtx.GetHash().ToString()));
                 entry.push_back(Pair("account", strSentAccount));
@@ -748,6 +758,7 @@ UniValue listnameclaims(const UniValue& params, bool fHelp)
             "  {\n"
             "    \"name\":\"claimedname\",        (string) The name that is claimed.\n"
             "    \"claimtype\":\"claimtype\",     (string) CLAIM or SUPPORT.\n"
+            "    \"claimId\":\"claimId\",         (string) The claimId of the claim.\n"
             "    \"value\":\"value\"              (string) The value assigned to the name, if claimtype is CLAIM.\n"
             "    \"account\":\"accountname\",     (string) The account name associated with the transaction. \n"
             "                                              It will be \"\" for the default account.\n"
@@ -813,34 +824,32 @@ UniValue supportclaim(const UniValue& params, bool fHelp)
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
-    if (fHelp || params.size() != 4)
+    if (fHelp || params.size() != 3)
         throw runtime_error(
             "supportclaim \"name\" \"txid\" nout amount\n"
             "Increase the value of a claim. Whichever claim has the greatest value, including all support values, will be the authoritative claim, according to the rest of the rules. The name is the name which is claimed by the claim that will be supported, the txid is the txid of the claim that will be supported, nout is the transaction output which contains the claim to be supported, and amount is the amount which will be added to the value of the claim. If the claim is currently the authoritative claim, this support will go into effect immediately. Otherwise, it will go into effect after 100 blocks. The support will be in effect until it is spent, and will lose its effect when the claim is spent or expires. The amount is a real and is rounded to the nearest .00000001\n"
             + HelpRequiringPassphrase() +
             "\nArguments:\n"
             "1. \"name\"  (string, required) The name claimed by the claim to support.\n"
-            "2. \"txid\"  (string, required) The transaction id of the claim to support.\n"
-            "3. \"nout\"  (integer, required) The transaction output of the transaction which contains the claim to be supported.\n"
-            "4. \"amount\"  (numeric, required) The amount in LBC to use to support the claim.\n"
+            "2. \"claimid\"  (string, required) The claimid of the claim to support. This can be obtained by TODO PUT IN PLACE THAT SHOWS THIS.\n"
+            "3. \"amount\"  (numeric, required) The amount in LBC to use to support the claim.\n"
             "\nResult:\n"
             "\"transactionid\"  (string) The transaction id of the support.\n"
         );
 
     string sName = params[0].get_str();
-    string sTxid = params[1].get_str();
-    uint256 txid;
-    txid.SetHex(sTxid);
+    string sClaimId = params[1].get_str();
+    uint160 claimId;
+    claimId.SetHex(sClaimId);
     std::vector<unsigned char> vchName (sName.begin(), sName.end());
-    std::vector<unsigned char> vchTxid (txid.begin(), txid.end());
-    std::vector<unsigned char> vchnOut = uint32_t_to_vch(params[2].get_int());
-    CAmount nAmount = AmountFromValue(params[3]);
+    std::vector<unsigned char> vchClaimId (claimId.begin(), claimId.end());
+    CAmount nAmount = AmountFromValue(params[2]);
 
     CWalletTx wtx;
 
     EnsureWalletIsUnlocked();
 
-    CScript supportScript = CScript() << OP_SUPPORT_CLAIM << vchName << vchTxid << vchnOut << OP_2DROP << OP_2DROP;
+    CScript supportScript = CScript() << OP_SUPPORT_CLAIM << vchName << vchClaimId << OP_2DROP << OP_2DROP;
     
     CreateClaim(supportScript, nAmount, wtx);
 
