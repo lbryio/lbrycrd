@@ -307,7 +307,7 @@ function build_lbrycrd() {
     # tests don't work on OSX. Should definitely figure out why
     # that is but, for now, not letting that stop the rest
     # of the build
-    if [ ${OS_NAME} = "linux"]; then
+    if [ ${OS_NAME} = "linux" ]; then
 	src/test/test_lbrycrd
     fi
     strip src/lbrycrdd
