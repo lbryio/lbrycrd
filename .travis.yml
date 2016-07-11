@@ -24,7 +24,6 @@ install:
 script:
   - ./reproducible_build.sh -t -o -l
 
-
 before_cache:
   - rm -rf dependencies/osx/boost_1_59_0 dependencies/osx/db-4.8.30.NC dependencies/osx/libevent dependencies/osx/openssl-1.0.1p dependencies/osx/*.tar.* atomic.patch
   - du -h -d 2 dependencies
