@@ -15,7 +15,7 @@ cache:
     - dependencies/osx
 
 before_install:
-  - date +%s > ${HOME}/start_time
+  - date +%s > "${TRAVIS_BUILD_DIR}/start_time"
   - ls -lh "dependencies/${TRAVIS_OS_NAME}"
   - du -h -d 2 dependencies
 

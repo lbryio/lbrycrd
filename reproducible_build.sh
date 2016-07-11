@@ -72,7 +72,7 @@ if (( $EUID != 0 )); then
     SUDO='sudo'
 fi
 
-if [ "$CLONE" = false ]; then
+if [ "${CLONE}" = false ]; then
     if [ `basename $PWD` != "lbrycrd" ]; then
 	echo "Not currently in the lbrycrd directory. Cowardly refusing to go forward"
 	exit 1
@@ -90,11 +90,24 @@ else
     OS_NAME=${TRAVIS_OS_NAME}
 fi
 
+if [ "${TIMEOUT}" = true ]; then
+    if [ -z ${TRAVIS_BUILD_DIR+x} ]; then
+	START_TIME_FILE="$PWD/start_time"
+    else
+	# if we are on travis (the primary use case for setting a timeout)
+	# this file is created when the build starts
+	START_TIME_FILE="$TRAVIS_BUILD_DIR/start_time"
+    fi
+    if [ ! -f "${START_TIME_FILE}" ]; then
+	date +%s > "${START_TIME_FILE}"
+    fi
+fi
+
 NEXT_TIME=60
 function exit_at_45() {
-    if [ -f ${HOME}/start_time ]; then
+    if [ -f "${START_TIME_FILE}" ]; then
 	NOW=`date +%s`
-	START=`cat ${HOME}/start_time`
+	START=$(cat "${START_TIME_FILE}")
 	TIMEOUT_SECS=2700 # 45 * 60
 	# expr returns 0 if its been less then 45 minutes
 	# and 1 if if its been more, so it is necessary
