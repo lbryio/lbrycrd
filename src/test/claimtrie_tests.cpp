@@ -2095,6 +2095,126 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
 }
 
+BOOST_AUTO_TEST_CASE(claimtrie_invalid_claimid)
+{
+    fRequireStandard = false;
+    BOOST_CHECK(pclaimTrie->nCurrentHeight = chainActive.Height() + 1);
+
+    LOCK(cs_main);
+
+    std::string sName("atest");
+    std::string sValue1("testa");
+    std::string sValue2("testb");
+
+    std::vector<unsigned char> vchName(sName.begin(), sName.end());
+    std::vector<unsigned char> vchValue1(sValue1.begin(), sValue1.end());
+    std::vector<unsigned char> vchValue2(sValue2.begin(), sValue2.end());
+
+    std::vector<CTransaction> coinbases;
+
+    BOOST_CHECK(CreateCoinbases(2, coinbases));
+
+    CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
+    tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
+    tx1.vout[0].nValue = 1;
+    COutPoint tx1OutPoint(tx1.GetHash(), 0);
+
+    CMutableTransaction tx2 = BuildTransaction(coinbases[1]);
+    tx2.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue2 << OP_2DROP << OP_DROP << OP_TRUE;
+    tx2.vout[0].nValue = 5;
+    COutPoint tx2OutPoint(tx2.GetHash(), 0);
+
+    CMutableTransaction tx3 = BuildTransaction(tx2);
+    uint160 tx1ClaimId = ClaimIdHash(tx1.GetHash(), 0);
+    std::vector<unsigned char> vchTx1ClaimId(tx1ClaimId.begin(), tx1ClaimId.end());
+    tx3.vout[0].scriptPubKey = CScript() << OP_UPDATE_CLAIM << vchName << vchTx1ClaimId << vchValue2 << OP_2DROP << OP_2DROP << OP_TRUE;
+    tx3.vout[0].nValue = 4;
+    COutPoint tx3OutPoint(tx3.GetHash(), 0);
+
+    CMutableTransaction tx4 = BuildTransaction(tx3);
+    tx4.vout[0].scriptPubKey = CScript() << OP_UPDATE_CLAIM << vchName << vchTx1ClaimId << vchValue2 << OP_2DROP << OP_2DROP << OP_TRUE;
+    tx4.vout[0].nValue = 3;
+    COutPoint tx4OutPoint(tx4.GetHash(), 0);
+
+    CClaimValue val;
+    std::vector<uint256> blocks_to_invalidate;
+
+    // Verify that supports expire
+
+    // Create a 1 LBC claim (tx1)
+
+    AddToMempool(tx1);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+
+    BOOST_CHECK(pcoinsTip->HaveCoins(tx1.GetHash()));
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK(pclaimTrie->supportEmpty());
+    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+
+    // Make sure it gets way in there
+
+    BOOST_CHECK(CreateBlocks(100, 1));
+
+    // Create a 5 LBC claim (tx2)
+
+    AddToMempool(tx2);
+    
+    BOOST_CHECK(CreateBlocks(1, 2));
+    
+    BOOST_CHECK(pcoinsTip->HaveCoins(tx2.GetHash()));
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!pclaimTrie->queueEmpty());
+
+    // Create a tx with a bogus claimId
+
+    AddToMempool(tx3);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+
+    BOOST_CHECK(pcoinsTip->HaveCoins(tx3.GetHash()));
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty()); 
+    
+    // Verify it's not in the claim trie
+
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
+    
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName, tx4OutPoint));
+
+    // Update the tx with the bogus claimId
+
+    AddToMempool(tx4);
+
+    BOOST_CHECK(CreateBlocks(1, 2));
+
+    BOOST_CHECK(pcoinsTip->HaveCoins(tx4.GetHash()));
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+
+    // Verify it's not in the claim trie
+
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName, tx4OutPoint));
+
+    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK(val.outPoint == tx1OutPoint);
+
+    // Go forward a few hundred blocks and verify it's not in there
+
+    BOOST_CHECK(CreateBlocks(300, 1));
+
+    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(pclaimTrie->queueEmpty());
+
+    BOOST_CHECK(!pclaimTrie->haveClaim(sName, tx4OutPoint));
+
+    // go all the way back
+    BOOST_CHECK(RemoveBlock(blocks_to_invalidate.back()));
+}
+
 BOOST_AUTO_TEST_CASE(claimtrie_expiring_supports)
 {
     fRequireStandard = false;
