@@ -90,18 +90,17 @@ else
     OS_NAME=${TRAVIS_OS_NAME}
 fi
 
-if [ "${TIMEOUT}" = true ]; then
-    if [ -z ${TRAVIS_BUILD_DIR+x} ]; then
-	START_TIME_FILE="$PWD/start_time"
-    else
-	# if we are on travis (the primary use case for setting a timeout)
-	# this file is created when the build starts
-	START_TIME_FILE="$TRAVIS_BUILD_DIR/start_time"
-    fi
-    if [ ! -f "${START_TIME_FILE}" ]; then
-	date +%s > "${START_TIME_FILE}"
-    fi
+if [ -z ${TRAVIS_BUILD_DIR+x} ]; then
+    START_TIME_FILE="$PWD/start_time"
+else
+    # if we are on travis (the primary use case for setting a timeout)
+    # this file is created when the build starts
+    START_TIME_FILE="$TRAVIS_BUILD_DIR/start_time"
 fi
+if [ ! -f "${START_TIME_FILE}" ]; then
+    date +%s > "${START_TIME_FILE}"
+fi
+
 
 NEXT_TIME=60
 function exit_at_45() {
@@ -109,15 +108,12 @@ function exit_at_45() {
 	NOW=`date +%s`
 	START=$(cat "${START_TIME_FILE}")
 	TIMEOUT_SECS=2700 # 45 * 60
-	# expr returns 0 if its been less then 45 minutes
-	# and 1 if if its been more, so it is necessary
-	# to ! it.
-	TIME=`expr $NOW - $START`
-	if expr ${TIME} \> ${NEXT_TIME} > /dev/null; then
-	    echo "Build has taken $(expr ${TIME} / 60) minutes: $1"
-	    NEXT_TIME=`expr ${TIME} + 60`
+	TIME=$((NOW - START))
+	if [ $((TIME > NEXT_TIME)) -eq 1 ]; then
+	    echo "Build has taken $((TIME / 60)) minutes: $1"
+	    NEXT_TIME=$((TIME + 60))
 	fi
-	if [ "$TIMEOUT" = true ] && expr ${TIME} \> ${TIMEOUT_SECS} > /dev/null; then
+	if [ "$TIMEOUT" = true ] && [ $((TIME > TIMEOUT_SECS)) -eq 1 ]; then
 	    echo 'Exiting at 45 minutes to allow the cache to populate'
 	    exit 1
 	fi
