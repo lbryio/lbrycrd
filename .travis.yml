@@ -13,13 +13,15 @@ cache:
   - dependencies/linux
   - dependencies/osx
 
-before_install: date +%s > ${HOME}/start_time
+before_install:
+  - date +%s > ${HOME}/start_time
+  - ls -lh "dependencies/${TRAVIS_OS_NAME}"
+  - du -h -d 2 dependencies
 
 install:
   - ./reproducible_build.sh -t -o -d
 
 script:
-  - du -h -d 2 dependencies
   - ./reproducible_build.sh -t -o -l
 
 
