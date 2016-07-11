@@ -73,24 +73,24 @@ if (( EUID != 0 )); then
 fi
 
 if [ "${CLONE}" = false ]; then
-    if [ `basename $PWD` != "lbrycrd" ]; then
+    if [ "$(basename "$PWD")" != "lbrycrd" ]; then
 	echo "Not currently in the lbrycrd directory. Cowardly refusing to go forward"
 	exit 1
     fi
     SOURCE_DIR=$PWD
 fi
 
-if [ -z ${TRAVIS_OS_NAME+x} ]; then
-    if [ `uname -s` = "Darwin" ]; then
+if [ -z "${TRAVIS_OS_NAME+x}" ]; then
+    if [ "$(uname -s)" = "Darwin" ]; then
 	OS_NAME="osx"
     else
 	OS_NAME="linux"
     fi
 else
-    OS_NAME=${TRAVIS_OS_NAME}
+    OS_NAME="${TRAVIS_OS_NAME}"
 fi
 
-if [ -z ${TRAVIS_BUILD_DIR+x} ]; then
+if [ -z "${TRAVIS_BUILD_DIR+x}" ]; then
     START_TIME_FILE="$PWD/start_time"
 else
     # if we are on travis (the primary use case for setting a timeout)
@@ -105,7 +105,7 @@ fi
 NEXT_TIME=60
 function exit_at_45() {
     if [ -f "${START_TIME_FILE}" ]; then
-	NOW=`date +%s`
+	NOW=$(date +%s)
 	START=$(cat "${START_TIME_FILE}")
 	TIMEOUT_SECS=2700 # 45 * 60
 	TIME=$((NOW - START))
@@ -134,15 +134,15 @@ function wait_and_echo() {
     SLEEP=5
     # loop until the process is no longer running
     # check every $SLEEP seconds, echoing a message every minute
-    while (ps -p ${PID} > /dev/null); do
+    while (ps -p "${PID}" > /dev/null); do
 	exit_at_45 "$2"
-	sleep ${SLEEP}
+	sleep "${SLEEP}"
     done
     # restore the xtrace setting
-    if [ ${TRACE_STATUS} -eq 0 ]; then
+    if [ "${TRACE_STATUS}" -eq 0 ]; then
 	set -o xtrace
     fi
-    wait $PID
+    wait "$PID"
     return $?
 }
 
@@ -150,7 +150,7 @@ function wait_and_echo() {
 # logging its stdout and stderr to $2
 # and wait until it completed
 function background() {
-    $1 >> $2 2>&1 &
+    $1 >> "$2" 2>&1 &
     wait_and_echo $! "$3"
 }
 
@@ -176,22 +176,22 @@ function install_brew_packages() {
 }
 
 function install_apt_packages() {
-    if [ -z ${TRAVIS+x} ]; then
+    if [ -z "${TRAVIS+x}" ]; then
 	# if not on travis, its nice to see progress
 	QUIET=""
     else
 	QUIET="-qq"
     fi
     # get the required OS packages
-    $SUDO apt-get ${QUIET} update
-    $SUDO apt-get ${QUIET} install -y --no-install-recommends \
+    $SUDO apt-get "${QUIET}" update
+    $SUDO apt-get "${QUIET}" install -y --no-install-recommends \
 	  build-essential python-dev libbz2-dev libtool \
 	  autotools-dev autoconf git pkg-config wget \
 	  ca-certificates automake bsdmainutils
 }
 
 function build_dependencies() {
-    if [ ${OS_NAME} = "osx" ]; then
+    if [ "${OS_NAME}" = "osx" ]; then
 	install_brew_packages
     else
 	install_apt_packages
@@ -220,14 +220,14 @@ function build_bdb() {
 	wget http://download.oracle.com/berkeley-db/db-4.8.30.NC.tar.gz
     fi
     tar xf db-4.8.30.NC.tar.gz
-    if [ ${OS_NAME} = "osx" ]; then
+    if [ "${OS_NAME}" = "osx" ]; then
 	curl -OL https://raw.github.com/narkoleptik/os-x-berkeleydb-patch/master/atomic.patch
 	patch db-4.8.30.NC/dbinc/atomic.h < atomic.patch
     fi
     cd db-4.8.30.NC/build_unix
     BDB_LOG="${LOG_DIR}/bdb_build.log"
     echo "Building bdb.  tail -f $BDB_LOG to see the details and monitor progress"
-    ../dist/configure --prefix=$BDB_PREFIX --enable-cxx --disable-shared --with-pic > "${BDB_LOG}"
+    ../dist/configure --prefix="${BDB_PREFIX}" --enable-cxx --disable-shared --with-pic > "${BDB_LOG}"
     background make "${BDB_LOG}" "Waiting for bdb to finish building"
     make install >> "${BDB_LOG}" 2>&1
 }
@@ -236,15 +236,15 @@ function build_openssl() {
     OPENSSL_LOG="$1"
     wget https://www.openssl.org/source/openssl-1.0.1p.tar.gz
     tar xf openssl-1.0.1p.tar.gz
-    mkdir -p $OPENSSL_PREFIX/ssl
+    mkdir -p "${OPENSSL_PREFIX}/ssl"
     cd openssl-1.0.1p
     echo "Building bdb.  tail -f $OPENSSL_LOG to see the details and monitor progress"
-    if [ ${OS_NAME} = "osx" ]; then
-	./Configure --prefix=$OPENSSL_PREFIX --openssldir=$OPENSSL_PREFIX/ssl \
+    if [ "${OS_NAME}" = "osx" ]; then
+	./Configure --prefix="${OPENSSL_PREFIX}" --openssldir="${OPENSSL_PREFIX}/ssl" \
 		    -fPIC darwin64-x86_64-cc \
 		    no-shared no-dso no-engines > "${OPENSSL_LOG}"
     else
-	./Configure --prefix=$OPENSSL_PREFIX --openssldir=$OPENSSL_PREFIX/ssl \
+	./Configure --prefix="${OPENSSL_PREFIX}" --openssldir="${OPENSSL_PREFIX}/ssl" \
 		    linux-x86_64 -fPIC -static no-shared no-dso > "${OPENSSL_LOG}"
     fi
     background make "${OPENSSL_LOG}" "Waiting for openssl to finish building"
@@ -258,7 +258,7 @@ function build_boost() {
     tar xf boost_1_59_0.tar.bz2
     cd boost_1_59_0
     echo "Building Boost.  tail -f ${BOOST_LOG} to see the details and monitor progress"
-    ./bootstrap.sh --prefix=${BOOST_PREFIX} > "${BOOST_LOG}" 2>&1
+    ./bootstrap.sh --prefix="${BOOST_PREFIX}" > "${BOOST_LOG}" 2>&1
     background "./b2 link=static cxxflags=-fPIC install" \
 	       "${BOOST_LOG}" \
 	       "Waiting for boost to finish building"
@@ -283,7 +283,7 @@ function build_dependency() {
     BUILD=$3
     if [ ! -d "${PREFIX}" ]; then
 	trap 'cleanup "${PREFIX}" "${LOG}"' INT TERM EXIT
-	cd $LBRYCRD_DEPENDENCIES
+	cd "${LBRYCRD_DEPENDENCIES}"
 	mkdir -p "${PREFIX}"
 	"${BUILD}" "${LOG}"
 	trap - INT TERM EXIT
@@ -293,7 +293,7 @@ function build_dependency() {
 function build_lbrycrd() {
     #download and build lbrycrd
     if [ "$CLONE" == true ]; then
-	cd $LBRYCRD_DEPENDENCIES
+	cd "${LBRYCRD_DEPENDENCIES}"
 	git clone https://github.com/lbryio/lbrycrd
 	cd lbrycrd
     else
@@ -302,7 +302,7 @@ function build_lbrycrd() {
     ./autogen.sh
     LDFLAGS="-L${OPENSSL_PREFIX}/lib/ -L${BDB_PREFIX}/lib/ -L${LIBEVENT_PREFIX}/lib/ -static-libstdc++"
     CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/"
-    if [ ${OS_NAME} = "osx" ]; then
+    if [ "${OS_NAME}" = "osx" ]; then
 	./configure --without-gui --enable-cxx --enable-static --disable-shared --with-pic \
 		    --with-boost="${BOOST_PREFIX}" \
 		    LDFLAGS="${LDFLAGS}" \
@@ -318,7 +318,7 @@ function build_lbrycrd() {
     # tests don't work on OSX. Should definitely figure out why
     # that is but, for now, not letting that stop the rest
     # of the build
-    if [ ${OS_NAME} = "linux" ]; then
+    if [ "${OS_NAME}" = "linux" ]; then
 	src/test/test_lbrycrd
     fi
     strip src/lbrycrdd
@@ -328,8 +328,8 @@ function build_lbrycrd() {
 }
 
 # these variables are needed in both functions
-LBRYCRD_DEPENDENCIES="`pwd`/dependencies/${OS_NAME}"
-LOG_DIR="`pwd`/logs"
+LBRYCRD_DEPENDENCIES="$(pwd)/dependencies/${OS_NAME}"
+LOG_DIR="$(pwd)/logs"
 BDB_PREFIX="${LBRYCRD_DEPENDENCIES}/bdb"
 OPENSSL_PREFIX="${LBRYCRD_DEPENDENCIES}/openssl_build"
 BOOST_PREFIX="${LBRYCRD_DEPENDENCIES}/boost_build"
