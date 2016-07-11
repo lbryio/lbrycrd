@@ -305,7 +305,7 @@ function build_lbrycrd() {
     echo "Building lbrycrd.  tail -f ${LBRYCRD_LOG} to see the details and monitor progress"
     make > "${LBRYCRD_LOG}" 2>&1 &
     wait_and_echo $! "Waiting for lbrycrd to finish building"
-    if ! make check; then
+    if ! src/test/test_lbrycrd; then
 	cat src/test-suite.log
 	exit 1
     fi
