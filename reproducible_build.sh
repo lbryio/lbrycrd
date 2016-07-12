@@ -205,7 +205,9 @@ function build_dependencies() {
 	rm -rf "${OUTPUT_DIR}"
     fi
 
-    mkdir -p "${LBRYCRD_DEPENDENCIES}"
+    if [ ! -d "${LBRYCRD_DEPENDENCIES}" ]; then
+       git clone https://github.com/lbryio/lbrycrd-dependencies.git "${LBRYCRD_DEPENDENCIES}"
+    fi
     mkdir -p "${LOG_DIR}"
 
     build_dependency "${BDB_PREFIX}" "${LOG_DIR}/bdb_build.log" build_bdb
@@ -221,12 +223,7 @@ function build_dependencies() {
 
 function build_bdb() {
     BDB_LOG="$1"
-    if [ ! -f db-4.8.30.NC.tar.gz ]; then
-	wget http://download.oracle.com/berkeley-db/db-4.8.30.NC.tar.gz
-    fi
-    tar xf db-4.8.30.NC.tar.gz
     if [ "${OS_NAME}" = "osx" ]; then
-	curl -OL https://raw.github.com/narkoleptik/os-x-berkeleydb-patch/master/atomic.patch
 	patch db-4.8.30.NC/dbinc/atomic.h < atomic.patch
     fi
     cd db-4.8.30.NC/build_unix
@@ -238,8 +235,6 @@ function build_bdb() {
 
 function build_openssl() {
     OPENSSL_LOG="$1"
-    wget https://www.openssl.org/source/openssl-1.0.1p.tar.gz
-    tar xf openssl-1.0.1p.tar.gz
     mkdir -p "${OPENSSL_PREFIX}/ssl"
     cd openssl-1.0.1p
     echo "Building openssl.  tail -f $OPENSSL_LOG to see the details and monitor progress"
@@ -257,9 +252,6 @@ function build_openssl() {
 
 function build_boost() {
     BOOST_LOG="$1"
-    wget http://sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.bz2/download \
-	 -O boost_1_59_0.tar.bz2
-    tar xf boost_1_59_0.tar.bz2
     cd boost_1_59_0
     echo "Building Boost.  tail -f ${BOOST_LOG} to see the details and monitor progress"
     ./bootstrap.sh --prefix="${BOOST_PREFIX}" > "${BOOST_LOG}" 2>&1
