@@ -20,10 +20,10 @@ before_install:
   - du -h -d 2 dependencies
 
 install:
-  - ./reproducible_build.sh -t -o -d
+  - ./reproducible_build.sh -t -o -d -c
 
 script:
-  - ./reproducible_build.sh -t -o -l
+  - ./reproducible_build.sh -t -o -l -c
 
 before_cache:
   - rm -rf dependencies/${TRAVIS_OS_NAME}/boost_1_59_0 dependencies/${TRAVIS_OS_NAME}/db-4.8.30.NC dependencies/${TRAVIS_OS_NAME}/libevent dependencies/${TRAVIS_OS_NAME}/openssl-1.0.1p dependencies/${TRAVIS_OS_NAME}/*.tar.* atomic.patch
