@@ -164,7 +164,15 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
     {
         LogPrintf("%s: the specified txout of %s does not have a name claim command\n", __func__, claim.outPoint.hash.GetHex());
     }
-    std::string sValue(vvchParams[1].begin(), vvchParams[1].end());
+    std::string sValue;
+    if (op == OP_CLAIM_NAME)
+    {
+        sValue = std::string(vvchParams[1].begin(), vvchParams[1].end());
+    }
+    else if (op == OP_UPDATE_CLAIM)
+    {
+        sValue = std::string(vvchParams[2].begin(), vvchParams[2].end());
+    }
     ret.push_back(Pair("value", sValue));
     ret.push_back(Pair("txid", claim.outPoint.hash.GetHex()));
     ret.push_back(Pair("n", (int)claim.outPoint.n));

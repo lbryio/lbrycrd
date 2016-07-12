@@ -692,9 +692,16 @@ void ListNameClaims(const CWalletTx& wtx, const string& strAccount, int nMinDept
                     string sValue (vvchParams[1].begin(), vvchParams[1].end());
                     entry.push_back(Pair("value", sValue));
                 }
+                else if (op == OP_UPDATE_CLAIM)
+                {
+                    uint160 claimId(vvchParams[1]);
+                    entry.push_back(Pair("claimId", claimId.GetHex()));
+                    string sValue(vvchParams[2].begin(), vvchParams[2].end());
+                    entry.push_back(Pair("value", sValue));
+                }
                 else if (op == OP_SUPPORT_CLAIM)
                 {
-                    uint256 claimId(vvchParams[1]);
+                    uint160 claimId(vvchParams[1]);
                     entry.push_back(Pair("supported_claimid", claimId.GetHex()));
                 }
                 entry.push_back(Pair("txid", wtx.GetHash().ToString()));
@@ -849,7 +856,7 @@ UniValue supportclaim(const UniValue& params, bool fHelp)
 
     EnsureWalletIsUnlocked();
 
-    CScript supportScript = CScript() << OP_SUPPORT_CLAIM << vchName << vchClaimId << OP_2DROP << OP_2DROP;
+    CScript supportScript = CScript() << OP_SUPPORT_CLAIM << vchName << vchClaimId << OP_2DROP << OP_DROP;
     
     CreateClaim(supportScript, nAmount, wtx);
 
