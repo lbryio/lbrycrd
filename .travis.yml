@@ -1,11 +1,30 @@
-sudo: required
-dist: trusty
+matrix:
+    include:
+        - os: linux
+          sudo: required
+          dist: trusty
+          language: c
+        - os: osx
+          language: c
+          osx_image: xcode7.3
 
 cache:
+  ccache: true
   directories:
-    - release
+    - dependencies/linux
+    - dependencies/osx
 
-install: true
+before_install:
+  - date +%s > "${TRAVIS_BUILD_DIR}/start_time"
+  - ls -lh "dependencies/${TRAVIS_OS_NAME}"
+  - du -h -d 2 dependencies
+
+install:
+  - ./reproducible_build.sh -t -o -d -c
+
 script:
-  - if [ ! -f release/lbrycrd-linux.zip ]; then  ./reproducible_build.sh -t; fi
-  - if [ ! -f release/lbrycrd-linux.zip ]; then mkdir -p release; zip -j release/lbrycrd-linux.zip src/lbrycrdd src/lbrycrd-cli src/lbrycrd-tx; fi
+  - ./reproducible_build.sh -t -o -l -c
+
+before_cache:
+  - rm -rf dependencies/${TRAVIS_OS_NAME}/boost_1_59_0 dependencies/${TRAVIS_OS_NAME}/db-4.8.30.NC dependencies/${TRAVIS_OS_NAME}/libevent dependencies/${TRAVIS_OS_NAME}/openssl-1.0.1p dependencies/${TRAVIS_OS_NAME}/*.tar.* atomic.patch
+  - du -h -d 2 dependencies
