@@ -265,6 +265,16 @@ typedef std::map<std::string, CClaimTrieNode*, nodenamecompare> nodeCacheType;
 
 typedef std::map<std::string, uint256> hashMapType;
 
+struct claimsForNameType
+{
+    std::vector<CClaimValue> claims;
+    std::vector<CSupportValue> supports;
+    int nLastTakeoverHeight;
+
+    claimsForNameType(std::vector<CClaimValue> claims, std::vector<CSupportValue> supports, int nLastTakeoverHeight)
+    : claims(claims), supports(supports), nLastTakeoverHeight(nLastTakeoverHeight) {}
+};
+
 class CClaimTrieCache;
 
 class CClaimTrie
@@ -290,6 +300,8 @@ public:
     std::vector<namedNodeType> flattenTrie() const;
     bool getInfoForName(const std::string& name, CClaimValue& claim) const;
     bool getLastTakeoverForName(const std::string& name, int& lastTakeoverHeight) const;
+
+    claimsForNameType getClaimsForName(const std::string& name) const;
     
     bool queueEmpty() const;
     bool supportEmpty() const;

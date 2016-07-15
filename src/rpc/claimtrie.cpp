@@ -181,6 +181,34 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
     return ret;
 }
 
+UniValue getclaimsforname(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw std::runtime_error(
+            "getclaimsforname\n"
+            "Return a whole bunch of stuff, I tell you what"
+        );
+
+    LOCK(cs_main);
+    std::string name = params[0].get_str();
+    claimsForNameType claimsForName = pclaimTrie->getClaimsForName(name);
+    UniValue ret(UniValue::VARR);
+    for (std::vector<CClaimValue>::const_iterator itClaims = claimsForName.claims.begin(); itClaims != claimsForName.claims.end(); ++itClaims)
+    {
+        UniValue claim(UniValue::VOBJ);
+        claim.push_back(Pair("txid", itClaims->outPoint.hash.GetHex()));
+        ret.push_back(claim);
+    }
+    for (std::vector<CSupportValue>::const_iterator itSupports = claimsForName.supports.begin(); itSupports != claimsForName.supports.end(); ++itSupports)
+    {
+        UniValue support(UniValue::VOBJ);
+        support.push_back(Pair("txid", itSupports->outPoint.hash.GetHex()));
+        ret.push_back(support);
+    }
+    return ret;
+}
+
+
 UniValue gettotalclaimednames(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
@@ -535,6 +563,7 @@ static const CRPCCommand commands[] =
     { "Claimtrie",             "getclaimsintrie",         &getclaimsintrie,         true  },
     { "Claimtrie",             "getclaimtrie",            &getclaimtrie,            true  },
     { "Claimtrie",             "getvalueforname",         &getvalueforname,         true  },
+    { "Claimtrie",             "getclaimsforname",        &getclaimsforname,        true  },
     { "Claimtrie",             "gettotalclaimednames",    &gettotalclaimednames,    true  },
     { "Claimtrie",             "gettotalclaims",          &gettotalclaims,          true  },
     { "Claimtrie",             "gettotalvalueofclaims",   &gettotalvalueofclaims,   true  },
