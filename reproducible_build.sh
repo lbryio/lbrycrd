@@ -166,16 +166,20 @@ function cleanup() {
     exit $rv
 }
 
+function brew_if_not_installed() {
+    if ! brew ls | grep $1 --quiet; then
+	brew install $1
+    fi
+}
+
 function install_brew_packages() {
     brew update > /dev/null
-    brew install autoconf
-    brew install automake
-    brew install libtool
-    brew install pkg-config
-    brew install protobuf
-    if ! brew ls | grep gmp --quiet; then
-	brew install gmp
-    fi
+    brew_if_not_installed autoconf
+    brew_if_not_installed automake
+    brew_if_not_installed libtool
+    brew_if_not_installed pkg-config
+    brew_if_not_installed protobuf
+    brew_if_not_installed gmp
 }
 
 function install_apt_packages() {
