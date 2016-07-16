@@ -198,7 +198,9 @@ function install_brew_packages() {
     brew update > /dev/null
     brew_if_not_installed autoconf
     brew_if_not_installed automake
-    brew_if_not_installed libtool
+    # something weird happened where glibtoolize was failing to find
+    # sed, and reinstalling fixes it.
+    brew reinstall -s libtool
     brew_if_not_installed pkg-config
     brew_if_not_installed protobuf
     brew_if_not_installed gmp
@@ -234,6 +236,7 @@ function build_dependencies() {
     if [ ! -d "${LBRYCRD_DEPENDENCIES}" ]; then
        git clone https://github.com/lbryio/lbrycrd-dependencies.git "${LBRYCRD_DEPENDENCIES}"
     fi
+    # TODO: if the repo exists, make sure its clean: revert to head.
     mkdir -p "${LOG_DIR}"
 
     build_dependency "${BDB_PREFIX}" "${LOG_DIR}/bdb_build.log" build_bdb
@@ -288,7 +291,9 @@ function build_boost() {
 
 function build_libevent() {
     LIBEVENT_LOG="$1"
-    git clone https://github.com/libevent/libevent.git
+    if [ ! -d libevent ]; then
+	git clone https://github.com/libevent/libevent.git
+    fi
     cd libevent
     echo "Building libevent.  tail -f ${LIBEVENT_LOG} to see the details and monitor progress"
     ./autogen.sh > "${LIBEVENT_LOG}" 2>&1
