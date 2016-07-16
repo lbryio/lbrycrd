@@ -30,6 +30,7 @@ CLEAN=false
 BUILD_DEPENDENCIES=true
 BUILD_LBRYCRD=true
 TIMEOUT=false
+THREE_MB=3145728
 
 while getopts :crldoth:w:d: FLAG; do
     case $FLAG in
@@ -151,18 +152,39 @@ function wait_and_echo() {
 # and wait until it completed
 function background() {
     $1 >> "$2" 2>&1 &
-    wait_and_echo $! "$3"
+    BACKGROUND_PID=$!
+    wait_and_echo $BACKGROUND_PID "$3"
 }
 
 function cleanup() {
     rv=$?
     # cat the log file if it exists
     if [ -f "$2" ]; then
-	cat "$2"
+	echo
+	echo "Output of log file $2"
+	echo
+	tail -c $THREE_MB "$1"
+	echo
     fi
     # delete the build directory
     rm -rf "$1"
     echo "Build failed. Removing $1"
+    exit $rv
+}
+
+function cat_and_exit() {
+    rv=$?
+    # cat the log file if it exists
+    if [ -f "$1" ]; then
+	echo
+	echo "Output of log file $1"
+	echo
+	# log size is limited to 4MB on travis
+	# so hopefully the last 3MB is enough
+	# to debug whatever went wrong
+	tail -c $THREE_MB "$1"
+	echo
+    fi
     exit $rv
 }
 
@@ -176,7 +198,9 @@ function install_brew_packages() {
     brew update > /dev/null
     brew_if_not_installed autoconf
     brew_if_not_installed automake
-    brew_if_not_installed libtool
+    # something weird happened where glibtoolize was failing to find
+    # sed, and reinstalling fixes it.
+    brew reinstall -s libtool
     brew_if_not_installed pkg-config
     brew_if_not_installed protobuf
     brew_if_not_installed gmp
@@ -212,6 +236,7 @@ function build_dependencies() {
     if [ ! -d "${LBRYCRD_DEPENDENCIES}" ]; then
        git clone https://github.com/lbryio/lbrycrd-dependencies.git "${LBRYCRD_DEPENDENCIES}"
     fi
+    # TODO: if the repo exists, make sure its clean: revert to head.
     mkdir -p "${LOG_DIR}"
 
     build_dependency "${BDB_PREFIX}" "${LOG_DIR}/bdb_build.log" build_bdb
@@ -266,7 +291,9 @@ function build_boost() {
 
 function build_libevent() {
     LIBEVENT_LOG="$1"
-    git clone https://github.com/libevent/libevent.git
+    if [ ! -d libevent ]; then
+	git clone https://github.com/libevent/libevent.git
+    fi
     cd libevent
     echo "Building libevent.  tail -f ${LIBEVENT_LOG} to see the details and monitor progress"
     ./autogen.sh > "${LIBEVENT_LOG}" 2>&1
@@ -298,20 +325,19 @@ function build_lbrycrd() {
     else
 	cd "${SOURCE_DIR}"
     fi
-    ./autogen.sh
+    ./autogen.sh > "${LBRYCRD_LOG}" 2>&1
     LDFLAGS="-L${OPENSSL_PREFIX}/lib/ -L${BDB_PREFIX}/lib/ -L${LIBEVENT_PREFIX}/lib/ -static-libstdc++"
     CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/"
     if [ "${OS_NAME}" = "osx" ]; then
-	./configure --without-gui --enable-cxx --enable-static --disable-shared --with-pic \
-		    --with-boost="${BOOST_PREFIX}" \
-		    LDFLAGS="${LDFLAGS}" \
-		    CPPFLAGS="${CPPFLAGS}"
+	OPTIONS="--enable-cxx --enable-static --disable-shared --with-pic"
     else
-	./configure --without-gui --with-boost="${BOOST_PREFIX}" \
-		    LDFLAGS="${LDFLAGS}" \
-		    CPPFLAGS="${CPPFLAGS}"
+	OPTIONS=""
     fi
-    make
+    ./configure --without-gui ${OPTIONS} \
+		--with-boost="${BOOST_PREFIX}" \
+		LDFLAGS="${LDFLAGS}" \
+		CPPFLAGS="${CPPFLAGS}" >> "${LBRYCRD_LOG}" 2>&1
+    background make "${LBRYCRD_LOG}" "Waiting for lbrycrd to finish building"
     # tests don't work on OSX. Should definitely figure out why
     # that is but, for now, not letting that stop the rest
     # of the build
@@ -344,5 +370,7 @@ set -u
 if [ "${BUILD_LBRYCRD}" = true ]; then
     LBRYCRD_LOG="${LOG_DIR}/lbrycrd_build.log"
     echo "Building lbrycrd.  tail -f ${LBRYCRD_LOG} to see the details and monitor progress"
-    background build_lbrycrd "${LBRYCRD_LOG}" "Waiting for lbrycrd to finish building"
+    trap 'cat_and_exit "${LBRYCRD_LOG}"' INT TERM EXIT
+    build_lbrycrd
+    trap - INT TERM EXIT
 fi
