@@ -272,6 +272,8 @@ libbitcoin_consensus_a_SOURCES = \
   hash.cpp \
   hash.h \
   prevector.h \
+  patternsearch.h \
+  patternsearch.cpp \
   primitives/block.cpp \
   primitives/block.h \
   primitives/transaction.cpp \

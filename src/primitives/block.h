@@ -9,6 +9,9 @@
 #include "primitives/transaction.h"
 #include "serialize.h"
 #include "uint256.h"
+#include <iostream>
+
+static const uint32_t AES_HARDFORK_TIME = 1469527200;
 
 /** Nodes collect new transactions into a block, hash them into a hash tree,
  * and scan through nonce values to make the block's hash satisfy proof-of-work
@@ -28,6 +31,8 @@ public:
     uint32_t nTime;
     uint32_t nBits;
     uint32_t nNonce;
+    uint32_t nStartLocation;
+    uint32_t nFinalCalculation;
 
     CBlockHeader()
     {
@@ -46,6 +51,10 @@ public:
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
+	if( nTime > AES_HARDFORK_TIME ) {
+	        READWRITE(nStartLocation);
+	        READWRITE(nFinalCalculation);
+	}
     }
 
     void SetNull()
@@ -67,6 +76,8 @@ public:
     uint256 GetHash() const;
 
     uint256 GetPoWHash() const;
+
+    uint256 FindBestPatternHash(int& collisions,char *scratchpad,int nThreads);
 
     int64_t GetBlockTime() const
     {
