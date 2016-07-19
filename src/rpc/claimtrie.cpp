@@ -123,6 +123,41 @@ UniValue getclaimtrie(const UniValue& params, bool fHelp)
     return ret;
 }
 
+bool getValueForClaim(const COutPoint& out, std::string& sValue)
+{
+    CCoinsViewCache view(pcoinsTip);
+    const CCoins* coin = view.AccessCoins(out.hash);
+    if (!coin)
+    {
+        LogPrintf("%s: %s does not exist in the coins view, despite being associated with a name\n",
+                  __func__, out.hash.GetHex());
+        return true;
+    }
+    if (coin->vout.size() < out.n || coin->vout[out.n].IsNull())
+    {
+        LogPrintf("%s: the specified txout of %s appears to have been spent\n", __func__, out.hash.GetHex());
+        return true;
+    }
+    
+    int op;
+    std::vector<std::vector<unsigned char> > vvchParams;
+    if (!DecodeClaimScript(coin->vout[out.n].scriptPubKey, op, vvchParams))
+    {
+        LogPrintf("%s: the specified txout of %s does not have a name claim command\n", __func__, out.hash.GetHex());
+        return false;
+    }
+    if (op == OP_CLAIM_NAME)
+    {
+        sValue = std::string(vvchParams[1].begin(), vvchParams[1].end());
+    }
+    else if (op == OP_UPDATE_CLAIM)
+    {
+        sValue = std::string(vvchParams[2].begin(), vvchParams[2].end());
+    }
+    return true;
+}
+
+
 UniValue getvalueforname(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
@@ -144,40 +179,80 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
     UniValue ret(UniValue::VOBJ);
     if (!pclaimTrie->getInfoForName(name, claim))
         return ret;
-    CCoinsViewCache view(pcoinsTip);
-    const CCoins* coin = view.AccessCoins(claim.outPoint.hash);
-    if (!coin)
-    {
-        LogPrintf("%s: %s does not exist in the coins view, despite being associated with a name\n",
-                  __func__, claim.outPoint.hash.GetHex());
-        return ret;
-    }
-    if (coin->vout.size() < claim.outPoint.n || coin->vout[claim.outPoint.n].IsNull())
-    {
-        LogPrintf("%s: the specified txout of %s appears to have been spent\n", __func__, claim.outPoint.hash.GetHex());
-        return ret;
-    }
-    
-    int op;
-    std::vector<std::vector<unsigned char> > vvchParams;
-    if (!DecodeClaimScript(coin->vout[claim.outPoint.n].scriptPubKey, op, vvchParams))
-    {
-        LogPrintf("%s: the specified txout of %s does not have a name claim command\n", __func__, claim.outPoint.hash.GetHex());
-    }
     std::string sValue;
-    if (op == OP_CLAIM_NAME)
-    {
-        sValue = std::string(vvchParams[1].begin(), vvchParams[1].end());
-    }
-    else if (op == OP_UPDATE_CLAIM)
-    {
-        sValue = std::string(vvchParams[2].begin(), vvchParams[2].end());
-    }
+    if (!getValueForClaim(claim.outPoint, sValue))
+        return ret;
     ret.push_back(Pair("value", sValue));
     ret.push_back(Pair("txid", claim.outPoint.hash.GetHex()));
     ret.push_back(Pair("n", (int)claim.outPoint.n));
     ret.push_back(Pair("amount", claim.nAmount));
     ret.push_back(Pair("height", claim.nHeight));
+    return ret;
+}
+
+typedef std::pair<CClaimValue, std::vector<CSupportValue> > claimAndSupportsType;
+typedef std::map<uint160, claimAndSupportsType> claimSupportMapType;
+typedef std::map<uint160, std::vector<CSupportValue> > supportsWithoutClaimsMapType;
+
+UniValue claimsAndSupportsToJSON(claimSupportMapType::const_iterator itClaimsAndSupports, int nCurrentHeight)
+{
+    UniValue ret(UniValue::VOBJ);
+    const CClaimValue claim = itClaimsAndSupports->second.first;
+    const std::vector<CSupportValue> supports = itClaimsAndSupports->second.second;
+    CAmount nEffectiveAmount = 0;
+    UniValue supportObjs(UniValue::VARR);
+    for (std::vector<CSupportValue>::const_iterator itSupports = supports.begin(); itSupports != supports.end(); ++itSupports)
+    {
+        UniValue supportObj(UniValue::VOBJ);
+        supportObj.push_back(Pair("txid", itSupports->outPoint.hash.GetHex()));
+        supportObj.push_back(Pair("n", (int)itSupports->outPoint.n));
+        supportObj.push_back(Pair("nHeight", itSupports->nHeight));
+        supportObj.push_back(Pair("nValidAtHeight", itSupports->nValidAtHeight));
+        if (itSupports->nValidAtHeight < nCurrentHeight)
+        {
+            nEffectiveAmount += itSupports->nAmount;
+        }
+        supportObj.push_back(Pair("nAmount", itSupports->nAmount));
+        supportObjs.push_back(supportObj);
+    }
+    ret.push_back(Pair("claimId", itClaimsAndSupports->first.GetHex()));
+    ret.push_back(Pair("txid", claim.outPoint.hash.GetHex()));
+    ret.push_back(Pair("n", (int)claim.outPoint.n));
+    ret.push_back(Pair("nHeight", claim.nHeight));
+    ret.push_back(Pair("nValidAtHeight", claim.nValidAtHeight));
+    if (claim.nValidAtHeight < nCurrentHeight)
+    {
+        nEffectiveAmount += claim.nAmount;
+    }
+    ret.push_back(Pair("nAmount", claim.nAmount));
+    std::string sValue;
+    if (getValueForClaim(claim.outPoint, sValue))
+    {
+        ret.push_back(Pair("value", sValue));
+    }
+    ret.push_back(Pair("nEffectiveAmount", nEffectiveAmount));
+    ret.push_back(Pair("supports", supportObjs));
+
+    return ret;
+}
+
+UniValue supportsWithoutClaimsToJSON(supportsWithoutClaimsMapType::const_iterator itSupportsWithoutClaims, int nCurrentHeight)
+{
+    const std::vector<CSupportValue> supports = itSupportsWithoutClaims->second;
+    UniValue ret(UniValue::VOBJ);
+    UniValue supportObjs(UniValue::VARR);
+    ret.push_back(Pair("claimId (no matching claim)", itSupportsWithoutClaims->first.GetHex()));
+    for (std::vector<CSupportValue>::const_iterator itSupports = supports.begin(); itSupports != supports.end(); ++itSupports)
+    {
+        UniValue supportObj(UniValue::VOBJ);
+        supportObj.push_back(Pair("txid", itSupports->outPoint.hash.GetHex()));
+        supportObj.push_back(Pair("n", (int)itSupports->outPoint.n));
+        supportObj.push_back(Pair("nHeight", itSupports->nHeight));
+        supportObj.push_back(Pair("nValidAtHeight", itSupports->nValidAtHeight));
+        supportObj.push_back(Pair("nAmount", itSupports->nAmount));
+        supportObjs.push_back(supportObj);
+    }
+    ret.push_back(Pair("supports", supportObjs));
     return ret;
 }
 
@@ -192,18 +267,38 @@ UniValue getclaimsforname(const UniValue& params, bool fHelp)
     LOCK(cs_main);
     std::string name = params[0].get_str();
     claimsForNameType claimsForName = pclaimTrie->getClaimsForName(name);
-    UniValue ret(UniValue::VARR);
+    int nCurrentHeight = chainActive.Height();
+
+    claimSupportMapType claimSupportMap;
+    supportsWithoutClaimsMapType supportsWithoutClaims;
     for (std::vector<CClaimValue>::const_iterator itClaims = claimsForName.claims.begin(); itClaims != claimsForName.claims.end(); ++itClaims)
     {
-        UniValue claim(UniValue::VOBJ);
-        claim.push_back(Pair("txid", itClaims->outPoint.hash.GetHex()));
-        ret.push_back(claim);
+        claimAndSupportsType claimAndSupports = std::make_pair(*itClaims, std::vector<CSupportValue>());
+        claimSupportMap.insert(std::pair<uint160, claimAndSupportsType>(itClaims->claimId, claimAndSupports));
     }
     for (std::vector<CSupportValue>::const_iterator itSupports = claimsForName.supports.begin(); itSupports != claimsForName.supports.end(); ++itSupports)
     {
-        UniValue support(UniValue::VOBJ);
-        support.push_back(Pair("txid", itSupports->outPoint.hash.GetHex()));
-        ret.push_back(support);
+        claimSupportMapType::iterator itClaimAndSupports = claimSupportMap.find(itSupports->supportedClaimId);
+        if (itClaimAndSupports == claimSupportMap.end())
+        {
+            std::pair<supportsWithoutClaimsMapType::iterator, bool> ret = supportsWithoutClaims.insert(std::pair<uint160, std::vector<CSupportValue> >(itSupports->supportedClaimId, std::vector<CSupportValue>()));
+            ret.first->second.push_back(*itSupports);
+        }
+        else
+        {
+            itClaimAndSupports->second.second.push_back(*itSupports);
+        }
+    }
+    UniValue ret(UniValue::VARR);
+    for (claimSupportMapType::const_iterator itClaimsAndSupports = claimSupportMap.begin(); itClaimsAndSupports != claimSupportMap.end(); ++itClaimsAndSupports)
+    {
+        UniValue claimAndSupportsObj = claimsAndSupportsToJSON(itClaimsAndSupports, nCurrentHeight);
+        ret.push_back(claimAndSupportsObj);
+    }
+    for (supportsWithoutClaimsMapType::const_iterator itSupportsWithoutClaims = supportsWithoutClaims.begin(); itSupportsWithoutClaims != supportsWithoutClaims.end(); ++itSupportsWithoutClaims)
+    {
+        UniValue supportsObj = supportsWithoutClaimsToJSON(itSupportsWithoutClaims, nCurrentHeight);
+        ret.push_back(supportsObj);
     }
     return ret;
 }
