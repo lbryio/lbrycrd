@@ -261,7 +261,40 @@ UniValue getclaimsforname(const UniValue& params, bool fHelp)
     if (fHelp || params.size() != 1)
         throw std::runtime_error(
             "getclaimsforname\n"
-            "Return a whole bunch of stuff, I tell you what"
+            "Return all claims and supports for a name\n"
+            "Arguments: \n"
+            "1.  \"name\"       (string) the name for which to get claims and supports\n"
+            "Result:\n"
+            "{\n"
+            "  \"nLastTakeoverheight\" (numeric) the last height at which ownership of the name changed\n"
+            "  \"claims\": [    (array of object) claims for this name\n"
+            "    {\n"
+            "      \"claimId\"    (string) the claimId of this claim\n"
+            "      \"txid\"       (string) the txid of this claim\n"
+            "      \"n\"          (numeric) the index of the claim in the transaction's list of outputs\n"
+            "      \"nHeight\"    (numeric) the height at which the claim was included in the blockchain\n"
+            "      \"nValidAtHeight\" (numeric) the height at which the claim became/becomes valid\n"
+            "      \"nAmount\"    (numeric) the amount of the claim\n"
+            "      \"nEffectiveAmount\" (numeric) the total effective amount of the claim, taking into effect whether the claim or support has reached its nValidAtHeight\n"
+            "      \"supports\" : [ (array of object) supports for this claim\n"
+            "        \"txid\"     (string) the txid of the support\n"
+            "        \"n\"        (numeric) the index of the support in the transaction's list of outputs\n"
+            "        \"nHeight\"  (numeric) the height at which the support was included in the blockchain\n"
+            "        \"nValidAtHeight\" (numeric) the height at which the support became/becomes valid\n"
+            "        \"nAmount\"  (numeric) the amount of the support\n"
+            "      ]\n"
+            "    }\n"
+            "  ],\n"
+            "  \"unmatched supports\": [ (array of object) supports that did not match a claim for this name\n"
+            "    {\n"
+            "      \"txid\"     (string) the txid of the support\n"
+            "      \"n\"        (numeric) the index of the support in the transaction's list of outputs\n"
+            "      \"nHeight\"  (numeric) the height at which the support was included in the blockchain\n"
+            "      \"nValidAtHeight\" (numeric) the height at which the support became/becomes valid\n"
+            "      \"nAmount\"  (numeric) the amount of the support\n"
+            "    }\n"
+            "  ]\n"
+            "}\n"   
         );
 
     LOCK(cs_main);
@@ -289,17 +322,22 @@ UniValue getclaimsforname(const UniValue& params, bool fHelp)
             itClaimAndSupports->second.second.push_back(*itSupports);
         }
     }
-    UniValue ret(UniValue::VARR);
+    UniValue ret(UniValue::VOBJ);
+    UniValue claimObjs(UniValue::VARR);
+    ret.push_back(Pair("nLastTakeoverHeight", claimsForName.nLastTakeoverHeight));
     for (claimSupportMapType::const_iterator itClaimsAndSupports = claimSupportMap.begin(); itClaimsAndSupports != claimSupportMap.end(); ++itClaimsAndSupports)
     {
         UniValue claimAndSupportsObj = claimsAndSupportsToJSON(itClaimsAndSupports, nCurrentHeight);
-        ret.push_back(claimAndSupportsObj);
+        claimObjs.push_back(claimAndSupportsObj);
     }
+    ret.push_back(Pair("claims", claimObjs));
+    UniValue unmatchedSupports(UniValue::VARR);
     for (supportsWithoutClaimsMapType::const_iterator itSupportsWithoutClaims = supportsWithoutClaims.begin(); itSupportsWithoutClaims != supportsWithoutClaims.end(); ++itSupportsWithoutClaims)
     {
         UniValue supportsObj = supportsWithoutClaimsToJSON(itSupportsWithoutClaims, nCurrentHeight);
-        ret.push_back(supportsObj);
+        unmatchedSupports.push_back(supportsObj);
     }
+    ret.push_back(Pair("supports without claims", unmatchedSupports));
     return ret;
 }
 
