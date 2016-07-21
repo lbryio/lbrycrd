@@ -136,3 +136,17 @@ size_t ClaimScriptSize(const CScript& scriptIn)
     return scriptIn.size() - strippedScript.size();
 }
 
+size_t ClaimNameSize(const CScript& scriptIn)
+{
+    std::vector<std::vector<unsigned char> > vvchParams;
+    CScript::const_iterator pc = scriptIn.begin();
+    int op;
+    if (!DecodeClaimScript(scriptIn, op, vvchParams, pc))
+    {
+        return 0;
+    }
+    else
+    {
+        return vvchParams[0].size();
+    }
+}

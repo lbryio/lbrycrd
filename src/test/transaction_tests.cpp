@@ -12,6 +12,7 @@
 #include "key.h"
 #include "keystore.h"
 #include "main.h" // For CheckTransaction
+#include "nameclaim.h"
 #include "policy/policy.h"
 #include "script/script.h"
 #include "script/script_error.h"
@@ -445,6 +446,7 @@ BOOST_AUTO_TEST_CASE(test_claimsValid)
     BOOST_CHECK(CheckTransaction(t, state));
     BOOST_CHECK(state.IsValid());
 
+    // exceeds max script size 
     vchName = std::vector<unsigned char>(2<<12, '0');
     vchValue = std::vector<unsigned char>(2<<12, '0');    
 
@@ -454,5 +456,30 @@ BOOST_AUTO_TEST_CASE(test_claimsValid)
     
     BOOST_CHECK(!CheckTransaction(t, state));
     BOOST_CHECK(!state.IsValid());
+
+    // does not exceed max name size 
+    vchName = std::vector<unsigned char>(MAX_CLAIM_NAME_SIZE, '0');
+    vchValue = std::vector<unsigned char>(1, '0');    
+
+    t.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP << OP_TRUE;
+    
+    state = CValidationState();
+    
+    BOOST_CHECK(CheckTransaction(t, state));
+    BOOST_CHECK(state.IsValid());
+
+    // exceeds max name size 
+    vchName = std::vector<unsigned char>(MAX_CLAIM_NAME_SIZE+1, '0');
+    vchValue = std::vector<unsigned char>(1, '0');    
+
+    t.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP << OP_TRUE;
+    
+    state = CValidationState();
+    
+    BOOST_CHECK(!CheckTransaction(t, state));
+    BOOST_CHECK(!state.IsValid());
+
+
+
 }
 BOOST_AUTO_TEST_SUITE_END()
