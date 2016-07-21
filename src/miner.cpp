@@ -20,6 +20,7 @@
 #include "policy/policy.h"
 #include "pow.h"
 #include "primitives/transaction.h"
+#include "primitives/block.h"
 #include "script/standard.h"
 #include "timedata.h"
 #include "txmempool.h"
@@ -505,7 +506,7 @@ static bool ProcessBlockFound(const CBlock* pblock, const CChainParams& chainpar
     return true;
 }
 
-void static BitcoinMiner(const CChainParams& chainparams)
+void GenerateBitcoins(bool fGenerate, int nThreads, const CChainParams& chainparams)
 {
     LogPrintf("LBRYcrdMiner started\n");
     SetThreadPriority(THREAD_PRIORITY_LOWEST);
@@ -527,13 +528,14 @@ void static BitcoinMiner(const CChainParams& chainparams)
             if (chainparams.MiningRequiresPeers()) {
                 // Busy-wait for the network to come online so we don't waste time mining
                 // on an obsolete chain. In regtest mode we expect to fly solo.
+		// Also wait if the hardfork has not been reached yet.
                 do {
                     bool fvNodesEmpty;
                     {
                         LOCK(cs_vNodes);
                         fvNodesEmpty = vNodes.empty();
                     }
-                    if (!fvNodesEmpty && !IsInitialBlockDownload())
+                    if (!fvNodesEmpty && !IsInitialBlockDownload() && GetTime() > AES_HARDFORK_TIME)
                         break;
                     MilliSleep(1000);
                 } while (true);
@@ -565,6 +567,10 @@ void static BitcoinMiner(const CChainParams& chainparams)
             uint256 hash;
             pblock->nNonce = 0;
             bool found = false;
+
+	    char *scratchpad;
+	    scratchpad=new char[(1<<30)];
+
             while (true)
             {
                 unsigned int nHashesDone = 0;
@@ -572,15 +578,22 @@ void static BitcoinMiner(const CChainParams& chainparams)
                 // Check if something found
                 while (true)
                 {
-                    hash = pblock->GetPoWHash();
-                    if (((uint16_t*)&hash)[15] == 0 && UintToArith256(hash) <= hashTarget)
+		    int collisions = 0;
+                    hash = pblock->FindBestPatternHash(collisions,scratchpad, nThreads);
+                    nHashesDone += collisions;
+                    LogPrintf("HOdlcoinMiner:\n");
+                    LogPrintf("search finished - best hash  \n  hash: %s collisions:%d gethash:%s ba:%d bb:%d nonce:%d \ntarget: %s\n", hash.GetHex(), collisions, pblock->GetHash().GetHex(), pblock->nStartLocation, pblock->nFinalCalculation, pblock->nNonce, hashTarget.GetHex());
+
+                    if (UintToArith256(hash) <= hashTarget)
                     {
+                        SetThreadPriority(THREAD_PRIORITY_NORMAL);
+                        assert(hash == pblock->GetHash());
                         found = true;
                         // Found a solution
-                        SetThreadPriority(THREAD_PRIORITY_NORMAL);
                         LogPrintf("LBRYcrdMiner:\n");
                         LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", hash.GetHex(), hashTarget.GetHex());
                         ProcessBlockFound(pblock, chainparams);
+                        //ProcessBlockFound(pblock, *pwallet, reservekey);
                         SetThreadPriority(THREAD_PRIORITY_LOWEST);
                         coinbaseScript->KeepScript();
 
@@ -665,24 +678,4 @@ void static BitcoinMiner(const CChainParams& chainparams)
     }
 }
 
-void GenerateBitcoins(bool fGenerate, int nThreads, const CChainParams& chainparams)
-{
-    static boost::thread_group* minerThreads = NULL;
 
-    if (nThreads < 0)
-        nThreads = GetNumCores();
-
-    if (minerThreads != NULL)
-    {
-        minerThreads->interrupt_all();
-        delete minerThreads;
-        minerThreads = NULL;
-    }
-
-    if (nThreads == 0 || !fGenerate)
-        return;
-
-    minerThreads = new boost::thread_group();
-    for (int i = 0; i < nThreads; i++)
-        minerThreads->create_thread(boost::bind(&BitcoinMiner, boost::cref(chainparams)));
-}
