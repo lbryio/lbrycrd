@@ -136,6 +136,7 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
             "\"txid\"                (string) the hash of the transaction which successfully claimed the name\n"
             "\"n\"                   (numeric) vout value\n"
             "\"amount\"              (numeric) txout amount\n"
+            "\"effective amount\"    (numeric) txout amount plus amount from all supports associated with the claim\n"
             "\"height\"              (numeric) the height of the block in which this transaction is located\n"
         );
     LOCK(cs_main);
@@ -169,6 +170,7 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
     ret.push_back(Pair("txid", claim.outPoint.hash.GetHex()));
     ret.push_back(Pair("n", (int)claim.outPoint.n));
     ret.push_back(Pair("amount", claim.nAmount));
+    ret.push_back(Pair("effective amount", claim.nEffectiveAmount)); 
     ret.push_back(Pair("height", claim.nHeight));
     return ret;
 }
