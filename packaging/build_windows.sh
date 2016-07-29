@@ -7,7 +7,7 @@ sudo apt-get install -y --no-install-recommends \
      libssl-dev libevent-dev bsdmainutils
 
 cd depends
-make HOST=i686-w64-mingw32
+make HOST=i686-w64-mingw32 NO_QT=1
 cd ..
 patch -p1 < packaging/remove_consensus.patch
 ./autogen.sh
