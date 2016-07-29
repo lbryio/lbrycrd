@@ -1,0 +1,23 @@
+diff --git a/src/Makefile.am b/src/Makefile.am
+index a9f0a94..d71bfeb 100644
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -64,12 +64,12 @@ if ENABLE_ZMQ
+ EXTRA_LIBRARIES += libbitcoin_zmq.a
+ endif
+ 
+-if BUILD_BITCOIN_LIBS
+-lib_LTLIBRARIES = libbitcoinconsensus.la
+-LIBBITCOINCONSENSUS=libbitcoinconsensus.la
+-else
+-LIBBITCOINCONSENSUS=
+-endif
++# if BUILD_BITCOIN_LIBS
++# lib_LTLIBRARIES = libbitcoinconsensus.la
++# LIBBITCOINCONSENSUS=libbitcoinconsensus.la
++# else
++# LIBBITCOINCONSENSUS=
++# endif
+ 
+ bin_PROGRAMS =
+ TESTS =
