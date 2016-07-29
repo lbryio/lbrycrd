@@ -46,7 +46,7 @@ deploy:
     skip_cleanup: true
     on:
       tags: true
-      condition: "$TRAVIS_OS_NAME = linux"
+      condition: "$TARGET = linux"
     api_key:
       secure: "ibN+PQg84f0tgJLV3KaHjkHmgFNOPqBLIrSU42moen22xxT2VIn0j7DkFaLLts1fs/+/gxmrvhOQ0vUFJqmflZ3kCeyedP/CVgZz7D7HRVK0cYUMJ2F9VWMZAFIX6A67OUlypqZqzKAKrZHx3HXky6Z8NBU23JgWqDm8PcrbbgMLvB2lvWVASjJVKreaL9BOxFOOOrAj6xAIm9ogTOnFVI/AhufNOKOTZaiprcbqMngwHeaILbwEJVqv5P2YUurC6Sq+QaH26tX00DtsYOW+n8AA3Fe48+L6rqa6Q8ru+dhPuR/Apr2+DTZ+npzY8leV3A7mYUeLo4JLaEH6n1TLVt65cX7nuesS7KsSKBSxs7q7bsqeapDcMskZz5JR4EK4S96CuHZEnn6+efpH8IrxWpbeO3EibJfyT8tMJKw7Zym5mPr+sz6xSlVMoBVcCm+7z9e7Zcqukdvdy8jM7sGP9qusqEhpojh0o+gPgr9p13SfR+6OCpj9gwxPCnZO8RBfh1cbz9vFSVlDyUYcpI2CCCpPazA1glTsEDk+VtznnUMmWksXWfxBFV81jQB2SnoZKlnsiEuNMwhiMCMEkRFo74+AsUr2UjmKJ5KC8ACwsn475PoLZBh2J6fyXBHMdbrGfK+Zt5K2IHRRtDaZVT4eHqYzxh8KhalsuBNxCo3FygI="
   - provider: releases
@@ -54,7 +54,15 @@ deploy:
     skip_cleanup: true
     on:
       tags: true
-      condition: "$TRAVIS_OS_NAME = osx"
+      condition: "$TARGET = osx"
+    api_key:
+      secure: "ibN+PQg84f0tgJLV3KaHjkHmgFNOPqBLIrSU42moen22xxT2VIn0j7DkFaLLts1fs/+/gxmrvhOQ0vUFJqmflZ3kCeyedP/CVgZz7D7HRVK0cYUMJ2F9VWMZAFIX6A67OUlypqZqzKAKrZHx3HXky6Z8NBU23JgWqDm8PcrbbgMLvB2lvWVASjJVKreaL9BOxFOOOrAj6xAIm9ogTOnFVI/AhufNOKOTZaiprcbqMngwHeaILbwEJVqv5P2YUurC6Sq+QaH26tX00DtsYOW+n8AA3Fe48+L6rqa6Q8ru+dhPuR/Apr2+DTZ+npzY8leV3A7mYUeLo4JLaEH6n1TLVt65cX7nuesS7KsSKBSxs7q7bsqeapDcMskZz5JR4EK4S96CuHZEnn6+efpH8IrxWpbeO3EibJfyT8tMJKw7Zym5mPr+sz6xSlVMoBVcCm+7z9e7Zcqukdvdy8jM7sGP9qusqEhpojh0o+gPgr9p13SfR+6OCpj9gwxPCnZO8RBfh1cbz9vFSVlDyUYcpI2CCCpPazA1glTsEDk+VtznnUMmWksXWfxBFV81jQB2SnoZKlnsiEuNMwhiMCMEkRFo74+AsUr2UjmKJ5KC8ACwsn475PoLZBh2J6fyXBHMdbrGfK+Zt5K2IHRRtDaZVT4eHqYzxh8KhalsuBNxCo3FygI="
+  - provider: releases
+    file: lbrycrd-windows.zip
+    skip_cleanup: true
+    on:
+      tags: true
+      condition: "$TARGET = windows"
     api_key:
       secure: "ibN+PQg84f0tgJLV3KaHjkHmgFNOPqBLIrSU42moen22xxT2VIn0j7DkFaLLts1fs/+/gxmrvhOQ0vUFJqmflZ3kCeyedP/CVgZz7D7HRVK0cYUMJ2F9VWMZAFIX6A67OUlypqZqzKAKrZHx3HXky6Z8NBU23JgWqDm8PcrbbgMLvB2lvWVASjJVKreaL9BOxFOOOrAj6xAIm9ogTOnFVI/AhufNOKOTZaiprcbqMngwHeaILbwEJVqv5P2YUurC6Sq+QaH26tX00DtsYOW+n8AA3Fe48+L6rqa6Q8ru+dhPuR/Apr2+DTZ+npzY8leV3A7mYUeLo4JLaEH6n1TLVt65cX7nuesS7KsSKBSxs7q7bsqeapDcMskZz5JR4EK4S96CuHZEnn6+efpH8IrxWpbeO3EibJfyT8tMJKw7Zym5mPr+sz6xSlVMoBVcCm+7z9e7Zcqukdvdy8jM7sGP9qusqEhpojh0o+gPgr9p13SfR+6OCpj9gwxPCnZO8RBfh1cbz9vFSVlDyUYcpI2CCCpPazA1glTsEDk+VtznnUMmWksXWfxBFV81jQB2SnoZKlnsiEuNMwhiMCMEkRFo74+AsUr2UjmKJ5KC8ACwsn475PoLZBh2J6fyXBHMdbrGfK+Zt5K2IHRRtDaZVT4eHqYzxh8KhalsuBNxCo3FygI="
 
