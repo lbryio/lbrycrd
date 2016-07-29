@@ -4,14 +4,23 @@ matrix:
           sudo: required
           dist: trusty
           language: c
+          env: TARGET=linux
+        - os: linux
+          sudo: required
+          dist: trusty
+          language: c
+          env: TARGET=windows
         - os: osx
           language: c
           osx_image: xcode7.3
+          env: TARGET=osx
 
 cache:
+  apt: true
   ccache: true
   directories:
     - build
+    - depends/built
 
 before_install:
   - date +%s > "${TRAVIS_BUILD_DIR}/start_time"
