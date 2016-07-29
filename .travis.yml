@@ -29,8 +29,12 @@ before_install:
 
 install: true
 script:
-  - ./reproducible_build.sh -t -o -c
-  - zip -j "lbrycrd-${TRAVIS_OS_NAME}.zip" src/lbrycrdd src/lbrycrd-cli src/lbrycrd-tx
+  - if [ ${TARGET}=osx ];     then ./reproducible_build.sh -t -o -c; fi
+  - if [ ${TARGET}=linux ];   then ./reproducible_build.sh -t -o -c; fi
+  - if [ ${TARGET}=windows ]; then ./packaging/build_windows.sh; fi
+  - if [ ${TARGET}=osx ];     then zip -j "lbrycrd-${TARGET}.zip" src/lbrycrdd src/lbrycrd-cli src/lbrycrd-tx; fi
+  - if [ ${TARGET}=linux ];   then zip -j "lbrycrd-${TARGET}.zip" src/lbrycrdd src/lbrycrd-cli src/lbrycrd-tx; fi
+  - if [ ${TARGET}=windows ]; then zip -j "lbrycrd-${TARGET}.zip" src/lbrycrdd.exe src/lbrycrd-cli.exe src/lbrycrd-tx.exe; fi
 
 before_cache:
   - ls -lh build
