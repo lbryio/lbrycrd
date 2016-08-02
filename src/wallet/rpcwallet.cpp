@@ -678,7 +678,8 @@ void ListNameClaims(const CWalletTx& wtx, const string& strAccount, int nMinDept
                     LogPrintf("%s(): Txout classified as name claim could not be decoded. Txid: %s", __func__, wtx.GetHash().ToString());
                     continue;
                 }
-                else if (((op == OP_CLAIM_NAME) && (vvchParams.size() != 2)) || ((op == OP_SUPPORT_CLAIM) && (vvchParams.size() != 3)))
+                else if (((op == OP_CLAIM_NAME || op == OP_SUPPORT_CLAIM) && (vvchParams.size() != 2)) || 
+                         ((op == OP_UPDATE_CLAIM) && (vvchParams.size() != 3)))
                 {
                     LogPrintf("%s(): Wrong number of params to name claim script. Got %d, expected %d. Txid: %s", __func__, vvchParams.size(), ((op == OP_CLAIM_NAME) ? 2 : 3), wtx.GetHash().ToString());
                     continue;
@@ -754,7 +755,7 @@ UniValue listnameclaims(const UniValue& params, bool fHelp)
     
     if (fHelp || params.size() > 3)
         throw runtime_error(
-            "listnameclaims activeonly minconf\n"
+            "listnameclaims includesuppports activeonly minconf\n"
             "Return a list of all transactions claiming names.\n"
             "\nArguments\n"
             "1. includesupports  (bool, optional) Whether to also include claim supports. Default is true.\n"
@@ -833,7 +834,7 @@ UniValue supportclaim(const UniValue& params, bool fHelp)
 
     if (fHelp || params.size() != 3)
         throw runtime_error(
-            "supportclaim \"name\" \"txid\" nout amount\n"
+            "supportclaim \"name\" \"claimid\" \"amount\"\n"
             "Increase the value of a claim. Whichever claim has the greatest value, including all support values, will be the authoritative claim, according to the rest of the rules. The name is the name which is claimed by the claim that will be supported, the txid is the txid of the claim that will be supported, nout is the transaction output which contains the claim to be supported, and amount is the amount which will be added to the value of the claim. If the claim is currently the authoritative claim, this support will go into effect immediately. Otherwise, it will go into effect after 100 blocks. The support will be in effect until it is spent, and will lose its effect when the claim is spent or expires. The amount is a real and is rounded to the nearest .00000001\n"
             + HelpRequiringPassphrase() +
             "\nArguments:\n"
