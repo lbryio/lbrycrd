@@ -357,7 +357,7 @@ lbrycrdd_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 lbrycrdd_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
 if TARGET_WINDOWS
-lbrycrdd_SOURCES += lbrycrdd-res.rc
+lbrycrdd_SOURCES += bitcoin-cli-res.rc
 endif
 
 lbrycrdd_LDADD = \
