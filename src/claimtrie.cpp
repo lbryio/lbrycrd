@@ -458,6 +458,73 @@ bool CClaimTrie::getLastTakeoverForName(const std::string& name, int& lastTakeov
     return false;
 }
 
+claimsForNameType CClaimTrie::getClaimsForName(const std::string& name) const
+{
+    std::vector<CClaimValue> claims;
+    std::vector<CSupportValue> supports;
+    int nLastTakeoverHeight = 0;
+    const CClaimTrieNode* current = getNodeForName(name);
+    if (current)
+    {
+        if (!current->claims.empty())
+        {
+            nLastTakeoverHeight = current->nHeightOfLastTakeover;
+        }
+        for (std::vector<CClaimValue>::const_iterator itClaims = current->claims.begin(); itClaims != current->claims.end(); ++itClaims)
+        {
+            claims.push_back(*itClaims);
+        }
+    }
+    supportMapEntryType supportNode;
+    if (getSupportNode(name, supportNode))
+    {
+        for (std::vector<CSupportValue>::const_iterator itSupports = supportNode.begin(); itSupports != supportNode.end(); ++itSupports)
+        {
+            supports.push_back(*itSupports);
+        }
+    }
+    queueNameRowType namedClaimRow;
+    if (getQueueNameRow(name, namedClaimRow))
+    {
+        for (queueNameRowType::const_iterator itClaimsForName = namedClaimRow.begin(); itClaimsForName != namedClaimRow.end(); ++itClaimsForName)
+        {
+            claimQueueRowType claimRow;
+            if (getQueueRow(itClaimsForName->nHeight, claimRow))
+            {
+                for (claimQueueRowType::const_iterator itClaimRow = claimRow.begin(); itClaimRow != claimRow.end(); ++itClaimRow)
+                 {
+                     if (itClaimRow->first == name && itClaimRow->second.outPoint == itClaimsForName->outPoint)
+                     {
+                         claims.push_back(itClaimRow->second);
+                         break;
+                     }
+                 }
+            }
+        }
+    }
+    queueNameRowType namedSupportRow;
+    if (getSupportQueueNameRow(name, namedSupportRow))
+    {
+        for (queueNameRowType::const_iterator itSupportsForName = namedSupportRow.begin(); itSupportsForName != namedSupportRow.end(); ++itSupportsForName)
+        {
+            supportQueueRowType supportRow;
+            if (getSupportQueueRow(itSupportsForName->nHeight, supportRow))
+            {
+                for (supportQueueRowType::const_iterator itSupportRow = supportRow.begin(); itSupportRow != supportRow.end(); ++itSupportRow)
+                {
+                    if (itSupportRow->first == name && itSupportRow->second.outPoint == itSupportsForName->outPoint)
+                    {
+                        supports.push_back(itSupportRow->second);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    claimsForNameType allClaims(claims, supports, nLastTakeoverHeight);
+    return allClaims;
+}
+
 bool CClaimTrie::checkConsistency() const
 {
     if (empty())
