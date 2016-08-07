@@ -340,8 +340,8 @@ BOOST_AUTO_TEST_CASE(test_IsStandard)
     CAmount nDustThreshold = 182 * minRelayTxFee.GetFeePerK()/1000 * 3;
     BOOST_CHECK_EQUAL(nDustThreshold, 546);
     // dust:
-    //t.vout[0].nValue = nDustThreshold - 1;
-    //BOOST_CHECK(!IsStandardTx(t, reason));
+    t.vout[0].nValue = nDustThreshold - 1;
+    BOOST_CHECK(!IsStandardTx(t, reason));
     // not dust:
     t.vout[0].nValue = nDustThreshold;
     BOOST_CHECK(IsStandardTx(t, reason));

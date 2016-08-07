@@ -177,8 +177,7 @@ public:
 
     bool IsDust(const CFeeRate &minRelayTxFee) const
     {
-        return false;
-//        return (nValue < GetDustThreshold(minRelayTxFee));
+        return (nValue < GetDustThreshold(minRelayTxFee));
     }
 
     friend bool operator==(const CTxOut& a, const CTxOut& b)
