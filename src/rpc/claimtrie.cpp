@@ -183,11 +183,12 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
     std::string sValue;
     if (!getValueForClaim(claim.outPoint, sValue))
         return ret;
+
     ret.push_back(Pair("value", sValue));
     ret.push_back(Pair("txid", claim.outPoint.hash.GetHex()));
     ret.push_back(Pair("n", (int)claim.outPoint.n));
-    ret.push_back(Pair("amount", claim.nAmount));
-    ret.push_back(Pair("effective amount", claim.nEffectiveAmount)); 
+    ret.push_back(Pair("amount", ValueFromAmount(claim.nAmount)));
+    ret.push_back(Pair("effective amount", ValueFromAmount(claim.nEffectiveAmount))); 
     ret.push_back(Pair("height", claim.nHeight));
     return ret;
 }
@@ -214,7 +215,7 @@ UniValue claimsAndSupportsToJSON(claimSupportMapType::const_iterator itClaimsAnd
         {
             nEffectiveAmount += itSupports->nAmount;
         }
-        supportObj.push_back(Pair("nAmount", itSupports->nAmount));
+        supportObj.push_back(Pair("nAmount", ValueFromAmount(itSupports->nAmount)));
         supportObjs.push_back(supportObj);
     }
     ret.push_back(Pair("claimId", itClaimsAndSupports->first.GetHex()));
@@ -226,13 +227,13 @@ UniValue claimsAndSupportsToJSON(claimSupportMapType::const_iterator itClaimsAnd
     {
         nEffectiveAmount += claim.nAmount;
     }
-    ret.push_back(Pair("nAmount", claim.nAmount));
+    ret.push_back(Pair("nAmount", ValueFromAmount(claim.nAmount)));
     std::string sValue;
     if (getValueForClaim(claim.outPoint, sValue))
     {
         ret.push_back(Pair("value", sValue));
     }
-    ret.push_back(Pair("nEffectiveAmount", nEffectiveAmount));
+    ret.push_back(Pair("nEffectiveAmount", ValueFromAmount(nEffectiveAmount)));
     ret.push_back(Pair("supports", supportObjs));
 
     return ret;
@@ -251,7 +252,7 @@ UniValue supportsWithoutClaimsToJSON(supportsWithoutClaimsMapType::const_iterato
         supportObj.push_back(Pair("n", (int)itSupports->outPoint.n));
         supportObj.push_back(Pair("nHeight", itSupports->nHeight));
         supportObj.push_back(Pair("nValidAtHeight", itSupports->nValidAtHeight));
-        supportObj.push_back(Pair("nAmount", itSupports->nAmount));
+        supportObj.push_back(Pair("nAmount", ValueFromAmount(itSupports->nAmount)));
         supportObjs.push_back(supportObj);
     }
     ret.push_back(Pair("supports", supportObjs));
