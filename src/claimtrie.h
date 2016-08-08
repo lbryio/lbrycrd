@@ -265,15 +265,64 @@ typedef std::map<std::string, CClaimTrieNode*, nodenamecompare> nodeCacheType;
 
 typedef std::map<std::string, uint256> hashMapType;
 
+typedef std::pair<CClaimValue, std::vector<CSupportValue> > claimAndSupportsType;
+typedef std::map<uint160, claimAndSupportsType> claimSupportMapType;
+typedef std::map<uint160, std::vector<CSupportValue> > supportsWithoutClaimsMapType;
+
 struct claimsForNameType
 {
-    std::vector<CClaimValue> claims;
-    std::vector<CSupportValue> supports;
+    supportsWithoutClaimsMapType supportsWithoutClaimMap; 
+    claimSupportMapType claimSupportMap; 
+
     int nLastTakeoverHeight;
 
-    claimsForNameType(std::vector<CClaimValue> claims, std::vector<CSupportValue> supports, int nLastTakeoverHeight)
-    : claims(claims), supports(supports), nLastTakeoverHeight(nLastTakeoverHeight) {}
+    claimsForNameType(): nLastTakeoverHeight(0) {}
+
+    void insertSupport(CSupportValue support)
+    {
+        claimSupportMapType::iterator itClaimAndSupports = claimSupportMap.find(support.supportedClaimId);
+        //claim not found, insert into support without claim map
+        if (itClaimAndSupports == claimSupportMap.end())
+        {
+            std::pair<supportsWithoutClaimsMapType::iterator, bool> ret = supportsWithoutClaimMap.insert(std::pair<uint160, std::vector<CSupportValue> >(support.supportedClaimId, std::vector<CSupportValue>()));
+            ret.first->second.push_back(support);
+        }
+        //claim found
+        else
+        {
+            itClaimAndSupports->second.second.push_back(support);
+        }
+ 
+    }
+    void insertClaim(CClaimValue claim)
+    {
+        claimAndSupportsType claimAndSupports = std::make_pair(claim, std::vector<CSupportValue>());
+        claimSupportMap.insert(std::pair<uint160, claimAndSupportsType>(claim.claimId, claimAndSupports)); 
+    }
+
+    // get effective amount (amount + support amount) for a claim at nCurrentHeight, 
+    // returns 0 if claim does not exist 
+    CAmount getEffectiveAmount(uint160 claimId, int nCurrentHeight)
+    {
+        CAmount effectiveAmount = 0;
+        claimSupportMapType::iterator it = claimSupportMap.find(claimId);
+        if (!claimSupportMap.count(claimId))
+            return effectiveAmount;
+     
+        if (claimSupportMap[claimId].first.nValidAtHeight < nCurrentHeight)
+            effectiveAmount = claimSupportMap[claimId].first.nAmount; 
+            
+        for(std::vector<CSupportValue>::iterator it = claimSupportMap[claimId].second.begin(); it!= claimSupportMap[claimId].second.end(); ++it)
+        {
+            if (it->nValidAtHeight < nCurrentHeight)
+                effectiveAmount += it->nAmount;    
+        }
+        return effectiveAmount;
+    }
+    
 };
+
+
 
 class CClaimTrieCache;
 

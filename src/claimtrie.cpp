@@ -460,19 +460,18 @@ bool CClaimTrie::getLastTakeoverForName(const std::string& name, int& lastTakeov
 
 claimsForNameType CClaimTrie::getClaimsForName(const std::string& name) const
 {
-    std::vector<CClaimValue> claims;
-    std::vector<CSupportValue> supports;
-    int nLastTakeoverHeight = 0;
     const CClaimTrieNode* current = getNodeForName(name);
+    claimsForNameType allClaims; 
+
     if (current)
     {
         if (!current->claims.empty())
         {
-            nLastTakeoverHeight = current->nHeightOfLastTakeover;
+            allClaims.nLastTakeoverHeight = current->nHeightOfLastTakeover;
         }
         for (std::vector<CClaimValue>::const_iterator itClaims = current->claims.begin(); itClaims != current->claims.end(); ++itClaims)
         {
-            claims.push_back(*itClaims);
+            allClaims.insertClaim(*itClaims); 
         }
     }
     supportMapEntryType supportNode;
@@ -480,7 +479,7 @@ claimsForNameType CClaimTrie::getClaimsForName(const std::string& name) const
     {
         for (std::vector<CSupportValue>::const_iterator itSupports = supportNode.begin(); itSupports != supportNode.end(); ++itSupports)
         {
-            supports.push_back(*itSupports);
+            allClaims.insertSupport(*itSupports); 
         }
     }
     queueNameRowType namedClaimRow;
@@ -495,7 +494,7 @@ claimsForNameType CClaimTrie::getClaimsForName(const std::string& name) const
                  {
                      if (itClaimRow->first == name && itClaimRow->second.outPoint == itClaimsForName->outPoint)
                      {
-                         claims.push_back(itClaimRow->second);
+                         allClaims.insertClaim(itClaimRow->second); 
                          break;
                      }
                  }
@@ -514,14 +513,13 @@ claimsForNameType CClaimTrie::getClaimsForName(const std::string& name) const
                 {
                     if (itSupportRow->first == name && itSupportRow->second.outPoint == itSupportsForName->outPoint)
                     {
-                        supports.push_back(itSupportRow->second);
+                        allClaims.insertSupport(itSupportRow->second);
                         break;
                     }
                 }
             }
         }
     }
-    claimsForNameType allClaims(claims, supports, nLastTakeoverHeight);
     return allClaims;
 }
 
