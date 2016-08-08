@@ -273,6 +273,30 @@ struct claimsForNameType
 
     claimsForNameType(std::vector<CClaimValue> claims, std::vector<CSupportValue> supports, int nLastTakeoverHeight)
     : claims(claims), supports(supports), nLastTakeoverHeight(nLastTakeoverHeight) {}
+    
+    //return effective amount form claim, retuns 0 if claim is not found
+    CAmount getEffectiveAmountForClaim(uint160 claimId, int currentHeight)
+    {
+        CAmount effectiveAmount = 0;
+        bool claim_found = false; 
+        for (std::vector<CClaimValue>::iterator it=claims.begin(); it!=claims.end(); ++it)
+        {
+            if (it->claimId == claimId && it->nValidAtHeight < currentHeight)
+                effectiveAmount += it->nAmount;       
+                claim_found = true;  
+                break;
+        }
+        if (!claim_found)
+            return effectiveAmount; 
+        
+        for (std::vector<CSupportValue>::iterator it=supports.begin(); it!=supports.end(); ++it)
+        {
+            if (it->supportedClaimId == claimId && it->nValidAtHeight < currentHeight)
+                effectiveAmount += it->nAmount; 
+        }
+        return effectiveAmount; 
+
+    }
 };
 
 class CClaimTrieCache;
@@ -330,7 +354,7 @@ public:
     unsigned int getTotalNamesInTrie() const;
     unsigned int getTotalClaimsInTrie() const;
     CAmount getTotalValueOfClaimsInTrie(bool fControllingOnly) const;
-    
+
     friend class CClaimTrieCache;
     
     CDBWrapper db;

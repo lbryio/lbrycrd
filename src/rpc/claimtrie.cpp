@@ -188,7 +188,9 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
     ret.push_back(Pair("txid", claim.outPoint.hash.GetHex()));
     ret.push_back(Pair("n", (int)claim.outPoint.n));
     ret.push_back(Pair("amount", ValueFromAmount(claim.nAmount)));
-    ret.push_back(Pair("effective amount", ValueFromAmount(claim.nEffectiveAmount))); 
+    claimsForNameType claimsForName = pclaimTrie->getClaimsForName(name);
+    CAmount effectiveAmount = claimsForName.getEffectiveAmountForClaim(claim.claimId,chainActive.Height()); 
+    ret.push_back(Pair("effective amount", ValueFromAmount(effectiveAmount))); 
     ret.push_back(Pair("height", claim.nHeight));
     return ret;
 }
@@ -197,12 +199,11 @@ typedef std::pair<CClaimValue, std::vector<CSupportValue> > claimAndSupportsType
 typedef std::map<uint160, claimAndSupportsType> claimSupportMapType;
 typedef std::map<uint160, std::vector<CSupportValue> > supportsWithoutClaimsMapType;
 
-UniValue claimsAndSupportsToJSON(claimSupportMapType::const_iterator itClaimsAndSupports, int nCurrentHeight)
+UniValue claimsAndSupportsToJSON(claimSupportMapType::const_iterator itClaimsAndSupports, CAmount nEffectiveAmount)
 {
     UniValue ret(UniValue::VOBJ);
     const CClaimValue claim = itClaimsAndSupports->second.first;
     const std::vector<CSupportValue> supports = itClaimsAndSupports->second.second;
-    CAmount nEffectiveAmount = 0;
     UniValue supportObjs(UniValue::VARR);
     for (std::vector<CSupportValue>::const_iterator itSupports = supports.begin(); itSupports != supports.end(); ++itSupports)
     {
@@ -211,10 +212,6 @@ UniValue claimsAndSupportsToJSON(claimSupportMapType::const_iterator itClaimsAnd
         supportObj.push_back(Pair("n", (int)itSupports->outPoint.n));
         supportObj.push_back(Pair("nHeight", itSupports->nHeight));
         supportObj.push_back(Pair("nValidAtHeight", itSupports->nValidAtHeight));
-        if (itSupports->nValidAtHeight < nCurrentHeight)
-        {
-            nEffectiveAmount += itSupports->nAmount;
-        }
         supportObj.push_back(Pair("nAmount", ValueFromAmount(itSupports->nAmount)));
         supportObjs.push_back(supportObj);
     }
@@ -223,10 +220,6 @@ UniValue claimsAndSupportsToJSON(claimSupportMapType::const_iterator itClaimsAnd
     ret.push_back(Pair("n", (int)claim.outPoint.n));
     ret.push_back(Pair("nHeight", claim.nHeight));
     ret.push_back(Pair("nValidAtHeight", claim.nValidAtHeight));
-    if (claim.nValidAtHeight < nCurrentHeight)
-    {
-        nEffectiveAmount += claim.nAmount;
-    }
     ret.push_back(Pair("nAmount", ValueFromAmount(claim.nAmount)));
     std::string sValue;
     if (getValueForClaim(claim.outPoint, sValue))
@@ -330,7 +323,8 @@ UniValue getclaimsforname(const UniValue& params, bool fHelp)
     ret.push_back(Pair("nLastTakeoverHeight", claimsForName.nLastTakeoverHeight));
     for (claimSupportMapType::const_iterator itClaimsAndSupports = claimSupportMap.begin(); itClaimsAndSupports != claimSupportMap.end(); ++itClaimsAndSupports)
     {
-        UniValue claimAndSupportsObj = claimsAndSupportsToJSON(itClaimsAndSupports, nCurrentHeight);
+        CAmount nEffectiveAmount = claimsForName.getEffectiveAmountForClaim(itClaimsAndSupports->second.first.claimId,nCurrentHeight); 
+        UniValue claimAndSupportsObj = claimsAndSupportsToJSON(itClaimsAndSupports, nEffectiveAmount);
         claimObjs.push_back(claimAndSupportsObj);
     }
     ret.push_back(Pair("claims", claimObjs));
