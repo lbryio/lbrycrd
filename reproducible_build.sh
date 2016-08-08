@@ -31,6 +31,9 @@ BUILD_DEPENDENCIES=true
 BUILD_LBRYCRD=true
 TIMEOUT=false
 THREE_MB=3145728
+# this flag gets set to False if
+# the script exits due to a timeout
+OUTPUT_LOG=true
 
 while getopts :crldoth:w:d: FLAG; do
     case $FLAG in
@@ -116,6 +119,7 @@ function exit_at_45() {
 	fi
 	if [ "$TIMEOUT" = true ] && (( TIME > TIMEOUT_SECS )); then
 	    echo 'Exiting at 45 minutes to allow the cache to populate'
+	    OUTPUT_LOG=false
 	    exit 1
 	fi
     fi
@@ -159,11 +163,11 @@ function background() {
 function cleanup() {
     rv=$?
     # cat the log file if it exists
-    if [ -f "$2" ]; then
+    if [ -f "$2" ] && [ "${OUTPUT_LOG}" = true ]; then
 	echo
 	echo "Output of log file $2"
 	echo
-	tail -c $THREE_MB "$1"
+	tail -n 1000 "$2"
 	echo
     fi
     # delete the build directory
@@ -175,14 +179,15 @@ function cleanup() {
 function cat_and_exit() {
     rv=$?
     # cat the log file if it exists
-    if [ -f "$1" ]; then
+    if [ -f "$1" ] && [ "${OUTPUT_LOG}" = true ]; then
 	echo
 	echo "Output of log file $1"
 	echo
-	# log size is limited to 4MB on travis
-	# so hopefully the last 3MB is enough
+	# This used to be the last 3MB but outputing that
+	# caused problems on travis.
+	# Hopefully the last 1000 lines is enough
 	# to debug whatever went wrong
-	tail -c $THREE_MB "$1"
+	tail -n 1000 "$1"
 	echo
     fi
     exit $rv
