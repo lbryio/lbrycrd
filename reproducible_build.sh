@@ -19,7 +19,7 @@ function HELP {
     echo "-r: remove intermediate files."
     echo "-l: build only lbrycrd"
     echo "-d: build only the dependencies"
-    echo "-o: timeout build after 45 minutes"
+    echo "-o: timeout build after 40 minutes"
     echo "-t: turn trace on"
     echo "-h: show help"
     exit 1
@@ -107,18 +107,18 @@ fi
 
 
 NEXT_TIME=60
-function exit_at_45() {
+function exit_at_40() {
     if [ -f "${START_TIME_FILE}" ]; then
 	NOW=$(date +%s)
 	START=$(cat "${START_TIME_FILE}")
-	TIMEOUT_SECS=2700 # 45 * 60
+	TIMEOUT_SECS=2400 # 40 * 60
 	TIME=$((NOW - START))
 	if (( TIME > NEXT_TIME )); then
 	    echo "Build has taken $((TIME / 60)) minutes: $1"
 	    NEXT_TIME=$((TIME + 60))
 	fi
 	if [ "$TIMEOUT" = true ] && (( TIME > TIMEOUT_SECS )); then
-	    echo 'Exiting at 45 minutes to allow the cache to populate'
+	    echo 'Exiting at 40 minutes to allow the cache to populate'
 	    OUTPUT_LOG=false
 	    exit 1
 	fi
@@ -140,7 +140,7 @@ function wait_and_echo() {
     # loop until the process is no longer running
     # check every $SLEEP seconds, echoing a message every minute
     while (ps -p "${PID}" > /dev/null); do
-	exit_at_45 "$2"
+	exit_at_40 "$2"
 	sleep "${SLEEP}"
     done
     # restore the xtrace setting
