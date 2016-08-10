@@ -2768,5 +2768,64 @@ BOOST_AUTO_TEST_CASE(claimtrievalue_proof)
     
 }
 
+// Check that blocks with bogus calimtrie hash is rejected
+BOOST_AUTO_TEST_CASE(bogus_claimtrie_hash)
+{
+    fRequireStandard = false;
+    BOOST_CHECK(pclaimTrie->nCurrentHeight = chainActive.Height() + 1);
+    LOCK(cs_main);
+    std::string sName("test");
+    std::string sValue1("test");
+
+    std::vector<unsigned char> vchName(sName.begin(), sName.end());
+    std::vector<unsigned char> vchValue1(sValue1.begin(), sValue1.end());
+
+    std::vector<CTransaction> coinbases;
+
+    BOOST_CHECK(CreateCoinbases(3, coinbases));
+    
+    int orig_chain_height = chainActive.Height();
+
+    CMutableTransaction tx1 = BuildTransaction(coinbases[0]);
+    tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME << vchName << vchValue1 << OP_2DROP << OP_DROP << OP_TRUE;
+    tx1.vout[0].nValue = 1;
+    COutPoint tx1OutPoint(tx1.GetHash(), 0);
+
+    AddToMempool(tx1);
+
+    CBlockTemplate *pblockTemp;
+    BOOST_CHECK(pblockTemp = CreateNewBlock(Params(), scriptPubKey));
+    pblockTemp->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    pblockTemp->block.nVersion = 1;
+    pblockTemp->block.nTime = chainActive.Tip()->GetBlockTime()+Params().GetConsensus().nPowTargetSpacing;
+    CMutableTransaction txCoinbase(pblockTemp->block.vtx[0]);
+    txCoinbase.vin[0].scriptSig = CScript() << CScriptNum(chainActive.Height());
+    txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
+    pblockTemp->block.vtx[0] = CTransaction(txCoinbase);    
+    pblockTemp->block.hashMerkleRoot = BlockMerkleRoot(pblockTemp->block); 
+    //create bogus hash 
+    
+    uint256 bogusHashClaimTrie;
+    bogusHashClaimTrie.SetHex("aaa"); 
+    pblockTemp->block.hashClaimTrie = bogusHashClaimTrie; 
+    
+    for (int i = 0; ; ++i)
+    {
+        pblockTemp->block.nNonce = i;
+        if (CheckProofOfWork(pblockTemp->block.GetPoWHash(), pblockTemp->block.nBits, Params().GetConsensus()))
+        {
+            break;
+        }
+    }
+    CValidationState state;
+    bool success = ProcessNewBlock(state, Params(), NULL, &pblockTemp->block, true, NULL);
+    // will process , but will not be connected 
+    BOOST_CHECK(success);
+    BOOST_CHECK(state.IsValid());
+    BOOST_CHECK(pblockTemp->block.GetHash() != chainActive.Tip()->GetBlockHash());
+    BOOST_CHECK_EQUAL(orig_chain_height,chainActive.Height());
+    delete pblockTemp;
+
+}
 
 BOOST_AUTO_TEST_SUITE_END()
