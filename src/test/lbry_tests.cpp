@@ -3,6 +3,7 @@
 #include "lbry.h"
 #include "main.h"
 #include "test/test_bitcoin.h"
+#include "hash.h" 
 #include <cstdio> 
 #include <boost/test/unit_test.hpp>
 
@@ -95,6 +96,35 @@ BOOST_AUTO_TEST_CASE(pow_limit_check)
 }
 
 
+boost::test_tools::predicate_result
+check_powhash_equals(std::string test_string,std::string expected_hash_hex)
+{
+    std::vector<unsigned char> test_vect(test_string.begin(),test_string.end());
+    uint256 expected;
+    expected.SetHex(expected_hash_hex);
+    uint256 hash = PoWHash(test_vect);
+
+    //std::cout<<"hash :"<<hash.ToString()<<"\n";
+
+    if (hash == expected){
+        return true;
+    }
+    else
+    {
+        boost::test_tools::predicate_result res( false );
+        res.message() << "Hash of " << test_string << " != " << expected_hash_hex;
+        return res;
+    }
+}
+
+BOOST_AUTO_TEST_CASE(lbry_pow_test)
+{
+    
+    BOOST_CHECK(check_powhash_equals("test string","485f3920d48a0448034b0852d1489cfa475341176838c7d36896765221be35ce"));
+    BOOST_CHECK(check_powhash_equals(std::string(70,'a'),"eb44af2f41e7c6522fb8be4773661be5baa430b8b2c3a670247e9ab060608b75")); 
+    BOOST_CHECK(check_powhash_equals(std::string(140,'d'),"74044747b7c1ff867eb09a84d026b02d8dc539fb6adcec3536f3dfa9266495d9"));
+
+}
 
 
 
