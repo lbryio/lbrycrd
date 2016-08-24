@@ -643,8 +643,7 @@ UniValue abandonclaim(const UniValue& params, bool fHelp)
         }
     }
     if (!fFound) {
-        bool altFound = false;
-        for (unsigned int i = 0; !altFound && i < wtx.vout.size(); ++i)
+        for (unsigned int i = 0; i < wtx.vout.size(); ++i)
           {
             if (ISMINE_SUPPORT & pwalletMain->IsMine(wtx.vout[i]))
               {
@@ -928,8 +927,7 @@ UniValue abandonsupport(const UniValue& params, bool fHelp)
         }
     }
     if (!fFound) {
-        bool altFound = false;
-        for (unsigned int i = 0; !altFound && i < wtx.vout.size(); ++i)
+        for (unsigned int i = 0; i < wtx.vout.size(); ++i)
           {
             if (ISMINE_CLAIM & pwalletMain->IsMine(wtx.vout[i]))
               {
