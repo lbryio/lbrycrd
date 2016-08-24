@@ -592,15 +592,33 @@ void AbandonClaim(const CTxDestination &address, CAmount nAmount, CWalletTx& wtx
         throw JSONRPCError(RPC_WALLET_ERROR, "Error: The transaction was rejected! This might happen if some of the coins in your wallet were already spent, such as if you used a copy of a wallet.dat and coins were spent in the copy but not marked as spent here.");
 }
 
-UniValue abandonclaim(const UniValue& params, bool fHelp)
+UniValue abandonwhatever(const UniValue& params, bool fHelp, const isminefilter filter, bool checkOther)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
+    string type, wrongType;
+    if (filter == ISMINE_CLAIM)
+    {
+        type = "claim";
+        wrongType = "support";
+    }
+    else if (filter == ISMINE_SUPPORT)
+    {
+        type = "support";
+        wrongType = "claim";
+    }
+    else
+    {
+        assert(false);
+        // TODO: replace this with a useful error message, like:
+        // "abandonwhatever received unexpected filter: "+filter
+    }
+
     if (fHelp || params.size() != 3)
         throw runtime_error(
-            "abandonclaim \"txid\" \"lbrycrdaddress\" \"amount\"\n"
-            "Create a transaction which spends a txout which assigned a value to a name, effectively abandoning that claim.\n"
+            "abandon"+type+" \"txid\" \"lbrycrdaddress\" \"amount\"\n"
+            "Create a transaction which spends a txout which "+(type=="claim" ? "assigned a value to a name" : "supported a name claim")+", effectively abandoning that "+type+".\n"
             + HelpRequiringPassphrase() +
             "\nArguments:\n"
             "1. \"txid\"  (string, required) The transaction containing the unspent txout which should be spent.\n"
@@ -619,8 +637,6 @@ UniValue abandonclaim(const UniValue& params, bool fHelp)
 
     CAmount nAmount = AmountFromValue(params[2]);
 
-    isminefilter filter = ISMINE_CLAIM;
-
     UniValue entry;
     if (!pwalletMain->mapWallet.count(hash))
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid or non-wallet transaction id");
@@ -629,33 +645,35 @@ UniValue abandonclaim(const UniValue& params, bool fHelp)
     int op;
     std::vector<std::vector<unsigned char> > vvchParams;
     CWalletTx wtxNew;
-    bool fFound = false;
-    for (unsigned int i = 0; !fFound && i < wtx.vout.size(); i++)
+
+    for (unsigned int i = 0; i < wtx.vout.size(); i++)
     {
-        if ((filter & pwalletMain->IsMine(wtx.vout[i])))
+        if (filter & pwalletMain->IsMine(wtx.vout[i]))
         {
             if (DecodeClaimScript(wtx.vout[i].scriptPubKey, op, vvchParams))
             {
-                EnsureWalletIsUnlocked();
-                AbandonClaim(address.Get(), nAmount, wtxNew, wtx, i);
-                fFound = true;
+                if (!checkOther) {
+                    EnsureWalletIsUnlocked();
+                    AbandonClaim(address.Get(), nAmount, wtxNew, wtx, i);
+                    return wtxNew.GetHash().GetHex();
+                }
+                else
+                {
+                    throw runtime_error("Error: address is a "+wrongType+" script -- use abandon"+wrongType);
+                }
             }
         }
     }
-    if (!fFound) {
-        for (unsigned int i = 0; i < wtx.vout.size(); ++i)
-          {
-            if (ISMINE_SUPPORT & pwalletMain->IsMine(wtx.vout[i]))
-              {
-                if (DecodeClaimScript(wtx.vout[i].scriptPubKey, op, vvchParams))
-                  {
-                    throw runtime_error("Error: address is a support script -- use abandonsupport");
-                  }
-              }
-          }
-        throw runtime_error("Error: The given transaction contains no claim scripts owned by this wallet");
-    }
-    return wtxNew.GetHash().GetHex();
+
+    abandonwhatever(params, false, filter, true);
+
+    throw runtime_error("Error: The given transaction contains no claim scripts owned by this wallet");
+
+}
+
+UniValue abandonclaim(const UniValue& params, bool fHelp)
+{
+    return abandonwhatever(params, fHelp, ISMINE_CLAIM, false);
 }
 
 
@@ -878,68 +896,7 @@ UniValue supportclaim(const UniValue& params, bool fHelp)
 
 UniValue abandonsupport(const UniValue& params, bool fHelp)
 {
-    if (!EnsureWalletIsAvailable(fHelp))
-        return NullUniValue;
-
-    if (fHelp || params.size() != 3)
-        throw runtime_error(
-            "abandonsupport \"txid\" \"lbrycrdaddress\" \"amount\"\n"
-            "Create a transaction which spends a txout which supported a name claim, effectively abandoning that support.\n"
-            + HelpRequiringPassphrase() +
-            "\nArguments:\n"
-            "1. \"txid\"  (string, required) The transaction containing the unspent txout which should be spent.\n"
-            "2. \"lbrycrdaddress\"  (string, required) The lbrycrd address to send to.\n"
-            "3. \"amount\"  (numeric, required) The amount to send to the lbrycrd address. eg 0.1\n"
-            "\nResult:\n"
-            "\"transactionid\"  (string) The new transaction id.\n"
-        );
-
-    uint256 hash;
-    hash.SetHex(params[0].get_str());
-
-    CBitcoinAddress address(params[1].get_str());
-    if (!address.IsValid())
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid LBRYcrd address");
-
-    CAmount nAmount = AmountFromValue(params[2]);
-
-    isminefilter filter = ISMINE_SUPPORT;
-
-    UniValue entry;
-    if (!pwalletMain->mapWallet.count(hash))
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid or non-wallet transaction id");
-
-    const CWalletTx& wtx = pwalletMain->mapWallet[hash];
-    int op;
-    std::vector<std::vector<unsigned char> > vvchParams;
-    CWalletTx wtxNew;
-    bool fFound = false;
-    for (unsigned int i = 0; !fFound && i < wtx.vout.size(); ++i)
-    {
-        if (filter & pwalletMain->IsMine(wtx.vout[i]))
-        {
-            if (DecodeClaimScript(wtx.vout[i].scriptPubKey, op, vvchParams))
-            {
-                EnsureWalletIsUnlocked();
-                AbandonClaim(address.Get(), nAmount, wtxNew, wtx, i); // not a type, they do the same thing
-                fFound = true;
-            }
-        }
-    }
-    if (!fFound) {
-        for (unsigned int i = 0; i < wtx.vout.size(); ++i)
-          {
-            if (ISMINE_CLAIM & pwalletMain->IsMine(wtx.vout[i]))
-              {
-                if (DecodeClaimScript(wtx.vout[i].scriptPubKey, op, vvchParams))
-                  {
-                    throw runtime_error("Error: address is a claim script -- use abandonclaim");
-                  }
-              }
-          }
-        throw runtime_error("Error: The given transaction contains no support scripts owned by this wallet");
-    }
-    return wtxNew.GetHash().GetHex();
+    return abandonwhatever(params, fHelp, ISMINE_SUPPORT, false);
 }
 
 
