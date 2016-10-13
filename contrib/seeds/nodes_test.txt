@@ -1,6 +1,6 @@
 # List of fixed seed nodes for testnet
 
-45.32.39.241:19246
+159.203.154.219:19246
 
 # Onion nodes
 #thfsmmn2jbitcoin.onion
