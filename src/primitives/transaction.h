@@ -170,15 +170,19 @@ public:
         // 546*minRelayTxFee/1000 (in satoshis)
         if (scriptPubKey.IsUnspendable())
             return 0;
-
-        size_t nSize = GetSerializeSize(SER_DISK,0)+148u;
-        return 3*minRelayTxFee.GetFee(nSize);
+        
+        // for lbrycrd this is mainly to prevent 0 value claims
+        // and some spam protection without limiting small
+        // lbrynet transactions 
+        return 1;    
+        // below is original bitcoin core code 
+        //size_t nSize = GetSerializeSize(SER_DISK,0)+dd148u;
+        //return 3*minRelayTxFee.GetFee(nSize);
     }
 
     bool IsDust(const CFeeRate &minRelayTxFee) const
     {
-        return false;
-//        return (nValue < GetDustThreshold(minRelayTxFee));
+        return (nValue < GetDustThreshold(minRelayTxFee));
     }
 
     friend bool operator==(const CTxOut& a, const CTxOut& b)

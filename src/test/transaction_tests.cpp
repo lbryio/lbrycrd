@@ -337,11 +337,14 @@ BOOST_AUTO_TEST_CASE(test_IsStandard)
     BOOST_CHECK(IsStandardTx(t, reason));
 
     // Check dust with default relay fee:
-    CAmount nDustThreshold = 182 * minRelayTxFee.GetFeePerK()/1000 * 3;
-    BOOST_CHECK_EQUAL(nDustThreshold, 546);
+    //CAmount nDustThreshold = 182 * minRelayTxFee.GetFeePerK()/1000 * 3;
+    //BOOST_CHECK_EQUAL(nDustThreshold, 546);
+    // lbry dust is set to 1, regardless of minRelayTxfee
+    CAmount nDustThreshold = 1;
+
     // dust:
-    //t.vout[0].nValue = nDustThreshold - 1;
-    //BOOST_CHECK(!IsStandardTx(t, reason));
+    t.vout[0].nValue = nDustThreshold - 1;
+    BOOST_CHECK(!IsStandardTx(t, reason));
     // not dust:
     t.vout[0].nValue = nDustThreshold;
     BOOST_CHECK(IsStandardTx(t, reason));
