@@ -206,6 +206,7 @@ struct ClaimTrieChainFixture{
         return tx; 
     }
 
+
     //make claim at the current block
     CMutableTransaction MakeClaim(const CTransaction &prev, std::string name, std::string value, 
                                   CAmount quantity)
@@ -233,6 +234,7 @@ struct ClaimTrieChainFixture{
         CommitTx(tx); 
         return tx;
     }
+
     //make update at the current block
     CMutableTransaction MakeUpdate(const CTransaction &prev, std::string name, std::string value,
                                uint160 claimId, CAmount quantity)
@@ -463,6 +465,7 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_support)
     support spend
         spending suport on winning claim will cause it to lose
 
+        spending a support on txin[i] where i is not 0 
 */
 BOOST_AUTO_TEST_CASE(claimtriebranching_support_spend)
 {
@@ -480,6 +483,42 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_support_spend)
     fixture.DecrementBlocks(1);
     BOOST_CHECK(is_best_claim("test",tx1));
     fixture.DecrementBlocks(1);
+
+    // spend a support on txin[i] where i is not 0 
+    
+    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"x","one",3);
+    CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(),"test","two",2);
+    CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(),"test","three",1);
+    CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(),tx5,"test",2);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(is_best_claim("test",tx5));
+    
+
+    // build the spend where s2 is sppent on txin[1] and tx3 is  spent on txin[0]   
+    uint32_t prevout = 0;
+    CMutableTransaction tx;
+    tx.nVersion = 1;
+    tx.nLockTime = 0;
+    tx.vin.resize(2);
+    tx.vout.resize(1);
+    tx.vin[0].prevout.hash = tx3.GetHash();
+    tx.vin[0].prevout.n = prevout;
+    tx.vin[0].scriptSig = CScript();
+    tx.vin[0].nSequence = std::numeric_limits<unsigned int>::max();
+    tx.vin[1].prevout.hash = s2.GetHash();
+    tx.vin[1].prevout.n = prevout;
+    tx.vin[1].scriptSig = CScript();
+    tx.vin[1].nSequence = std::numeric_limits<unsigned int>::max();
+    tx.vout[0].scriptPubKey = CScript() << OP_TRUE;
+    tx.vout[0].nValue = 1;
+
+    fixture.CommitTx(tx); 
+    fixture.IncrementBlocks(1);
+
+    BOOST_CHECK(is_best_claim("test",tx4)); 
+    fixture.DecrementBlocks(1);
+    BOOST_CHECK(is_best_claim("test",tx5));
+
 }
 /*
     update
@@ -617,4 +656,9 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_expire)
 }
 
 
+BOOST_AUTO_TEST_CASE(find_crash_reason){
+    ClaimTrieChainFixture fixture;
+     
+
+}
 BOOST_AUTO_TEST_SUITE_END()
