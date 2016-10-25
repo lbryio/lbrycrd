@@ -14,6 +14,9 @@
 // Scripts exceeding this size are rejected in CheckTransaction in main.cpp
 #define MAX_CLAIM_NAME_SIZE 255
 
+CScript ClaimNameScript(std::string name, std::string value);
+CScript SupportClaimScript(std::string name, uint160 claimId);
+CScript UpdateClaimScript(std::string name, uint160 claimId, std::string value); 
 bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams);
 bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams, CScript::const_iterator& pc);
 CScript StripClaimScriptPrefix(const CScript& scriptIn);
@@ -25,5 +28,6 @@ uint32_t vch_to_uint32_t(std::vector<unsigned char>& vchN);
 size_t ClaimScriptSize(const CScript& scriptIn);
 // get size of the name in a claim script, returns 0 if scriptin is not a claimetrie transaction 
 size_t ClaimNameSize(const CScript& scriptIn); 
+
 
 #endif // BITCOIN_NAMECLAIM_H

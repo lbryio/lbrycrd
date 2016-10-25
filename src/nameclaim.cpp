@@ -25,6 +25,29 @@ uint32_t vch_to_uint32_t(std::vector<unsigned char>& vchN)
     return n;
 }
 
+CScript ClaimNameScript(std::string name, std::string value)
+{
+     std::vector<unsigned char> vchName(name.begin(), name.end());
+     std::vector<unsigned char> vchValue(value.begin(), value.end());
+     return CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP << OP_TRUE; 
+
+}
+CScript SupportClaimScript(std::string name, uint160 claimId)
+{
+    std::vector<unsigned char> vchName(name.begin(), name.end());
+    std::vector<unsigned char> vchClaimId(claimId.begin(),claimId.end());  
+    return CScript() << OP_SUPPORT_CLAIM << vchName << vchClaimId << OP_2DROP << OP_DROP << OP_TRUE;
+}
+CScript UpdateClaimScript(std::string name, uint160 claimId, std::string value)
+{
+    std::vector<unsigned char> vchName(name.begin(), name.end());
+    std::vector<unsigned char> vchClaimId(claimId.begin(),claimId.end());  
+    std::vector<unsigned char> vchValue(value.begin(), value.end());
+    return CScript() << OP_UPDATE_CLAIM << vchName << vchClaimId << vchValue << OP_2DROP << OP_2DROP << OP_TRUE;
+
+}
+
+
 bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams)
 {
     CScript::const_iterator pc = scriptIn.begin();
