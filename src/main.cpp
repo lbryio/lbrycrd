@@ -2588,10 +2588,10 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         uint160 supportedClaimId(vvchParams[1]);
                         int nValidAtHeight;
-                        LogPrintf("%s: Removing support for %s in %s. Tx: %s, nOut: %d\n", __func__, supportedClaimId.ToString(), name, txin.prevout.hash.ToString(), txin.prevout.n);
+                        LogPrintf("%s: Removing support for %s in %s. Tx: %s, nOut: %d, remover txid: %s\n", __func__, supportedClaimId.ToString(), name, txin.prevout.hash.ToString(), txin.prevout.n,tx.GetHash().ToString());
                         if (trieCache.spendSupport(name, COutPoint(txin.prevout.hash, txin.prevout.n), coins->nHeight, nValidAtHeight))
                         {
-                            mClaimUndoHeights[0] = nValidAtHeight;
+                            mClaimUndoHeights[i] = nValidAtHeight;
                         }
                     }
                 }
