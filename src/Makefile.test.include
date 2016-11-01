@@ -61,6 +61,7 @@ BITCOIN_TESTS =\
   test/miner_tests.cpp \
   test/multisig_tests.cpp \
   test/claimtrie_tests.cpp \
+  test/claimtriebranching_tests.cpp \
   test/netbase_tests.cpp \
   test/pmt_tests.cpp \
   test/policyestimator_tests.cpp \
