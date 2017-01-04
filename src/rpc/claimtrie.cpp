@@ -187,7 +187,7 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
     ret.push_back(Pair("txid", claim.outPoint.hash.GetHex()));
     ret.push_back(Pair("n", (int)claim.outPoint.n));
     ret.push_back(Pair("amount", claim.nAmount));
-    ret.push_back(Pair("effective amount", claim.nEffectiveAmount)); 
+    ret.push_back(Pair("effective amount", pclaimTrie->getEffectiveAmountForClaim(name, claim.claimId))); 
     ret.push_back(Pair("height", claim.nHeight));
     return ret;
 }

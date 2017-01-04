@@ -302,7 +302,8 @@ public:
     bool getLastTakeoverForName(const std::string& name, int& lastTakeoverHeight) const;
 
     claimsForNameType getClaimsForName(const std::string& name) const;
-    
+    CAmount getEffectiveAmountForClaim(const std::string& name, uint160 claimId) const;   
+ 
     bool queueEmpty() const;
     bool supportEmpty() const;
     bool supportQueueEmpty() const;
