@@ -68,18 +68,22 @@ best_claim_effective_amount_equals(std::string name, CAmount amount)
     if (!have_info)
     {
         boost::test_tools::predicate_result res(false);
-        res.message()<<"No claim found"; 
-        return res;      
-    }
-    else if (val.nEffectiveAmount != amount)
-    {
-        boost::test_tools::predicate_result res(false);
-        res.message()<<amount<<" != "<<val.nEffectiveAmount; 
-        return res;      
+        res.message()<<"No claim found";
+        return res;
     }
     else
     {
-        return true;
+        CAmount effective_amount = pclaimTrie->getEffectiveAmountForClaim(name, val.claimId);
+        if (val.nEffectiveAmount != amount)
+        {
+            boost::test_tools::predicate_result res(false);
+            res.message()<<amount<<" != "<<effective_amount;
+            return res;
+        }
+        else
+        {
+            return true;
+        }
     }
 
 }
@@ -442,24 +446,30 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_support)
     CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(),tx2,"test",10);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(is_best_claim("test",tx2));
-    fixture.DecrementBlocks(1); 
+    BOOST_CHECK(best_claim_effective_amount_equals("test",11));
+    fixture.DecrementBlocks(1);
 
     // check support delay  
     CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
     CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(),"test","two",2);
     fixture.IncrementBlocks(10);
-    BOOST_CHECK(is_best_claim("test",tx4)); 
+    BOOST_CHECK(is_best_claim("test",tx4));
+    BOOST_CHECK(best_claim_effective_amount_equals("test",2));
     CMutableTransaction s4 = fixture.MakeSupport(fixture.GetCoinbase(),tx3,"test",10); //10 delay 
     fixture.IncrementBlocks(10);
     BOOST_CHECK(is_best_claim("test",tx4));
+    BOOST_CHECK(best_claim_effective_amount_equals("test",2));
     fixture.IncrementBlocks(1);
     BOOST_CHECK(is_best_claim("test",tx3));
+    BOOST_CHECK(best_claim_effective_amount_equals("test",11));
 
     fixture.DecrementBlocks(1);
     BOOST_CHECK(is_best_claim("test",tx4));
+    BOOST_CHECK(best_claim_effective_amount_equals("test",2));
     fixture.DecrementBlocks(10);
     BOOST_CHECK(is_best_claim("test",tx4)); 
-    fixture.DecrementBlocks(10);     
+    BOOST_CHECK(best_claim_effective_amount_equals("test",2));
+    fixture.DecrementBlocks(10);
 }   
 /*
     support spend
