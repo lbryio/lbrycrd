@@ -4,6 +4,8 @@
 #include "univalue.h"
 #include "txmempool.h"
 
+// Maximum block decrement that is allowed from rpc calls
+const int MAX_RPC_BLOCK_DECREMENTS = 50;
 
 UniValue getclaimsintrie(const UniValue& params, bool fHelp)
 {
@@ -682,7 +684,7 @@ UniValue getnameproof(const UniValue& params, bool fHelp)
     if (!chainActive.Contains(pblockIndex))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Block not in main chain");
 
-    if (chainActive.Tip()->nHeight > (pblockIndex->nHeight + 20))
+    if (chainActive.Tip()->nHeight > (pblockIndex->nHeight + MAX_RPC_BLOCK_DECREMENTS))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Block too deep to generate proof");
 
     CClaimTrieProof proof;
