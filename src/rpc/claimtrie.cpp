@@ -170,6 +170,7 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
             "1. \"name\"             (string) the name to look up\n"
             "Result: \n"
             "\"value\"               (string) the value of the name, if it exists\n"
+            "\"claimId\"             (string) the claimId for this name claim\n"
             "\"txid\"                (string) the hash of the transaction which successfully claimed the name\n"
             "\"n\"                   (numeric) vout value\n"
             "\"amount\"              (numeric) txout amount\n"
@@ -186,6 +187,7 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
     if (!getValueForClaim(claim.outPoint, sValue))
         return ret;
     ret.push_back(Pair("value", sValue));
+    ret.push_back(Pair("claimId", claim.claimId.GetHex()));
     ret.push_back(Pair("txid", claim.outPoint.hash.GetHex()));
     ret.push_back(Pair("n", (int)claim.outPoint.n));
     ret.push_back(Pair("amount", claim.nAmount));
