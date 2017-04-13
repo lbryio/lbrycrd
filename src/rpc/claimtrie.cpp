@@ -21,6 +21,7 @@ UniValue getclaimsintrie(const UniValue& params, bool fHelp)
             "    \"name\"          (string) the name claimed\n"
             "    \"claims\": [      (array of object) the claims for this name\n"
             "      {\n"
+            "        \"claimId\" (string) the claimId of the claim\n"
             "        \"txid\"    (string) the txid of the claim\n"
             "        \"n\"       (numeric) the vout value of the claim\n"
             "        \"amount\"  (numeric) txout amount\n"
@@ -48,6 +49,7 @@ UniValue getclaimsintrie(const UniValue& params, bool fHelp)
             for (std::vector<CClaimValue>::iterator itClaims = it->second.claims.begin(); itClaims != it->second.claims.end(); ++itClaims)
             {
                 UniValue claim(UniValue::VOBJ);
+                claim.push_back(Pair("claimId", itClaims->claimId.GetHex()));
                 claim.push_back(Pair("txid", itClaims->outPoint.hash.GetHex()));
                 claim.push_back(Pair("n", (int)itClaims->outPoint.n));
                 claim.push_back(Pair("amount", ValueFromAmount(itClaims->nAmount)));
