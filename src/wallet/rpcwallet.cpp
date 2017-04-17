@@ -642,8 +642,19 @@ UniValue abandonclaim(const UniValue& params, bool fHelp)
             }
         }
     }
-    if (!fFound)
+    if (!fFound) {
+        for (unsigned int i = 0; i < wtx.vout.size(); ++i)
+          {
+            if (ISMINE_SUPPORT & pwalletMain->IsMine(wtx.vout[i]))
+              {
+                if (DecodeClaimScript(wtx.vout[i].scriptPubKey, op, vvchParams))
+                  {
+                    throw runtime_error("Error: address is a support script -- use abandonsupport");
+                  }
+              }
+          }
         throw runtime_error("Error: The given transaction contains no claim scripts owned by this wallet");
+    }
     return wtxNew.GetHash().GetHex();
 }
 
@@ -915,8 +926,19 @@ UniValue abandonsupport(const UniValue& params, bool fHelp)
             }
         }
     }
-    if (!fFound)
+    if (!fFound) {
+        for (unsigned int i = 0; i < wtx.vout.size(); ++i)
+          {
+            if (ISMINE_CLAIM & pwalletMain->IsMine(wtx.vout[i]))
+              {
+                if (DecodeClaimScript(wtx.vout[i].scriptPubKey, op, vvchParams))
+                  {
+                    throw runtime_error("Error: address is a claim script -- use abandonclaim");
+                  }
+              }
+          }
         throw runtime_error("Error: The given transaction contains no support scripts owned by this wallet");
+    }
     return wtxNew.GetHash().GetHex();
 }
 
