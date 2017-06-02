@@ -332,9 +332,9 @@ public:
         checkpointData = (CCheckpointData){
             boost::assign::map_list_of
             ( 0, uint256S(REGTEST_GENESIS_HASH)),
-            0,
-            0,
-            0
+            ( 150000, uint256S("21788f5a26b07ecd38c2aaa5a3810c4be748194958f209c0d86ac26a47b0a6dd")),
+            ( 175000, uint256S("30d278a1afebbe5c02f3bc7d88e4286eb17f3dcb9d14172bf12c7308c27b4df2")),
+            ( 184000, uint256S("4674f80632a9a2f41b2fe2a3ecca5c0633d9ea90a50f4f2d3e1191e1e3c4279d")),
         };
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,111);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,196);
