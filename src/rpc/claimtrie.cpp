@@ -356,45 +356,47 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
                 "getclaimbyid\n"
                         "Get a claim by claim id\n"
                         "Arguments: \n"
-                        "1.  \"claimId\"      (string) the claimId of this claim\n"
+                        "1.  \"claimId\"           (string) the claimId of this claim\n"
                         "Result:\n"
                         "{\n"
-                        "  \"name\"           (string) the name of the claim\n"
-                        "  \"claimId\"        (string) the claimId of this claim\n"
-                        "  \"txid\"           (string) the hash of the transaction which has successfully claimed this name\n"
-                        "  \"n\"              (numeric) vout value\n"
-                        "  \"amount\"         (numeric) txout value\n"
-                        "  \"height\"         (numeric) the height of the block in which this claim transaction is located\n"
-                        "  \"value\"          (string) claim metadata\n"
+                        "  \"name\"                (string) the name of the claim\n"
+                        "  \"value\"               (string) claim metadata\n"
+                        "  \"claimId\"             (string) the claimId of this claim\n"
+                        "  \"txid\"                (string) the hash of the transaction which has successfully claimed this name\n"
+                        "  \"n\"                   (numeric) vout value\n"
+                        "  \"amount\"              (numeric) txout value\n"
+                        "  \"effective amount\"    (numeric) txout amount plus amount from all supports associated with the claim\n"
+                        "  \"height\"              (numeric) the height of the block in which this claim transaction is located\n"
                         "}\n"
         );
 
     LOCK(cs_main);
     uint160 claimId;
     claimId.SetHex(params[0].get_str());
-
+    UniValue claim(UniValue::VOBJ);
     std::vector<namedNodeType> nodes = pclaimTrie->flattenTrie();
     for (std::vector<namedNodeType>::iterator it = nodes.begin(); it != nodes.end(); ++it) {
         if (!it->second.claims.empty()) {
             for (std::vector<CClaimValue>::iterator itClaims = it->second.claims.begin();
                  itClaims != it->second.claims.end(); ++itClaims) {
                 if (claimId == itClaims->claimId) {
-                    UniValue claim(UniValue::VOBJ);
                     std::string sValue;
                     getValueForClaim(itClaims->outPoint, sValue);
                     claim.push_back(Pair("name", it->first));
+                    claim.push_back(Pair("value", sValue));
                     claim.push_back(Pair("claimId", itClaims->claimId.GetHex()));
                     claim.push_back(Pair("txid", itClaims->outPoint.hash.GetHex()));
                     claim.push_back(Pair("n", (int) itClaims->outPoint.n));
-                    claim.push_back(Pair("amount", ValueFromAmount(itClaims->nAmount)));
+                    claim.push_back(Pair("amount", itClaims->nAmount));
+                    claim.push_back(Pair("effective amount",
+                                         pclaimTrie->getEffectiveAmountForClaim(it->first, itClaims->claimId)));
                     claim.push_back(Pair("height", itClaims->nHeight));
-                    claim.push_back(Pair("value", sValue));
                     return claim;
                 }
             }
         }
     }
-    return -1;
+    return claim;
 }
 
 UniValue gettotalclaimednames(const UniValue& params, bool fHelp)
