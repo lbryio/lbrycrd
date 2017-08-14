@@ -45,7 +45,7 @@ src/qt/forms/ui_*.h
 
 src/qt/test/moc*.cpp
 
-dependencies/*
+lbrycrd-dependencies/*
 
 .deps
 .dirstamp
@@ -74,6 +74,7 @@ dependencies/*
 #libtool object files
 *.lo
 *.la
+start_time
 
 # Compilation and Qt preprocessor part
 *.qm
