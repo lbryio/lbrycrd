@@ -1704,7 +1704,12 @@ bool CClaimTrieCache::reorderTrieNode(const std::string& name, bool fCheckTakeov
     cachedNode = cache.find(name);
     if (cachedNode == cache.end())
     {
-        CClaimTrieNode* currentNode = &(base->root);
+        CClaimTrieNode* currentNode;
+        cachedNode = cache.find("");
+        if(cachedNode == cache.end())
+            currentNode = &(base->root);
+        else
+            currentNode = cachedNode->second;
         for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
         {
             std::string sCurrentSubstring(name.begin(), itCur);
