@@ -769,17 +769,26 @@ bool CClaimTrie::update(nodeCacheType& cache, hashMapType& hashes, std::map<std:
     for (nodeCacheType::iterator itcache = cache.begin(); itcache != cache.end(); ++itcache)
     {
         if (!updateName(itcache->first, itcache->second))
+        {
+            LogPrintf("%s: Failed to update name for:%s\n", __func__, itcache->first);
             return false;
+        }
     }
     for (hashMapType::iterator ithash = hashes.begin(); ithash != hashes.end(); ++ithash)
     {
         if (!updateHash(ithash->first, ithash->second))
+        {
+            LogPrintf("%s: Failed to update hash for:%s\n", __func__, ithash->first);
             return false;
+        }
     }
     for (std::map<std::string, int>::iterator itheight = takeoverHeights.begin(); itheight != takeoverHeights.end(); ++itheight)
     {
         if (!updateTakeoverHeight(itheight->first, itheight->second))
+        {
+            LogPrintf("%s: Failed to update takeover height for:%s\n", __func__, itheight->first);
             return false;
+        }
     }
     for (claimQueueType::iterator itQueueCacheRow = queueCache.begin(); itQueueCacheRow != queueCache.end(); ++itQueueCacheRow)
     {
@@ -1695,7 +1704,12 @@ bool CClaimTrieCache::reorderTrieNode(const std::string& name, bool fCheckTakeov
     cachedNode = cache.find(name);
     if (cachedNode == cache.end())
     {
-        CClaimTrieNode* currentNode = &(base->root);
+        CClaimTrieNode* currentNode;
+        cachedNode = cache.find("");
+        if(cachedNode == cache.end())
+            currentNode = &(base->root);
+        else
+            currentNode = cachedNode->second;
         for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
         {
             std::string sCurrentSubstring(name.begin(), itCur);
