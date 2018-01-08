@@ -2,6 +2,15 @@ Mac OS X Build Instructions and Notes
 ====================================
 This guide will show you how to build Bitcoin Core for OS X.
 
+
+TRY THIS FIRST
+-----
+
+Run `./reproducible_build.sh -c -t` in the Terminal. This should build the binaries and put them into the `./src` directory.
+
+If that errors, please report the issue. See below for other ways of building the binaries.
+
+
 Notes
 -----
 
