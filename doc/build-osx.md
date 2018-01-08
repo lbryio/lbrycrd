@@ -10,6 +10,7 @@ Run `./reproducible_build.sh -c -t` in the Terminal. This should build the binar
 
 If that errors, please report the issue. See below for other ways of building the binaries.
 
+---
 
 Notes
 -----
