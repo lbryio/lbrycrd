@@ -12,6 +12,16 @@ The `master` branch is regularly built and tested, but is not guaranteed to be
 completely stable. [Releases](https://github.com/lbryio/lbrycrd/releases) are created
 regularly to indicate new official, stable release versions.
 
+
+## Building LBRYcrd
+
+
+Run `./reproducible_build.sh -c -t`. This should build the binaries and put them into the `./src` directory.
+
+
+If that errors, please report the issue and see `doc/build-*.md` for further instructions.
+
+
 The contribution workflow is described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 
