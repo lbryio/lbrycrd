@@ -1982,8 +1982,8 @@ bool CWallet::FundTransaction(CMutableTransaction& tx, CAmount& nFeeRet, int& nC
 }
 
 bool CWallet::CreateTransaction(const vector<CRecipient>& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet,
-                                int& nChangePosInOut, std::string& strFailReason, const CCoinControl* coinControl, bool sign,
-                                const CWalletTx* pwtxIn, unsigned int nTxOut)
+				int& nChangePosInOut, std::string& strFailReason, const CCoinControl* coinControl, bool sign,
+				const CWalletTx* pwtxIn, unsigned int nTxOut, const char* transferFromAddr)
 {
     CAmount nValue = 0;
     int nChangePosRequest = nChangePosInOut;
@@ -2105,14 +2105,43 @@ bool CWallet::CreateTransaction(const vector<CRecipient>& vecSend, CWalletTx& wt
                 // Choose coins to use
                 set<pair<const CWalletTx*,unsigned int> > setCoins;
                 CAmount nValueIn = 0;
-                if (!fUsingWtxIn || nValueNeeded > 0)
+                if (transferFromAddr)
                 {
-                    if (!SelectCoins(vAvailableCoins, nValueNeeded, setCoins, nValueIn, coinControl))
+                    CScript selectTarget =
+                        GetScriptForDestination(CBitcoinAddress(transferFromAddr).Get());
+                    vector<COutput> vCoins(vAvailableCoins);
+                    BOOST_FOREACH(const COutput& out, vCoins)
+                    {
+                        if (out.tx->vout[out.i].scriptPubKey == selectTarget)
+                        {
+                            nValueIn += out.tx->vout[out.i].nValue;
+                            nValueNeeded -= std::min(nValueNeeded, out.tx->vout[out.i].nValue);
+                            setCoins.insert(make_pair(out.tx, out.i));
+                            if (nValueNeeded == 0)
+                            {
+                                break;
+                            }
+                        }
+                    }
+
+                    if (setCoins.empty() || nValueNeeded)
                     {
                         strFailReason = _("Insufficient funds");
                         return false;
                     }
                 }
+                else
+                {
+                    if (!fUsingWtxIn || nValueNeeded > 0)
+                    {
+                        if (!SelectCoins(vAvailableCoins, nValueNeeded, setCoins, nValueIn, coinControl))
+                        {
+                            strFailReason = _("Insufficient funds");
+                            return false;
+                        }
+                    }
+                }
+
                 BOOST_FOREACH(PAIRTYPE(const CWalletTx*, unsigned int) pcoin, setCoins)
                 {
                     CAmount nCredit = pcoin.first->vout[pcoin.second].nValue;
@@ -2145,6 +2174,15 @@ bool CWallet::CreateTransaction(const vector<CRecipient>& vecSend, CWalletTx& wt
                     if (coinControl && !boost::get<CNoDestination>(&coinControl->destChange))
                         scriptChange = GetScriptForDestination(coinControl->destChange);
 
+                    else if (transferFromAddr)
+                    {
+                        CBitcoinAddress addr(transferFromAddr);
+                        if (!addr.IsValid())
+                            throw runtime_error("invalid TX output address");
+
+                        // build standard output script via GetScriptForDestination()
+                        scriptChange = GetScriptForDestination(addr.Get());
+                    }
                     // no coin control: send change to newly generated address
                     else
                     {
@@ -2304,7 +2342,7 @@ bool CWallet::CreateTransaction(const vector<CRecipient>& vecSend, CWalletTx& wt
 /**
  * Call after CreateTransaction unless you want to abort
  */
-bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
+bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, bool remove)
 {
     {
         LOCK2(cs_main, cs_wallet);
@@ -2315,8 +2353,11 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
             // maybe makes sense; please don't do it anywhere else.
             CWalletDB* pwalletdb = fFileBacked ? new CWalletDB(strWalletFile,"r+") : NULL;
 
-            // Take key pair from key pool so it won't be used again
-            reservekey.KeepKey();
+            if (remove)
+            {
+                // Take key pair from key pool so it won't be used again
+                reservekey.KeepKey();
+            }
 
             // Add tx to wallet, because if it has change it's also ours,
             // otherwise just for transaction history.
