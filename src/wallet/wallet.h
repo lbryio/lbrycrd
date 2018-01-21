@@ -747,8 +747,9 @@ public:
      * @note passing nChangePosInOut as -1 will result in setting a random position
      */
     bool CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, int& nChangePosInOut,
-                           std::string& strFailReason, const CCoinControl *coinControl = NULL, bool sign = true, const CWalletTx* pwtxIn = NULL, unsigned int nTxOut = -1);
-    bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey);
+                           std::string& strFailReason, const CCoinControl *coinControl = NULL, bool sign = true, const CWalletTx* pwtxIn = NULL, unsigned int nTxOut = -1,
+                           const char* transferFromAddr = NULL);
+    bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, bool remove = true);
 
     bool AddAccountingEntry(const CAccountingEntry&, CWalletDB & pwalletdb);
 
