@@ -2467,6 +2467,7 @@ bool CClaimTrieCache::clear() const
     supportCache.clear();
     supportQueueCache.clear();
     supportQueueNameCache.clear();
+    supportExpirationQueueCache.clear();
     namesToCheckForTakeover.clear();
     cacheTakeoverHeights.clear();
     return true;
