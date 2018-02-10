@@ -1220,14 +1220,24 @@ bool CClaimTrieCache::empty() const
 
 CClaimTrieNode* CClaimTrieCache::addNodeToCache(const std::string& position, CClaimTrieNode* original) const
 {
-    if (!original)
-        original = new CClaimTrieNode();
-    CClaimTrieNode* cacheCopy = new CClaimTrieNode(*original);
+    // create a copy of the node in the cache, if new node, create empty node
+    CClaimTrieNode* cacheCopy;
+    if(!original)
+        cacheCopy = new CClaimTrieNode();
+    else
+        cacheCopy = new CClaimTrieNode(*original);
     cache[position] = cacheCopy;
+
+    // check to see if there is the original node in block_originals,
+    // if not, add it to block_originals cache
     nodeCacheType::const_iterator itOriginals = block_originals.find(position);
     if (block_originals.end() == itOriginals)
     {
-        CClaimTrieNode* originalCopy = new CClaimTrieNode(*original);
+        CClaimTrieNode* originalCopy;
+        if(!original)
+            originalCopy = new CClaimTrieNode();
+        else
+            originalCopy = new CClaimTrieNode(*original);
         block_originals[position] = originalCopy;
     }
     return cacheCopy;
