@@ -82,6 +82,7 @@ bool fEnableReplacement = DEFAULT_ENABLE_REPLACEMENT;
 
 CFeeRate minRelayTxFee = CFeeRate(DEFAULT_MIN_RELAY_TX_FEE);
 CAmount maxTxFee = DEFAULT_TRANSACTION_MAXFEE;
+CAmount minFeePerNameClaimChar = MIN_FEE_PER_NAMECLAIM_CHAR;
 
 CTxMemPool mempool(::minRelayTxFee);
 FeeFilterRounder filterRounder(::minRelayTxFee);
@@ -1194,6 +1195,14 @@ bool AcceptToMemoryPoolWorker(CTxMemPool& pool, CValidationState& state, const C
             return state.DoS(0, false, REJECT_NONSTANDARD, "bad-txns-too-many-sigops", false,
                 strprintf("%d", nSigOps));
 
+        // If a ClaimTrie transaction, it must meet the minimum fee requirement due to
+        // it consuming extra system resources, compared to an ordinary transaction
+        CAmount minClaimTrieFee = CalcMinClaimTrieFee(tx, minFeePerNameClaimChar);
+        if (nModifiedFees < minClaimTrieFee) {
+            return state.DoS(0, false, REJECT_INSUFFICIENTFEE, "minimum claim trie fee not met", false,
+                             strprintf("%d < %d", nFees, minClaimTrieFee));
+        }
+
         CAmount mempoolRejectFee = pool.GetMinFee(GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000).GetFee(nSize);
         if (mempoolRejectFee > 0 && nModifiedFees < mempoolRejectFee) {
             return state.DoS(0, false, REJECT_INSUFFICIENTFEE, "mempool min fee not met", false, strprintf("%d < %d", nFees, mempoolRejectFee));
@@ -1201,7 +1210,6 @@ bool AcceptToMemoryPoolWorker(CTxMemPool& pool, CValidationState& state, const C
             // Require that free transactions have sufficient priority to be mined in the next block.
             return state.DoS(0, false, REJECT_INSUFFICIENTFEE, "insufficient priority");
         }
-
         // Continuously rate-limit free (really, very-low-fee) transactions
         // This mitigates 'penny-flooding' -- sending thousands of free transactions just to
         // be annoying or make others' transactions take longer to confirm.

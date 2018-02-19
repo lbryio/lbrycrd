@@ -2279,6 +2279,9 @@ bool CWallet::CreateTransaction(const vector<CRecipient>& vecSend, CWalletTx& wt
                 if (coinControl && nFeeNeeded > 0 && coinControl->nMinimumTotalFee > nFeeNeeded) {
                     nFeeNeeded = coinControl->nMinimumTotalFee;
                 }
+                // Make sure we meet the minimum claimtrie fee, pick which ever one is largest
+                CAmount minClaimTrieFee = CalcMinClaimTrieFee(wtxNew, minFeePerNameClaimChar);
+                nFeeNeeded = std::max(nFeeNeeded, minClaimTrieFee);
 
                 // If we made it here and we aren't even able to meet the relay fee on the next pass, give up
                 // because we must be at the maximum allowed fee.

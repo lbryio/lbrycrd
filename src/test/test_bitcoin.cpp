@@ -153,6 +153,7 @@ TestChain100Setup::~TestChain100Setup()
 RegTestingSetup::RegTestingSetup() : TestingSetup(CBaseChainParams::REGTEST)
 {
     minRelayTxFee = CFeeRate(0);
+    minFeePerNameClaimChar = 0;
 }
 
 RegTestingSetup::~RegTestingSetup()
