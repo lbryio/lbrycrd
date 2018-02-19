@@ -2471,13 +2471,17 @@ BOOST_AUTO_TEST_CASE(claimtrienode_serialize_unserialize)
     ss >> n2;
     BOOST_CHECK(n1 == n2);
 
-    n1.hash.SetHex("0000000000000000000000000000000000000000000000000000000000000001");
+    uint256 h1;
+    h1.SetHex("0000000000000000000000000000000000000000000000000000000000000001");
+    n1.setHash(h1);
     BOOST_CHECK(n1 != n2);
     ss << n1;
     ss >> n2;
     BOOST_CHECK(n1 == n2);
 
-    n1.hash.SetHex("a79e8a5b28f7fa5e8836a4b48da9988bdf56ce749f81f413cb754f963a516200");
+    uint256 h2;
+    h2.SetHex("a79e8a5b28f7fa5e8836a4b48da9988bdf56ce749f81f413cb754f963a516200");
+    n2.setHash(h2);
     BOOST_CHECK(n1 != n2);
     ss << n1;
     ss >> n2;

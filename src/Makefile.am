@@ -119,6 +119,9 @@ BITCOIN_CORE_H = \
   miner.h \
   nameclaim.h \
   claimtrie.h \
+  claimtrienode.h \
+  claimtrienode_impl.h \
+  claimtrietypedefs.h \
   lbry.h \
   net.h \
   netbase.h \
@@ -166,8 +169,7 @@ BITCOIN_CORE_H = \
   zmq/zmqconfig.h\
   zmq/zmqnotificationinterface.h \
   zmq/zmqpublishnotifier.h
-
-
+  
 obj/build.h: FORCE
 	@$(MKDIR_P) $(builddir)/obj
 	@$(top_srcdir)/share/genbuild.sh $(abs_top_builddir)/src/obj/build.h \
@@ -191,6 +193,8 @@ libbitcoin_server_a_SOURCES = \
   merkleblock.cpp \
   miner.cpp \
   claimtrie.cpp \
+  claimtrienode.cpp \
+  claimtrienode_impl.cpp \
   net.cpp \
   noui.cpp \
   policy/fees.cpp \
