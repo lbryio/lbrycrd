@@ -1,5 +1,10 @@
 DIST_SUBDIRS = secp256k1 univalue
 
+#HARDENED_CXXFLAGS += -std=gnu++11
+#HARDENED_CPPFLAGS += -std=gnu++11
+#LEVELDB_CPPFLAGS += -std=gnu++11
+#CXXFLAGS += -std=gnu++11
+
 AM_LDFLAGS = $(PTHREAD_CFLAGS) $(LIBTOOL_LDFLAGS) $(HARDENED_LDFLAGS)
 AM_CXXFLAGS = $(HARDENED_CXXFLAGS)
 AM_CPPFLAGS = $(HARDENED_CPPFLAGS)
@@ -119,6 +124,9 @@ BITCOIN_CORE_H = \
   miner.h \
   nameclaim.h \
   claimtrie.h \
+  claimtrienode.h \
+  claimtrienode_impl.h \
+  claimtrietypedefs.h \
   lbry.h \
   net.h \
   netbase.h \
@@ -166,8 +174,7 @@ BITCOIN_CORE_H = \
   zmq/zmqconfig.h\
   zmq/zmqnotificationinterface.h \
   zmq/zmqpublishnotifier.h
-
-
+  
 obj/build.h: FORCE
 	@$(MKDIR_P) $(builddir)/obj
 	@$(top_srcdir)/share/genbuild.sh $(abs_top_builddir)/src/obj/build.h \
@@ -191,6 +198,8 @@ libbitcoin_server_a_SOURCES = \
   merkleblock.cpp \
   miner.cpp \
   claimtrie.cpp \
+  claimtrienode.cpp \
+  claimtrienode_impl.cpp \
   net.cpp \
   noui.cpp \
   policy/fees.cpp \
@@ -211,7 +220,7 @@ libbitcoin_server_a_SOURCES = \
   txmempool.cpp \
   validationinterface.cpp \
   versionbits.cpp \
-  $(BITCOIN_CORE_H)
+    $(BITCOIN_CORE_H)
 
 if ENABLE_ZMQ
 LIBBITCOIN_ZMQ=libbitcoin_zmq.a

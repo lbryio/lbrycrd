@@ -11,6 +11,8 @@
 #include <string>
 #include <vector>
 
+//#include "QFAMCommon.h"
+
 // leveldb keys
 #define HASH_BLOCK 'h'
 #define CURRENT_HEIGHT 't'
@@ -125,49 +127,6 @@ public:
 class CClaimTrieNode;
 class CClaimTrie;
 
-typedef std::vector<CSupportValue> supportMapEntryType;
-
-typedef std::map<unsigned char, CClaimTrieNode*> nodeMapType;
-
-typedef std::pair<std::string, CClaimTrieNode> namedNodeType;
-
-class CClaimTrieNode
-{
-public:
-    CClaimTrieNode() : nHeightOfLastTakeover(0) {}
-    CClaimTrieNode(uint256 hash) : hash(hash), nHeightOfLastTakeover(0) {}
-    uint256 hash;
-    nodeMapType children;
-    int nHeightOfLastTakeover;
-    std::vector<CClaimValue> claims;
-
-    bool insertClaim(CClaimValue claim);
-    bool removeClaim(const COutPoint& outPoint, CClaimValue& claim);
-    bool getBestClaim(CClaimValue& claim) const;
-    bool empty() const {return children.empty() && claims.empty();}
-    bool haveClaim(const COutPoint& outPoint) const;
-    void reorderClaims(supportMapEntryType& supports);
-    
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(hash);
-        READWRITE(claims);
-        READWRITE(nHeightOfLastTakeover);
-    }
-    
-    bool operator==(const CClaimTrieNode& other) const
-    {
-        return hash == other.hash && claims == other.claims;
-    }
-
-    bool operator!=(const CClaimTrieNode& other) const
-    {
-        return !(*this == other);
-    }
-};
-
 struct nodenamecompare
 {
     bool operator() (const std::string& i, const std::string& j) const
@@ -241,29 +200,6 @@ struct nameOutPointType
     }
 };
 
-typedef std::pair<std::string, CClaimValue> claimQueueEntryType;
-
-typedef std::pair<std::string, CSupportValue> supportQueueEntryType;
-
-typedef std::map<std::string, supportMapEntryType> supportMapType;
-
-typedef std::vector<outPointHeightType> queueNameRowType;
-typedef std::map<std::string, queueNameRowType> queueNameType;
-
-typedef std::vector<nameOutPointHeightType> insertUndoType;
-
-typedef std::vector<nameOutPointType> expirationQueueRowType;
-typedef std::map<int, expirationQueueRowType> expirationQueueType;
-
-typedef std::vector<claimQueueEntryType> claimQueueRowType;
-typedef std::map<int, claimQueueRowType> claimQueueType;
-
-typedef std::vector<supportQueueEntryType> supportQueueRowType;
-typedef std::map<int, supportQueueRowType> supportQueueType;
-
-typedef std::map<std::string, CClaimTrieNode*, nodenamecompare> nodeCacheType;
-
-typedef std::map<std::string, uint256> hashMapType;
 
 struct claimsForNameType
 {
@@ -339,9 +275,9 @@ public:
     int nExpirationTime;
     int nProportionalDelayFactor;
 private:
-    void clear(CClaimTrieNode* current);
+    void clear(CClaimTrieNode current);
 
-    const CClaimTrieNode* getNodeForName(const std::string& name) const;
+    const CClaimTrieNode getNodeForName(const std::string& name) const;
     
     bool update(nodeCacheType& cache, hashMapType& hashes,
                 std::map<std::string, int>& takeoverHeights,
@@ -352,24 +288,24 @@ private:
                 supportQueueType& supportQueueCache,
                 queueNameType& supportQueueNameCache,
                 expirationQueueType& supportExpirationQueueCache);
-    bool updateName(const std::string& name, CClaimTrieNode* updatedNode);
+    bool updateName(const std::string& name, CClaimTrieNode updatedNode);
     bool updateHash(const std::string& name, uint256& hash);
     bool updateTakeoverHeight(const std::string& name, int nTakeoverHeight);
-    bool recursiveNullify(CClaimTrieNode* node, std::string& name);
+    bool recursiveNullify(CClaimTrieNode node, std::string& name);
     
-    bool recursiveCheckConsistency(const CClaimTrieNode* node) const;
+    bool recursiveCheckConsistency(const CClaimTrieNode node) const;
     
-    bool InsertFromDisk(const std::string& name, CClaimTrieNode* node);
+    bool InsertFromDisk(const std::string& name, CClaimTrieNode node);
     
-    unsigned int getTotalNamesRecursive(const CClaimTrieNode* current) const;
-    unsigned int getTotalClaimsRecursive(const CClaimTrieNode* current) const;
-    CAmount getTotalValueOfClaimsRecursive(const CClaimTrieNode* current,
+    unsigned int getTotalNamesRecursive(const CClaimTrieNode current) const;
+    unsigned int getTotalClaimsRecursive(const CClaimTrieNode current) const;
+    CAmount getTotalValueOfClaimsRecursive(const CClaimTrieNode current,
                                            bool fControllingOnly) const;
     bool recursiveFlattenTrie(const std::string& name,
-                              const CClaimTrieNode* current,
+                              const CClaimTrieNode current,
                               std::vector<namedNodeType>& nodes) const;
     
-    void markNodeDirty(const std::string& name, CClaimTrieNode* node);
+    void markNodeDirty(const std::string& name, CClaimTrieNode node);
     void updateQueueRow(int nHeight, claimQueueRowType& row);
     void updateQueueNameRow(const std::string& name,
                             queueNameRowType& row);
@@ -381,7 +317,7 @@ private:
     void updateSupportExpirationQueue(int nHeight, expirationQueueRowType& row);
     
     void BatchWriteNode(CDBBatch& batch, const std::string& name,
-                        const CClaimTrieNode* pNode) const;
+                        const CClaimTrieNode pNode) const;
     void BatchEraseNode(CDBBatch& batch, const std::string& nome) const;
     void BatchWriteQueueRows(CDBBatch& batch);
     void BatchWriteQueueNameRows(CDBBatch& batch);
@@ -519,9 +455,9 @@ private:
     uint256 computeHash() const;
     
     bool reorderTrieNode(const std::string& name, bool fCheckTakeover) const;
-    bool recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent,
+    bool recursiveComputeMerkleHash(CClaimTrieNode tnCurrent,
                                     std::string sPos) const;
-    bool recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos,
+    bool recursivePruneName(CClaimTrieNode tnCurrent, unsigned int nPos,
                             std::string sName,
                             bool* pfNullified = NULL) const;
     
@@ -580,9 +516,9 @@ private:
     int getDelayForName(const std::string& name) const;
 
     uint256 getLeafHashForProof(const std::string& currentPosition, unsigned char nodeChar,
-                                const CClaimTrieNode* currentNode) const;
+                                const CClaimTrieNode currentNode) const;
 
-    CClaimTrieNode* addNodeToCache(const std::string& position, CClaimTrieNode* original) const;
+    CClaimTrieNode addNodeToCache(const std::string& position, CClaimTrieNode original) const;
 
     bool getOriginalInfoForName(const std::string& name, CClaimValue& claim) const;
 
