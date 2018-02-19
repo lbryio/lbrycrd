@@ -1,6 +1,8 @@
+#include <boost/foreach.hpp>
 #include "nameclaim.h"
 #include "hash.h"
 #include "util.h"
+
 
 std::vector<unsigned char> uint32_t_to_vch(uint32_t n)
 {
@@ -172,4 +174,28 @@ size_t ClaimNameSize(const CScript& scriptIn)
     {
         return vvchParams[0].size();
     }
+}
+
+CAmount CalcMinClaimTrieFee(const CTransaction& tx, const CAmount &minFeePerNameClaimChar)
+{
+    if (minFeePerNameClaimChar == 0)
+    {
+        return 0;
+    }
+
+    CAmount min_fee = 0;
+    BOOST_FOREACH(const CTxOut& txout, tx.vout)
+    {
+        int op;
+        std::vector<std::vector<unsigned char> > vvchParams;
+        if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams))
+        {
+            if (op == OP_CLAIM_NAME)
+            {
+                int claim_name_size = vvchParams[0].size();
+                min_fee += claim_name_size*minFeePerNameClaimChar;
+            }
+        }
+    }
+    return min_fee;
 }
