@@ -169,6 +169,8 @@ public:
 
     void ReloadDbEnv();
 
+    void ReloadDbEnv();
+
     std::atomic<unsigned int> nUpdateCounter;
     unsigned int nLastSeen;
     unsigned int nLastFlushed;

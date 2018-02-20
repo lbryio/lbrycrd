@@ -674,6 +674,32 @@ void BerkeleyEnvironment::ReloadDbEnv()
     Open(true);
 }
 
+void BerkeleyEnvironment::ReloadDbEnv()
+{
+    // Make sure that no Db's are in use
+    AssertLockNotHeld(cs_db);
+    std::unique_lock<CCriticalSection> lock(cs_db);
+    m_db_in_use.wait(lock, [this](){
+        for (auto& count : mapFileUseCount) {
+            if (count.second > 0) return false;
+        }
+        return true;
+    });
+
+    std::vector<std::string> filenames;
+    for (auto it : mapDb) {
+        filenames.push_back(it.first);
+    }
+    // Close the individual Db's
+    for (const std::string& filename : filenames) {
+        CloseDb(filename);
+    }
+    // Reset the environment
+    Flush(true); // This will flush and close the environment
+    Reset();
+    Open(true);
+}
+
 bool BerkeleyBatch::Rewrite(BerkeleyDatabase& database, const char* pszSkip)
 {
     if (database.IsDummy()) {
