@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -x
 set -euo pipefail
 
 function HELP {
@@ -26,7 +27,7 @@ function HELP {
 }
 
 CLONE=true
-CLEAN=false
+CLEAN=true
 BUILD_DEPENDENCIES=true
 BUILD_LBRYCRD=true
 TIMEOUT=false
@@ -101,24 +102,23 @@ else
     # this file is created when the build starts
     START_TIME_FILE="$TRAVIS_BUILD_DIR/start_time"
 fi
-if [ ! -f "${START_TIME_FILE}" ]; then
-    date +%s > "${START_TIME_FILE}"
-fi
+rm -f ${START_TIME_FILE}
+date +%s > "${START_TIME_FILE}"
 
 
 NEXT_TIME=60
-function exit_at_40() {
+function exit_at_60() {
     if [ -f "${START_TIME_FILE}" ]; then
 	NOW=$(date +%s)
 	START=$(cat "${START_TIME_FILE}")
-	TIMEOUT_SECS=2400 # 40 * 60
+	TIMEOUT_SECS=3600 # 60 * 60
 	TIME=$((NOW - START))
 	if (( TIME > NEXT_TIME )); then
 	    echo "Build has taken $((TIME / 60)) minutes: $1"
 	    NEXT_TIME=$((TIME + 60))
 	fi
 	if [ "$TIMEOUT" = true ] && (( TIME > TIMEOUT_SECS )); then
-	    echo 'Exiting at 40 minutes to allow the cache to populate'
+	    echo 'Exiting at 60 minutes to allow the cache to populate'
 	    OUTPUT_LOG=false
 	    exit 1
 	fi
@@ -140,7 +140,7 @@ function wait_and_echo() {
     # loop until the process is no longer running
     # check every $SLEEP seconds, echoing a message every minute
     while (ps -p "${PID}" > /dev/null); do
-	exit_at_40 "$2"
+	exit_at_60 "$2"
 	sleep "${SLEEP}"
     done
     # restore the xtrace setting
@@ -226,10 +226,14 @@ function install_apt_packages() {
 	  ca-certificates automake bsdmainutils
 }
 
+PARALLEL=""
+
 function build_dependencies() {
     if [ "${OS_NAME}" = "osx" ]; then
+        PARALLEL="-j $(sysctl -n hw.ncpu)"
 	install_brew_packages
     else
+        PARALLEL="-j $(grep -c processor /proc/cpuinfo)"
 	install_apt_packages
     fi
     
@@ -244,6 +248,7 @@ function build_dependencies() {
     # TODO: if the repo exists, make sure its clean: revert to head.
     mkdir -p "${LOG_DIR}"
 
+    build_dependency "${ICU_PREFIX}" "${LOG_DIR}/icu_build.log" build_icu
     build_dependency "${BDB_PREFIX}" "${LOG_DIR}/bdb_build.log" build_bdb
     build_dependency "${OPENSSL_PREFIX}" "${LOG_DIR}/openssl_build.log" build_openssl
     
@@ -263,7 +268,7 @@ function build_bdb() {
     cd db-4.8.30.NC/build_unix
     echo "Building bdb.  tail -f $BDB_LOG to see the details and monitor progress"
     ../dist/configure --prefix="${BDB_PREFIX}" --enable-cxx --disable-shared --with-pic > "${BDB_LOG}"
-    background make "${BDB_LOG}" "Waiting for bdb to finish building"
+    background "make ${PARALLEL}" "${BDB_LOG}" "Waiting for bdb to finish building"
     make install >> "${BDB_LOG}" 2>&1
 }
 
@@ -280,18 +285,48 @@ function build_openssl() {
 	./Configure --prefix="${OPENSSL_PREFIX}" --openssldir="${OPENSSL_PREFIX}/ssl" \
 		    linux-x86_64 -fPIC -static no-shared no-dso > "${OPENSSL_LOG}"
     fi
-    background make "${OPENSSL_LOG}" "Waiting for openssl to finish building"
+    background "make ${PARALLEL}" "${OPENSSL_LOG}" "Waiting for openssl to finish building"
     make install >> "${OPENSSL_LOG}" 2>&1
 }
 
 function build_boost() {
     BOOST_LOG="$1"
     cd boost_1_59_0
+
+    echo "int main() { return 0; }" > libs/regex/build/has_icu_test.cpp
+    echo "int main() { return 0; }" > libs/locale/build/has_icu_test.cpp
+
+    export BOOST_ICU_LIBS="$(pkg-config icu-i18n --libs) -dl"
+    echo "BOOST_ICU_LIBS: $BOOST_ICU_LIBS"
+
     echo "Building Boost.  tail -f ${BOOST_LOG} to see the details and monitor progress"
-    ./bootstrap.sh --prefix="${BOOST_PREFIX}" > "${BOOST_LOG}" 2>&1
-    background "./b2 link=static cxxflags=-fPIC install" \
-	       "${BOOST_LOG}" \
-	       "Waiting for boost to finish building"
+
+    export BOOST_LDFLAGS="${BOOST_PREFIX}/lib ${ICU_PREFIX}/lib ${BOOST_ICU_LIBS}"
+    ./bootstrap.sh --prefix="${BOOST_PREFIX}" "--with-icu=${ICU_PREFIX}" > "${BOOST_LOG}" 2>&1
+    b2cmd="./b2 link=static cxxflags=-fPIC install boost.locale.iconv=off boost.locale.posix=off -sICU_PATH=$ICU_PREFIX -sICU_LINK=${BOOST_ICU_LIBS}"
+
+    background "$b2cmd" "${BOOST_LOG}" "Waiting for boost to finish building"
+}
+
+function build_icu() {
+    ICU_LOG="$1"
+    mkdir -p "${ICU_PREFIX}/icu"
+    wget http://download.icu-project.org/files/icu4c/55.1/icu4c-55_1-src.tgz
+    tar -xf icu4c-55_1-src.tgz
+    rm -f icu4c-55_1-src.tgz
+    pushd icu/source > /dev/null
+    echo "Building icu.  tail -f $ICU_LOG to see the details and monitor progress"
+    ./configure --prefix="${ICU_PREFIX}" --enable-draft --enable-tools \
+                --enable-shared --disable-extras --disable-icuio \
+                --disable-layout --disable-layoutex --disable-tests --disable-samples
+    TMP_TARGET="$TARGET"
+    unset TARGET
+    set +e
+    background "make ${PARALLEL} VERBOSE=1" "${ICU_LOG}" "Waiting for icu to finish building"
+    make install >> "${ICU_LOG}" 2>&1
+    set -e
+    TARGET="$TMP_TARGET"
+    popd > /dev/null
 }
 
 function build_libevent() {
@@ -305,7 +340,7 @@ function build_libevent() {
     ./configure --prefix="${LIBEVENT_PREFIX}" --enable-static --disable-shared --with-pic \
 		LDFLAGS="-L${OPENSSL_PREFIX}/lib/" \
 		CPPFLAGS="-I${OPENSSL_PREFIX}/include" >> "${LIBEVENT_LOG}" 2>&1
-    background make "${LIBEVENT_LOG}" "Waiting for libevent to finish building"
+    background "make ${PARALLEL}" "${LIBEVENT_LOG}" "Waiting for libevent to finish building"
     make install >> "${LIBEVENT_LOG}"
 }
 
@@ -323,31 +358,33 @@ function build_dependency() {
 }
 
 function build_lbrycrd() {
-    if [ "$CLONE" == true ]; then
+#    if [ "$CLONE" == true ]; then
 	cd "${LBRYCRD_DEPENDENCIES}"
-	git clone https://github.com/lbryio/lbrycrd
+#	git clone https://github.com/lbryio/lbrycrd
+	git clone https://github.com/lbrynaut/lbrycrd
 	cd lbrycrd
-    else
-	cd "${SOURCE_DIR}"
-    fi
+        git checkout -b normalized-name-fork origin/normalized-name-fork
+#    else
+#	cd "${SOURCE_DIR}"
+#    fi
     ./autogen.sh > "${LBRYCRD_LOG}" 2>&1
-    LDFLAGS="-L${OPENSSL_PREFIX}/lib/ -L${BDB_PREFIX}/lib/ -L${LIBEVENT_PREFIX}/lib/ -static-libstdc++"
-    CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/"
-    if [ "${OS_NAME}" = "osx" ]; then
-	OPTIONS="--enable-cxx --enable-static --disable-shared --with-pic"
-    else
-	OPTIONS=""
-    fi
-    ./configure --without-gui ${OPTIONS} \
-		--with-boost="${BOOST_PREFIX}" \
-		LDFLAGS="${LDFLAGS}" \
+#    ICU_LIBS="$(pkg-config icu-i18n --libs) -dl"
+#    else
+#	OPTIONS=""
+#    fi
+
+    LDFLAGS="-L${OPENSSL_PREFIX}/lib/ -L${BDB_PREFIX}/lib/ -L${LIBEVENT_PREFIX}/lib/ -L${BOOST_PREFIX}/lib/ -static-libstdc++"
+    CPPFLAGS="-I${ICU_PREFIX}/include -I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/ -I${BOOST_PREFIX}/include/"
+    OPTIONS="--enable-cxx --enable-static --disable-shared --with-pic"
+    ./configure --without-gui ${OPTIONS} --with-icu=${ICU_PREFIX} \
+		--with-boost="${BOOST_PREFIX}" LDFLAGS="${LDFLAGS}" \
 		CPPFLAGS="${CPPFLAGS}" >> "${LBRYCRD_LOG}" 2>&1
-    background make "${LBRYCRD_LOG}" "Waiting for lbrycrd to finish building"
+    background "make V=1 ${PARALLEL}" "${LBRYCRD_LOG}" "Waiting for lbrycrd to finish building"
     # tests don't work on OSX. Should definitely figure out why
     # that is but, for now, not letting that stop the rest
     # of the build
     if [ "${OS_NAME}" = "linux" ]; then
-	src/test/test_lbrycrd
+        LD_LIBRARY_PATH="${ICU_PREFIX}/lib" src/test/test_lbrycrd
     fi
     strip src/lbrycrdd
     strip src/lbrycrd-cli
@@ -363,13 +400,14 @@ BDB_PREFIX="${OUTPUT_DIR}/bdb"
 OPENSSL_PREFIX="${OUTPUT_DIR}/openssl"
 BOOST_PREFIX="${OUTPUT_DIR}/boost"
 LIBEVENT_PREFIX="${OUTPUT_DIR}/libevent"
+ICU_PREFIX="${OUTPUT_DIR}/icu"
 
 if [ "${BUILD_DEPENDENCIES}" = true ]; then
     build_dependencies
 fi
 
 set +u
-export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig/:${LIBEVENT_PREFIX}/lib/pkgconfig/"
+export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig/:${LIBEVENT_PREFIX}/lib/pkgconfig/:${ICU_PREFIX}/lib/pkgconfig/"
 set -u
 
 if [ "${BUILD_LBRYCRD}" = true ]; then

@@ -107,8 +107,8 @@ if ENABLE_WALLET
 test_test_lbrycrd_LDADD += $(LIBBITCOIN_WALLET)
 endif
 
-test_test_lbrycrd_LDADD += $(LIBBITCOIN_CONSENSUS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS)
-test_test_lbrycrd_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) -static
+test_test_lbrycrd_LDADD += $(LIBBITCOIN_CONSENSUS) $(ICU_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS)
+test_test_lbrycrd_LDFLAGS = -L$(ICU_PREFIX)/lib $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) -static
 
 if ENABLE_ZMQ
 test_test_lbrycrd_LDADD += $(ZMQ_LIBS)

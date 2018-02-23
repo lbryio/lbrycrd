@@ -11,6 +11,11 @@
 #include <string>
 #include <vector>
 
+#include <boost/algorithm/string.hpp>
+#include <boost/locale/conversion.hpp>
+#include <boost/locale/localization_backend.hpp>
+#include <boost/locale.hpp>
+
 // leveldb keys
 #define HASH_BLOCK 'h'
 #define CURRENT_HEIGHT 't'
@@ -22,6 +27,9 @@
 #define SUPPORT_QUEUE_ROW 'u'
 #define SUPPORT_QUEUE_NAME_ROW 'p'
 #define SUPPORT_EXP_QUEUE_ROW 'x'
+
+// hard fork height for claim name normalization
+static const int LBRY_NORMALIZED_NAME_FORK_HEIGHT = 329320;
 
 uint256 getValueHash(COutPoint outPoint, int nHeightOfLastTakeover);
 
@@ -277,23 +285,54 @@ struct claimsForNameType
 
 class CClaimTrieCache;
 
+// lower-case and normalize any input string name
+// see: https://unicode.org/reports/tr15/#Norm_Forms
+inline const std::string lbryNormalize(const std::string& name, bool shouldNormalize)
+{
+    if (shouldNormalize)
+    {
+        boost::locale::localization_backend_manager manager =
+            boost::locale::localization_backend_manager::global();
+        manager.select("icu");
+
+        boost::locale::generator curLocale(manager);
+        const std::locale utf8 = curLocale("en_US.UTF8");
+
+        const std::string normalized = boost::locale::normalize(
+            boost::locale::to_lower(name, utf8), boost::locale::norm_nfd, utf8);
+
+        /* LogPrintf("%s: Normalized \"%s\" (%lu, %lu) to \"%s\" (%lu, %lu)\n", __func__, name, name.size(), sizeof(name), normalized, normalized.size(), sizeof(normalized)); */
+        return normalized;
+    }
+    /* LogPrintf("%s: Non-Normalized \"%s\"\n", __func__, name); */
+    return name;
+}
+
+#define CHECK_HEIGHT(x) \
+    (normalizeNames && (x >= LBRY_NORMALIZED_NAME_FORK_HEIGHT))
+
+#define BASE_CHECK_HEIGHT(x) \
+    (base->shouldNormalize() && (x >= LBRY_NORMALIZED_NAME_FORK_HEIGHT))
+
 class CClaimTrie
 {
 public:
-    CClaimTrie(bool fMemory = false, bool fWipe = false, int nProportionalDelayFactor = 32)
+    CClaimTrie(bool fMemory = false, bool fWipe = false, bool normalize = false, int nProportionalDelayFactor = 32)
                : db(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false)
                , nCurrentHeight(0), nExpirationTime(262974)
                , nProportionalDelayFactor(nProportionalDelayFactor)
                , root(uint256S("0000000000000000000000000000000000000000000000000000000000000001"))
+               , normalizeNames(normalize)
     {}
-    
+
     uint256 getMerkleHash();
     
     bool empty() const;
     void clear();
     
     bool checkConsistency() const;
-    
+    bool shouldNormalize(int nHeight = 0) const;
+
     bool WriteToDisk();
     bool ReadFromDisk(bool check = false);
     
@@ -311,6 +350,7 @@ public:
     bool supportExpirationQueueEmpty() const;
     
     void setExpirationTime(int t);
+    void setNormalize(bool normalize);
     
     bool getQueueRow(int nHeight, claimQueueRowType& row) const;
     bool getQueueNameRow(const std::string& name, queueNameRowType& row) const;
@@ -405,6 +445,8 @@ private:
     
     nodeCacheType dirtyNodes;
     supportMapType dirtySupportNodes;
+
+    bool normalizeNames;
 };
 
 class CClaimTrieProofNode

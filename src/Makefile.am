@@ -29,7 +29,7 @@ $(LIBLEVELDB) $(LIBMEMENV):
 endif
 
 BITCOIN_CONFIG_INCLUDES=-I$(builddir)/config
-BITCOIN_INCLUDES=-I$(builddir) -I$(builddir)/obj $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS)
+BITCOIN_INCLUDES=-I$(builddir) -I$(builddir)/obj $(ICU_CPPFLAGS) $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS)
 
 BITCOIN_INCLUDES += -I$(srcdir)/secp256k1/include
 BITCOIN_INCLUDES += $(UNIVALUE_CFLAGS)
@@ -354,7 +354,7 @@ nodist_libbitcoin_util_a_SOURCES = $(srcdir)/obj/build.h
 lbrycrdd_SOURCES = bitcoind.cpp
 lbrycrdd_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 lbrycrdd_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-lbrycrdd_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
+lbrycrdd_LDFLAGS = -L$(ICU_PREFIX)/lib $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
 if TARGET_WINDOWS
 lbrycrdd_SOURCES += bitcoin-cli-res.rc
@@ -379,13 +379,13 @@ if ENABLE_WALLET
 lbrycrdd_LDADD += libbitcoin_wallet.a
 endif
 
-lbrycrdd_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS)
+lbrycrdd_LDADD += $(ICU_LIBS) $(BOOST_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS)
 
 #lbrycrd-cli binary #
 lbrycrd_cli_SOURCES = bitcoin-cli.cpp
 lbrycrd_cli_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(EVENT_CFLAGS)
 lbrycrd_cli_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-lbrycrd_cli_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
+lbrycrd_cli_LDFLAGS = -L$(ICU_PREFIX)/lib $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
 if TARGET_WINDOWS
 lbrycrd_cli_SOURCES += bitcoin-cli-res.rc
@@ -396,14 +396,14 @@ lbrycrd_cli_LDADD = \
   $(LIBUNIVALUE) \
   $(LIBBITCOIN_UTIL)
 
-lbrycrd_cli_LDADD += $(BOOST_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(EVENT_LIBS)
+lbrycrd_cli_LDADD += $(ICU_LIBS) $(BOOST_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(EVENT_LIBS)
 #
 
 # bitcoin-tx binary #
 lbrycrd_tx_SOURCES = bitcoin-tx.cpp
 lbrycrd_tx_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 lbrycrd_tx_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-lbrycrd_tx_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
+lbrycrd_tx_LDFLAGS = -L$(ICU_PREFIX)/lib $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
 if TARGET_WINDOWS
 lbrycrd_tx_SOURCES += bitcoin-tx-res.rc
@@ -417,7 +417,7 @@ lbrycrd_tx_LDADD = \
   $(LIBBITCOIN_CRYPTO) \
   $(LIBSECP256K1)
 
-lbrycrd_tx_LDADD += $(BOOST_LIBS) $(CRYPTO_LIBS)
+lbrycrd_tx_LDADD += $(ICU_LIBS) $(BOOST_LIBS) $(CRYPTO_LIBS)
 #
 
 # bitcoinconsensus library #
