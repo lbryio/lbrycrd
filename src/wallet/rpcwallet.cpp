@@ -419,7 +419,7 @@ UniValue claimname(const UniValue& params, bool fHelp)
             + HelpRequiringPassphrase() +
             "\nArguments:\n"
             "1. \"name\"  (string, required) The name to be assigned the value.\n"
-            "2. \"value\"  (string, required) The value to assign to the name.\n"
+            "2. \"value\"  (string, required) The value to assign to the name encoded in hexadecimal.\n"
             "3. \"amount\"  (numeric, required) The amount in LBRYcrd to send. eg 0.1\n"
             "\nResult:\n"
             "\"transactionid\"  (string) The transaction id.\n"
@@ -427,7 +427,8 @@ UniValue claimname(const UniValue& params, bool fHelp)
     string sName = params[0].get_str();
     string sValue = params[1].get_str();
     std::vector<unsigned char> vchName (sName.begin(), sName.end());
-    std::vector<unsigned char> vchValue (sValue.begin(), sValue.end());
+    std::vector<unsigned char> vchValue(ParseHex(sValue));
+
     CAmount nAmount = AmountFromValue(params[2]);
 
     CWalletTx wtx;
@@ -501,7 +502,7 @@ UniValue updateclaim(const UniValue& params, bool fHelp)
             + HelpRequiringPassphrase() +
             "\nArguments:\n"
             "1.  \"txid\"  (string, required) The transaction containing the unspent txout which should be spent.\n"
-            "2.  \"value\"  (string, required) The value to assign to the name.\n"
+            "2.  \"value\"  (string, required) The value to assign to the name encoded in hexadecimal.\n"
             "3.  \"amount\"  (numeric, required) The amount in LBRYcrd to use to bid for the name. eg 0.1\n"
             "\nResult:\n"
             "\"transactionid\"  (string) The new transaction id.\n"
@@ -512,7 +513,7 @@ UniValue updateclaim(const UniValue& params, bool fHelp)
     
     std::vector<unsigned char> vchName;
     string sValue = params[1].get_str();
-    std::vector<unsigned char> vchValue (sValue.begin(), sValue.end());
+    std::vector<unsigned char> vchValue(ParseHex(sValue));
     CAmount nAmount = AmountFromValue(params[2]);
      
     isminefilter filter = ISMINE_CLAIM;
