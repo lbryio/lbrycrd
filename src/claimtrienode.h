@@ -41,12 +41,25 @@ public:
     bool haveClaim(const COutPoint& outPoint) const;
     void reorderClaims(supportMapEntryType& supports);
         
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+     /*   
+     * We don't use ADD_SERIALIZE_METHODS since we have to forward everything to the worker.
+     */
+    
+    template<typename Stream>
+    void Serialize(Stream &s, int nType, int nVersionDummy) const
     {
-        m_Worker->SerializationOp(s, ser_action, nType, nVersion);
+        m_Worker->Serialize(s, nType, nVersionDummy);
+    }
+    
+    template<typename Stream>
+    void Unserialize(Stream& s, int nType, int nVersionDummy)
+    {
+        m_Worker->Unserialize(s, nType, nVersionDummy);
+    }    
+
+    unsigned int GetSerializeSize(int nType, int nVersion) const
+    {
+        return m_Worker->GetSerializeSize(nType, nVersion);
     }
     
     bool operator==(const CClaimTrieNode_Impl& other) const

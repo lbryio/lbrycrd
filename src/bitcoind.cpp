@@ -135,6 +135,7 @@ bool AppInit(int argc, char* argv[])
         {
             fprintf(stdout, "LBRYcrd server starting\n");
 
+            /*
             // Daemonize
             pid_t pid = fork();
             if (pid < 0)
@@ -151,6 +152,7 @@ bool AppInit(int argc, char* argv[])
             pid_t sid = setsid();
             if (sid < 0)
                 fprintf(stderr, "Error: setsid() returned %d errno %d\n", sid, errno);
+            */
         }
 #endif
         SoftSetBoolArg("-server", true);

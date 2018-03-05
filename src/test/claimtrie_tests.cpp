@@ -212,8 +212,16 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     ntState.insertClaimIntoTrie(std::string("tes"), CClaimValue(tx4OutPoint, hash160, 50, 100, 200));
     BOOST_CHECK(ntState.getMerkleHash() == hash2);
     ntState.insertClaimIntoTrie(std::string("testtesttesttest"), CClaimValue(tx5OutPoint, hash160, 50, 100, 200));
+    
+    uint256 hash5;
+    hash5.SetHex("56cdfe5695d23c0cc8d52b05bd18e438c9efb7b9f22e9fe3f9179533f5c2468b");
+    uint256 hashSteve = ntState.getMerkleHash();
+    BOOST_CHECK(hash5 == hashSteve);
+    
     ntState.removeClaimFromTrie(std::string("testtesttesttest"), tx5OutPoint, unused);
-    BOOST_CHECK(ntState.getMerkleHash() == hash2);
+    
+    uint256 hash2check = ntState.getMerkleHash();
+    BOOST_CHECK(hash2check == hash2);
     ntState.flush();
 
     BOOST_CHECK(!pclaimTrie->empty());

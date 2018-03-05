@@ -180,6 +180,9 @@ libbitcoin_util_a-clientversion.$(OBJEXT): obj/build.h
 libbitcoin_server_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(MINIUPNPC_CPPFLAGS) $(EVENT_CFLAGS) $(EVENT_PTHREADS_CFLAGS)
 libbitcoin_server_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_server_a_SOURCES = \
+  claimtrie.cpp \
+  claimtrienode.cpp \
+  claimtrienode_impl.cpp \
   addrman.cpp \
   bloom.cpp \
   chain.cpp \
@@ -192,9 +195,6 @@ libbitcoin_server_a_SOURCES = \
   main.cpp \
   merkleblock.cpp \
   miner.cpp \
-  claimtrie.cpp \
-  claimtrienode.cpp \
-  claimtrienode_impl.cpp \
   net.cpp \
   noui.cpp \
   policy/fees.cpp \
