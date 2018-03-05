@@ -390,10 +390,10 @@ void CreateClaim(CScript& claimScript, CAmount nAmount, CWalletTx& wtxNew)
 
     vector<CRecipient> vecSend;
     int nChangePosRet = -1;
-    
+
     CRecipient recipient = {claimScript, nAmount, false};
     vecSend.push_back(recipient);
-    
+
     CReserveKey reservekey(pwalletMain);
     CAmount nFeeRequired;
     if (!pwalletMain->CreateTransaction(vecSend, wtxNew, reservekey, nFeeRequired, nChangePosRet, strError))
@@ -411,7 +411,7 @@ UniValue claimname(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() != 3)
         throw runtime_error(
             "claimname \"name\" \"value\" amount\n"
@@ -436,7 +436,7 @@ UniValue claimname(const UniValue& params, bool fHelp)
     EnsureWalletIsUnlocked();
 
     CScript claimScript = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
-    
+
     CreateClaim(claimScript, nAmount, wtx);
 
     return wtx.GetHash().GetHex();
@@ -472,10 +472,10 @@ void UpdateName(const std::vector<unsigned char> vchName, const uint160 claimId,
 
     vector<CRecipient> vecSend;
     int nChangePosRet = -1;
-    
+
     CRecipient recipient = {claimScript, nAmount, false};
     vecSend.push_back(recipient);
-    
+
     CReserveKey reservekey(pwalletMain);
     CAmount nFeeRequired;
     if (!pwalletMain->CreateTransaction(vecSend, wtxNew, reservekey, nFeeRequired, nChangePosRet, strError, NULL, true, &wtxIn, nTxOut))
@@ -494,7 +494,7 @@ UniValue updateclaim(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() != 3)
         throw runtime_error(
             "updateclaim \"txid\" \"value\" amount\n"
@@ -507,15 +507,15 @@ UniValue updateclaim(const UniValue& params, bool fHelp)
             "\nResult:\n"
             "\"transactionid\"  (string) The new transaction id.\n"
         );
-    
+
     uint256 hash;
     hash.SetHex(params[0].get_str());
-    
+
     std::vector<unsigned char> vchName;
     string sValue = params[1].get_str();
     std::vector<unsigned char> vchValue(ParseHex(sValue));
     CAmount nAmount = AmountFromValue(params[2]);
-     
+
     isminefilter filter = ISMINE_CLAIM;
 
     UniValue entry;
@@ -573,13 +573,13 @@ void AbandonClaim(const CTxDestination &address, CAmount nAmount, CWalletTx& wtx
     }
 
     CScript scriptPubKey = GetScriptForDestination(address);
-    
+
     vector<CRecipient> vecSend;
     int nChangePosRet = -1;
-    
+
     CRecipient recipient = {scriptPubKey, nAmount, false};
     vecSend.push_back(recipient);
-    
+
     CReserveKey reservekey(pwalletMain);
     CAmount nFeeRequired;
     if (!pwalletMain->CreateTransaction(vecSend, wtxNew, reservekey, nFeeRequired, nChangePosRet, strError, NULL, true, &wtxIn, nTxOut))
@@ -597,7 +597,7 @@ UniValue abandonclaim(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() != 3)
         throw runtime_error(
             "abandonclaim \"txid\" \"lbrycrdaddress\" \"amount\"\n"
@@ -679,7 +679,7 @@ void ListNameClaims(const CWalletTx& wtx, const string& strAccount, int nMinDept
                     LogPrintf("%s(): Txout classified as name claim could not be decoded. Txid: %s", __func__, wtx.GetHash().ToString());
                     continue;
                 }
-                else if (((op == OP_CLAIM_NAME || op == OP_SUPPORT_CLAIM) && (vvchParams.size() != 2)) || 
+                else if (((op == OP_CLAIM_NAME || op == OP_SUPPORT_CLAIM) && (vvchParams.size() != 2)) ||
                          ((op == OP_UPDATE_CLAIM) && (vvchParams.size() != 3)))
                 {
                     LogPrintf("%s(): Wrong number of params to name claim script. Got %d, expected %d. Txid: %s", __func__, vvchParams.size(), ((op == OP_CLAIM_NAME) ? 2 : 3), wtx.GetHash().ToString());
@@ -753,7 +753,7 @@ UniValue listnameclaims(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() > 3)
         throw runtime_error(
             "listnameclaims includesuppports activeonly minconf\n"
@@ -794,7 +794,7 @@ UniValue listnameclaims(const UniValue& params, bool fHelp)
     isminefilter claim_filter = ISMINE_CLAIM;
     if (params.size() < 1 || params[0].get_bool())
         claim_filter |= ISMINE_SUPPORT;
-            
+
     bool fListSpent = true;
     if (params.size() > 1)
         fListSpent = !params[1].get_bool();
@@ -803,7 +803,7 @@ UniValue listnameclaims(const UniValue& params, bool fHelp)
     int nMinDepth = 1;
     if (params.size() > 2)
         nMinDepth = params[2].get_int();
-    
+
     UniValue ret(UniValue::VARR);
 
     const CWallet::TxItems& txOrdered = pwalletMain->wtxOrdered;
@@ -859,7 +859,7 @@ UniValue supportclaim(const UniValue& params, bool fHelp)
     EnsureWalletIsUnlocked();
 
     CScript supportScript = CScript() << OP_SUPPORT_CLAIM << vchName << vchClaimId << OP_2DROP << OP_DROP;
-    
+
     CreateClaim(supportScript, nAmount, wtx);
 
     return wtx.GetHash().GetHex();
