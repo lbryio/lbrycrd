@@ -1262,7 +1262,7 @@ bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue c
 bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoint& outPoint, CClaimValue& claim, bool fCheckTakeover) const
 {
     assert(base);
-    CClaimTrieNode currentNode = base->root;
+    CClaimTrieNode& currentNode = base->root;
     nodeCacheType::iterator cachedNode;
     cachedNode = cache.find("");
 
@@ -1388,7 +1388,7 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoi
             namesToCheckForTakeover.insert(name);
         }
     }
-    CClaimTrieNode rootNode = base->root;
+    CClaimTrieNode& rootNode = base->root;
     cachedNode = cache.find("");
     ++count;
     
