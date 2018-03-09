@@ -92,9 +92,7 @@ bool CClaimTrieNode::empty() const
  
  void CClaimTrieNode::setHash(uint256 newHash)
  {
-    static int count = 0;
     m_Worker->setHash(newHash);
-    std::cout << count++ << ":" << newHash.GetHex() << std::endl;
  }
  
 void CClaimTrieNode::setHeightOfLastTakeover(int newLastTakeover)

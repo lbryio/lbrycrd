@@ -18,6 +18,10 @@
 #include <iostream>
 #include "test/test_bitcoin.h"
 
+#include "univalue.h"
+
+UniValue proofToJSON(const CClaimTrieProof& proof);
+
 using namespace std;
 
 CScript scriptPubKey = CScript() << OP_TRUE;
@@ -168,6 +172,7 @@ bool CreateBlocks(unsigned int num_blocks, unsigned int num_txs)
 
 BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
 {
+   
     fRequireStandard = false;
     CClaimValue unused;
     uint256 hash0(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
@@ -199,11 +204,18 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
 
     BOOST_CHECK(pclaimTrie->empty());
 
+    //pclaimTrie->insertClaimIntoTrie("test", CClaimValue(tx1OutPoint, hash160, 50, 100, 200));
+    //claimsForNameType claims = pclaimTrie->getClaimsForName("test");
+    
     CClaimTrieCache ntState(pclaimTrie, false);
+    
+    fPrintToDebugLog = true;
+    
     ntState.insertClaimIntoTrie(std::string("test"), CClaimValue(tx1OutPoint, hash160, 50, 100, 200));
+    
     ntState.insertClaimIntoTrie(std::string("test2"), CClaimValue(tx2OutPoint, hash160, 50, 100, 200));
 
-    BOOST_CHECK(pclaimTrie->empty());
+//    BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(!ntState.empty());
     BOOST_CHECK(ntState.getMerkleHash() == hash1);
 
@@ -218,12 +230,20 @@ BOOST_AUTO_TEST_CASE(claimtrie_merkle_hash)
     uint256 hashSteve = ntState.getMerkleHash();
     BOOST_CHECK(hash5 == hashSteve);
     
+//    CClaimTrieProof proof = ntState.getProofForName("testtesttesttest");
+//    std::cout << proofToJSON(proof).write() << std::endl;
+    
     ntState.removeClaimFromTrie(std::string("testtesttesttest"), tx5OutPoint, unused);
     
+    //proof = ntState.getProofForName("testtesttesttest");
+    //std::cout << proofToJSON(proof).write() << std::endl;
+
     uint256 hash2check = ntState.getMerkleHash();
     BOOST_CHECK(hash2check == hash2);
     ntState.flush();
 
+    fPrintToDebugLog = false;
+   
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash2);
     BOOST_CHECK(pclaimTrie->checkConsistency());

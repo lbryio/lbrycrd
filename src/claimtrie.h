@@ -276,7 +276,7 @@ public:
 private:
     void clear(const CClaimTrieNode& current);
 
-    const CClaimTrieNode& getNodeForName(const std::string& name) const;
+    const CClaimTrieNode getNodeForName(const std::string& name) const;
     
     bool update(nodeCacheType& cache, hashMapType& hashes,
                 std::map<std::string, int>& takeoverHeights,

@@ -18,6 +18,10 @@ using std::endl;
 #include <iostream>
 #include <algorithm>
 
+#include "univalue.h"
+
+UniValue proofToJSON(const CClaimTrieProof& proof);
+
 std::vector<unsigned char> heightToVch(int n)
 {
     std::vector<unsigned char> vchHeight;
@@ -271,7 +275,7 @@ unsigned int CClaimTrie::getTotalNamesInTrie() const
 {
     if (empty())
         return 0;
-    const CClaimTrieNode current = root;
+    const CClaimTrieNode& current = root;
     return getTotalNamesRecursive(current);
 }
 
@@ -291,7 +295,7 @@ unsigned int CClaimTrie::getTotalClaimsInTrie() const
 {
     if (empty())
         return 0;
-    const CClaimTrieNode current = root;
+    const CClaimTrieNode& current = root;
     return getTotalClaimsRecursive(current);
 }
 
@@ -309,7 +313,7 @@ CAmount CClaimTrie::getTotalValueOfClaimsInTrie(bool fControllingOnly) const
 {
     if (empty())
         return 0;
-    const CClaimTrieNode current = root;
+    const CClaimTrieNode& current = root;
     return getTotalValueOfClaimsRecursive(current, fControllingOnly);
 }
 
@@ -351,7 +355,7 @@ std::vector<namedNodeType> CClaimTrie::flattenTrie() const
     return nodes;
 }
 
-const CClaimTrieNode& CClaimTrie::getNodeForName(const std::string& name) const
+const CClaimTrieNode CClaimTrie::getNodeForName(const std::string& name) const
 {
     CClaimTrieNode current = root;
     nodeMapType::iterator endChild = current.getChildren().end();
@@ -359,7 +363,9 @@ const CClaimTrieNode& CClaimTrie::getNodeForName(const std::string& name) const
     {
         nodeMapType::iterator itchildren = current.getChildren().find(*itname);
         if (itchildren == current.getChildren().end())
+        {
             return CClaimTrieNode();
+        }
         current = itchildren->second;
     }
     return current;
@@ -367,7 +373,7 @@ const CClaimTrieNode& CClaimTrie::getNodeForName(const std::string& name) const
 
 bool CClaimTrie::getInfoForName(const std::string& name, CClaimValue& claim) const
 {
-    const CClaimTrieNode current = getNodeForName(name);
+    const CClaimTrieNode& current = getNodeForName(name);
     if (current.empty())
     {
         return current.getBestClaim(claim);
@@ -377,7 +383,7 @@ bool CClaimTrie::getInfoForName(const std::string& name, CClaimValue& claim) con
 
 bool CClaimTrie::getLastTakeoverForName(const std::string& name, int& lastTakeoverHeight) const
 {
-    const CClaimTrieNode current = getNodeForName(name);
+    const CClaimTrieNode& current = getNodeForName(name);
     if (!current.empty() && !current.getClaims().empty())
     {
         lastTakeoverHeight = current.getHeightOfLastTakeover();
@@ -391,7 +397,7 @@ claimsForNameType CClaimTrie::getClaimsForName(const std::string& name) const
     std::vector<CClaimValue> claims;
     std::vector<CSupportValue> supports;
     int nLastTakeoverHeight = 0;
-    const CClaimTrieNode current = getNodeForName(name);
+    const CClaimTrieNode& current = getNodeForName(name);
     if (!current.empty())
     {
         if (!current.getClaims().empty())
@@ -761,7 +767,7 @@ void CClaimTrie::markNodeDirty(const std::string &name, const CClaimTrieNode& no
 
 bool CClaimTrie::updateName(const std::string &name, CClaimTrieNode& updatedNode)
 {
-    CClaimTrieNode current = root;
+    CClaimTrieNode& current = root;
     for (std::string::const_iterator itname = name.begin(); itname != name.end(); ++itname)
     {
         nodeMapType::iterator itchild = current.getChildren().find(*itname);
@@ -822,7 +828,7 @@ bool CClaimTrie::recursiveNullify(CClaimTrieNode& node, std::string& name)
 
 bool CClaimTrie::updateHash(const std::string& name, uint256& hash)
 {
-    CClaimTrieNode current = root;
+    CClaimTrieNode& current = root;
     for (std::string::const_iterator itname = name.begin(); itname != name.end(); ++itname)
     {
         nodeMapType::iterator itchild = current.getChildren().find(*itname);
@@ -838,7 +844,7 @@ bool CClaimTrie::updateHash(const std::string& name, uint256& hash)
 
 bool CClaimTrie::updateTakeoverHeight(const std::string& name, int nTakeoverHeight)
 {
-    CClaimTrieNode current = root;
+    CClaimTrieNode& current = root;
     for (std::string::const_iterator itname = name.begin(); itname != name.end(); ++itname)
     {
         nodeMapType::iterator itchild = current.getChildren().find(*itname);
@@ -1001,7 +1007,7 @@ bool CClaimTrie::InsertFromDisk(const std::string& name, CClaimTrieNode& node)
         root = node;
         return true;
     }
-    CClaimTrieNode current = root;
+    CClaimTrieNode& current = root;
     for (std::string::const_iterator itname = name.begin(); itname + 1 != name.end(); ++itname)
     {
         nodeMapType::iterator itchild = current.getChildren().find(*itname);
@@ -1174,7 +1180,7 @@ bool CClaimTrieCache::getOriginalInfoForName(const std::string& name, CClaimValu
 bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue claim, bool fCheckTakeover) const
 {
     assert(base);
-    CClaimTrieNode currentNode = (base->root);
+    CClaimTrieNode& currentNode = (base->root);
     nodeCacheType::iterator cachedNode;
     cachedNode = cache.find("");
     if (cachedNode != cache.end())
@@ -1259,143 +1265,115 @@ bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue c
     return true;
 }
 
+void CheckTrie(const CClaimTrieCache* cache)
+{
+    static int count = 0;
+    CClaimTrieProof proof = cache->getProofForName("testtesttesttest");
+    std::cout << count++ << ":" << proofToJSON(proof).write() << std::endl;
+}
+
 bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoint& outPoint, CClaimValue& claim, bool fCheckTakeover) const
 {
+    CheckTrie(this);
+    
     assert(base);
     CClaimTrieNode& currentNode = base->root;
     nodeCacheType::iterator cachedNode;
     cachedNode = cache.find("");
 
-    int count = 0;
-
     if (cachedNode != cache.end())
     {
-        //cout << count << endl;
         currentNode = cachedNode->second;
     }
-    assert(!currentNode.empty()); // If there is no root in either the trie or the cache, how can there be any names to remove?
+//    assert(!currentNode.empty()); // If there is no root in either the trie or the cache, how can there be any names to remove?
     for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
     {
-        ++count;
-        //cout << count << endl;
-
         std::string sCurrentSubstring(name.begin(), itCur);
         std::string sNextSubstring(name.begin(), itCur + 1);
 
         cachedNode = cache.find(sNextSubstring);
         if (cachedNode != cache.end())
         {
-            //cout << count << ":a" << endl;
-            
             currentNode = cachedNode->second;
             continue;
         }
         nodeMapType::iterator childNode = currentNode.getChildren().find(*itCur);
         if (childNode != currentNode.getChildren().end())
         {
-            //cout << count << ":b" << endl;
-            
             currentNode = childNode->second;
             continue;
         }
-        
-        //cout << count << ":c" << endl;
         
         LogPrintf("%s: The name %s does not exist in the trie\n", __func__, name.c_str());
         return false;
     }
 
-    ++count;
-
     cachedNode = cache.find(name);
     if (cachedNode != cache.end())
     {
-        //cout << count << ":a" << endl;
-        
         assert(cachedNode->second == currentNode);
     }
     else
     {
-        //cout << count << ":b" << endl;
-        
         currentNode = addNodeToCache(name, currentNode);
     }
     bool fChanged = false;
     assert(!currentNode.empty());
     bool success = false;
     
-    ++count;
     if (currentNode.getClaims().empty())
     {
-        //cout << count << endl;
-     
         LogPrintf("%s: Asked to remove claim from node without claims\n", __func__);
         return false;
     }
     CClaimValue currentTop = currentNode.getClaims().front();
 
+    CheckTrie(this);
     success = currentNode.removeClaim(outPoint, claim);
+    CheckTrie(this);
     
-    ++count;
-
     if (!currentNode.getClaims().empty())
     {
         supportMapEntryType node;
         getSupportsForName(name, node);
         currentNode.reorderClaims(node);
+        
+        CheckTrie(this);
+
         if (currentTop != currentNode.getClaims().front())
         {
-            //cout << count << ":b" << endl;
-            
             fChanged = true;
         }
     }
     else
     {
-        //cout << count << ":c" << endl;
         fChanged = true;
     }
     
-    ++count;
-    
     if (!success)
     {
-        //cout << count << endl;
-
         LogPrintf("%s: Removing a claim was unsuccessful. name = %s, txhash = %s, nOut = %d", __func__, name.c_str(), outPoint.hash.GetHex(), outPoint.n);
         return false;
     }
 
-    ++count;
-
     if (fChanged)
     {
-        //cout << count << ":a" << endl;
-        
-        int count1 = 0;
-
         for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
         {
-            //cout << count << ":" << count1 << endl;
-
             std::string sub(name.begin(), itCur);
             dirtyHashes.insert(sub);
         }
         dirtyHashes.insert(name);
         if (fCheckTakeover)
         {
-            //cout << count << ":b" << endl;
             namesToCheckForTakeover.insert(name);
         }
     }
     CClaimTrieNode& rootNode = base->root;
     cachedNode = cache.find("");
-    ++count;
     
     if (cachedNode != cache.end())
     {
-        //cout << count << endl;
-        
         rootNode = cachedNode->second;
     }
     return recursivePruneName(rootNode, 0, name);
@@ -1403,6 +1381,8 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoi
 
 bool CClaimTrieCache::recursivePruneName(CClaimTrieNode& tnCurrent, unsigned int nPos, std::string sName, bool* pfNullified) const
 {
+    CheckTrie(this);
+    
     bool fNullified = false;
     std::string sCurrentSubstring = sName.substr(0, nPos);
     if (nPos < sName.size())
@@ -1450,7 +1430,10 @@ bool CClaimTrieCache::recursivePruneName(CClaimTrieNode& tnCurrent, unsigned int
             // now guaranteed to be in the cache
             nodeMapType::iterator childNode = tnCurrent.getChildren().find(cNext);
             if (childNode != tnCurrent.getChildren().end())
+            {
                 tnCurrent.getChildren().erase(childNode);
+                CheckTrie(this);
+            }
             else
                 return false;
         }
@@ -1462,7 +1445,9 @@ bool CClaimTrieCache::recursivePruneName(CClaimTrieNode& tnCurrent, unsigned int
         if (cachedNode != cache.end())
         {
             assert(tnCurrent == cachedNode->second);
+            CheckTrie(this);
             cache.erase(cachedNode);
+            CheckTrie(this);
         }
         fNullified = true;
     }
@@ -2475,7 +2460,7 @@ CClaimTrieProof CClaimTrieCache::getProofForName(const std::string& name) const
     if (dirty())
         getMerkleHash();
     std::vector<CClaimTrieProofNode> nodes;
-    CClaimTrieNode current = base->root;
+    CClaimTrieNode& current = base->root;
     nodeCacheType::const_iterator cachedNode;
     bool fNameHasValue = false;
     COutPoint outPoint;
