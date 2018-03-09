@@ -1269,7 +1269,7 @@ void CheckTrie(const CClaimTrieCache* cache)
 {
     static int count = 0;
     CClaimTrieProof proof = cache->getProofForName("testtesttesttest");
-    std::cout << count++ << ":" << proofToJSON(proof).write() << std::endl;
+//    std::cout << count++ << ":" << proofToJSON(proof).write() << std::endl;
 }
 
 bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoint& outPoint, CClaimValue& claim, bool fCheckTakeover) const
