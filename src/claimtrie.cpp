@@ -1428,6 +1428,9 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoi
 
 bool CClaimTrieCache::recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos, std::string sName, bool* pfNullified) const
 {
+    // Recursively prune leaf node(s) without any claims in it and store
+    // the modified nodes in the cache
+
     bool fNullified = false;
     std::string sCurrentSubstring = sName.substr(0, nPos);
     if (nPos < sName.size())
