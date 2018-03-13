@@ -493,7 +493,7 @@ public:
     CClaimTrieProof getProofForName(const std::string& name) const;
 
     bool finalizeDecrement() const;
-private:
+protected:
     CClaimTrie* base;
 
     bool fRequireTakeoverHeights;
