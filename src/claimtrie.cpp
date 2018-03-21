@@ -1679,10 +1679,11 @@ void CClaimTrieCache::removeFromExpirationQueue(const std::string& name, const C
             if (name == itQueue->name && outPoint == itQueue->outPoint)
                 break;
         }
-    }
-    if (itQueue != itQueueRow->second.end())
-    {
-        itQueueRow->second.erase(itQueue);
+
+        if (itQueue != itQueueRow->second.end())
+        {
+            itQueueRow->second.erase(itQueue);
+        }
     }
 }
 
