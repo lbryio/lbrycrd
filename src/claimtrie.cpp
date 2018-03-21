@@ -218,6 +218,7 @@ bool CClaimTrie::supportQueueEmpty() const
 void CClaimTrie::setExpirationTime(int t)
 {
     nExpirationTime = t;
+    LogPrintf("%s: Expiration time is now %d\n", __func__, nExpirationTime);
 }
 
 void CClaimTrie::clear()
@@ -1119,6 +1120,8 @@ bool CClaimTrie::ReadFromDisk(bool check)
         LogPrintf("%s: Couldn't read the best block's hash\n", __func__);
     if (!db.Read(CURRENT_HEIGHT, nCurrentHeight))
         LogPrintf("%s: Couldn't read the current height\n", __func__);
+    setExpirationTime(Params().GetConsensus().GetExpirationTime(nCurrentHeight-1));
+
     boost::scoped_ptr<CDBIterator> pcursor(const_cast<CDBWrapper*>(&db)->NewIterator());
 
     pcursor->SeekToFirst();
@@ -1699,8 +1702,17 @@ bool CClaimTrieCache::removeClaim(const std::string& name, const COutPoint& outP
 
 void CClaimTrieCache::addToExpirationQueue(int nExpirationHeight, nameOutPointType& entry) const
 {
-    expirationQueueType::iterator itQueueRow = getExpirationQueueCacheRow(nExpirationHeight, true);
-    itQueueRow->second.push_back(entry);
+    // NOTE: To disable expiration completely after fork, set this define to enable check
+    // #define CLAIM_EXPIRATION_DISABLED_AFTER_FORK
+    #ifdef CLAIM_EXPIRATION_DISABLED_AFTER_FORK
+    const Consensus::Params& consensusParams = Params().GetConsensus();
+    if ((nExpirationHeight < consensusParams.nExtendedClaimExpirationForkHeight) ||
+        (base->nCurrentHeight < consensusParams.nExtendedClaimExpirationForkHeight))
+    #endif
+    {
+        expirationQueueType::iterator itQueueRow = getExpirationQueueCacheRow(nExpirationHeight, true);
+        itQueueRow->second.push_back(entry);
+    }
 }
 
 void CClaimTrieCache::removeFromExpirationQueue(const std::string& name, const COutPoint& outPoint, int nHeight) const
@@ -1715,10 +1727,11 @@ void CClaimTrieCache::removeFromExpirationQueue(const std::string& name, const C
             if (name == itQueue->name && outPoint == itQueue->outPoint)
                 break;
         }
-    }
-    if (itQueue != itQueueRow->second.end())
-    {
-        itQueueRow->second.erase(itQueue);
+
+        if (itQueue != itQueueRow->second.end())
+        {
+            itQueueRow->second.erase(itQueue);
+        }
     }
 }
 
@@ -2140,6 +2153,7 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
             CClaimValue claim;
             assert(removeClaimFromTrie(itEntry->name, itEntry->outPoint, claim, true));
             expireUndo.push_back(std::make_pair(itEntry->name, claim));
+            LogPrintf("Expiring claim %s: %s, nHeight: %d, nValidAtHeight: %d\n", claim.claimId.GetHex(), itEntry->name, claim.nHeight, claim.nValidAtHeight);
         }
         itExpirationRow->second.clear();
     }
@@ -2191,6 +2205,7 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
             CSupportValue support;
             assert(removeSupportFromMap(itEntry->name, itEntry->outPoint, support, true));
             expireSupportUndo.push_back(std::make_pair(itEntry->name, support));
+            LogPrintf("Expiring support %s: %s, nHeight: %d, nValidAtHeight: %d\n", support.supportedClaimId.GetHex(), itEntry->name, support.nHeight, support.nValidAtHeight);
         }
         itSupportExpirationRow->second.clear();
     }
