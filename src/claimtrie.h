@@ -6,6 +6,7 @@
 #include "uint256.h"
 #include "util.h"
 #include "dbwrapper.h"
+#include "chainparams.h"
 #include "primitives/transaction.h"
 
 #include <string>
@@ -299,7 +300,7 @@ class CClaimTrie
 public:
     CClaimTrie(bool fMemory = false, bool fWipe = false, int nProportionalDelayFactor = 32)
                : db(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false)
-               , nCurrentHeight(0), nExpirationTime(262974)
+               , nCurrentHeight(0), nExpirationTime(Params().GetConsensus().nOriginalClaimExpirationTime)
                , nProportionalDelayFactor(nProportionalDelayFactor)
                , root(uint256S("0000000000000000000000000000000000000000000000000000000000000001"))
     {}
