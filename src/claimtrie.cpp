@@ -218,6 +218,7 @@ bool CClaimTrie::supportQueueEmpty() const
 void CClaimTrie::setExpirationTime(int t)
 {
     nExpirationTime = t;
+    LogPrintf("%s: Expiration time is now %d\n", __func__, nExpirationTime);
 }
 
 void CClaimTrie::clear()
@@ -1668,8 +1669,14 @@ bool CClaimTrieCache::removeClaim(const std::string& name, const COutPoint& outP
 
 void CClaimTrieCache::addToExpirationQueue(int nExpirationHeight, nameOutPointType& entry) const
 {
-    expirationQueueType::iterator itQueueRow = getExpirationQueueCacheRow(nExpirationHeight, true);
-    itQueueRow->second.push_back(entry);
+    const Consensus::Params& consensusParams = Params().GetConsensus();
+    // NOTE: To allow extended claim expiration times, remove this check
+    if ((nExpirationHeight < consensusParams.nExtendedClaimExpirationForkHeight) ||
+        (base->nExpirationTime != consensusParams.nExtendedClaimExpirationTime))
+    {
+        expirationQueueType::iterator itQueueRow = getExpirationQueueCacheRow(nExpirationHeight, true);
+        itQueueRow->second.push_back(entry);
+    }
 }
 
 void CClaimTrieCache::removeFromExpirationQueue(const std::string& name, const COutPoint& outPoint, int nHeight) const
@@ -1684,10 +1691,11 @@ void CClaimTrieCache::removeFromExpirationQueue(const std::string& name, const C
             if (name == itQueue->name && outPoint == itQueue->outPoint)
                 break;
         }
-    }
-    if (itQueue != itQueueRow->second.end())
-    {
-        itQueueRow->second.erase(itQueue);
+
+        if (itQueue != itQueueRow->second.end())
+        {
+            itQueueRow->second.erase(itQueue);
+        }
     }
 }
 
@@ -2109,6 +2117,7 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
             CClaimValue claim;
             assert(removeClaimFromTrie(itEntry->name, itEntry->outPoint, claim, true));
             expireUndo.push_back(std::make_pair(itEntry->name, claim));
+            LogPrintf("Expiring claim %s: %s, nHeight: %d, nValidAtHeight: %d\n", claim.claimId.GetHex(), itEntry->name, claim.nHeight, claim.nValidAtHeight);
         }
         itExpirationRow->second.clear();
     }
@@ -2160,6 +2169,7 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
             CSupportValue support;
             assert(removeSupportFromMap(itEntry->name, itEntry->outPoint, support, true));
             expireSupportUndo.push_back(std::make_pair(itEntry->name, support));
+            LogPrintf("Expiring support %s: %s, nHeight: %d, nValidAtHeight: %d\n", support.supportedClaimId.GetHex(), itEntry->name, support.nHeight, support.nValidAtHeight);
         }
         itSupportExpirationRow->second.clear();
     }
