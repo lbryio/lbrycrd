@@ -374,27 +374,22 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
     uint160 claimId;
     claimId.SetHex(params[0].get_str());
     UniValue claim(UniValue::VOBJ);
-    std::vector<namedNodeType> nodes = pclaimTrie->flattenTrie();
-    for (std::vector<namedNodeType>::iterator it = nodes.begin(); it != nodes.end(); ++it) {
-        if (!it->second.claims.empty()) {
-            for (std::vector<CClaimValue>::iterator itClaims = it->second.claims.begin();
-                 itClaims != it->second.claims.end(); ++itClaims) {
-                if (claimId == itClaims->claimId) {
-                    std::string sValue;
-                    getValueForClaim(itClaims->outPoint, sValue);
-                    claim.push_back(Pair("name", it->first));
-                    claim.push_back(Pair("value", sValue));
-                    claim.push_back(Pair("claimId", itClaims->claimId.GetHex()));
-                    claim.push_back(Pair("txid", itClaims->outPoint.hash.GetHex()));
-                    claim.push_back(Pair("n", (int) itClaims->outPoint.n));
-                    claim.push_back(Pair("amount", itClaims->nAmount));
-                    claim.push_back(Pair("effective amount",
-                                         pclaimTrie->getEffectiveAmountForClaim(it->first, itClaims->claimId)));
-                    claim.push_back(Pair("height", itClaims->nHeight));
-                    return claim;
-                }
-            }
-        }
+    std::string name;
+    CClaimValue claimValue;
+    pclaimTrie->getClaimById(claimId, name, claimValue);
+    if (claimValue.claimId == claimId)
+    {
+        std::string sValue;
+        getValueForClaim(claimValue.outPoint, sValue);
+        claim.push_back(Pair("name", name));
+        claim.push_back(Pair("value", sValue));
+        claim.push_back(Pair("claimId", claimValue.claimId.GetHex()));
+        claim.push_back(Pair("txid", claimValue.outPoint.hash.GetHex()));
+        claim.push_back(Pair("n", (int) claimValue.outPoint.n));
+        claim.push_back(Pair("amount", claimValue.nAmount));
+        claim.push_back(Pair("effective amount",
+                             pclaimTrie->getEffectiveAmountForClaim(name, claimValue.claimId)));
+        claim.push_back(Pair("height", claimValue.nHeight));
     }
     return claim;
 }
