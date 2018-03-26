@@ -591,6 +591,48 @@ bool CClaimTrie::recursiveCheckConsistency(const CClaimTrieNode* node) const
     return calculatedHash == node->hash;
 }
 
+void CClaimTrie::addToClaimIndex(const std::string& name, const CClaimValue& claim)
+{
+    // sanity checks only
+    claimIndexType::const_iterator itClaim = claimIndex.find(claim.claimId);
+    if (itClaim != claimIndex.end() && itClaim->second.claim != claim)
+        LogPrintf("%s: WARNING: ClaimIndex Conflict on claim id %s\n", __func__, claim.claimId.GetHex());
+
+    CClaimIndexElement element = { name, claim };
+    claimIndex[claim.claimId] = element;
+    LogPrintf("%s: ClaimIndex[%s] updated %s\n", __func__, claim.claimId.GetHex(), name);
+}
+
+void CClaimTrie::removeFromClaimIndex(const CClaimValue& claim)
+{
+    claimIndexType::iterator itClaim = claimIndex.find(claim.claimId);
+    if (itClaim != claimIndex.end())
+    {
+        LogPrintf("%s: ClaimIndex[%s] removing %s\n", __func__, claim.claimId.GetHex(), itClaim->second.name);
+        claimIndex.erase(itClaim);
+    }
+}
+
+bool CClaimTrie::getClaimById(const uint160 claimId, std::string& name, CClaimValue& claim) const
+{
+    claimIndexType::const_iterator itClaim = claimIndex.find(claimId);
+    if (itClaim != claimIndex.end())
+    {
+        name = itClaim->second.name;
+        claim = itClaim->second.claim;
+        return true;
+    }
+
+    CClaimIndexElement element;
+    if (db.Read(std::make_pair(CLAIM_BY_ID, claimId), element))
+    {
+        name = element.name;
+        claim = element.claim;
+        return true;
+    }
+    return false;
+}
+
 bool CClaimTrie::getQueueRow(int nHeight, claimQueueRowType& row) const
 {
     claimQueueType::const_iterator itQueueRow = dirtyQueueRows.find(nHeight);
@@ -927,6 +969,16 @@ bool CClaimTrie::updateTakeoverHeight(const std::string& name, int nTakeoverHeig
     return true;
 }
 
+void CClaimTrie::BatchWriteClaimIndex(CDBBatch& batch) const
+{
+    for(claimIndexType::const_iterator itClaim = claimIndex.begin();
+        itClaim != claimIndex.end(); ++itClaim)
+    {
+        batch.Write(std::make_pair(CLAIM_BY_ID, itClaim->second.claim.claimId), itClaim->second);
+        LogPrintf("%s: Writing %s to disk\n", __func__, itClaim->second.claim.claimId.GetHex());
+    }
+}
+
 void CClaimTrie::BatchWriteNode(CDBBatch& batch, const std::string& name, const CClaimTrieNode* pNode) const
 {
     uint32_t num_claims = 0;
@@ -1064,6 +1116,8 @@ bool CClaimTrie::WriteToDisk()
     dirtySupportQueueNameRows.clear();
     BatchWriteSupportExpirationQueueRows(batch);
     dirtySupportExpirationQueueRows.clear();
+    BatchWriteClaimIndex(batch);
+    claimIndex.clear();
     batch.Write(HASH_BLOCK, hashBlock);
     batch.Write(CURRENT_HEIGHT, nCurrentHeight);
     return db.WriteBatch(batch);
@@ -1085,6 +1139,11 @@ bool CClaimTrie::InsertFromDisk(const std::string& name, CClaimTrieNode* node)
         current = itchild->second;
     }
     current->children[name[name.size()-1]] = node;
+
+    for(size_t i = 0; i < current->claims.size(); ++i)
+    {
+        addToClaimIndex(name.substr(0, name.size()-1), current->claims[i]);
+    }
     return true;
 }
 
@@ -1095,6 +1154,32 @@ bool CClaimTrie::ReadFromDisk(bool check)
     if (!db.Read(CURRENT_HEIGHT, nCurrentHeight))
         LogPrintf("%s: Couldn't read the current height\n", __func__);
     boost::scoped_ptr<CDBIterator> pcursor(const_cast<CDBWrapper*>(&db)->NewIterator());
+
+    pcursor->SeekToFirst();
+    while (pcursor->Valid())
+    {
+        std::pair<char, std::string> key;
+        if (pcursor->GetKey(key) && (key.first == CLAIM_BY_ID))
+        {
+            CClaimIndexElement element;
+            if (pcursor->GetValue(element))
+            {
+                claimIndex[element.claim.claimId] = element;
+                LogPrintf("%s: ClaimIndex Read %s from disk\n", __func__, element.claim.claimId.GetHex());
+            }
+            else
+            {
+                return error("%s(): error reading claim index entry from disk", __func__);
+            }
+        }
+        pcursor->Next();
+    }
+
+    if (claimIndex.empty())
+        LogPrintf("Building ClaimIndex from persistent ClaimTrie...\n");
+    else
+        LogPrintf("Restored ClaimIndex with %lu elements...\n", claimIndex.size());
+
     pcursor->SeekToFirst();
     
     while (pcursor->Valid())
@@ -1120,6 +1205,7 @@ bool CClaimTrie::ReadFromDisk(bool check)
         }
         pcursor->Next();
     }
+
     if (check)
     {
         LogPrintf("Checking Claim trie consistency...");
@@ -1318,6 +1404,7 @@ bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue c
     {
         fChanged = true;
         currentNode->insertClaim(claim);
+        base->addToClaimIndex(name, claim);
     }
     else
     {
@@ -1392,7 +1479,8 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoi
     CClaimValue currentTop = currentNode->claims.front();
 
     success = currentNode->removeClaim(outPoint, claim);
-    
+    base->removeFromClaimIndex(claim);
+
     if (!currentNode->claims.empty())
     {
         supportMapEntryType node;
@@ -1589,6 +1677,7 @@ bool CClaimTrieCache::addClaimToQueues(const std::string& name, CClaimValue& cla
     itQueueNameRow->second.push_back(outPointHeightType(claim.outPoint, claim.nValidAtHeight));
     nameOutPointType expireEntry(name, claim.outPoint);
     addToExpirationQueue(claim.nHeight + base->nExpirationTime, expireEntry);
+    base->addToClaimIndex(name, claim);
     return true;
 }
 
@@ -1627,6 +1716,8 @@ bool CClaimTrieCache::removeClaimFromQueue(const std::string& name, const COutPo
             std::swap(claim, itQueue->second);
             itQueueNameRow->second.erase(itQueueName);
             itQueueRow->second.erase(itQueue);
+
+            base->removeFromClaimIndex(claim);
             return true;
         }
     }
