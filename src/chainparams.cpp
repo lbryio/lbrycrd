@@ -132,8 +132,8 @@ public:
         consensus.nPowTargetTimespan = 150; //retarget every block
         consensus.nPowTargetSpacing = 150;
         consensus.nOriginalClaimExpirationTime = 262974;
-        consensus.nExtendedClaimExpirationTime = 2102400;
-        consensus.nExtendedClaimExpirationForkHeight = 400000; // FIXME: pick a real height
+        consensus.nExtendedClaimExpirationTime = 262974;
+        consensus.nExtendedClaimExpirationForkHeight = -1; // FIXME: pick a real height
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1916; // 95% of 2016
@@ -219,8 +219,8 @@ public:
         consensus.nPowTargetTimespan = 150;
         consensus.nPowTargetSpacing = 150;
         consensus.nOriginalClaimExpirationTime = 262974;
-        consensus.nExtendedClaimExpirationTime = 2102400;
-        consensus.nExtendedClaimExpirationForkHeight = 400000; // FIXME: pick a real height
+        consensus.nExtendedClaimExpirationTime = 262974;
+        consensus.nExtendedClaimExpirationForkHeight = -1; // FIXME: pick a real height
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1512; // 75% for testchains
@@ -298,9 +298,9 @@ public:
         consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 1;//14 * 24 * 60 * 60; // two weeks
         consensus.nPowTargetSpacing = 1;
-        consensus.nOriginalClaimExpirationTime = 262974;
-        consensus.nExtendedClaimExpirationTime = 2102400;
-        consensus.nExtendedClaimExpirationForkHeight = 450; // FIXME: pick a real height
+        consensus.nOriginalClaimExpirationTime = 500;
+        consensus.nExtendedClaimExpirationTime = 600;
+        consensus.nExtendedClaimExpirationForkHeight = 800; // FIXME: pick a real height
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 108; // 75% for testchains
