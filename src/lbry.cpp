@@ -1,6 +1,7 @@
-#include "lbry.h" 
-#include "uint256.h" 
+#include "lbry.h"
+#include "uint256.h"
 #include <cstdio>
+
 unsigned int CalculateLbryNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlockTime, const Consensus::Params& params)
 {
     if (params.fPowNoRetargeting)
@@ -26,9 +27,7 @@ unsigned int CalculateLbryNextWorkRequired(const CBlockIndex* pindexLast, int64_
     // Retarget
     const arith_uint256 bnPowLimit = UintToArith256(params.powLimit);
     arith_uint256 bnNew;
-    arith_uint256 bnOld;
     bnNew.SetCompact(pindexLast->nBits);
-    bnOld = bnNew;
     bnNew *= nModulatedTimespan;
     bnNew /= retargetTimespan;
     if (bnNew > bnPowLimit)
