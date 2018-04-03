@@ -41,12 +41,12 @@ UniValue getclaimsintrie(const UniValue& params, bool fHelp)
 
     for (std::vector<namedNodeType>::iterator it = nodes.begin(); it != nodes.end(); ++it)
     {
-        if (!it->second.claims.empty())
+        if (!it->second.getClaims().empty())
         {
             UniValue node(UniValue::VOBJ);
             node.push_back(Pair("name", it->first));
             UniValue claims(UniValue::VARR);
-            for (std::vector<CClaimValue>::iterator itClaims = it->second.claims.begin(); itClaims != it->second.claims.end(); ++itClaims)
+            for (std::vector<CClaimValue>::iterator itClaims = it->second.getClaims().begin(); itClaims != it->second.getClaims().end(); ++itClaims)
             {
                 UniValue claim(UniValue::VOBJ);
                 claim.push_back(Pair("claimId", itClaims->claimId.GetHex()));
@@ -113,7 +113,7 @@ UniValue getclaimtrie(const UniValue& params, bool fHelp)
     {
         UniValue node(UniValue::VOBJ);
         node.push_back(Pair("name", it->first));                                                       
-        node.push_back(Pair("hash", it->second.hash.GetHex()));
+        node.push_back(Pair("hash", it->second.getHash().GetHex()));
         CClaimValue claim;
         if (it->second.getBestClaim(claim))
         {
@@ -376,9 +376,9 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
     UniValue claim(UniValue::VOBJ);
     std::vector<namedNodeType> nodes = pclaimTrie->flattenTrie();
     for (std::vector<namedNodeType>::iterator it = nodes.begin(); it != nodes.end(); ++it) {
-        if (!it->second.claims.empty()) {
-            for (std::vector<CClaimValue>::iterator itClaims = it->second.claims.begin();
-                 itClaims != it->second.claims.end(); ++itClaims) {
+        if (!it->second.getClaims().empty()) {
+            for (std::vector<CClaimValue>::iterator itClaims = it->second.getClaims().begin();
+                 itClaims != it->second.getClaims().end(); ++itClaims) {
                 if (claimId == itClaims->claimId) {
                     std::string sValue;
                     getValueForClaim(itClaims->outPoint, sValue);
