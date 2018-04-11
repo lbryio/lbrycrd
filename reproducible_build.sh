@@ -297,7 +297,7 @@ function build_boost() {
 function build_libevent() {
     LIBEVENT_LOG="$1"
     if [ ! -d libevent ]; then
-	git clone https://github.com/libevent/libevent.git
+	git clone --branch release-2.0.22-stable https://github.com/libevent/libevent.git
     fi
     cd libevent
     echo "Building libevent.  tail -f ${LIBEVENT_LOG} to see the details and monitor progress"
