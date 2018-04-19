@@ -10,13 +10,13 @@ Latest binaries are available from https://github.com/lbryio/lbrycrd/releases. T
 
 ## Usage
 
-The "lbrycrdd" executable will start a LBRYcrd node and connect you to the LBRYcrd network. Use "lbrycrd-cli" executable
-to interact with the lbrycrdd executable through the command line. Help pages for both executable are available through
-the "--help" flag.
+The `lbrycrdd` executable will start a LBRYcrd node and connect you to the LBRYcrd network. Use the `lbrycrd-cli` executable
+to interact with lbrycrdd through the command line. Help pages for both executable are available through
+the "--help" flag (e.g. `lbrycrd-cli --help`).
 
 ### Example Usage
 
-Run `./lbrycrdd -daemon` to start lbrycrdd in the background.
+Run `./lbrycrdd -server -daemon` to start lbrycrdd in the background.
 
 Run `./lbrycrd-cli getinfo` to check for some basic informations about your LBRYcrd node.
 
@@ -24,10 +24,9 @@ Run `./lbrycrd-cli help` to get a list of all commands that you can run. To get 
 
 ## Running from Source
 
-Run `./reproducible_build.sh -c -t`. This should build the binaries and put them into the `./src` directory.
+Run `./reproducible_build.sh -c -t`. This will build the binaries and put them into the `./src` directory.
 
-
-If that errors, please report the issue and see `doc/build-*.md` for further instructions.
+If you encounter any errors, please check `doc/build-*.md` for further instructions. If you're still stuck, [create an issue](https://github.com/lbryio/lbrycrd/issues) with the output of that command, your system info, and any other information you think might be helpful.
 
 ## Contributing
 
