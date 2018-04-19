@@ -1,6 +1,7 @@
 #include "claimtrie.h"
 #include "coins.h"
 #include "hash.h"
+#include "init.h"
 
 #include <boost/scoped_ptr.hpp>
 #include <iostream>
@@ -220,6 +221,11 @@ void CClaimTrie::setExpirationTime(int t)
     nExpirationTime = t;
 }
 
+void CClaimTrie::setNormalize(bool normalize)
+{
+    normalizeNames = normalize;
+}
+
 void CClaimTrie::clear()
 {
     clear(&root);
@@ -237,7 +243,8 @@ void CClaimTrie::clear(CClaimTrieNode* current)
 bool CClaimTrie::haveClaim(const std::string& name, const COutPoint& outPoint) const
 {
     const CClaimTrieNode* current = &root;
-    for (std::string::const_iterator itname = name.begin(); itname != name.end(); ++itname)
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    for (std::string::const_iterator itname = normalizedName.begin(); itname != normalizedName.end(); ++itname)
     {
         nodeMapType::const_iterator itchildren = current->children.find(*itname);
         if (itchildren == current->children.end())
@@ -250,7 +257,8 @@ bool CClaimTrie::haveClaim(const std::string& name, const COutPoint& outPoint) c
 bool CClaimTrie::haveSupport(const std::string& name, const COutPoint& outPoint) const
 {
     supportMapEntryType node;
-    if (!getSupportNode(name, node))
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    if (!getSupportNode(normalizedName, node))
     {
         return false;
     }
@@ -282,29 +290,31 @@ bool CClaimTrie::haveClaimInQueue(const std::string& name, const COutPoint& outP
     {
         return false;
     }
+    const std::string normalizedName = lbryNormalize(name, CHECK_HEIGHT(nValidAtHeight));
     claimQueueRowType row;
     if (getQueueRow(nValidAtHeight, row))
     {
         for (claimQueueRowType::const_iterator itRow = row.begin(); itRow != row.end(); ++itRow)
         {
-            if (itRow->first == name && itRow->second.outPoint == outPoint)
+            if (itRow->first == normalizedName && itRow->second.outPoint == outPoint)
             {
                 if (itRow->second.nValidAtHeight != nValidAtHeight)
                 {
-                    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nDifferent nValidAtHeight between named queue and height queue\n: name: %s, txid: %s, nOut: %d, nValidAtHeight in named queue: %d, nValidAtHeight in height queue: %d current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, itRow->second.nValidAtHeight, nCurrentHeight);
+                    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nDifferent nValidAtHeight between named queue and height queue\n: name: %s, txid: %s, nOut: %d, nValidAtHeight in named queue: %d, nValidAtHeight in height queue: %d current height: %d\n", __func__, normalizedName, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, itRow->second.nValidAtHeight, nCurrentHeight);
                 }
                 return true;
             }
         }
     }
-    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, nCurrentHeight);
+    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, normalizedName, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, nCurrentHeight);
     return false;
 }
 
 bool CClaimTrie::haveSupportInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const
 {
     queueNameRowType nameRow;
-    if (!getSupportQueueNameRow(name, nameRow))
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    if (!getSupportQueueNameRow(normalizedName, nameRow))
     {
         return false;
     }
@@ -326,17 +336,17 @@ bool CClaimTrie::haveSupportInQueue(const std::string& name, const COutPoint& ou
     {
         for (supportQueueRowType::const_iterator itRow = row.begin(); itRow != row.end(); ++itRow)
         {
-            if (itRow->first == name && itRow->second.outPoint == outPoint)
+            if (itRow->first == normalizedName && itRow->second.outPoint == outPoint)
             {
                 if (itRow->second.nValidAtHeight != nValidAtHeight)
                 {
-                    LogPrintf("%s: An inconsistency was found in the support queue. Please report this to the developers:\nDifferent nValidAtHeight between named queue and height queue\n: name: %s, txid: %s, nOut: %d, nValidAtHeight in named queue: %d, nValidAtHeight in height queue: %d current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, itRow->second.nValidAtHeight, nCurrentHeight);
+                    LogPrintf("%s: An inconsistency was found in the support queue. Please report this to the developers:\nDifferent nValidAtHeight between named queue and height queue\n: name: %s, txid: %s, nOut: %d, nValidAtHeight in named queue: %d, nValidAtHeight in height queue: %d current height: %d\n", __func__, normalizedName, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, itRow->second.nValidAtHeight, nCurrentHeight);
                 }
                 return true;
             }
         }
     }
-    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, nCurrentHeight);
+    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, normalizedName, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, nCurrentHeight);
     return false;
 }
 
@@ -404,12 +414,13 @@ CAmount CClaimTrie::getTotalValueOfClaimsRecursive(const CClaimTrieNode* current
 
 bool CClaimTrie::recursiveFlattenTrie(const std::string& name, const CClaimTrieNode* current, std::vector<namedNodeType>& nodes) const
 {
-    namedNodeType node(name, *current);
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    namedNodeType node(normalizedName, *current);
     nodes.push_back(node);
     for (nodeMapType::const_iterator it = current->children.begin(); it != current->children.end(); ++it)
     {
         std::stringstream ss;
-        ss << name << it->first;
+        ss << normalizedName << it->first;
         if (!recursiveFlattenTrie(ss.str(), it->second, nodes))
             return false;
     }
@@ -427,7 +438,8 @@ std::vector<namedNodeType> CClaimTrie::flattenTrie() const
 const CClaimTrieNode* CClaimTrie::getNodeForName(const std::string& name) const
 {
     const CClaimTrieNode* current = &root;
-    for (std::string::const_iterator itname = name.begin(); itname != name.end(); ++itname)
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    for (std::string::const_iterator itname = normalizedName.begin(); itname != normalizedName.end(); ++itname)
     {
         nodeMapType::const_iterator itchildren = current->children.find(*itname);
         if (itchildren == current->children.end())
@@ -439,7 +451,8 @@ const CClaimTrieNode* CClaimTrie::getNodeForName(const std::string& name) const
 
 bool CClaimTrie::getInfoForName(const std::string& name, CClaimValue& claim) const
 {
-    const CClaimTrieNode* current = getNodeForName(name);
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    const CClaimTrieNode* current = getNodeForName(normalizedName);
     if (current)
     {
         return current->getBestClaim(claim);
@@ -449,7 +462,8 @@ bool CClaimTrie::getInfoForName(const std::string& name, CClaimValue& claim) con
 
 bool CClaimTrie::getLastTakeoverForName(const std::string& name, int& lastTakeoverHeight) const
 {
-    const CClaimTrieNode* current = getNodeForName(name);
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    const CClaimTrieNode* current = getNodeForName(normalizedName);
     if (current && !current->claims.empty())
     {
         lastTakeoverHeight = current->nHeightOfLastTakeover;
@@ -463,7 +477,8 @@ claimsForNameType CClaimTrie::getClaimsForName(const std::string& name) const
     std::vector<CClaimValue> claims;
     std::vector<CSupportValue> supports;
     int nLastTakeoverHeight = 0;
-    const CClaimTrieNode* current = getNodeForName(name);
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    const CClaimTrieNode* current = getNodeForName(normalizedName);
     if (current)
     {
         if (!current->claims.empty())
@@ -493,7 +508,7 @@ claimsForNameType CClaimTrie::getClaimsForName(const std::string& name) const
             {
                 for (claimQueueRowType::const_iterator itClaimRow = claimRow.begin(); itClaimRow != claimRow.end(); ++itClaimRow)
                  {
-                     if (itClaimRow->first == name && itClaimRow->second.outPoint == itClaimsForName->outPoint)
+                     if (itClaimRow->first == normalizedName && itClaimRow->second.outPoint == itClaimsForName->outPoint)
                      {
                          claims.push_back(itClaimRow->second);
                          break;
@@ -503,7 +518,7 @@ claimsForNameType CClaimTrie::getClaimsForName(const std::string& name) const
         }
     }
     queueNameRowType namedSupportRow;
-    if (getSupportQueueNameRow(name, namedSupportRow))
+    if (getSupportQueueNameRow(normalizedName, namedSupportRow))
     {
         for (queueNameRowType::const_iterator itSupportsForName = namedSupportRow.begin(); itSupportsForName != namedSupportRow.end(); ++itSupportsForName)
         {
@@ -512,7 +527,7 @@ claimsForNameType CClaimTrie::getClaimsForName(const std::string& name) const
             {
                 for (supportQueueRowType::const_iterator itSupportRow = supportRow.begin(); itSupportRow != supportRow.end(); ++itSupportRow)
                 {
-                    if (itSupportRow->first == name && itSupportRow->second.outPoint == itSupportsForName->outPoint)
+                    if (itSupportRow->first == normalizedName && itSupportRow->second.outPoint == itSupportsForName->outPoint)
                     {
                         supports.push_back(itSupportRow->second);
                         break;
@@ -528,26 +543,26 @@ claimsForNameType CClaimTrie::getClaimsForName(const std::string& name) const
 //return effective amount form claim, retuns 0 if claim is not found
 CAmount CClaimTrie::getEffectiveAmountForClaim(const std::string& name, uint160 claimId) const
 {
-	claimsForNameType claims = getClaimsForName(name);
-	CAmount effectiveAmount = 0;
-	bool claim_found = false;
-	for (std::vector<CClaimValue>::iterator it=claims.claims.begin(); it!=claims.claims.end(); ++it)
-	{
-		if (it->claimId == claimId && it->nValidAtHeight < nCurrentHeight)
-			effectiveAmount += it->nAmount;
-			claim_found = true;
-			break;
-	}
-	if (!claim_found)
-		return effectiveAmount;
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    claimsForNameType claims = getClaimsForName(normalizedName);
+    CAmount effectiveAmount = 0;
+    bool claim_found = false;
+    for (std::vector<CClaimValue>::iterator it=claims.claims.begin(); it!=claims.claims.end(); ++it)
+    {
+        if (it->claimId == claimId && it->nValidAtHeight < nCurrentHeight)
+            effectiveAmount += it->nAmount;
+        claim_found = true;
+        break;
+    }
+    if (!claim_found)
+        return effectiveAmount;
 
-	for (std::vector<CSupportValue>::iterator it=claims.supports.begin(); it!=claims.supports.end(); ++it)
-	{
-		if (it->supportedClaimId == claimId && it->nValidAtHeight < nCurrentHeight)
-			effectiveAmount += it->nAmount;
-	}
-	return effectiveAmount;
-
+    for (std::vector<CSupportValue>::iterator it=claims.supports.begin(); it!=claims.supports.end(); ++it)
+    {
+        if (it->supportedClaimId == claimId && it->nValidAtHeight < nCurrentHeight)
+            effectiveAmount += it->nAmount;
+    }
+    return effectiveAmount;
 }
 
 bool CClaimTrie::checkConsistency() const
@@ -555,6 +570,14 @@ bool CClaimTrie::checkConsistency() const
     if (empty())
         return true;
     return recursiveCheckConsistency(&root);
+}
+
+bool CClaimTrie::shouldNormalize(int nHeight) const
+{
+    if (nHeight == 0)
+        return normalizeNames;
+
+    return nHeight >= LBRY_NORMALIZED_NAME_FORK_HEIGHT;
 }
 
 bool CClaimTrie::recursiveCheckConsistency(const CClaimTrieNode* node) const
@@ -602,13 +625,26 @@ bool CClaimTrie::getQueueRow(int nHeight, claimQueueRowType& row) const
 
 bool CClaimTrie::getQueueNameRow(const std::string& name, queueNameRowType& row) const
 {
+    // to properly bound around the fork height, we have to check both
+    // non-normalized and normalized names here
     queueNameType::const_iterator itQueueNameRow = dirtyQueueNameRows.find(name);
     if (itQueueNameRow != dirtyQueueNameRows.end())
     {
         row = itQueueNameRow->second;
         return true;
     }
-    return db.Read(std::make_pair(CLAIM_QUEUE_NAME_ROW, name), row);
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    queueNameType::const_iterator itQueueNormalizedNameRow = dirtyQueueNameRows.find(normalizedName);
+    if (itQueueNormalizedNameRow != dirtyQueueNameRows.end())
+    {
+        row = itQueueNameRow->second;
+        return true;
+    }
+    if (db.Read(std::make_pair(CLAIM_QUEUE_NAME_ROW, name), row))
+    {
+        return true;
+    }
+    return db.Read(std::make_pair(CLAIM_QUEUE_NAME_ROW, normalizedName), row);
 }
 
 bool CClaimTrie::getExpirationQueueRow(int nHeight, expirationQueueRowType& row) const
@@ -638,12 +674,13 @@ void CClaimTrie::updateQueueRow(int nHeight, claimQueueRowType& row)
 
 void CClaimTrie::updateQueueNameRow(const std::string& name, queueNameRowType& row)
 {
-    queueNameType::iterator itQueueRow = dirtyQueueNameRows.find(name);
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    queueNameType::iterator itQueueRow = dirtyQueueNameRows.find(normalizedName);
     if (itQueueRow == dirtyQueueNameRows.end())
     {
         queueNameRowType newRow;
         std::pair<queueNameType::iterator, bool> ret;
-        ret = dirtyQueueNameRows.insert(std::pair<std::string, queueNameRowType>(name, newRow));
+        ret = dirtyQueueNameRows.insert(std::pair<std::string, queueNameRowType>(normalizedName, newRow));
         assert(ret.second);
         itQueueRow = ret.first;
     }
@@ -666,12 +703,13 @@ void CClaimTrie::updateExpirationRow(int nHeight, expirationQueueRowType& row)
 
 void CClaimTrie::updateSupportMap(const std::string& name, supportMapEntryType& node)
 {
-    supportMapType::iterator itNode = dirtySupportNodes.find(name);
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    supportMapType::iterator itNode = dirtySupportNodes.find(normalizedName);
     if (itNode == dirtySupportNodes.end())
     {
         supportMapEntryType newNode;
         std::pair<supportMapType::iterator, bool> ret;
-        ret = dirtySupportNodes.insert(std::pair<std::string, supportMapEntryType>(name, newNode));
+        ret = dirtySupportNodes.insert(std::pair<std::string, supportMapEntryType>(normalizedName, newNode));
         assert(ret.second);
         itNode = ret.first;
     }
@@ -694,12 +732,13 @@ void CClaimTrie::updateSupportQueue(int nHeight, supportQueueRowType& row)
 
 void CClaimTrie::updateSupportNameQueue(const std::string& name, queueNameRowType& row)
 {
-    queueNameType::iterator itQueueRow = dirtySupportQueueNameRows.find(name);
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    queueNameType::iterator itQueueRow = dirtySupportQueueNameRows.find(normalizedName);
     if (itQueueRow == dirtySupportQueueNameRows.end())
     {
         queueNameRowType newRow;
         std::pair<queueNameType::iterator, bool> ret;
-        ret = dirtySupportQueueNameRows.insert(std::pair<std::string, queueNameRowType>(name, newRow));
+        ret = dirtySupportQueueNameRows.insert(std::pair<std::string, queueNameRowType>(normalizedName, newRow));
         assert(ret.second);
         itQueueRow = ret.first;
     }
@@ -722,13 +761,26 @@ void CClaimTrie::updateSupportExpirationQueue(int nHeight, expirationQueueRowTyp
 
 bool CClaimTrie::getSupportNode(std::string name, supportMapEntryType& node) const
 {
+    // to properly bound around the fork height, we have to check both
+    // non-normalized and normalized names here
     supportMapType::const_iterator itNode = dirtySupportNodes.find(name);
     if (itNode != dirtySupportNodes.end())
     {
         node = itNode->second;
         return true;
     }
-    return db.Read(std::make_pair(SUPPORT, name), node);
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    supportMapType::const_iterator itNormalizedNode = dirtySupportNodes.find(normalizedName);
+    if (itNormalizedNode != dirtySupportNodes.end())
+    {
+        node = itNode->second;
+        return true;
+    }
+    if (db.Read(std::make_pair(SUPPORT, name), node))
+    {
+        return true;
+    }
+    return db.Read(std::make_pair(SUPPORT, normalizedName), node);
 }
 
 bool CClaimTrie::getSupportQueueRow(int nHeight, supportQueueRowType& row) const
@@ -744,13 +796,26 @@ bool CClaimTrie::getSupportQueueRow(int nHeight, supportQueueRowType& row) const
 
 bool CClaimTrie::getSupportQueueNameRow(const std::string& name, queueNameRowType& row) const
 {
+    // to properly bound around the fork height, we have to check both
+    // non-normalized and normalized names here
     queueNameType::const_iterator itQueueNameRow = dirtySupportQueueNameRows.find(name);
     if (itQueueNameRow != dirtySupportQueueNameRows.end())
     {
         row = itQueueNameRow->second;
         return true;
     }
-    return db.Read(std::make_pair(SUPPORT_QUEUE_NAME_ROW, name), row);
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    queueNameType::const_iterator itQueueNormalizedNameRow = dirtySupportQueueNameRows.find(normalizedName);
+    if (itQueueNormalizedNameRow != dirtySupportQueueNameRows.end())
+    {
+        row = itQueueNameRow->second;
+        return true;
+    }
+    if (db.Read(std::make_pair(SUPPORT_QUEUE_NAME_ROW, name), row))
+    {
+        return true;
+    }
+    return db.Read(std::make_pair(SUPPORT_QUEUE_NAME_ROW, normalizedName), row);
 }
 
 bool CClaimTrie::getSupportExpirationQueueRow(int nHeight, expirationQueueRowType& row) const
@@ -820,6 +885,7 @@ bool CClaimTrie::update(nodeCacheType& cache, hashMapType& hashes, std::map<std:
     }
     hashBlock = hashBlockIn;
     nCurrentHeight = nNewHeight;
+    setNormalize(nCurrentHeight >= LBRY_NORMALIZED_NAME_FORK_HEIGHT);
     return true;
 }
 
@@ -834,12 +900,13 @@ void CClaimTrie::markNodeDirty(const std::string &name, CClaimTrieNode* node)
 bool CClaimTrie::updateName(const std::string &name, CClaimTrieNode* updatedNode)
 {
     CClaimTrieNode* current = &root;
-    for (std::string::const_iterator itname = name.begin(); itname != name.end(); ++itname)
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    for (std::string::const_iterator itname = normalizedName.begin(); itname != normalizedName.end(); ++itname)
     {
         nodeMapType::iterator itchild = current->children.find(*itname);
         if (itchild == current->children.end())
         {
-            if (itname + 1 == name.end())
+            if (itname + 1 == normalizedName.end())
             {
                 CClaimTrieNode* newNode = new CClaimTrieNode();
                 current->children[*itname] = newNode;
@@ -855,7 +922,7 @@ bool CClaimTrie::updateName(const std::string &name, CClaimTrieNode* updatedNode
     }
     assert(current != NULL);
     current->claims.swap(updatedNode->claims);
-    markNodeDirty(name, current);
+    markNodeDirty(normalizedName, current);
     for (nodeMapType::iterator itchild = current->children.begin(); itchild != current->children.end();)
     {
         nodeMapType::iterator itupdatechild = updatedNode->children.find(itchild->first);
@@ -864,7 +931,7 @@ bool CClaimTrie::updateName(const std::string &name, CClaimTrieNode* updatedNode
             // This character has apparently been deleted, so delete
             // all descendents from this child.
             std::stringstream ss;
-            ss << name << itchild->first;
+            ss << normalizedName << itchild->first;
             std::string newName = ss.str();
             if (!recursiveNullify(itchild->second, newName))
                 return false;
@@ -879,16 +946,17 @@ bool CClaimTrie::updateName(const std::string &name, CClaimTrieNode* updatedNode
 bool CClaimTrie::recursiveNullify(CClaimTrieNode* node, std::string& name)
 {
     assert(node != NULL);
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
     for (nodeMapType::iterator itchild = node->children.begin(); itchild != node->children.end(); ++itchild)
     {
         std::stringstream ss;
-        ss << name << itchild->first;
+        ss << normalizedName << itchild->first;
         std::string newName = ss.str();
         if (!recursiveNullify(itchild->second, newName))
             return false;
     }
     node->children.clear();
-    markNodeDirty(name, NULL);
+    markNodeDirty(normalizedName, NULL);
     delete node;
     return true;
 }
@@ -896,7 +964,8 @@ bool CClaimTrie::recursiveNullify(CClaimTrieNode* node, std::string& name)
 bool CClaimTrie::updateHash(const std::string& name, uint256& hash)
 {
     CClaimTrieNode* current = &root;
-    for (std::string::const_iterator itname = name.begin(); itname != name.end(); ++itname)
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    for (std::string::const_iterator itname = normalizedName.begin(); itname != normalizedName.end(); ++itname)
     {
         nodeMapType::iterator itchild = current->children.find(*itname);
         if (itchild == current->children.end())
@@ -905,14 +974,15 @@ bool CClaimTrie::updateHash(const std::string& name, uint256& hash)
     }
     assert(current != NULL);
     current->hash = hash;
-    markNodeDirty(name, current);
+    markNodeDirty(normalizedName, current);
     return true;
 }
 
 bool CClaimTrie::updateTakeoverHeight(const std::string& name, int nTakeoverHeight)
 {
     CClaimTrieNode* current = &root;
-    for (std::string::const_iterator itname = name.begin(); itname != name.end(); ++itname)
+    const std::string normalizedName = lbryNormalize(name, CHECK_HEIGHT(nTakeoverHeight));
+    for (std::string::const_iterator itname = normalizedName.begin(); itname != normalizedName.end(); ++itname)
     {
         nodeMapType::iterator itchild = current->children.find(*itname);
         if (itchild == current->children.end())
@@ -921,7 +991,7 @@ bool CClaimTrie::updateTakeoverHeight(const std::string& name, int nTakeoverHeig
     }
     assert(current != NULL);
     current->nHeightOfLastTakeover = nTakeoverHeight;
-    markNodeDirty(name, current);
+    markNodeDirty(normalizedName, current);
     return true;
 }
 
@@ -930,11 +1000,12 @@ void CClaimTrie::BatchWriteNode(CDBBatch& batch, const std::string& name, const 
     uint32_t num_claims = 0;
     if (pNode)
         num_claims = pNode->claims.size();
-    LogPrintf("%s: Writing %s to disk with %d claims\n", __func__, name, num_claims);
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    LogPrintf("%s: Writing %s to disk with %d claims\n", __func__, normalizedName, num_claims);
     if (pNode)
-        batch.Write(std::make_pair(TRIE_NODE, name), *pNode);
+        batch.Write(std::make_pair(TRIE_NODE, normalizedName), *pNode);
     else
-        batch.Erase(std::make_pair(TRIE_NODE, name));
+        batch.Erase(std::make_pair(TRIE_NODE, normalizedName));
 }
 
 void CClaimTrie::BatchWriteQueueRows(CDBBatch& batch)
@@ -1069,20 +1140,21 @@ bool CClaimTrie::WriteToDisk()
 
 bool CClaimTrie::InsertFromDisk(const std::string& name, CClaimTrieNode* node)
 {
-    if (name.size() == 0)
+    const std::string normalizedName = lbryNormalize(name, normalizeNames);
+    if (normalizedName.empty())
     {
         root = *node;
         return true;
     }
     CClaimTrieNode* current = &root;
-    for (std::string::const_iterator itname = name.begin(); itname + 1 != name.end(); ++itname)
+    for (std::string::const_iterator itname = normalizedName.begin(); itname + 1 != normalizedName.end(); ++itname)
     {
         nodeMapType::iterator itchild = current->children.find(*itname);
         if (itchild == current->children.end())
             return false;
         current = itchild->second;
     }
-    current->children[name[name.size()-1]] = node;
+    current->children[normalizedName[normalizedName.size()-1]] = node;
     return true;
 }
 
@@ -1092,6 +1164,11 @@ bool CClaimTrie::ReadFromDisk(bool check)
         LogPrintf("%s: Couldn't read the best block's hash\n", __func__);
     if (!db.Read(CURRENT_HEIGHT, nCurrentHeight))
         LogPrintf("%s: Couldn't read the current height\n", __func__);
+
+    normalizeNames = nCurrentHeight >= LBRY_NORMALIZED_NAME_FORK_HEIGHT;
+    LogPrintf("%s: Current height %lu, normalization fork is %s\n",
+              __func__, nCurrentHeight, normalizeNames ? "ENABLED" : "DISABLED");
+
     boost::scoped_ptr<CDBIterator> pcursor(const_cast<CDBWrapper*>(&db)->NewIterator());
     pcursor->SeekToFirst();
     
@@ -1141,7 +1218,6 @@ bool CClaimTrieCache::recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent, std:
     }
     std::vector<unsigned char> vchToHash;
     nodeCacheType::iterator cachedNode;
-
 
     for (nodeMapType::iterator it = tnCurrent->children.begin(); it != tnCurrent->children.end(); ++it)
     {
@@ -1245,10 +1321,11 @@ CClaimTrieNode* CClaimTrieCache::addNodeToCache(const std::string& position, CCl
 
 bool CClaimTrieCache::getOriginalInfoForName(const std::string& name, CClaimValue& claim) const
 {
-    nodeCacheType::const_iterator itOriginalCache = block_originals.find(name);
+    const std::string normalizedName = lbryNormalize(name, BASE_CHECK_HEIGHT(claim.nValidAtHeight));
+    nodeCacheType::const_iterator itOriginalCache = block_originals.find(normalizedName);
     if (itOriginalCache == block_originals.end())
     {
-        return base->getInfoForName(name, claim);
+        return base->getInfoForName(normalizedName, claim);
     }
     return itOriginalCache->second->getBestClaim(claim);
 }
@@ -1261,10 +1338,11 @@ bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue c
     cachedNode = cache.find("");
     if (cachedNode != cache.end())
         currentNode = cachedNode->second;
-    for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
+    const std::string normalizedName = lbryNormalize(name, BASE_CHECK_HEIGHT(claim.nValidAtHeight));
+    for (std::string::const_iterator itCur = normalizedName.begin(); itCur != normalizedName.end(); ++itCur)
     {
-        std::string sCurrentSubstring(name.begin(), itCur);
-        std::string sNextSubstring(name.begin(), itCur + 1);
+        std::string sCurrentSubstring(normalizedName.begin(), itCur);
+        std::string sNextSubstring(normalizedName.begin(), itCur + 1);
 
         cachedNode = cache.find(sNextSubstring);
         if (cachedNode != cache.end())
@@ -1302,14 +1380,14 @@ bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue c
         currentNode = newNode;
     }
 
-    cachedNode = cache.find(name);
+    cachedNode = cache.find(normalizedName);
     if (cachedNode != cache.end())
     {
         assert(cachedNode->second == currentNode);
     }
     else
     {
-        currentNode = addNodeToCache(name, currentNode);
+        currentNode = addNodeToCache(normalizedName, currentNode);
     }
     bool fChanged = false;
     if (currentNode->claims.empty())
@@ -1322,21 +1400,21 @@ bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue c
         CClaimValue currentTop = currentNode->claims.front();
         currentNode->insertClaim(claim);
         supportMapEntryType node;
-        getSupportsForName(name, node);
+        getSupportsForName(normalizedName, node);
         currentNode->reorderClaims(node);
         if (currentTop != currentNode->claims.front())
             fChanged = true;
     }
     if (fChanged)
     {
-        for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
+        for (std::string::const_iterator itCur = normalizedName.begin(); itCur != normalizedName.end(); ++itCur)
         {
-            std::string sub(name.begin(), itCur);
+            std::string sub(normalizedName.begin(), itCur);
             dirtyHashes.insert(sub);
         }
-        dirtyHashes.insert(name);
+        dirtyHashes.insert(normalizedName);
         if (fCheckTakeover)
-            namesToCheckForTakeover.insert(name);
+            namesToCheckForTakeover.insert(normalizedName);
     }
     return true;
 }
@@ -1350,10 +1428,11 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoi
     if (cachedNode != cache.end())
         currentNode = cachedNode->second;
     assert(currentNode != NULL); // If there is no root in either the trie or the cache, how can there be any names to remove?
-    for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
+    const std::string normalizedName = lbryNormalize(name, BASE_CHECK_HEIGHT(claim.nValidAtHeight));
+    for (std::string::const_iterator itCur = normalizedName.begin(); itCur != normalizedName.end(); ++itCur)
     {
-        std::string sCurrentSubstring(name.begin(), itCur);
-        std::string sNextSubstring(name.begin(), itCur + 1);
+        std::string sCurrentSubstring(normalizedName.begin(), itCur);
+        std::string sNextSubstring(normalizedName.begin(), itCur + 1);
 
         cachedNode = cache.find(sNextSubstring);
         if (cachedNode != cache.end())
@@ -1367,16 +1446,16 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoi
             currentNode = childNode->second;
             continue;
         }
-        LogPrintf("%s: The name %s does not exist in the trie\n", __func__, name.c_str());
+        LogPrintf("%s: The name %s does not exist in the trie\n", __func__, normalizedName.c_str());
         return false;
     }
 
-    cachedNode = cache.find(name);
+    cachedNode = cache.find(normalizedName);
     if (cachedNode != cache.end())
         assert(cachedNode->second == currentNode);
     else
     {
-        currentNode = addNodeToCache(name, currentNode);
+        currentNode = addNodeToCache(normalizedName, currentNode);
     }
     bool fChanged = false;
     assert(currentNode != NULL);
@@ -1394,7 +1473,7 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoi
     if (!currentNode->claims.empty())
     {
         supportMapEntryType node;
-        getSupportsForName(name, node);
+        getSupportsForName(normalizedName, node);
         currentNode->reorderClaims(node);
         if (currentTop != currentNode->claims.front())
             fChanged = true;
@@ -1404,26 +1483,26 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoi
     
     if (!success)
     {
-        LogPrintf("%s: Removing a claim was unsuccessful. name = %s, txhash = %s, nOut = %d", __func__, name.c_str(), outPoint.hash.GetHex(), outPoint.n);
+        LogPrintf("%s: Removing a claim was unsuccessful. name = %s, txhash = %s, nOut = %d", __func__, normalizedName.c_str(), outPoint.hash.GetHex(), outPoint.n);
         return false;
     }
 
     if (fChanged)
     {
-        for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
+        for (std::string::const_iterator itCur = normalizedName.begin(); itCur != normalizedName.end(); ++itCur)
         {
-            std::string sub(name.begin(), itCur);
+            std::string sub(normalizedName.begin(), itCur);
             dirtyHashes.insert(sub);
         }
-        dirtyHashes.insert(name);
+        dirtyHashes.insert(normalizedName);
         if (fCheckTakeover)
-            namesToCheckForTakeover.insert(name);
+            namesToCheckForTakeover.insert(normalizedName);
     }
     CClaimTrieNode* rootNode = &(base->root);
     cachedNode = cache.find("");
     if (cachedNode != cache.end())
         rootNode = cachedNode->second;
-    return recursivePruneName(rootNode, 0, name);
+    return recursivePruneName(rootNode, 0, normalizedName);
 }
 
 bool CClaimTrieCache::recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos, std::string sName, bool* pfNullified) const
@@ -1432,11 +1511,12 @@ bool CClaimTrieCache::recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int
     // the modified nodes in the cache
 
     bool fNullified = false;
-    std::string sCurrentSubstring = sName.substr(0, nPos);
-    if (nPos < sName.size())
+    const std::string normalizedName = lbryNormalize(sName, base->shouldNormalize());
+    std::string sCurrentSubstring = normalizedName.substr(0, nPos);
+    if (nPos < normalizedName.size())
     {
-        std::string sNextSubstring = sName.substr(0, nPos + 1);
-        unsigned char cNext = sName.at(nPos);
+        std::string sNextSubstring = normalizedName.substr(0, nPos + 1);
+        unsigned char cNext = normalizedName.at(nPos);
         CClaimTrieNode* tnNext = NULL;
         nodeCacheType::iterator cachedNode = cache.find(sNextSubstring);
         if (cachedNode != cache.end())
@@ -1450,7 +1530,7 @@ bool CClaimTrieCache::recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int
         if (tnNext == NULL)
             return false;
         bool fChildNullified = false;
-        if (!recursivePruneName(tnNext, nPos + 1, sName, &fChildNullified))
+        if (!recursivePruneName(tnNext, nPos + 1, normalizedName, &fChildNullified))
             return false;
         if (fChildNullified)
         {
@@ -1523,7 +1603,8 @@ claimQueueType::iterator CClaimTrieCache::getQueueCacheRow(int nHeight, bool cre
 
 queueNameType::iterator CClaimTrieCache::getQueueCacheNameRow(const std::string& name, bool createIfNotExists) const
 {
-    queueNameType::iterator itQueueNameRow = claimQueueNameCache.find(name);
+    const std::string normalizedName = lbryNormalize(name, base->shouldNormalize());
+    queueNameType::iterator itQueueNameRow = claimQueueNameCache.find(normalizedName);
     if (itQueueNameRow == claimQueueNameCache.end())
     {
         // Have to make a new name row and put it in the cache, if createIfNotExists is true
@@ -1535,7 +1616,7 @@ queueNameType::iterator CClaimTrieCache::getQueueCacheNameRow(const std::string&
                 return itQueueNameRow;
         // Stick the new row in the cache
         std::pair<queueNameType::iterator, bool> ret;
-        ret = claimQueueNameCache.insert(std::pair<std::string, queueNameRowType>(name, queueNameRow));
+        ret = claimQueueNameCache.insert(std::pair<std::string, queueNameRowType>(normalizedName, queueNameRow));
         assert(ret.second);
         itQueueNameRow = ret.first;
     }
@@ -1544,58 +1625,70 @@ queueNameType::iterator CClaimTrieCache::getQueueCacheNameRow(const std::string&
 
 bool CClaimTrieCache::addClaim(const std::string& name, const COutPoint& outPoint, uint160 claimId, CAmount nAmount, int nHeight) const
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, claimId: %s, nAmount: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, claimId.GetHex(), nAmount, nHeight, nCurrentHeight);
+    const std::string normalizedName = lbryNormalize(name, BASE_CHECK_HEIGHT(nHeight));
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, claimId: %s, nAmount: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, normalizedName, outPoint.hash.GetHex(), outPoint.n, claimId.GetHex(), nAmount, nHeight, nCurrentHeight);
     assert(nHeight == nCurrentHeight);
     CClaimValue currentClaim;
     int delayForClaim;
-    if (getOriginalInfoForName(name, currentClaim) && currentClaim.claimId == claimId)
+    if (getOriginalInfoForName(normalizedName, currentClaim) && currentClaim.claimId == claimId)
     {
         LogPrintf("%s: This is an update to a best claim.\n", __func__);
         delayForClaim = 0;
     }
     else
     {
-        delayForClaim = getDelayForName(name);
+        delayForClaim = getDelayForName(normalizedName);
     }
     CClaimValue newClaim(outPoint, claimId, nAmount, nHeight, nHeight + delayForClaim);
-    return addClaimToQueues(name, newClaim);
+    return addClaimToQueues(normalizedName, newClaim);
 }
 
 bool CClaimTrieCache::undoSpendClaim(const std::string& name, const COutPoint& outPoint, uint160 claimId, CAmount nAmount, int nHeight, int nValidAtHeight) const
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, claimId: %s, nAmount: %d, nHeight: %d, nValidAtHeight: %d, nCurrentHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, claimId.GetHex(), nAmount, nHeight, nValidAtHeight, nCurrentHeight);
+    const std::string normalizedName = lbryNormalize(name, BASE_CHECK_HEIGHT(nValidAtHeight));
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, claimId: %s, nAmount: %d, nHeight: %d, nValidAtHeight: %d, nCurrentHeight: %d\n", __func__, normalizedName, outPoint.hash.GetHex(), outPoint.n, claimId.GetHex(), nAmount, nHeight, nValidAtHeight, nCurrentHeight);
     CClaimValue claim(outPoint, claimId, nAmount, nHeight, nValidAtHeight);
     if (nValidAtHeight < nCurrentHeight)
     {
-        nameOutPointType entry(name, claim.outPoint);
+        nameOutPointType entry(normalizedName, claim.outPoint);
         addToExpirationQueue(claim.nHeight + base->nExpirationTime, entry);
-        return insertClaimIntoTrie(name, claim, false);
+        return insertClaimIntoTrie(normalizedName, claim, false);
     }
     else
     {
-        return addClaimToQueues(name, claim);
+        return addClaimToQueues(normalizedName, claim);
     }
 }
 
 bool CClaimTrieCache::addClaimToQueues(const std::string& name, CClaimValue& claim) const
 {
     LogPrintf("%s: nValidAtHeight: %d\n", __func__, claim.nValidAtHeight);
-    claimQueueEntryType entry(name, claim);
+    const std::string normalizedName = lbryNormalize(name, BASE_CHECK_HEIGHT(claim.nValidAtHeight));
+    claimQueueEntryType entry(normalizedName, claim);
     claimQueueType::iterator itQueueRow = getQueueCacheRow(claim.nValidAtHeight, true);
-    queueNameType::iterator itQueueNameRow = getQueueCacheNameRow(name, true);
+    queueNameType::iterator itQueueNameRow = getQueueCacheNameRow(normalizedName, true);
     itQueueRow->second.push_back(entry);
     itQueueNameRow->second.push_back(outPointHeightType(claim.outPoint, claim.nValidAtHeight));
-    nameOutPointType expireEntry(name, claim.outPoint);
+    nameOutPointType expireEntry(normalizedName, claim.outPoint);
     addToExpirationQueue(claim.nHeight + base->nExpirationTime, expireEntry);
     return true;
 }
 
 bool CClaimTrieCache::removeClaimFromQueue(const std::string& name, const COutPoint& outPoint, CClaimValue& claim) const
 {
+    // to properly bound around the fork height, we have to check both
+    // non-normalized and normalized names here
+    bool normalizedName_found = false;
+    const std::string normalizedName = lbryNormalize(name, base->shouldNormalize());
     queueNameType::iterator itQueueNameRow = getQueueCacheNameRow(name, false);
     if (itQueueNameRow == claimQueueNameCache.end())
     {
-        return false;
+        itQueueNameRow = getQueueCacheNameRow(normalizedName, false);
+        if (itQueueNameRow == claimQueueNameCache.end())
+        {
+            return false;
+        }
+        normalizedName_found = true;
     }
     queueNameRowType::iterator itQueueName;
     for (itQueueName = itQueueNameRow->second.begin(); itQueueName != itQueueNameRow->second.end(); ++itQueueName)
@@ -1615,9 +1708,19 @@ bool CClaimTrieCache::removeClaimFromQueue(const std::string& name, const COutPo
         claimQueueRowType::iterator itQueue;
         for (itQueue = itQueueRow->second.begin(); itQueue != itQueueRow->second.end(); ++itQueue)
         {
-            if (name == itQueue->first && itQueue->second.outPoint == outPoint)
+            if (normalizedName_found)
             {
-                break;
+                if (normalizedName == itQueue->first && itQueue->second.outPoint == outPoint)
+                {
+                    break;
+                }
+            }
+            else
+            {
+                if (name == itQueue->first && itQueue->second.outPoint == outPoint)
+                {
+                    break;
+                }
             }
         }
         if (itQueue != itQueueRow->second.end())
@@ -1628,7 +1731,7 @@ bool CClaimTrieCache::removeClaimFromQueue(const std::string& name, const COutPo
             return true;
         }
     }
-    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, itQueueName->nHeight, nCurrentHeight);
+    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, (normalizedName_found ? normalizedName : name), outPoint.hash.GetHex(), outPoint.n, itQueueName->nHeight, nCurrentHeight);
     return false;
 }
 
@@ -1675,11 +1778,12 @@ void CClaimTrieCache::removeFromExpirationQueue(const std::string& name, const C
     int expirationHeight = nHeight + base->nExpirationTime;
     expirationQueueType::iterator itQueueRow = getExpirationQueueCacheRow(expirationHeight, false);
     expirationQueueRowType::iterator itQueue;
+    const std::string normalizedName = lbryNormalize(name, BASE_CHECK_HEIGHT(expirationHeight));
     if (itQueueRow != expirationQueueCache.end())
     {
         for (itQueue = itQueueRow->second.begin(); itQueue != itQueueRow->second.end(); ++itQueue)
         {
-            if (name == itQueue->name && outPoint == itQueue->outPoint)
+            if (normalizedName == itQueue->name && outPoint == itQueue->outPoint)
                 break;
         }
     }
@@ -1713,8 +1817,9 @@ expirationQueueType::iterator CClaimTrieCache::getExpirationQueueCacheRow(int nH
 bool CClaimTrieCache::reorderTrieNode(const std::string& name, bool fCheckTakeover) const
 {
     assert(base);
+    const std::string normalizedName = lbryNormalize(name, base->shouldNormalize());
     nodeCacheType::iterator cachedNode;
-    cachedNode = cache.find(name);
+    cachedNode = cache.find(normalizedName);
     if (cachedNode == cache.end())
     {
         CClaimTrieNode* currentNode;
@@ -1723,10 +1828,10 @@ bool CClaimTrieCache::reorderTrieNode(const std::string& name, bool fCheckTakeov
             currentNode = &(base->root);
         else
             currentNode = cachedNode->second;
-        for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
+        for (std::string::const_iterator itCur = normalizedName.begin(); itCur != normalizedName.end(); ++itCur)
         {
-            std::string sCurrentSubstring(name.begin(), itCur);
-            std::string sNextSubstring(name.begin(), itCur + 1);
+            std::string sCurrentSubstring(normalizedName.begin(), itCur);
+            std::string sNextSubstring(normalizedName.begin(), itCur + 1);
 
             cachedNode = cache.find(sNextSubstring);
             if (cachedNode != cache.end())
@@ -1745,7 +1850,7 @@ bool CClaimTrieCache::reorderTrieNode(const std::string& name, bool fCheckTakeov
         }
         currentNode = new CClaimTrieNode(*currentNode);
         std::pair<nodeCacheType::iterator, bool> ret;
-        ret = cache.insert(std::pair<std::string, CClaimTrieNode*>(name, currentNode));
+        ret = cache.insert(std::pair<std::string, CClaimTrieNode*>(normalizedName, currentNode));
         assert(ret.second);
         cachedNode = ret.first;
     }
@@ -1759,21 +1864,21 @@ bool CClaimTrieCache::reorderTrieNode(const std::string& name, bool fCheckTakeov
     {
         CClaimValue currentTop = cachedNode->second->claims.front();
         supportMapEntryType node;
-        getSupportsForName(name, node);
+        getSupportsForName(normalizedName, node);
         cachedNode->second->reorderClaims(node);
         if (cachedNode->second->claims.front() != currentTop)
             fChanged = true;
     }
     if (fChanged)
     {
-        for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
+        for (std::string::const_iterator itCur = normalizedName.begin(); itCur != normalizedName.end(); ++itCur)
         {
-            std::string sub(name.begin(), itCur);
+            std::string sub(normalizedName.begin(), itCur);
             dirtyHashes.insert(sub);
         }
-        dirtyHashes.insert(name);
+        dirtyHashes.insert(normalizedName);
         if (fCheckTakeover)
-            namesToCheckForTakeover.insert(name);
+            namesToCheckForTakeover.insert(normalizedName);
     }
     return true;
 }
@@ -1795,38 +1900,40 @@ bool CClaimTrieCache::getSupportsForName(const std::string& name, supportMapEntr
 
 bool CClaimTrieCache::insertSupportIntoMap(const std::string& name, CSupportValue support, bool fCheckTakeover) const
 {
+    const std::string normalizedName = lbryNormalize(name, base->shouldNormalize());
     supportMapType::iterator cachedNode;
     // If this node is already in the cache, use that
-    cachedNode = supportCache.find(name);
+    cachedNode = supportCache.find(normalizedName);
     // If not, copy the one from base if it exists, and use that
     if (cachedNode == supportCache.end())
     {
         supportMapEntryType node;
-        base->getSupportNode(name, node);
+        base->getSupportNode(normalizedName, node);
         std::pair<supportMapType::iterator, bool> ret;
-        ret = supportCache.insert(std::pair<std::string, supportMapEntryType>(name, node));
+        ret = supportCache.insert(std::pair<std::string, supportMapEntryType>(normalizedName, node));
         assert(ret.second);
         cachedNode = ret.first;
     }
     cachedNode->second.push_back(support);
     // See if this changed the biggest bid
-    return reorderTrieNode(name,  fCheckTakeover);
+    return reorderTrieNode(normalizedName,  fCheckTakeover);
 }
 
 bool CClaimTrieCache::removeSupportFromMap(const std::string& name, const COutPoint& outPoint, CSupportValue& support, bool fCheckTakeover) const
 {
+    const std::string normalizedName = lbryNormalize(name, base->shouldNormalize());
     supportMapType::iterator cachedNode;
-    cachedNode = supportCache.find(name);
+    cachedNode = supportCache.find(normalizedName);
     if (cachedNode == supportCache.end())
     {
         supportMapEntryType node;
-        if (!base->getSupportNode(name, node))
+        if (!base->getSupportNode(normalizedName, node))
         {
             // clearly, this support does not exist
             return false;
         }
         std::pair<supportMapType::iterator, bool> ret;
-        ret = supportCache.insert(std::pair<std::string, supportMapEntryType>(name, node));
+        ret = supportCache.insert(std::pair<std::string, supportMapEntryType>(normalizedName, node));
         assert(ret.second);
         cachedNode = ret.first;
     }
@@ -1842,7 +1949,7 @@ bool CClaimTrieCache::removeSupportFromMap(const std::string& name, const COutPo
     {
         std::swap(support, *itSupport);
         cachedNode->second.erase(itSupport);
-        return reorderTrieNode(name, fCheckTakeover);
+        return reorderTrieNode(normalizedName, fCheckTakeover);
     }
     else
     {
@@ -1872,17 +1979,18 @@ supportQueueType::iterator CClaimTrieCache::getSupportQueueCacheRow(int nHeight,
 
 queueNameType::iterator CClaimTrieCache::getSupportQueueCacheNameRow(const std::string& name, bool createIfNotExists) const
 {
-    queueNameType::iterator itQueueNameRow = supportQueueNameCache.find(name);
+    const std::string normalizedName = lbryNormalize(name, base->shouldNormalize());
+    queueNameType::iterator itQueueNameRow = supportQueueNameCache.find(normalizedName);
     if (itQueueNameRow == supportQueueNameCache.end())
     {
         queueNameRowType queueNameRow;
-        bool exists = base->getSupportQueueNameRow(name, queueNameRow);
+        bool exists = base->getSupportQueueNameRow(normalizedName, queueNameRow);
         if (!exists)
             if (!createIfNotExists)
                 return itQueueNameRow;
         // Stick the new row in the name cache
         std::pair<queueNameType::iterator, bool> ret;
-        ret = supportQueueNameCache.insert(std::pair<std::string, queueNameRowType>(name, queueNameRow));
+        ret = supportQueueNameCache.insert(std::pair<std::string, queueNameRowType>(normalizedName, queueNameRow));
         assert(ret.second);
         itQueueNameRow = ret.first;
     }
@@ -1892,19 +2000,21 @@ queueNameType::iterator CClaimTrieCache::getSupportQueueCacheNameRow(const std::
 bool CClaimTrieCache::addSupportToQueues(const std::string& name, CSupportValue& support) const
 {
     LogPrintf("%s: nValidAtHeight: %d\n", __func__, support.nValidAtHeight);
-    supportQueueEntryType entry(name, support);
+    const std::string normalizedName = lbryNormalize(name, base->shouldNormalize(support.nValidAtHeight));
+    supportQueueEntryType entry(normalizedName, support);
     supportQueueType::iterator itQueueRow = getSupportQueueCacheRow(support.nValidAtHeight, true);
-    queueNameType::iterator itQueueNameRow = getSupportQueueCacheNameRow(name, true);
+    queueNameType::iterator itQueueNameRow = getSupportQueueCacheNameRow(normalizedName, true);
     itQueueRow->second.push_back(entry);
     itQueueNameRow->second.push_back(outPointHeightType(support.outPoint, support.nValidAtHeight));
-    nameOutPointType expireEntry(name, support.outPoint);
+    nameOutPointType expireEntry(normalizedName, support.outPoint);
     addSupportToExpirationQueue(support.nHeight + base->nExpirationTime, expireEntry);
     return true;
 }
 
 bool CClaimTrieCache::removeSupportFromQueue(const std::string& name, const COutPoint& outPoint, CSupportValue& support) const
 {
-    queueNameType::iterator itQueueNameRow = getSupportQueueCacheNameRow(name, false);
+    const std::string normalizedName = lbryNormalize(name, base->shouldNormalize());
+    queueNameType::iterator itQueueNameRow = getSupportQueueCacheNameRow(normalizedName, false);
     if (itQueueNameRow == supportQueueNameCache.end())
     {
         return false;
@@ -1928,7 +2038,7 @@ bool CClaimTrieCache::removeSupportFromQueue(const std::string& name, const COut
         for (itQueue = itQueueRow->second.begin(); itQueue != itQueueRow->second.end(); ++itQueue)
         {
             CSupportValue& support = itQueue->second;
-            if (name == itQueue->first && support.outPoint == outPoint)
+            if (normalizedName == itQueue->first && support.outPoint == outPoint)
             {
                 break;
             }
@@ -1941,42 +2051,44 @@ bool CClaimTrieCache::removeSupportFromQueue(const std::string& name, const COut
             return true;
         }
     }
-    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named support queue but not in height support queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, itQueueName->nHeight, nCurrentHeight);
+    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named support queue but not in height support queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, normalizedName, outPoint.hash.GetHex(), outPoint.n, itQueueName->nHeight, nCurrentHeight);
     return false;
 }
 
 bool CClaimTrieCache::addSupport(const std::string& name, const COutPoint& outPoint, CAmount nAmount, uint160 supportedClaimId, int nHeight) const
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedClaimId: %s, nHeight: %d, nCurrentHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nAmount, supportedClaimId.GetHex(), nHeight, nCurrentHeight);
+    const std::string normalizedName = lbryNormalize(name, base->shouldNormalize());
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedClaimId: %s, nHeight: %d, nCurrentHeight: %d\n", __func__, normalizedName, outPoint.hash.GetHex(), outPoint.n, nAmount, supportedClaimId.GetHex(), nHeight, nCurrentHeight);
     assert(nHeight == nCurrentHeight);
     CClaimValue claim;
     int delayForSupport;
-    if (getOriginalInfoForName(name, claim) && claim.claimId == supportedClaimId)
+    if (getOriginalInfoForName(normalizedName, claim) && claim.claimId == supportedClaimId)
     {
         LogPrintf("%s: This is a support to a best claim.\n", __func__);
         delayForSupport = 0;
     }
     else
     {
-        delayForSupport = getDelayForName(name);
+        delayForSupport = getDelayForName(normalizedName);
     }
     CSupportValue support(outPoint, supportedClaimId, nAmount, nHeight, nHeight + delayForSupport);
-    return addSupportToQueues(name, support);
+    return addSupportToQueues(normalizedName, support);
 }
 
 bool CClaimTrieCache::undoSpendSupport(const std::string& name, const COutPoint& outPoint, uint160 supportedClaimId, CAmount nAmount, int nHeight, int nValidAtHeight) const
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedClaimId: %s, nHeight: %d, nCurrentHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nAmount, supportedClaimId.GetHex(), nHeight, nCurrentHeight);
+    const std::string normalizedName = lbryNormalize(name, base->shouldNormalize(nValidAtHeight));
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedClaimId: %s, nHeight: %d, nCurrentHeight: %d\n", __func__, normalizedName, outPoint.hash.GetHex(), outPoint.n, nAmount, supportedClaimId.GetHex(), nHeight, nCurrentHeight);
     CSupportValue support(outPoint, supportedClaimId, nAmount, nHeight, nValidAtHeight);
     if (nValidAtHeight < nCurrentHeight)
     {
-        nameOutPointType entry(name, support.outPoint);
+        nameOutPointType entry(normalizedName, support.outPoint);
         addSupportToExpirationQueue(support.nHeight + base->nExpirationTime, entry);
-        return insertSupportIntoMap(name, support, false);
+        return insertSupportIntoMap(normalizedName, support, false);
     }
     else
     {
-        return addSupportToQueues(name, support);
+        return addSupportToQueues(normalizedName, support);
     }
 }
 
@@ -1984,13 +2096,14 @@ bool CClaimTrieCache::removeSupport(const std::string& name, const COutPoint& ou
 {
     bool removed = false;
     CSupportValue support;
-    if (removeSupportFromQueue(name, outPoint, support))
+    const std::string normalizedName = lbryNormalize(name, base->shouldNormalize(nHeight));
+    if (removeSupportFromQueue(normalizedName, outPoint, support))
         removed = true;
-    if (removed == false && removeSupportFromMap(name, outPoint, support, fCheckTakeover))
+    if (removed == false && removeSupportFromMap(normalizedName, outPoint, support, fCheckTakeover))
         removed = true;
     if (removed)
     {
-        removeSupportFromExpirationQueue(name, outPoint, nHeight);
+        removeSupportFromExpirationQueue(normalizedName, outPoint, nHeight);
         nValidAtHeight = support.nValidAtHeight;
     }
     return removed;
@@ -2007,11 +2120,12 @@ void CClaimTrieCache::removeSupportFromExpirationQueue(const std::string& name, 
     int expirationHeight = nHeight + base->nExpirationTime;
     expirationQueueType::iterator itQueueRow = getSupportExpirationQueueCacheRow(expirationHeight, false);
     expirationQueueRowType::iterator itQueue;
+    const std::string normalizedName = lbryNormalize(name, base->shouldNormalize());
     if (itQueueRow != supportExpirationQueueCache.end())
     {
         for (itQueue = itQueueRow->second.begin(); itQueue != itQueueRow->second.end(); ++itQueue)
         {
-            if (name == itQueue->name && outPoint == itQueue->outPoint)
+            if (normalizedName == itQueue->name && outPoint == itQueue->outPoint)
                 break;
         }
     }
@@ -2397,10 +2511,11 @@ bool CClaimTrieCache::getLastTakeoverForName(const std::string& name, int& nLast
         nLastTakeoverForName = 0;
         return true;
     }
-    std::map<std::string, int>::iterator itHeights = cacheTakeoverHeights.find(name);
+    const std::string normalizedName = lbryNormalize(name, base->shouldNormalize());
+    std::map<std::string, int>::iterator itHeights = cacheTakeoverHeights.find(normalizedName);
     if (itHeights == cacheTakeoverHeights.end())
     {
-        return base->getLastTakeoverForName(name, nLastTakeoverForName);
+        return base->getLastTakeoverForName(normalizedName, nLastTakeoverForName);
     }
     nLastTakeoverForName = itHeights->second;
     return true;
@@ -2409,21 +2524,22 @@ bool CClaimTrieCache::getLastTakeoverForName(const std::string& name, int& nLast
 int CClaimTrieCache::getNumBlocksOfContinuousOwnership(const std::string& name) const
 {
     const CClaimTrieNode* node = NULL;
-    nodeCacheType::const_iterator itCache = cache.find(name);
+    const std::string normalizedName = lbryNormalize(name, base->shouldNormalize());
+    nodeCacheType::const_iterator itCache = cache.find(normalizedName);
     if (itCache != cache.end())
     {
         node = itCache->second;
     }
     if (!node)
     {
-        node = base->getNodeForName(name);
+        node = base->getNodeForName(normalizedName);
     }
     if (!node || node->claims.empty())
     {
         return 0;
     }
     int nLastTakeoverHeight;
-    assert(getLastTakeoverForName(name, nLastTakeoverHeight));
+    assert(getLastTakeoverForName(normalizedName, nLastTakeoverHeight));
     return nCurrentHeight - nLastTakeoverHeight;
 }
 
@@ -2433,7 +2549,8 @@ int CClaimTrieCache::getDelayForName(const std::string& name) const
     {
         return 0;
     }
-    int nBlocksOfContinuousOwnership = getNumBlocksOfContinuousOwnership(name);
+    const std::string normalizedName = lbryNormalize(name, base->shouldNormalize());
+    int nBlocksOfContinuousOwnership = getNumBlocksOfContinuousOwnership(normalizedName);
     return std::min(nBlocksOfContinuousOwnership / base->nProportionalDelayFactor, 4032);
 }
 

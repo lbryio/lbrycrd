@@ -1422,6 +1422,22 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     RandAddSeedPerfmon();
 
+    if ((chainActive.Height() > LBRY_NORMALIZED_NAME_FORK_HEIGHT) &&
+        !pclaimTrie->shouldNormalize())
+    {
+        LogPrintf("Reloading ClaimTrie with normalization enabled\n");
+
+        delete pclaimTrie;
+        pclaimTrie = new CClaimTrie(false, fReindex, true);
+
+        if (!pclaimTrie->ReadFromDisk(true))
+        {
+            LogPrintf("Error re-loading the claim trie from disk");
+            return false;
+        }
+        LogPrintf("Finished reloading ClaimTrie with normalization enabled\n");
+    }
+
     //// debug print
     LogPrintf("mapBlockIndex.size() = %u\n",   mapBlockIndex.size());
     LogPrintf("nBestHeight = %d\n",                   chainActive.Height());
