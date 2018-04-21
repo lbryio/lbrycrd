@@ -534,9 +534,11 @@ CAmount CClaimTrie::getEffectiveAmountForClaim(const std::string& name, uint160 
 	for (std::vector<CClaimValue>::iterator it=claims.claims.begin(); it!=claims.claims.end(); ++it)
 	{
 		if (it->claimId == claimId && it->nValidAtHeight < nCurrentHeight)
+		{
 			effectiveAmount += it->nAmount;
 			claim_found = true;
 			break;
+		}
 	}
 	if (!claim_found)
 		return effectiveAmount;
