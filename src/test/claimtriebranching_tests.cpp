@@ -751,4 +751,49 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_expire)
 
 }
 
+/*
+ * tests for CClaimTrie::getEffectiveAmountForClaim
+ */
+BOOST_AUTO_TEST_CASE(claimtriebranching_get_effective_amount_for_claim)
+{
+    // simplest scenario. One claim, no supports
+    ClaimTrieChainFixture fixture;
+    CMutableTransaction claimtx = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
+    uint160 claimId = ClaimIdHash(claimtx.GetHash(), 0);
+    fixture.IncrementBlocks(1);
+
+    BOOST_TEST(pclaimTrie->getEffectiveAmountForClaim("test", claimId) == 2);
+    BOOST_TEST(pclaimTrie->getEffectiveAmountForClaim("inexistent", claimId) == 0); //not found returns 0
+
+    // one claim, one support
+    fixture.MakeSupport(fixture.GetCoinbase(), claimtx, "test", 40);
+    fixture.IncrementBlocks(1);
+
+    BOOST_TEST(pclaimTrie->getEffectiveAmountForClaim("test", claimId) == 42);
+
+    // Two claims, first one with supports
+    CMutableTransaction claimtx2 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "two", 1);
+    uint160 claimId2 = ClaimIdHash(claimtx2.GetHash(), 0);
+    fixture.IncrementBlocks(10);
+
+    BOOST_TEST(pclaimTrie->getEffectiveAmountForClaim("test", claimId) == 42);
+    BOOST_TEST(pclaimTrie->getEffectiveAmountForClaim("test", claimId2) == 1);
+    BOOST_TEST(pclaimTrie->getEffectiveAmountForClaim("inexistent", claimId) == 0);
+    BOOST_TEST(pclaimTrie->getEffectiveAmountForClaim("inexistent", claimId2) == 0);
+
+    // Two claims, both with supports, second claim effective amount being less than first claim
+    fixture.MakeSupport(fixture.GetCoinbase(), claimtx2, "test", 6);
+    fixture.IncrementBlocks(13); //delay
+
+    BOOST_TEST(pclaimTrie->getEffectiveAmountForClaim("test", claimId) == 42);
+    BOOST_TEST(pclaimTrie->getEffectiveAmountForClaim("test", claimId2) == 7);
+
+    // Two claims, both with supports, second one taking over
+    fixture.MakeSupport(fixture.GetCoinbase(), claimtx2, "test", 1330);
+    fixture.IncrementBlocks(26); //delay
+
+    BOOST_TEST(pclaimTrie->getEffectiveAmountForClaim("test", claimId) == 42);
+    BOOST_TEST(pclaimTrie->getEffectiveAmountForClaim("test", claimId2) == 1337);
+}
+
 BOOST_AUTO_TEST_SUITE_END()
