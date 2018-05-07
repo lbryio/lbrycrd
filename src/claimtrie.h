@@ -282,8 +282,6 @@ typedef std::map<std::string, CClaimTrieNode*, nodenamecompare> nodeCacheType;
 
 typedef std::map<std::string, uint256> hashMapType;
 
-typedef std::map<uint160, CClaimIndexElement> claimIndexType;
-
 struct claimsForNameType
 {
     std::vector<CClaimValue> claims;
@@ -430,8 +428,6 @@ private:
 
     nodeCacheType dirtyNodes;
     supportMapType dirtySupportNodes;
-
-    mutable claimIndexType claimIndex;
 };
 
 class CClaimTrieProofNode
