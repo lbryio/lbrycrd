@@ -74,7 +74,7 @@ best_claim_effective_amount_equals(std::string name, CAmount amount)
     else
     {
         CAmount effective_amount = pclaimTrie->getEffectiveAmountForClaim(name, val.claimId);
-        if (val.nEffectiveAmount != amount)
+        if (effective_amount != amount)
         {
             boost::test_tools::predicate_result res(false);
             res.message()<<amount<<" != "<<effective_amount;
