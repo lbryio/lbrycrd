@@ -2236,6 +2236,7 @@ bool DisconnectBlock(const CBlock& block, CValidationState& state, const CBlockI
     {
         LogPrintf("Decremented past the extended claim expiration hard fork height");
         pclaimTrie->setExpirationTime(Params().GetConsensus().GetExpirationTime(pindex->nHeight-1));
+        trieCache.forkForExpirationChange(false);
     }
 
 
@@ -2504,6 +2505,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     {
         LogPrintf("Incremented past the extended claim expiration hard fork height");
         pclaimTrie->setExpirationTime(chainparams.GetConsensus().GetExpirationTime(pindex->nHeight));
+        trieCache.forkForExpirationChange(true);
     }
 
 

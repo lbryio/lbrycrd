@@ -517,6 +517,13 @@ public:
     CClaimTrieProof getProofForName(const std::string& name) const;
 
     bool finalizeDecrement() const;
+
+    void removeAndAddSupportToExpirationQueue(expirationQueueRowType &row, int height, bool increment) const;
+    void removeAndAddToExpirationQueue(expirationQueueRowType &row, int height, bool increment) const;
+
+    bool forkForExpirationChange(bool increment) const;
+
+
 protected:
     CClaimTrie* base;
 
