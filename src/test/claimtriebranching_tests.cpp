@@ -796,4 +796,52 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_get_effective_amount_for_claim)
     BOOST_CHECK(pclaimTrie->getEffectiveAmountForClaim("test", claimId2) == 1337);
 }
 
+/*
+ * tests for CClaimTrie::getClaimById basic consistency checks
+ */
+BOOST_AUTO_TEST_CASE(claimtriebranching_get_claim_by_id)
+{
+    ClaimTrieChainFixture fixture;
+    const std::string name = "test";
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), name, "one", 1);
+    uint160 claimId = ClaimIdHash(tx1.GetHash(), 0);
+    fixture.IncrementBlocks(1);
+
+    CClaimValue claimValue;
+    std::string claimName;
+    pclaimTrie->getClaimById(claimId, claimName, claimValue);
+    BOOST_CHECK(claimName == name);
+    BOOST_CHECK(claimValue.claimId == claimId);
+
+    fixture.MakeSupport(fixture.GetCoinbase(), tx1, name, 4);
+    fixture.IncrementBlocks(1);
+
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), name, "two", 1);
+    uint160 claimId2 = ClaimIdHash(tx2.GetHash(), 0);
+    fixture.IncrementBlocks(1);
+
+    pclaimTrie->getClaimById(claimId2, claimName, claimValue);
+    BOOST_CHECK(claimName == name);
+    BOOST_CHECK(claimValue.claimId == claimId2);
+
+    fixture.DecrementBlocks(1);
+
+    CClaimValue claimValue2;
+    claimName = "";
+    pclaimTrie->getClaimById(claimId2, claimName, claimValue2);
+    BOOST_CHECK(claimName != name);
+    BOOST_CHECK(claimValue2.claimId != claimId2);
+
+    pclaimTrie->getClaimById(claimId, claimName, claimValue);
+    BOOST_CHECK(claimName == name);
+    BOOST_CHECK(claimValue.claimId == claimId);
+
+    fixture.DecrementBlocks(2);
+
+    claimName = "";
+    pclaimTrie->getClaimById(claimId, claimName, claimValue2);
+    BOOST_CHECK(claimName != name);
+    BOOST_CHECK(claimValue2.claimId != claimId);
+}
+
 BOOST_AUTO_TEST_SUITE_END()
