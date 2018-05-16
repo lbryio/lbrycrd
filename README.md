@@ -47,6 +47,10 @@ submit new unit tests for old code. Unit tests can be compiled and run
 
 The Travis CI system makes sure that every pull request is built, and that unit and sanity tests are automatically run.
 
+### Testnet
+
+Testnet is maintained for testing purposes and can be accessed using the command `./lbrycrdd -testnet`. If you would like testnet credits, please contact kay@lbry.io or grin@lbry.io.
+
 ## License
 
 This project is MIT licensed. For the full license, see [LICENSE](LICENSE).
