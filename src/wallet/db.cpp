@@ -81,7 +81,7 @@ bool IsWalletLoaded(const fs::path& wallet_path)
     return db != env->second.m_databases.end();
 }
 
-BerkeleyEnvironment* GetWalletEnv(const fs::path& wallet_path, std::string& database_filename)
+std::shared_ptr<BerkeleyEnvironment> GetWalletEnv(const fs::path& wallet_path, std::string& database_filename)
 {
     fs::path env_directory;
     SplitWalletPath(wallet_path, env_directory, database_filename);
