@@ -5,25 +5,12 @@
 #include "serialize.h"
 #include "uint256.h"
 #include "util.h"
-#include "dbwrapper.h"
+#include "claimtriedb.h"
+#include "chainparams.h"
 #include "primitives/transaction.h"
 
 #include <string>
 #include <vector>
-#include <map>
-
-// leveldb keys
-#define HASH_BLOCK 'h'
-#define CURRENT_HEIGHT 't'
-#define TRIE_NODE 'n'
-#define CLAIM_BY_ID 'i'
-#define CLAIM_QUEUE_ROW 'r'
-#define CLAIM_QUEUE_NAME_ROW 'm'
-#define EXP_QUEUE_ROW 'e'
-#define SUPPORT 's'
-#define SUPPORT_QUEUE_ROW 'u'
-#define SUPPORT_QUEUE_NAME_ROW 'p'
-#define SUPPORT_EXP_QUEUE_ROW 'x'
 
 uint256 getValueHash(COutPoint outPoint, int nHeightOfLastTakeover);
 
@@ -211,7 +198,7 @@ struct nameOutPointHeightType
 
     nameOutPointHeightType(std::string name, COutPoint outPoint, int nHeight)
     : name(name), outPoint(outPoint), nHeight(nHeight) {}
-   
+
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
@@ -254,23 +241,74 @@ class CClaimIndexElement
         READWRITE(claim);
     }
 
+    bool empty() const
+    {
+        return name.empty() && claim.claimId.IsNull();
+    }
+
     std::string name;
     CClaimValue claim;
 };
 
-typedef std::pair<std::string, CClaimValue> claimQueueEntryType;
+struct claimQueueEntryHelper;
+struct supportQueueEntryHelper;
 
-typedef std::pair<std::string, CSupportValue> supportQueueEntryType;
+struct queueNameRowHelper;
+struct supportQueueNameRowHelper;
+
+struct expirationQueueRowHelper;
+struct supportExpirationQueueRowHelper;
+
+template <typename Base, typename Form>
+struct Generic : public Base
+{
+    Generic() : Base() {}
+    Generic(const Base &base) : Base(base) {}
+    Generic(const Generic &generic) : Base(generic) {}
+};
+
+template <typename Base, typename Form> inline
+void swap(Generic<Base, Form> &generic, Base &base)
+{
+    Base base1 = generic;
+    generic = base;
+    base = base1;
+}
+
+template <typename Base, typename Form> inline
+void swap(Base &base, Generic<Base, Form> &generic)
+{
+    swap(generic, base);
+}
+
+typedef Generic<CClaimValue, claimQueueEntryHelper> claimQueueValueType;
+typedef Generic<CSupportValue, supportQueueEntryHelper> supportQueueValueType;
+
+typedef Generic<outPointHeightType, queueNameRowHelper> queueNameRowValueType;
+typedef Generic<outPointHeightType, supportQueueNameRowHelper> supportQueueNameRowValueType;
+
+typedef Generic<nameOutPointType, expirationQueueRowHelper> expirationQueueRowValueType;
+typedef Generic<nameOutPointType, supportExpirationQueueRowHelper> supportExpirationQueueRowValueType;
+
+typedef std::pair<std::string, claimQueueValueType> claimQueueEntryType;
+
+typedef std::pair<std::string, supportQueueValueType> supportQueueEntryType;
 
 typedef std::map<std::string, supportMapEntryType> supportMapType;
 
-typedef std::vector<outPointHeightType> queueNameRowType;
+typedef std::vector<queueNameRowValueType> queueNameRowType;
 typedef std::map<std::string, queueNameRowType> queueNameType;
+
+typedef std::vector<supportQueueNameRowValueType> supportQueueNameRowType;
+typedef std::map<std::string, supportQueueNameRowType> supportQueueNameType;
 
 typedef std::vector<nameOutPointHeightType> insertUndoType;
 
-typedef std::vector<nameOutPointType> expirationQueueRowType;
+typedef std::vector<expirationQueueRowValueType> expirationQueueRowType;
 typedef std::map<int, expirationQueueRowType> expirationQueueType;
+
+typedef std::vector<supportExpirationQueueRowValueType> supportExpirationQueueRowType;
+typedef std::map<int, supportExpirationQueueRowType> supportExpirationQueueType;
 
 typedef std::vector<claimQueueEntryType> claimQueueRowType;
 typedef std::map<int, claimQueueRowType> claimQueueType;
@@ -298,9 +336,9 @@ class CClaimTrie
 {
 public:
     CClaimTrie(bool fMemory = false, bool fWipe = false, int nProportionalDelayFactor = 32)
-               : db(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false)
-               , nCurrentHeight(0), nExpirationTime(262974)
+               : nCurrentHeight(0), nExpirationTime(Params().GetConsensus().nOriginalClaimExpirationTime)
                , nProportionalDelayFactor(nProportionalDelayFactor)
+               , db(fMemory, fWipe)
                , root(uint256S("0000000000000000000000000000000000000000000000000000000000000001"))
     {}
 
@@ -319,7 +357,7 @@ public:
     bool getLastTakeoverForName(const std::string& name, int& lastTakeoverHeight) const;
 
     claimsForNameType getClaimsForName(const std::string& name) const;
-    CAmount getEffectiveAmountForClaim(const std::string& name, uint160 claimId) const;   
+    CAmount getEffectiveAmountForClaim(const std::string& name, uint160 claimId) const;
 
     bool queueEmpty() const;
     bool supportEmpty() const;
@@ -333,13 +371,6 @@ public:
     void removeFromClaimIndex(const CClaimValue& claim);
 
     bool getClaimById(const uint160 claimId, std::string& name, CClaimValue& claim) const;
-    bool getQueueRow(int nHeight, claimQueueRowType& row) const;
-    bool getQueueNameRow(const std::string& name, queueNameRowType& row) const;
-    bool getExpirationQueueRow(int nHeight, expirationQueueRowType& row) const;
-    bool getSupportNode(std::string name, supportMapEntryType& node) const;
-    bool getSupportQueueRow(int nHeight, supportQueueRowType& row) const;
-    bool getSupportQueueNameRow(const std::string& name, queueNameRowType& row) const;
-    bool getSupportExpirationQueueRow(int nHeight, expirationQueueRowType& row) const;
 
 
     bool haveClaim(const std::string& name, const COutPoint& outPoint) const;
@@ -356,11 +387,11 @@ public:
 
     friend class CClaimTrieCache;
 
-    CDBWrapper db;
     int nCurrentHeight;
     int nExpirationTime;
     int nProportionalDelayFactor;
 private:
+    CClaimTrieDb db;
     void clear(CClaimTrieNode* current);
 
     const CClaimTrieNode* getNodeForName(const std::string& name) const;
@@ -372,8 +403,8 @@ private:
                 expirationQueueType& expirationQueueCache, int nNewHeight,
                 supportMapType& supportCache,
                 supportQueueType& supportQueueCache,
-                queueNameType& supportQueueNameCache,
-                expirationQueueType& supportExpirationQueueCache);
+                supportQueueNameType& supportQueueNameCache,
+                supportExpirationQueueType& supportExpirationQueueCache);
     bool updateName(const std::string& name, CClaimTrieNode* updatedNode);
     bool updateHash(const std::string& name, uint256& hash);
     bool updateTakeoverHeight(const std::string& name, int nTakeoverHeight);
@@ -392,42 +423,11 @@ private:
                               std::vector<namedNodeType>& nodes) const;
 
     void markNodeDirty(const std::string& name, CClaimTrieNode* node);
-    void updateQueueRow(int nHeight, claimQueueRowType& row);
-    void updateQueueNameRow(const std::string& name,
-                            queueNameRowType& row);
-    void updateExpirationRow(int nHeight, expirationQueueRowType& row);
-    void updateSupportMap(const std::string& name, supportMapEntryType& node);
-    void updateSupportQueue(int nHeight, supportQueueRowType& row);
-    void updateSupportNameQueue(const std::string& name,
-                                queueNameRowType& row);
-    void updateSupportExpirationQueue(int nHeight, expirationQueueRowType& row);
-
-    void BatchWriteNode(CDBBatch& batch, const std::string& name,
-                        const CClaimTrieNode* pNode) const;
-    void BatchEraseNode(CDBBatch& batch, const std::string& nome) const;
-    void BatchWriteClaimIndex(CDBBatch& batch) const;
-    void BatchWriteQueueRows(CDBBatch& batch);
-    void BatchWriteQueueNameRows(CDBBatch& batch);
-    void BatchWriteExpirationQueueRows(CDBBatch& batch);
-    void BatchWriteSupportNodes(CDBBatch& batch);
-    void BatchWriteSupportQueueRows(CDBBatch& batch);
-    void BatchWriteSupportQueueNameRows(CDBBatch& batch);
-    void BatchWriteSupportExpirationQueueRows(CDBBatch& batch);
-    template<typename K> bool keyTypeEmpty(char key, K& dummy) const;
 
     CClaimTrieNode root;
     uint256 hashBlock;
 
-    claimQueueType dirtyQueueRows;
-    queueNameType dirtyQueueNameRows;
-    expirationQueueType dirtyExpirationQueueRows;
-
-    supportQueueType dirtySupportQueueRows;
-    queueNameType dirtySupportQueueNameRows;
-    expirationQueueType dirtySupportExpirationQueueRows;
-
     nodeCacheType dirtyNodes;
-    supportMapType dirtySupportNodes;
 };
 
 class CClaimTrieProofNode
@@ -516,6 +516,12 @@ public:
     CClaimTrieProof getProofForName(const std::string& name) const;
 
     bool finalizeDecrement() const;
+
+    void removeAndAddSupportToExpirationQueue(supportExpirationQueueRowType &row, int height, bool increment) const;
+    void removeAndAddToExpirationQueue(expirationQueueRowType &row, int height, bool increment) const;
+
+    bool forkForExpirationChange(bool increment) const;
+
 protected:
     CClaimTrie* base;
 
@@ -530,10 +536,10 @@ protected:
     mutable expirationQueueType expirationQueueCache;
     mutable supportMapType supportCache;
     mutable supportQueueType supportQueueCache;
-    mutable queueNameType supportQueueNameCache;
-    mutable expirationQueueType supportExpirationQueueCache;
+    mutable supportQueueNameType supportQueueNameCache;
+    mutable supportExpirationQueueType supportExpirationQueueCache;
     mutable std::set<std::string> namesToCheckForTakeover;
-    mutable std::map<std::string, int> cacheTakeoverHeights; 
+    mutable std::map<std::string, int> cacheTakeoverHeights;
     mutable int nCurrentHeight; // Height of the block that is being worked on, which is
                                 // one greater than the height of the chain's tip
 
@@ -580,10 +586,10 @@ protected:
 
     supportQueueType::iterator getSupportQueueCacheRow(int nHeight,
                                                        bool createIfNotExists) const;
-    queueNameType::iterator getSupportQueueCacheNameRow(const std::string& name,
-                                                                 bool createIfNotExists) const;
-    expirationQueueType::iterator getSupportExpirationQueueCacheRow(int nHeight,
-                                                                     bool createIfNotExists) const;
+    supportQueueNameType::iterator getSupportQueueCacheNameRow(const std::string& name,
+                                                            bool createIfNotExists) const;
+    supportExpirationQueueType::iterator getSupportExpirationQueueCacheRow(int nHeight,
+                                                            bool createIfNotExists) const;
 
     bool addSupportToQueues(const std::string& name, CSupportValue& support) const;
     bool removeSupportFromQueue(const std::string& name, const COutPoint& outPoint,

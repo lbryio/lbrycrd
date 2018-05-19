@@ -58,6 +58,14 @@ struct Params {
     bool fPowNoRetargeting;
     int64_t nPowTargetSpacing;
     int64_t nPowTargetTimespan;
+    int64_t nOriginalClaimExpirationTime;
+    int64_t nExtendedClaimExpirationTime;
+    int64_t nExtendedClaimExpirationForkHeight;
+    int64_t GetExpirationTime(int64_t nHeight) const {
+        return nHeight < nExtendedClaimExpirationForkHeight ?
+            nOriginalClaimExpirationTime :
+            nExtendedClaimExpirationTime;
+    }
     int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
 };
 } // namespace Consensus
