@@ -321,6 +321,8 @@ public:
 
     claimsForNameType getClaimsForName(const std::string& name) const;
     CAmount getEffectiveAmountForClaim(const std::string& name, uint160 claimId) const;   
+    CAmount getEffectiveAmountForClaimWithSupports(const std::string& name, uint160 claimId,
+                                                   std::vector<CSupportValue>& supports) const;
 
     bool queueEmpty() const;
     bool supportEmpty() const;
