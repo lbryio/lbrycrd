@@ -18,13 +18,14 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
     if (pindexLast == NULL)
         return nProofOfWorkLimit;
 
-    if (params.fPowAllowMinDifficultyBlocks)
+    if (params.fPowAllowMinDifficultyBlocks && pindexLast->nHeight >= 277299)
     {
         // Special difficulty rule for testnet:
         // If the new block's timestamp is twice the target block time
         // then allow mining of a min-difficulty block.
         // This is to prevent the testnet from gettig stuck when a large amount
         // of hashrate drops off the network.
+        // This rule was not implemented properly until testnet block 277299.
         if (pblock->GetBlockTime() > pindexLast->GetBlockTime() + params.nPowTargetSpacing*2){
             return nProofOfWorkLimit;
         }
