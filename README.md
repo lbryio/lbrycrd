@@ -22,6 +22,26 @@ Run `./lbrycrd-cli getinfo` to check for some basic informations about your LBRY
 
 Run `./lbrycrd-cli help` to get a list of all commands that you can run. To get help on specific commands run `./lbrycrd-cli [command_name] help`
 
+### Data directory
+
+Lbrycrdd will use the below default data directories
+
+Windows < Vista: C:\Documents and Settings\Username\Application Data\lbrycrd   
+Windows >= Vista: C:\Users\Username\AppData\Roaming\lbrycrd   
+Mac: ~/Library/Application Support/lbrycrd      
+Unix: ~/.lbrycrd
+
+The data directory contains various things such as your default wallet (wallet.dat), debug logs (debug.log), and blockchain data. You can optionally
+create a configuration file lbrycrd.conf in the default data directory which will be used by default when running lbrycrdd.
+For a list of configuration parameters run `./lbrycrdd --help`. Below is a sample lbrycrd.conf to enable JSON RPC server on lbrycrdd.
+
+```rpcuser=lbry
+rpcpassword=xyz123456790 
+daemon=1
+server=1   
+txindex=1
+```
+
 ## Running from Source
 
 Run `./reproducible_build.sh -c -t`. This will build the binaries and put them into the `./src` directory.
