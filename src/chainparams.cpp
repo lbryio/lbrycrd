@@ -31,7 +31,7 @@
 #define REGTEST_GENESIS_HASH "6e3fcf1299d4ec5d79c3a4c91d624a4acf9e2e173d95a1a0504f677669687556"
 #define REGTEST_GENESIS_NONCE 1
 
-bool CheckProofOfWork2(uint256 hash, unsigned int nBits, const Consensus::Params& params)
+bool CheckProofOfWork2(uint256 hash, unsigned int nBits)
 {
     bool fNegative;
     bool fOverflow;
@@ -50,7 +50,7 @@ bool CheckProofOfWork2(uint256 hash, unsigned int nBits, const Consensus::Params
     return true;
 }
 
-static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward, const Consensus::Params& consensus)
+static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
     CMutableTransaction txNew;
     txNew.nVersion = 1;
@@ -77,7 +77,7 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
     while (true)
     {
         genesis.nNonce += 1;
-        if (CheckProofOfWork2(genesis.GetPoWHash(), nBits, consensus))
+        if (CheckProofOfWork2(genesis.GetPoWHash(), nBits))
         {
             std::cout << "nonce: " << genesis.nNonce << std::endl;
             std::cout << "hex: " << genesis.GetHash().GetHex() << std::endl;
@@ -100,11 +100,11 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
  *     CTxOut(nValue=50.00000000, scriptPubKey=0x5F1DF16B2B704C8A578D0B)
  *   vMerkleTree: 4a5e1e
  */
-static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward, const Consensus::Params& consensus)
+static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
     const char* pszTimestamp = "insert timestamp string";//"The Times 03/Jan/2009 Chancellor on brink of second bailout for banks";
     const CScript genesisOutputScript = CScript() << OP_DUP << OP_HASH160 << ParseHex("345991dbf57bfb014b87006acdfafbfc5fe8292f") << OP_EQUALVERIFY << OP_CHECKSIG;
-    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward, consensus);
+    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward);
 }
 
 /**
@@ -159,7 +159,7 @@ public:
         nDefaultPort = 9246;
         nPruneAfterHeight = 100000;
 
-        genesis = CreateGenesisBlock(1446058291, MAINNET_GENESIS_NONCE, 0x1f00ffff, 1, 400000000 * COIN, consensus);
+        genesis = CreateGenesisBlock(1446058291, MAINNET_GENESIS_NONCE, 0x1f00ffff, 1, 400000000 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
 #ifdef FIND_GENESIS
         std::cout << "hex: " << consensus.hashGenesisBlock.GetHex() << std::endl;
@@ -241,7 +241,7 @@ public:
         nDefaultPort = 19246;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1446058291, TESTNET_GENESIS_NONCE, 0x1f00ffff, 1, 400000000 * COIN, consensus);
+        genesis = CreateGenesisBlock(1446058291, TESTNET_GENESIS_NONCE, 0x1f00ffff, 1, 400000000 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
 #ifdef FIND_GENESIS
         std::cout << "testnet genesis hash: " << genesis.GetHash().GetHex() << std::endl;
@@ -319,7 +319,7 @@ public:
         nDefaultPort = 29246;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1446058291, REGTEST_GENESIS_NONCE, 0x207fffff, 1, 400000000 * COIN, consensus);
+        genesis = CreateGenesisBlock(1446058291, REGTEST_GENESIS_NONCE, 0x207fffff, 1, 400000000 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
 #ifdef FIND_GENESIS
         std::cout << "regtest genensis hash: " << genesis.GetHash().GetHex() << std::endl;
