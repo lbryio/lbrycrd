@@ -232,7 +232,7 @@ function build_dependencies() {
     else
 	install_apt_packages
     fi
-    
+
     if [ "$CLEAN" = true ]; then
 	rm -rf "${LBRYCRD_DEPENDENCIES}"
 	rm -rf "${OUTPUT_DIR}"
@@ -246,7 +246,7 @@ function build_dependencies() {
 
     build_dependency "${BDB_PREFIX}" "${LOG_DIR}/bdb_build.log" build_bdb
     build_dependency "${OPENSSL_PREFIX}" "${LOG_DIR}/openssl_build.log" build_openssl
-    
+
     set +u
     export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig/"
     set -u
@@ -277,8 +277,9 @@ function build_openssl() {
 		    -fPIC darwin64-x86_64-cc \
 		    no-shared no-dso no-engines > "${OPENSSL_LOG}"
     else
+    [[ $(uname -m) = 'i686' ]] && OS_ARCH="linux-generic32" || OS_ARCH="linux-x86_64"
 	./Configure --prefix="${OPENSSL_PREFIX}" --openssldir="${OPENSSL_PREFIX}/ssl" \
-		    linux-x86_64 -fPIC -static no-shared no-dso > "${OPENSSL_LOG}"
+		    ${OS_ARCH} -fPIC -static no-shared no-dso > "${OPENSSL_LOG}"
     fi
     background make "${OPENSSL_LOG}" "Waiting for openssl to finish building"
     make install >> "${OPENSSL_LOG}" 2>&1
