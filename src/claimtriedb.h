@@ -31,7 +31,7 @@ public:
     template <typename K, typename V> void updateQueueRow(const K &key, V &row);
 
     template <typename K, typename V> bool keyTypeEmpty() const;
-    template <typename K, typename V> bool SeekFirstKey(K &key, V &value) const;
+    template <typename K, typename V> bool seekByKey(std::map<K,V> &map) const;
 
 private:
     std::map<size_t, CCBase*> queues;

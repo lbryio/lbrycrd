@@ -11,15 +11,15 @@ public:
     std::map<K, V>& data_map() { return data; }
     void write(size_t key, CClaimTrieDb *db)
     {
-        for (auto &it : data)
+        for (typename std::map<K, V>::iterator it = data.begin(); it != data.end(); ++it)
         {
-            if (it.second.empty())
+            if (it->second.empty())
             {
-                db->Erase(std::make_pair(key, it.first));
+                db->Erase(std::make_pair(key, it->first));
             }
             else
             {
-                db->Write(std::make_pair(key, it.first), it.second);
+                db->Write(std::make_pair(key, it->first), it->second);
             }
         }
         data.clear();
@@ -75,7 +75,7 @@ template <typename K, typename V> void CClaimTrieDb::updateQueueRow(const K &key
     typename std::map<K, V>::iterator itMap = map.find(key);
     if (itMap == map.end())
     {
-        itMap = map.insert(itMap, std::make_pair(key, row));
+        itMap = map.insert(itMap, std::make_pair(key, V()));
     }
     std::swap(itMap->second, row);
 }
@@ -97,9 +97,8 @@ template <typename K, typename V> bool CClaimTrieDb::keyTypeEmpty() const
     }
 
     boost::scoped_ptr<CDBIterator> pcursor(const_cast<CClaimTrieDb*>(this)->NewIterator());
-    pcursor->SeekToFirst();
 
-    while (pcursor->Valid())
+    for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next())
     {
         std::pair<size_t, K> key;
         if (pcursor->GetKey(key))
@@ -113,28 +112,29 @@ template <typename K, typename V> bool CClaimTrieDb::keyTypeEmpty() const
         {
             break;
         }
-        pcursor->Next();
     }
     return true;
 }
 
-template <typename K, typename V> bool CClaimTrieDb::SeekFirstKey(K &keyOut, V &value) const
+template <typename K, typename V> bool CClaimTrieDb::seekByKey(std::map<K, V> &map) const
 {
     const size_t hash = boost::typeindex::type_id<std::map<K, V> >().hash_code();
     boost::scoped_ptr<CDBIterator> pcursor(const_cast<CClaimTrieDb*>(this)->NewIterator());
-    pcursor->SeekToFirst();
 
-    while (pcursor->Valid())
+    bool found = false;
+
+    for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next())
     {
         std::pair<size_t, K> key;
         if (pcursor->GetKey(key))
         {
             if (key.first == hash)
             {
+                V value;
                 if (pcursor->GetValue(value))
                 {
-                    keyOut = key.second;
-                    return true;
+                    found = true;
+                    map.insert(std::make_pair(key.second, value));
                 }
                 else
                 {
@@ -142,9 +142,8 @@ template <typename K, typename V> bool CClaimTrieDb::SeekFirstKey(K &keyOut, V &
                 }
             }
         }
-        pcursor->Next();
     }
-    return false;
+    return found;
 }
 
 template <typename K, typename V> bool CClaimTrieDb::getQueueMap(std::map<K,V> &map) const
@@ -157,9 +156,8 @@ template <typename K, typename V> bool CClaimTrieDb::getQueueMap(std::map<K,V> &
     }
 
     boost::scoped_ptr<CDBIterator> pcursor(const_cast<CClaimTrieDb*>(this)->NewIterator());
-    pcursor->SeekToFirst();
 
-    while (pcursor->Valid())
+    for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next())
     {
         std::pair<size_t, K> key;
         if (pcursor->GetKey(key))
@@ -182,7 +180,6 @@ template <typename K, typename V> bool CClaimTrieDb::getQueueMap(std::map<K,V> &
                 }
             }
         }
-        pcursor->Next();
     }
     return true;
 }

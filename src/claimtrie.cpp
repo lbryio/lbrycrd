@@ -738,7 +738,20 @@ bool CClaimTrie::updateTakeoverHeight(const std::string& name, int nTakeoverHeig
 bool CClaimTrie::WriteToDisk()
 {
     for (nodeCacheType::iterator itcache = dirtyNodes.begin(); itcache != dirtyNodes.end(); ++itcache)
-        db.updateQueueRow(itcache->first, *(itcache->second));
+    {
+        CClaimTrieNode *pNode = itcache->second;
+        uint32_t num_claims = pNode ? pNode->claims.size() : 0;
+        LogPrintf("%s: Writing %s to disk with %d claims\n", __func__, itcache->first, num_claims);
+        if (pNode)
+        {
+            db.updateQueueRow(itcache->first, *pNode);
+        }
+        else
+        {
+            CClaimTrieNode emptyNode;
+            db.updateQueueRow(itcache->first, emptyNode);
+        }
+    }
 
     dirtyNodes.clear();
     db.writeQueues();
@@ -775,16 +788,18 @@ bool CClaimTrie::ReadFromDisk(bool check)
 
     setExpirationTime(Params().GetConsensus().GetExpirationTime(nCurrentHeight-1));
 
-    std::string name;
-    CClaimTrieNode node;
-    if(!db.SeekFirstKey(name, node))
+    std::map<std::string, CClaimTrieNode> nodes;
+    if(!db.seekByKey(nodes))
     {
         return error("%s(): error reading claim trie from disk", __func__);
     }
 
-    if (!InsertFromDisk(name, &node))
+    for(std::map<std::string, CClaimTrieNode>::iterator it=nodes.begin(); it!=nodes.end(); ++it)
     {
-        return error("%s(): error restoring claim trie from disk", __func__);
+        if (!InsertFromDisk(it->first, &(it->second)))
+        {
+            return error("%s(): error restoring claim trie from disk", __func__);
+        }
     }
 
     if (check)
@@ -1294,8 +1309,7 @@ bool CClaimTrieCache::removeClaimFromQueue(const std::string& name, const COutPo
         }
         if (itQueue != itQueueRow->second.end())
         {
-            swap(claim, itQueue->second);
-            claim = itQueue->second;
+            std::swap(claim, itQueue->second);
             itQueueNameRow->second.erase(itQueueName);
             itQueueRow->second.erase(itQueue);
 
@@ -1611,7 +1625,7 @@ bool CClaimTrieCache::removeSupportFromQueue(const std::string& name, const COut
         }
         if (itQueue != itQueueRow->second.end())
         {
-            swap(support, itQueue->second);
+            std::swap(support, itQueue->second);
             itQueueNameRow->second.erase(itQueueName);
             itQueueRow->second.erase(itQueue);
             return true;

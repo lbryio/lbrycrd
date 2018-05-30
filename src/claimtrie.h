@@ -267,6 +267,7 @@ struct Generic : public Base
     Generic(const Generic &generic) : Base(generic) {}
 };
 
+namespace std {
 template <typename Base, typename Form> inline
 void swap(Generic<Base, Form> &generic, Base &base)
 {
@@ -279,6 +280,7 @@ template <typename Base, typename Form> inline
 void swap(Base &base, Generic<Base, Form> &generic)
 {
     swap(generic, base);
+}
 }
 
 typedef Generic<CClaimValue, claimQueueEntryHelper> claimQueueValueType;
@@ -336,7 +338,8 @@ class CClaimTrie
 {
 public:
     CClaimTrie(bool fMemory = false, bool fWipe = false, int nProportionalDelayFactor = 32)
-               : nCurrentHeight(0), nExpirationTime(Params().GetConsensus().nOriginalClaimExpirationTime)
+               : nCurrentHeight(0)
+               , nExpirationTime(Params().GetConsensus().nOriginalClaimExpirationTime)
                , nProportionalDelayFactor(nProportionalDelayFactor)
                , db(fMemory, fWipe)
                , root(uint256S("0000000000000000000000000000000000000000000000000000000000000001"))
