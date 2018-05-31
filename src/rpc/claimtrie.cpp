@@ -367,6 +367,15 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
                         "  \"amount\"              (numeric) txout value\n"
                         "  \"effective amount\"    (numeric) txout amount plus amount from all supports associated with the claim\n"
                         "  \"height\"              (numeric) the height of the block in which this claim transaction is located\n"
+                        "  \"supports\"            (array of object) supports for this claim\n"
+                        "  \"valid at height\"     (numeric) the height at which the claim is valid\n"
+                        "  [\n"
+                        "    \"txid\"              (string) the txid of the support\n"
+                        "    \"n\"                 (numeric) the index of the support in the transaction's list of outputs\n"
+                        "    \"height\"            (numeric) the height at which the support was included in the blockchain\n"
+                        "    \"valid at height\"   (numeric) the height at which the support is valid\n"
+                        "    \"amount\"            (numeric) the amount of the support\n"
+                        "  ]\n"
                         "}\n"
         );
 
@@ -379,6 +388,10 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
     pclaimTrie->getClaimById(claimId, name, claimValue);
     if (claimValue.claimId == claimId)
     {
+        std::vector<CSupportValue> supports;
+        CAmount effectiveAmount = pclaimTrie->getEffectiveAmountForClaimWithSupports(
+            name, claimValue.claimId, supports);
+
         std::string sValue;
         getValueForClaim(claimValue.outPoint, sValue);
         claim.push_back(Pair("name", name));
@@ -387,9 +400,20 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
         claim.push_back(Pair("txid", claimValue.outPoint.hash.GetHex()));
         claim.push_back(Pair("n", (int) claimValue.outPoint.n));
         claim.push_back(Pair("amount", claimValue.nAmount));
-        claim.push_back(Pair("effective amount",
-                             pclaimTrie->getEffectiveAmountForClaim(name, claimValue.claimId)));
+        claim.push_back(Pair("effective amount", effectiveAmount));
+        UniValue supportList(UniValue::VARR);
+        BOOST_FOREACH(const CSupportValue& support, supports) {
+            UniValue supportEntry(UniValue::VOBJ);
+            supportEntry.push_back(Pair("txid", support.outPoint.hash.GetHex()));
+            supportEntry.push_back(Pair("n", (int)support.outPoint.n));
+            supportEntry.push_back(Pair("height", support.nHeight));
+            supportEntry.push_back(Pair("valid at height", support.nValidAtHeight));
+            supportEntry.push_back(Pair("amount", support.nAmount));
+            supportList.push_back(supportEntry);
+        }
+        claim.push_back(Pair("supports", supportList));
         claim.push_back(Pair("height", claimValue.nHeight));
+        claim.push_back(Pair("valid at height", claimValue.nValidAtHeight));
     }
     return claim;
 }

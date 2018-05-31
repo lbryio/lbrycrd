@@ -482,31 +482,41 @@ claimsForNameType CClaimTrie::getClaimsForName(const std::string& name) const
     return allClaims;
 }
 
-//return effective amount form claim, retuns 0 if claim is not found
+//return effective amount from claim, retuns 0 if claim is not found
 CAmount CClaimTrie::getEffectiveAmountForClaim(const std::string& name, uint160 claimId) const
 {
-	claimsForNameType claims = getClaimsForName(name);
-	CAmount effectiveAmount = 0;
-	bool claim_found = false;
-	for (std::vector<CClaimValue>::iterator it=claims.claims.begin(); it!=claims.claims.end(); ++it)
-	{
-		if (it->claimId == claimId && it->nValidAtHeight < nCurrentHeight)
-		{
-			effectiveAmount += it->nAmount;
-			claim_found = true;
-			break;
-		}
-	}
-	if (!claim_found)
-		return effectiveAmount;
+    std::vector<CSupportValue> supports;
+    return getEffectiveAmountForClaimWithSupports(name, claimId, supports);
+}
 
-	for (std::vector<CSupportValue>::iterator it=claims.supports.begin(); it!=claims.supports.end(); ++it)
-	{
-		if (it->supportedClaimId == claimId && it->nValidAtHeight < nCurrentHeight)
-			effectiveAmount += it->nAmount;
-	}
-	return effectiveAmount;
+//return effective amount from claim and the supports used as inputs, retuns 0 if claim is not found
+CAmount CClaimTrie::getEffectiveAmountForClaimWithSupports(const std::string& name, uint160 claimId,
+                                                           std::vector<CSupportValue>& supports) const
+{
+    claimsForNameType claims = getClaimsForName(name);
+    CAmount effectiveAmount = 0;
+    bool claim_found = false;
+    for (std::vector<CClaimValue>::iterator it=claims.claims.begin(); it!=claims.claims.end(); ++it)
+    {
+        if (it->claimId == claimId && it->nValidAtHeight < nCurrentHeight)
+        {
+            effectiveAmount += it->nAmount;
+            claim_found = true;
+            break;
+        }
+    }
+    if (!claim_found)
+        return effectiveAmount;
 
+    for (std::vector<CSupportValue>::iterator it=claims.supports.begin(); it!=claims.supports.end(); ++it)
+    {
+        if (it->supportedClaimId == claimId && it->nValidAtHeight < nCurrentHeight)
+        {
+            effectiveAmount += it->nAmount;
+            supports.push_back(*it);
+        }
+    }
+    return effectiveAmount;
 }
 
 bool CClaimTrie::checkConsistency() const

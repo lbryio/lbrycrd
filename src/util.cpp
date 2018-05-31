@@ -455,9 +455,9 @@ void PrintExceptionContinue(const std::exception* pex, const char* pszThread)
 boost::filesystem::path GetDefaultDataDir()
 {
     namespace fs = boost::filesystem;
-    // Windows < Vista: C:\Documents and Settings\Username\Application Data\Bitcoin
-    // Windows >= Vista: C:\Users\Username\AppData\Roaming\Bitcoin
-    // Mac: ~/Library/Application Support/Bitcoin
+    // Windows < Vista: C:\Documents and Settings\Username\Application Data\lbrycrd
+    // Windows >= Vista: C:\Users\Username\AppData\Roaming\lbrycrd
+    // Mac: ~/Library/Application Support/lbrycrd
     // Unix: ~/.lbrycrd
 #ifdef WIN32
     // Windows
