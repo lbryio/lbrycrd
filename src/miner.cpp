@@ -137,7 +137,7 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
         {
             return NULL;
         }
-        CClaimTrieCache trieCache(pclaimTrie);
+        CClaimTrieUpdateBuffer trieCache(pclaimTrie);
         const int64_t nMedianTimePast = pindexPrev->GetMedianTimePast();
 
         pblock->nVersion = ComputeBlockVersion(pindexPrev, chainparams.GetConsensus());
