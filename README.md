@@ -52,6 +52,8 @@ If you encounter any errors, please check `doc/build-*.md` for further instructi
 
 Contributions to this project are welcome, encouraged, and compensated. For more details, see [lbry.io/faq/contributing](https://lbry.io/faq/contributing)
 
+The codebase is in C++03, C++11 is currently not supported but we will be migrating to it in the near future. Recommended GCC version is 4.8 or greater.
+
 The `master` branch is regularly built and tested, but is not guaranteed to be
 completely stable. [Releases](https://github.com/lbryio/lbrycrd/releases) are created
 regularly to indicate new official, stable release versions.
@@ -59,9 +61,7 @@ regularly to indicate new official, stable release versions.
 Testing and code review is the bottleneck for development; we get more pull
 requests than we can review and test on short notice. Please be patient and help out by testing
 other people's pull requests, and remember this is a security-critical project where any mistake might cost people
-lots of money.
-
-Developers are strongly encouraged to write [unit tests](/doc/unit-tests.md) for new code, and to
+lots of money. Developers are strongly encouraged to write [unit tests](/doc/unit-tests.md) for new code, and to
 submit new unit tests for old code. Unit tests can be compiled and run
 (assuming they weren't disabled in configure) with: `make check`
 
