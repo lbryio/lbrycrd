@@ -1,17 +1,32 @@
 
 #include "claimtriedb.h"
+
+#include <vector>
+#include <iterator>
 #include <boost/scoped_ptr.hpp>
 
 template <typename K, typename V>
-class CCMap : public CCBase
+struct CCMap : public CCBase
 {
-    std::map<K, V> data;
-public:
     CCMap() : data() {}
-    std::map<K, V>& data_map() { return data; }
-    void write(size_t key, CClaimTrieDb *db)
+    typedef std::vector<std::pair<K, V> > dataType;
+    dataType data;
+    typename dataType::iterator find(const K &key)
     {
-        for (typename std::map<K, V>::iterator it = data.begin(); it != data.end(); ++it)
+        typename dataType::iterator itData = data.begin();
+        while (itData != data.end())
+        {
+            if (key == itData->first)
+            {
+                break;
+            }
+            ++itData;
+        }
+        return itData;
+    }
+    void write(const size_t key, CClaimTrieDb *db)
+    {
+        for (typename dataType::iterator it = data.begin(); it != data.end(); ++it)
         {
             if (it->second.empty())
             {
@@ -25,6 +40,13 @@ public:
         data.clear();
     }
 };
+
+template <typename K, typename V> inline
+size_t hashType()
+{
+    static const size_t hash_code = boost::typeindex::type_id<typename CCMap<K, V>::dataType>().hash_code();
+    return hash_code;
+}
 
 CClaimTrieDb::CClaimTrieDb(bool fMemory, bool fWipe)
             : CDBWrapper(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false)
@@ -46,50 +68,53 @@ void CClaimTrieDb::writeQueues()
     }
 }
 
-template <typename K, typename V> bool CClaimTrieDb::getQueueRow(const K &key, V &row) const
+template <typename K, typename V>
+bool CClaimTrieDb::getQueueRow(const K &key, V &row) const
 {
-    const size_t hash = boost::typeindex::type_id<std::map<K, V> >().hash_code();
+    const size_t hash = hashType<K, V>();
     std::map<size_t, CCBase*>::const_iterator itQueue = queues.find(hash);
     if (itQueue != queues.end())
     {
-        std::map<K, V> &map = (static_cast<CCMap<K, V>*>(itQueue->second))->data_map();
-        typename std::map<K, V>::iterator itMap = map.find(key);
-        if (itMap != map.end())
+        CCMap<K, V> *map = static_cast<CCMap<K, V>*>(itQueue->second);
+        typename CCMap<K, V>::dataType::const_iterator itData = map->find(key);
+        if (itData != map->data.end())
         {
-            row = itMap->second;
+            row = itData->second;
             return true;
         }
     }
     return Read(std::make_pair(hash, key), row);
 }
 
-template <typename K, typename V> void CClaimTrieDb::updateQueueRow(const K &key, V &row)
+template <typename K, typename V>
+void CClaimTrieDb::updateQueueRow(const K &key, V &row)
 {
-    const size_t hash = boost::typeindex::type_id<std::map<K, V> >().hash_code();
+    const size_t hash = hashType<K, V>();
     std::map<size_t, CCBase*>::iterator itQueue = queues.find(hash);
     if (itQueue == queues.end())
     {
         itQueue = queues.insert(itQueue, std::pair<size_t, CCBase*>(hash, new CCMap<K, V>));
     }
-    std::map<K, V> &map = (static_cast<CCMap<K, V>*>(itQueue->second))->data_map();
-    typename std::map<K, V>::iterator itMap = map.find(key);
-    if (itMap == map.end())
+    CCMap<K, V> *map = static_cast<CCMap<K, V>*>(itQueue->second);
+    typename CCMap<K, V>::dataType::iterator itData = map->find(key);
+    if (itData == map->data.end())
     {
-        itMap = map.insert(itMap, std::make_pair(key, V()));
+        itData = map->data.insert(itData, std::make_pair(key, V()));
     }
-    std::swap(itMap->second, row);
+    std::swap(itData->second, row);
 }
 
-template <typename K, typename V> bool CClaimTrieDb::keyTypeEmpty() const
+template <typename K, typename V>
+bool CClaimTrieDb::keyTypeEmpty() const
 {
-    const size_t hash = boost::typeindex::type_id<std::map<K, V> >().hash_code();
+    const size_t hash = hashType<K, V>();
     std::map<size_t, CCBase*>::const_iterator itQueue = queues.find(hash);
     if (itQueue != queues.end())
     {
-        std::map<K, V> &map = (static_cast<CCMap<K, V>*>(itQueue->second))->data_map();
-        for (typename std::map<K, V>::iterator itMap = map.begin(); itMap != map.end(); ++itMap)
+        const typename CCMap<K, V>::dataType &data = (static_cast<CCMap<K, V>*>(itQueue->second))->data;
+        for (typename CCMap<K, V>::dataType::const_iterator itData = data.begin(); itData != data.end(); ++itData)
         {
-            if (!itMap->second.empty())
+            if (!itData->second.empty())
             {
                 return false;
             }
@@ -103,7 +128,7 @@ template <typename K, typename V> bool CClaimTrieDb::keyTypeEmpty() const
         std::pair<size_t, K> key;
         if (pcursor->GetKey(key))
         {
-            if (key.first == hash)
+            if (hash == key.first)
             {
                 return false;
             }
@@ -116,9 +141,10 @@ template <typename K, typename V> bool CClaimTrieDb::keyTypeEmpty() const
     return true;
 }
 
-template <typename K, typename V> bool CClaimTrieDb::seekByKey(std::map<K, V> &map) const
+template <typename K, typename V, typename C>
+bool CClaimTrieDb::seekByKey(std::map<K, V, C> &map) const
 {
-    const size_t hash = boost::typeindex::type_id<std::map<K, V> >().hash_code();
+    const size_t hash = hashType<K, V>();
     boost::scoped_ptr<CDBIterator> pcursor(const_cast<CClaimTrieDb*>(this)->NewIterator());
 
     bool found = false;
@@ -128,7 +154,7 @@ template <typename K, typename V> bool CClaimTrieDb::seekByKey(std::map<K, V> &m
         std::pair<size_t, K> key;
         if (pcursor->GetKey(key))
         {
-            if (key.first == hash)
+            if (hash == key.first)
             {
                 V value;
                 if (pcursor->GetValue(value))
@@ -146,13 +172,15 @@ template <typename K, typename V> bool CClaimTrieDb::seekByKey(std::map<K, V> &m
     return found;
 }
 
-template <typename K, typename V> bool CClaimTrieDb::getQueueMap(std::map<K,V> &map) const
+template <typename K, typename V, typename C>
+bool CClaimTrieDb::getQueueMap(std::map<K, V, C> &map) const
 {
-    const size_t hash = boost::typeindex::type_id<std::map<K, V> >().hash_code();
+    const size_t hash = hashType<K, V>();
     std::map<size_t, CCBase*>::const_iterator itQueue = queues.find(hash);
     if (itQueue != queues.end())
     {
-        map = (static_cast<CCMap<K, V>*>(itQueue->second))->data_map();
+        const typename CCMap<K, V>::dataType &data = (static_cast<CCMap<K, V>*>(itQueue->second))->data;
+        std::copy(data.begin(), data.end(), std::inserter(map, map.end()));
     }
 
     boost::scoped_ptr<CDBIterator> pcursor(const_cast<CClaimTrieDb*>(this)->NewIterator());
@@ -162,9 +190,9 @@ template <typename K, typename V> bool CClaimTrieDb::getQueueMap(std::map<K,V> &
         std::pair<size_t, K> key;
         if (pcursor->GetKey(key))
         {
-            if (key.first == hash)
+            if (hash == key.first)
             {
-                typename std::map<K, V>::iterator itMap = map.find(key.second);
+                typename std::map<K, V, C>::iterator itMap = map.find(key.second);
                 if (itMap != map.end())
                 {
                     continue;

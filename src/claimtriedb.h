@@ -25,13 +25,20 @@ public:
 
     void writeQueues();
 
-    template <typename K, typename V> bool getQueueMap(std::map<K,V> &map) const;
+    template <typename K, typename V, typename C>
+    bool getQueueMap(std::map<K, V, C> &map) const;
 
-    template <typename K, typename V> bool getQueueRow(const K &key, V &row) const;
-    template <typename K, typename V> void updateQueueRow(const K &key, V &row);
+    template <typename K, typename V>
+    bool getQueueRow(const K &key, V &row) const;
 
-    template <typename K, typename V> bool keyTypeEmpty() const;
-    template <typename K, typename V> bool seekByKey(std::map<K,V> &map) const;
+    template <typename K, typename V>
+    void updateQueueRow(const K &key, V &row);
+
+    template <typename K, typename V>
+    bool keyTypeEmpty() const;
+
+    template <typename K, typename V, typename C>
+    bool seekByKey(std::map<K, V, C> &map) const;
 
 private:
     std::map<size_t, CCBase*> queues;
