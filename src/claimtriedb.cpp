@@ -6,6 +6,7 @@
 #include <iterator>
 #include <boost/scoped_ptr.hpp>
 
+/// Concrete implementation of dirty queue
 template <typename K, typename V>
 struct CCMap : public CCBase
 {
