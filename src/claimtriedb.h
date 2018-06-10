@@ -60,7 +60,14 @@ public:
     bool seekByKey(std::map<K, V, C> &map) const;
 
 private:
+    void doMigrate();
+
+    template <typename K, typename V>
+    void migrate(char old_key);
+
     std::map<size_t, CCBase*> queues;
+
+    friend class claimtriedb_test_helper;
 };
 
 #endif // BITCOIN_CLAIMTRIE_DB_H

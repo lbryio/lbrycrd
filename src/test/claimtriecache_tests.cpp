@@ -18,7 +18,7 @@ public:
         return CClaimTrieCache::recursiveComputeMerkleHash(tnCurrent, sPos);
     }
 
-    bool recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos, std::string sName, bool* pfNullified) const
+    bool recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos, std::string sName, bool* pfNullified)
     {
         return CClaimTrieCache::recursivePruneName(tnCurrent,nPos,sName, pfNullified);
     }

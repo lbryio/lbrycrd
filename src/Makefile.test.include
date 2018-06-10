@@ -63,6 +63,7 @@ BITCOIN_TESTS =\
   test/claimtrie_tests.cpp \
   test/claimtriecache_tests.cpp \
   test/claimtriebranching_tests.cpp \
+  test/claimtriedb_tests.cpp \
   test/nameclaim_tests.cpp \
   test/netbase_tests.cpp \
   test/pmt_tests.cpp \

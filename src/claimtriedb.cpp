@@ -46,6 +46,7 @@ inline
 CClaimTrieDb::CClaimTrieDb(bool fMemory, bool fWipe)
                     : CDBWrapper(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false)
 {
+    doMigrate();
 }
 
 inline
@@ -55,6 +56,21 @@ CClaimTrieDb::~CClaimTrieDb()
     {
         delete itQueue->second;
     }
+}
+
+inline
+void CClaimTrieDb::doMigrate()
+{
+    migrate<std::string, CClaimTrieNode>('n');
+    migrate<uint160, CClaimIndexElement>('i');
+    migrate<int, claimQueueRowType>('r');
+    migrate<std::string, queueNameRowType>('m');
+    migrate<int, expirationQueueRowType>('e');
+    migrate<std::string, supportMapEntryType>('s');
+    migrate<int, supportQueueRowType>('u');
+    migrate<std::string, supportQueueNameRowType>('p');
+    migrate<int, supportExpirationQueueRowType>('x');
+    Sync();
 }
 
 inline
@@ -208,4 +224,36 @@ bool CClaimTrieDb::getQueueMap(std::map<K, V, C> &map) const
         }
     }
     return true;
+}
+
+template <typename K, typename V>
+void CClaimTrieDb::migrate(char old_key)
+{
+    const size_t hash = hashType<K, V>();
+
+    typename CCMap<K, V>::dataType values;
+
+    boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
+
+    for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next())
+    {
+        std::pair<char, K> key;
+        if (pcursor->GetKey(key))
+        {
+            if (old_key == key.first)
+            {
+                V value;
+                if (pcursor->GetValue(value))
+                {
+                    values.insert(values.end(), std::make_pair(key.second, value));
+                }
+            }
+        }
+    }
+
+    for (typename CCMap<K, V>::dataType::iterator it = values.begin(); it != values.end(); ++it)
+    {
+        Erase(std::make_pair(old_key, it->first));
+        Write(std::make_pair(hash, it->first), it->second);
+    }
 }
