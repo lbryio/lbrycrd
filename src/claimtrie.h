@@ -133,7 +133,7 @@ public:
     bool insertClaim(CClaimValue claim);
     bool removeClaim(const COutPoint& outPoint, CClaimValue& claim);
     bool getBestClaim(CClaimValue& claim) const;
-    bool empty() const {return children.empty() && claims.empty();}
+    bool empty() const;
     bool haveClaim(const COutPoint& outPoint) const;
     void reorderClaims(supportMapEntryType& supports);
 
@@ -337,13 +337,9 @@ class CClaimTrieCache;
 class CClaimTrie
 {
 public:
-    CClaimTrie(bool fMemory = false, bool fWipe = false, int nProportionalDelayFactor = 32)
-               : nCurrentHeight(0)
-               , nExpirationTime(Params().GetConsensus().nOriginalClaimExpirationTime)
-               , nProportionalDelayFactor(nProportionalDelayFactor)
-               , db(fMemory, fWipe)
-               , root(uint256S("0000000000000000000000000000000000000000000000000000000000000001"))
-    {}
+    CClaimTrie(bool fMemory = false, bool fWipe = false, int nProportionalDelayFactor = 32);
+
+    ~CClaimTrie();
 
     uint256 getMerkleHash();
 
@@ -402,15 +398,6 @@ private:
 
     const CClaimTrieNode* getNodeForName(const std::string& name) const;
 
-    bool update(nodeCacheType& cache, hashMapType& hashes,
-                std::map<std::string, int>& takeoverHeights,
-                const uint256& hashBlock, claimQueueType& queueCache,
-                queueNameType& queueNameCache,
-                expirationQueueType& expirationQueueCache, int nNewHeight,
-                supportMapType& supportCache,
-                supportQueueType& supportQueueCache,
-                supportQueueNameType& supportQueueNameCache,
-                supportExpirationQueueType& supportExpirationQueueCache);
     bool updateName(const std::string& name, CClaimTrieNode* updatedNode);
     bool updateHash(const std::string& name, uint256& hash);
     bool updateTakeoverHeight(const std::string& name, int nTakeoverHeight);
@@ -468,6 +455,7 @@ public:
                       fRequireTakeoverHeights(fRequireTakeoverHeights)
     {
         assert(base);
+        hashBlock = base->hashBlock;
         nCurrentHeight = base->nCurrentHeight;
     }
 
@@ -475,137 +463,126 @@ public:
 
     bool empty() const;
     bool flush();
-    bool dirty() const { return !dirtyHashes.empty(); }
+    bool dirty() const;
 
     bool addClaim(const std::string& name, const COutPoint& outPoint,
-                  uint160 claimId, CAmount nAmount, int nHeight) const;
+                  uint160 claimId, CAmount nAmount, int nHeight);
     bool undoAddClaim(const std::string& name, const COutPoint& outPoint,
-                      int nHeight) const;
+                      int nHeight);
     bool spendClaim(const std::string& name, const COutPoint& outPoint,
-                    int nHeight, int& nValidAtHeight) const;
+                    int nHeight, int& nValidAtHeight);
     bool undoSpendClaim(const std::string& name, const COutPoint& outPoint,
                         uint160 claimId, CAmount nAmount, int nHeight,
-                        int nValidAtHeight) const;
+                        int nValidAtHeight);
 
     bool addSupport(const std::string& name, const COutPoint& outPoint,
                     CAmount nAmount, uint160 supportedClaimId,
-                    int nHeight) const;
+                    int nHeight);
     bool undoAddSupport(const std::string& name, const COutPoint& outPoint,
-                        int nHeight) const;
+                        int nHeight);
     bool spendSupport(const std::string& name, const COutPoint& outPoint,
-                      int nHeight, int& nValidAtHeight) const;
+                      int nHeight, int& nValidAtHeight);
     bool undoSpendSupport(const std::string& name, const COutPoint& outPoint,
                           uint160 supportedClaimId, CAmount nAmount,
-                          int nHeight, int nValidAtHeight) const;
+                          int nHeight, int nValidAtHeight);
 
-    uint256 getBestBlock();
+    uint256 getBestBlock() const;
     void setBestBlock(const uint256& hashBlock);
 
     bool incrementBlock(insertUndoType& insertUndo,
                         claimQueueRowType& expireUndo,
                         insertUndoType& insertSupportUndo,
                         supportQueueRowType& expireSupportUndo,
-                        std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
+                        std::vector<std::pair<std::string, int> >& takeoverHeightUndo);
     bool decrementBlock(insertUndoType& insertUndo,
                         claimQueueRowType& expireUndo,
                         insertUndoType& insertSupportUndo,
                         supportQueueRowType& expireSupportUndo,
-                        std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
+                        std::vector<std::pair<std::string, int> >& takeoverHeightUndo);
 
     ~CClaimTrieCache() { clear(); }
 
     bool insertClaimIntoTrie(const std::string& name, CClaimValue claim,
-                             bool fCheckTakeover = false) const;
+                             bool fCheckTakeover = false);
     bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint,
                              CClaimValue& claim,
-                             bool fCheckTakeover = false) const;
+                             bool fCheckTakeover = false);
     CClaimTrieProof getProofForName(const std::string& name) const;
 
-    bool finalizeDecrement() const;
+    bool finalizeDecrement();
 
-    void removeAndAddSupportToExpirationQueue(supportExpirationQueueRowType &row, int height, bool increment) const;
-    void removeAndAddToExpirationQueue(expirationQueueRowType &row, int height, bool increment) const;
+    void removeAndAddSupportToExpirationQueue(supportExpirationQueueRowType &row, int height, bool increment);
+    void removeAndAddToExpirationQueue(expirationQueueRowType &row, int height, bool increment);
 
-    bool forkForExpirationChange(bool increment) const;
+    bool forkForExpirationChange(bool increment);
 
 protected:
     CClaimTrie* base;
 
     bool fRequireTakeoverHeights;
 
-    mutable nodeCacheType cache;
-    mutable nodeCacheType block_originals;
-    mutable std::set<std::string> dirtyHashes;
+    nodeCacheType cache;
+    nodeCacheType block_originals;
+    claimQueueType claimQueueCache;
+    queueNameType claimQueueNameCache;
+    expirationQueueType expirationQueueCache;
+    supportMapType supportCache;
+    supportQueueType supportQueueCache;
+    supportQueueNameType supportQueueNameCache;
+    supportExpirationQueueType supportExpirationQueueCache;
+    std::set<std::string> namesToCheckForTakeover;
+    std::map<std::string, int> cacheTakeoverHeights;
+    int nCurrentHeight; // Height of the block that is being worked on, which is
+                        // one greater than the height of the chain's tip
+
+    // used in merkle hash computing
     mutable hashMapType cacheHashes;
-    mutable claimQueueType claimQueueCache;
-    mutable queueNameType claimQueueNameCache;
-    mutable expirationQueueType expirationQueueCache;
-    mutable supportMapType supportCache;
-    mutable supportQueueType supportQueueCache;
-    mutable supportQueueNameType supportQueueNameCache;
-    mutable supportExpirationQueueType supportExpirationQueueCache;
-    mutable std::set<std::string> namesToCheckForTakeover;
-    mutable std::map<std::string, int> cacheTakeoverHeights;
-    mutable int nCurrentHeight; // Height of the block that is being worked on, which is
-                                // one greater than the height of the chain's tip
+    mutable std::set<std::string> dirtyHashes;
 
     uint256 hashBlock;
 
     uint256 computeHash() const;
 
-    bool reorderTrieNode(const std::string& name, bool fCheckTakeover) const;
+    bool reorderTrieNode(const std::string& name, bool fCheckTakeover);
     bool recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent,
                                     std::string sPos) const;
     bool recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos,
                             std::string sName,
-                            bool* pfNullified = NULL) const;
+                            bool* pfNullified = NULL);
 
-    bool clear() const;
+    bool clear();
 
     bool removeClaim(const std::string& name, const COutPoint& outPoint,
-                     int nHeight, int& nValidAtHeight, bool fCheckTakeover) const;
+                     int nHeight, int& nValidAtHeight, bool fCheckTakeover);
 
-    bool addClaimToQueues(const std::string& name, CClaimValue& claim) const;
+    bool addClaimToQueues(const std::string& name, CClaimValue& claim);
     bool removeClaimFromQueue(const std::string& name, const COutPoint& outPoint,
-                              CClaimValue& claim) const;
-    void addToExpirationQueue(int nExpirationHeight, nameOutPointType& entry) const;
-    void removeFromExpirationQueue(const std::string& name, const COutPoint& outPoint,
-                                   int nHeight) const;
+                              CClaimValue& claim);
 
-    claimQueueType::iterator getQueueCacheRow(int nHeight,
-                                              bool createIfNotExists) const;
-    queueNameType::iterator getQueueCacheNameRow(const std::string& name,
-                                                 bool createIfNotExists) const;
-    expirationQueueType::iterator getExpirationQueueCacheRow(int nHeight,
-                                                             bool createIfNotExists) const;
+    void addToExpirationQueue(int nExpirationHeight, nameOutPointType& entry);
+    void removeFromExpirationQueue(const std::string& name, const COutPoint& outPoint,
+                                   int nHeight);
 
     bool removeSupport(const std::string& name, const COutPoint& outPoint,
                        int nHeight, int& nValidAtHeight,
-                       bool fCheckTakeover) const;
+                       bool fCheckTakeover);
     bool removeSupportFromMap(const std::string& name, const COutPoint& outPoint,
                               CSupportValue& support,
-                              bool fCheckTakeover) const;
+                              bool fCheckTakeover);
 
     bool insertSupportIntoMap(const std::string& name,
                               CSupportValue support,
-                              bool fCheckTakeover) const;
+                              bool fCheckTakeover);
 
-    supportQueueType::iterator getSupportQueueCacheRow(int nHeight,
-                                                       bool createIfNotExists) const;
-    supportQueueNameType::iterator getSupportQueueCacheNameRow(const std::string& name,
-                                                            bool createIfNotExists) const;
-    supportExpirationQueueType::iterator getSupportExpirationQueueCacheRow(int nHeight,
-                                                            bool createIfNotExists) const;
-
-    bool addSupportToQueues(const std::string& name, CSupportValue& support) const;
+    bool addSupportToQueues(const std::string& name, CSupportValue& support);
     bool removeSupportFromQueue(const std::string& name, const COutPoint& outPoint,
-                                CSupportValue& support) const;
+                                CSupportValue& support);
 
     void addSupportToExpirationQueue(int nExpirationHeight,
-                                     nameOutPointType& entry) const;
+                                     nameOutPointType& entry);
     void removeSupportFromExpirationQueue(const std::string& name,
                                           const COutPoint& outPoint,
-                                          int nHeight) const;
+                                          int nHeight);
 
     bool getSupportsForName(const std::string& name,
                             supportMapEntryType& node) const;
@@ -617,11 +594,14 @@ protected:
     uint256 getLeafHashForProof(const std::string& currentPosition, unsigned char nodeChar,
                                 const CClaimTrieNode* currentNode) const;
 
-    CClaimTrieNode* addNodeToCache(const std::string& position, CClaimTrieNode* original) const;
+    CClaimTrieNode* addNodeToCache(const std::string& position, CClaimTrieNode* original);
 
     bool getOriginalInfoForName(const std::string& name, CClaimValue& claim) const;
 
     int getNumBlocksOfContinuousOwnership(const std::string& name) const;
+
+    template <typename K, typename V> void update(std::map<K, V> &map);
+    template <typename K, typename V> typename std::map<K, V>::iterator getQueueCacheRow(const K &key, std::map<K, V> &map, bool createIfNotExists);
 };
 
 #endif // BITCOIN_CLAIMTRIE_H
