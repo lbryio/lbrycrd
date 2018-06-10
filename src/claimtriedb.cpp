@@ -1,4 +1,5 @@
 
+#include "claimtrie.h"
 #include "claimtriedb.h"
 
 #include <vector>
@@ -41,17 +42,13 @@ struct CCMap : public CCBase
     }
 };
 
-template <typename K, typename V> inline
-size_t hashType()
+inline
+CClaimTrieDb::CClaimTrieDb(bool fMemory, bool fWipe)
+                    : CDBWrapper(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false)
 {
-    static const size_t hash_code = boost::typeindex::type_id<typename CCMap<K, V>::dataType>().hash_code();
-    return hash_code;
 }
 
-CClaimTrieDb::CClaimTrieDb(bool fMemory, bool fWipe)
-            : CDBWrapper(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false)
-{}
-
+inline
 CClaimTrieDb::~CClaimTrieDb()
 {
     for (std::map<size_t, CCBase*>::iterator itQueue = queues.begin(); itQueue != queues.end(); ++itQueue)
@@ -60,6 +57,7 @@ CClaimTrieDb::~CClaimTrieDb()
     }
 }
 
+inline
 void CClaimTrieDb::writeQueues()
 {
     for (std::map<size_t, CCBase*>::iterator itQueue = queues.begin(); itQueue != queues.end(); ++itQueue)

@@ -322,6 +322,16 @@ typedef std::map<std::string, CClaimTrieNode*, nodenamecompare> nodeCacheType;
 
 typedef std::map<std::string, uint256> hashMapType;
 
+HASH_VALUE(int, claimQueueRowType);
+HASH_VALUE(int, supportQueueRowType);
+HASH_VALUE(int, expirationQueueRowType);
+HASH_VALUE(int, supportExpirationQueueRowType);
+HASH_VALUE(uint160, CClaimIndexElement);
+HASH_VALUE(std::string, CClaimTrieNode);
+HASH_VALUE(std::string, queueNameRowType);
+HASH_VALUE(std::string, supportMapEntryType);
+HASH_VALUE(std::string, supportQueueNameRowType);
+
 struct claimsForNameType
 {
     std::vector<CClaimValue> claims;
