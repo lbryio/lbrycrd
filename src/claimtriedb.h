@@ -43,7 +43,7 @@ size_t hashType<T1, T2>()  \
 class CClaimTrieDb;
 
 /**
- * Interface between queue and database
+ * Interface between buffer and database
  */
 class CCBase
 {
@@ -53,7 +53,11 @@ public:
 };
 
 /**
- * Represents access to claims in database
+ * This class implements key value storage. It is used by the CClaimTrie
+ * class to store queues of claim information. It allows for the storage
+ * of values of datatype V that can be retrieved using key datatype K.
+ * Changes to the key value storage is buffered until they are written to
+ * disk using writeQueues()
  */
 class CClaimTrieDb : public CDBWrapper
 {
@@ -63,41 +67,46 @@ public:
     ~CClaimTrieDb();
 
     /**
-     * Writes all durty queues to disk
+     * Write to disk the buffered changes to the key value storage
      */
     void writeQueues();
 
     /**
      * Gets a map representation of K type / V type stored by their hash
-     * @param[out] map  key / value pairs readed from queues and disk
+     * on disk with buffered changes applied.
+     * @param[out] map  key / value pairs to read
      */
     template <typename K, typename V, typename C>
     bool getQueueMap(std::map<K, V, C> &map) const;
 
     /**
      * Gets a value of type V found by key of type K stored by their hash
-     * @param[in] key   key to looking for in dirty queues and disk
+     * on disk with with buffered changes applied.
+     * @param[in] key   key to look for
      * @param[out] row  value which is found
      */
     template <typename K, typename V>
     bool getQueueRow(const K &key, V &row) const;
 
     /**
-     * Update value of type V by key of type K through their hash
-     * @param[in] key       key to looking for in dirty queues and disk
+     * Update value of type V by key of type K in the buffer through
+     * their hash
+     * @param[in] key       key to look for
      * @param[in/out] row   update value and gets its last value
      */
     template <typename K, typename V>
     void updateQueueRow(const K &key, V &row);
 
     /**
-     * Check whatever exists values stored by hash
+     * Check that there are no data stored under key datatype K and value
+     * datatype V. Checks both the buffer and disk
      */
     template <typename K, typename V>
     bool keyTypeEmpty() const;
 
     /**
-     * Get a map representation of K type / V type stored by theirs hash
+     * Get a map representation of K type / V type stored by their hash.
+     * Look only in the disk, and not the buffer.
      * @param[out] map  key / value pairs readed only from disk
      */
     template <typename K, typename V, typename C>
@@ -117,12 +126,12 @@ private:
     void migrate(char old_key);
 
     /**
-     * Represents dirty queues before stored to disk
+     * Represents buffer of changes before being stored to disk
      */
     std::map<size_t, CCBase*> queues;
 
     /**
-     * Help purpose for unit testing
+     * For unit testing purposes
      */
     friend class claimtriedb_test_helper;
 };

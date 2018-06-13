@@ -250,6 +250,7 @@ class CClaimIndexElement
     CClaimValue claim;
 };
 
+// Helpers to separate queue types from each other
 struct claimQueueEntryHelper;
 struct supportQueueEntryHelper;
 
@@ -267,6 +268,7 @@ struct Generic : public Base
     Generic(const Generic &generic) : Base(generic) {}
 };
 
+// Make std::swap to work with custom types
 namespace std {
 template <typename Base, typename Form> inline
 void swap(Generic<Base, Form> &generic, Base &base)
@@ -283,6 +285,7 @@ void swap(Base &base, Generic<Base, Form> &generic)
 }
 }
 
+// Each of these Generic types will be stored in the database
 typedef Generic<CClaimValue, claimQueueEntryHelper> claimQueueValueType;
 typedef Generic<CSupportValue, supportQueueEntryHelper> supportQueueValueType;
 
