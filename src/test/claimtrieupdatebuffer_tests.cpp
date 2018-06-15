@@ -3,24 +3,25 @@
 #include "uint256.h"
 
 #include "test/test_bitcoin.h"
+#include "claimtrieupdatebuffer.h"
 #include <boost/test/unit_test.hpp>
 using namespace std;
 
 
-class CClaimTrieCacheTest : public CClaimTrieCache {
+class CClaimTrieCacheTest : public CClaimTrieUpdateBuffer {
 public:
     CClaimTrieCacheTest(CClaimTrie* base):
-        CClaimTrieCache(base, false){}
+        CClaimTrieUpdateBuffer(base, false){}
 
     bool recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent,
                                     std::string sPos) const
     {
-        return CClaimTrieCache::recursiveComputeMerkleHash(tnCurrent, sPos);
+        return CClaimTrieUpdateBuffer::recursiveComputeMerkleHash(tnCurrent, sPos);
     }
 
     bool recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos, std::string sName, bool* pfNullified)
     {
-        return CClaimTrieCache::recursivePruneName(tnCurrent,nPos,sName, pfNullified);
+        return CClaimTrieUpdateBuffer::recursivePruneName(tnCurrent,nPos,sName, pfNullified);
     }
     int cacheSize()
     {
