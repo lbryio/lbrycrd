@@ -16,6 +16,7 @@ function HELP {
     echo "Optional arguments:"
     echo
     echo "-c: don't clone a fresh copy of the repo"
+    echo "-f: check formatting of committed code relative to master"
     echo "-r: remove intermediate files."
     echo "-l: build only lbrycrd"
     echo "-d: build only the dependencies"
@@ -27,6 +28,7 @@ function HELP {
 
 CLONE=true
 CLEAN=false
+CHECK_CODE_FORMAT=false
 BUILD_DEPENDENCIES=true
 BUILD_LBRYCRD=true
 TIMEOUT=false
@@ -35,7 +37,7 @@ THREE_MB=3145728
 # the script exits due to a timeout
 OUTPUT_LOG=true
 
-while getopts :crldoth:w:d: FLAG; do
+while getopts :crfldoth:w:d: FLAG; do
     case $FLAG in
 	c)
 	    CLONE=false
@@ -43,6 +45,9 @@ while getopts :crldoth:w:d: FLAG; do
 	r)
 	    CLEAN=true
 	    ;;
+    f)
+        CHECK_CODE_FORMAT=true
+        ;;
 	l)
 	    BUILD_DEPENDENCIES=false
 	    ;;
@@ -225,6 +230,12 @@ function install_apt_packages() {
 	  build-essential python-dev libbz2-dev libtool \
 	  autotools-dev autoconf git pkg-config wget \
 	  ca-certificates automake bsdmainutils
+
+    if [ "${CHECK_CODE_FORMAT}" = true ]; then
+        $SUDO apt-get ${QUIET} install -y --no-install-recommends \
+            clang-format-3.4
+    fi
+
 }
 
 function build_dependencies() {
@@ -357,6 +368,14 @@ function build_lbrycrd() {
     strip src/test/test_lbrycrd
 }
 
+function clang_format_diff(){
+    # run a code formatting check on any commits not in master
+    # requires clang-format
+    git remote add origin2 https://github.com/lbryio/lbrycrd.git
+    git fetch origin2
+    git diff -U0 origin2/master -- '*.h' '*.cpp' | ./contrib/devtools/clang-format-diff.py -p1
+}
+
 # these variables are needed in both functions
 LBRYCRD_DEPENDENCIES="$(pwd)/lbrycrd-dependencies"
 OUTPUT_DIR="$(pwd)/build"
@@ -368,6 +387,15 @@ LIBEVENT_PREFIX="${OUTPUT_DIR}/libevent"
 
 if [ "${BUILD_DEPENDENCIES}" = true ]; then
     build_dependencies
+fi
+
+if [ "${CHECK_CODE_FORMAT}" = true ]; then
+    LINES_W_FORMAT_REQUIRED=$(clang_format_diff | wc -l)
+    if [ ${LINES_W_FORMAT_REQUIRED} -ne 0  ]; then
+        echo "Failed to pass clang format diff: See below for the diff"
+        clang_format_diff
+        exit 1
+    fi
 fi
 
 set +u

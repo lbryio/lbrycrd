@@ -26,9 +26,9 @@ Run `./lbrycrd-cli help` to get a list of all commands that you can run. To get 
 
 Lbrycrdd will use the below default data directories
 
-Windows < Vista: C:\Documents and Settings\Username\Application Data\lbrycrd   
-Windows >= Vista: C:\Users\Username\AppData\Roaming\lbrycrd   
-Mac: ~/Library/Application Support/lbrycrd      
+Windows < Vista: C:\Documents and Settings\Username\Application Data\lbrycrd
+Windows >= Vista: C:\Users\Username\AppData\Roaming\lbrycrd
+Mac: ~/Library/Application Support/lbrycrd
 Unix: ~/.lbrycrd
 
 The data directory contains various things such as your default wallet (wallet.dat), debug logs (debug.log), and blockchain data. You can optionally
@@ -36,9 +36,9 @@ create a configuration file lbrycrd.conf in the default data directory which wil
 For a list of configuration parameters run `./lbrycrdd --help`. Below is a sample lbrycrd.conf to enable JSON RPC server on lbrycrdd.
 
 ```rpcuser=lbry
-rpcpassword=xyz123456790 
+rpcpassword=xyz123456790
 daemon=1
-server=1   
+server=1
 txindex=1
 ```
 
@@ -53,6 +53,11 @@ If you encounter any errors, please check `doc/build-*.md` for further instructi
 Contributions to this project are welcome, encouraged, and compensated. For more details, see [lbry.io/faq/contributing](https://lbry.io/faq/contributing)
 
 The codebase is in C++03, C++11 is currently not supported but we will be migrating to it in the near future. Recommended GCC version is 4.8 or greater.
+We follow the same coding guidelines as documented by Bitcoin Core, see [here](/doc/developer-notes.md). To run an automated code formatting check, try:
+`git diff -U0 master -- '*.h' '*.cpp' | ./contrib/devtools/clang-format-diff.py -p1`. This will check any commits not on master for proper code formatting.
+We try to avoid altering parts of the code that is inherited from Bitcoin Core unless absolutely necessary. This will make it easier to merge changes from
+Bitcoin Core. If commits are expected not to be merged upstream (i.e. we broke up a commit from Bitcoin Core in order to use a single feature in it), the commit
+message must contain the string "NOT FOR UPSTREAM MERGE".
 
 The `master` branch is regularly built and tested, but is not guaranteed to be
 completely stable. [Releases](https://github.com/lbryio/lbrycrd/releases) are created
