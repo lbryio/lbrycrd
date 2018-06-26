@@ -201,6 +201,7 @@ function brew_if_not_installed() {
 
 function install_brew_packages() {
     brew update > /dev/null
+    brew unlink python
     brew_if_not_installed autoconf
     brew_if_not_installed automake
     # something weird happened where glibtoolize was failing to find
