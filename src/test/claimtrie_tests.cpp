@@ -292,7 +292,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 {
 
     fRequireStandard = false;
-    BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
+    BOOST_CHECK(pclaimTrie->nNextHeight == chainActive.Height() + 1);
     LOCK(cs_main);
 
     std::string sName1("atest");
@@ -976,7 +976,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_insert_update_claim)
 BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 {
     fRequireStandard = false;
-    BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
+    BOOST_CHECK(pclaimTrie->nNextHeight == chainActive.Height() + 1);
 
     LOCK(cs_main);
 
@@ -1271,7 +1271,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_claim_expiration)
 BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 {
     fRequireStandard = false;
-    BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
+    BOOST_CHECK(pclaimTrie->nNextHeight == chainActive.Height() + 1);
 
     LOCK(cs_main);
 
@@ -1622,7 +1622,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims)
 BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
 {
     fRequireStandard = false;
-    BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
+    BOOST_CHECK(pclaimTrie->nNextHeight == chainActive.Height() + 1);
 
     LOCK(cs_main);
 
@@ -2099,7 +2099,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_supporting_claims2)
 BOOST_AUTO_TEST_CASE(claimtrie_invalid_claimid)
 {
     fRequireStandard = false;
-    BOOST_CHECK(pclaimTrie->nCurrentHeight = chainActive.Height() + 1);
+    BOOST_CHECK(pclaimTrie->nNextHeight = chainActive.Height() + 1);
 
     LOCK(cs_main);
 
@@ -2219,7 +2219,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_invalid_claimid)
 BOOST_AUTO_TEST_CASE(claimtrie_expiring_supports)
 {
     fRequireStandard = false;
-    BOOST_CHECK(pclaimTrie->nCurrentHeight = chainActive.Height() + 1);
+    BOOST_CHECK(pclaimTrie->nNextHeight = chainActive.Height() + 1);
 
     LOCK(cs_main);
 
@@ -2608,7 +2608,7 @@ bool verify_proof(const CClaimTrieProof proof, uint256 rootHash, const std::stri
 BOOST_AUTO_TEST_CASE(claimtrievalue_proof)
 {
     fRequireStandard = false;
-    BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
+    BOOST_CHECK(pclaimTrie->nNextHeight == chainActive.Height() + 1);
 
     LOCK(cs_main);
 
@@ -2773,7 +2773,7 @@ BOOST_AUTO_TEST_CASE(claimtrievalue_proof)
 BOOST_AUTO_TEST_CASE(bogus_claimtrie_hash)
 {
     fRequireStandard = false;
-    BOOST_CHECK(pclaimTrie->nCurrentHeight = chainActive.Height() + 1);
+    BOOST_CHECK(pclaimTrie->nNextHeight = chainActive.Height() + 1);
     LOCK(cs_main);
     std::string sName("test");
     std::string sValue1("test");

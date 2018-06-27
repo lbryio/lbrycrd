@@ -404,7 +404,7 @@ public:
 
     friend class CClaimTrieUpdateBuffer;
 
-    int nCurrentHeight;
+    int nNextHeight;
     int nExpirationTime;
     int nProportionalDelayFactor;
 private:

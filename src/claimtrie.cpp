@@ -132,7 +132,7 @@ bool CClaimTrieNode::empty() const
 }
 
 CClaimTrie::CClaimTrie(bool fMemory, bool fWipe, int nProportionalDelayFactor)
-                    : nCurrentHeight(0)
+                    : nNextHeight(0)
                     , nExpirationTime(Params().GetConsensus().nOriginalClaimExpirationTime)
                     , nProportionalDelayFactor(nProportionalDelayFactor)
                     , db(fMemory, fWipe)
@@ -226,13 +226,13 @@ bool CClaimTrie::haveClaimInQueue(const std::string& name, const COutPoint& outP
         for (claimQueueRowType::const_iterator itRow = row.begin(); itRow != row.end(); ++itRow) {
             if (itRow->first == name && itRow->second.outPoint == outPoint) {
                 if (itRow->second.nValidAtHeight != nValidAtHeight) {
-                    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nDifferent nValidAtHeight between named queue and height queue\n: name: %s, txid: %s, nOut: %d, nValidAtHeight in named queue: %d, nValidAtHeight in height queue: %d current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, itRow->second.nValidAtHeight, nCurrentHeight);
+                    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nDifferent nValidAtHeight between named queue and height queue\n: name: %s, txid: %s, nOut: %d, nValidAtHeight in named queue: %d, nValidAtHeight in height queue: %d current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, itRow->second.nValidAtHeight, nNextHeight);
                 }
                 return true;
             }
         }
     }
-    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, nCurrentHeight);
+    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, nNextHeight);
     return false;
 }
 
@@ -253,13 +253,13 @@ bool CClaimTrie::haveSupportInQueue(const std::string& name, const COutPoint& ou
         for (supportQueueRowType::const_iterator itRow = row.begin(); itRow != row.end(); ++itRow) {
             if (itRow->first == name && itRow->second.outPoint == outPoint) {
                 if (itRow->second.nValidAtHeight != nValidAtHeight) {
-                    LogPrintf("%s: An inconsistency was found in the support queue. Please report this to the developers:\nDifferent nValidAtHeight between named queue and height queue\n: name: %s, txid: %s, nOut: %d, nValidAtHeight in named queue: %d, nValidAtHeight in height queue: %d current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, itRow->second.nValidAtHeight, nCurrentHeight);
+                    LogPrintf("%s: An inconsistency was found in the support queue. Please report this to the developers:\nDifferent nValidAtHeight between named queue and height queue\n: name: %s, txid: %s, nOut: %d, nValidAtHeight in named queue: %d, nValidAtHeight in height queue: %d current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, itRow->second.nValidAtHeight, nNextHeight);
                 }
                 return true;
             }
         }
     }
-    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, nCurrentHeight);
+    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, nNextHeight);
     return false;
 }
 
@@ -457,7 +457,7 @@ CAmount CClaimTrie::getEffectiveAmountForClaimWithSupports(const std::string& na
     CAmount effectiveAmount = 0;
     bool claim_found = false;
     for (std::vector<CClaimValue>::iterator it=claims.claims.begin(); it!=claims.claims.end(); ++it) {
-        if (it->claimId == claimId && it->nValidAtHeight < nCurrentHeight) {
+        if (it->claimId == claimId && it->nValidAtHeight < nNextHeight) {
             effectiveAmount += it->nAmount;
             claim_found = true;
             break;
@@ -468,7 +468,7 @@ CAmount CClaimTrie::getEffectiveAmountForClaimWithSupports(const std::string& na
     }
 
     for (std::vector<CSupportValue>::iterator it=claims.supports.begin(); it!=claims.supports.end(); ++it) {
-        if (it->supportedClaimId == claimId && it->nValidAtHeight < nCurrentHeight) {
+        if (it->supportedClaimId == claimId && it->nValidAtHeight < nNextHeight) {
             effectiveAmount += it->nAmount;
             supports.push_back(*it);
         }
@@ -640,7 +640,7 @@ bool CClaimTrie::WriteToDisk()
     dirtyNodes.clear();
     db.writeQueues();
     db.Write(HASH_BLOCK, hashBlock);
-    db.Write(CURRENT_HEIGHT, nCurrentHeight);
+    db.Write(CURRENT_HEIGHT, nNextHeight);
     return db.Sync();
 }
 
@@ -664,10 +664,10 @@ bool CClaimTrie::ReadFromDisk(bool check)
 {
     if (!db.Read(HASH_BLOCK, hashBlock))
         LogPrintf("%s: Couldn't read the best block's hash\n", __func__);
-    if (!db.Read(CURRENT_HEIGHT, nCurrentHeight))
+    if (!db.Read(CURRENT_HEIGHT, nNextHeight))
         LogPrintf("%s: Couldn't read the current height\n", __func__);
 
-    setExpirationTime(Params().GetConsensus().GetExpirationTime(nCurrentHeight-1));
+    setExpirationTime(Params().GetConsensus().GetExpirationTime(nNextHeight-1));
 
     typedef std::map<std::string, CClaimTrieNode, nodenamecompare> trieNodeMapType;
 

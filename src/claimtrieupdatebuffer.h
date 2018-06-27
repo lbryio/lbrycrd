@@ -111,7 +111,7 @@ protected:
     supportExpirationQueueType supportExpirationQueueCache;
     std::set<std::string> namesToCheckForTakeover;
     std::map<std::string, int> cacheTakeoverHeights;
-    int nCurrentHeight; // Height of the block that is being worked on, which is
+    int nNextHeight; // Height of the block that is being worked on, which is
                         // one greater than the height of the chain's tip
 
     // used in merkle hash computing
