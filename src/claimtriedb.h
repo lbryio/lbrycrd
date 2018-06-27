@@ -107,6 +107,7 @@ public:
     /**
      * Get a map representation of K type / V type stored by their hash.
      * Look only in the disk, and not the buffer.
+     * Returns false if database read fails.
      * @param[out] map  key / value pairs readed only from disk
      */
     template <typename K, typename V, typename C>

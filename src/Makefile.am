@@ -120,6 +120,7 @@ BITCOIN_CORE_H = \
   nameclaim.h \
   claimtrie.h \
   claimtriedb.h \
+  claimtrieupdatebuffer.h \
   lbry.h \
   net.h \
   netbase.h \
@@ -193,6 +194,7 @@ libbitcoin_server_a_SOURCES = \
   miner.cpp \
   claimtrie.cpp \
   claimtriedb.cpp \
+  claimtrieupdatebuffer.cpp \
   net.cpp \
   noui.cpp \
   policy/fees.cpp \

@@ -137,7 +137,7 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
         {
             return NULL;
         }
-        CClaimTrieCache trieCache(pclaimTrie);
+        CClaimTrieUpdateBuffer trieBuffer(pclaimTrie);
         const int64_t nMedianTimePast = pindexPrev->GetMedianTimePast();
 
         pblock->nVersion = ComputeBlockVersion(pindexPrev, chainparams.GetConsensus());
@@ -294,7 +294,7 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
                         }
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         int throwaway;
-                        if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), nTxinHeight, throwaway))
+                        if (trieBuffer.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), nTxinHeight, throwaway))
                         {
                             std::pair<std::string, uint160> entry(name, claimId);
                             spentClaims.push_back(entry);
@@ -309,18 +309,18 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
                         assert(vvchParams.size() == 2);
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         int throwaway;
-                        if (!trieCache.spendSupport(name, COutPoint(txin.prevout.hash, txin.prevout.n), nTxinHeight, throwaway))
+                        if (!trieBuffer.spendSupport(name, COutPoint(txin.prevout.hash, txin.prevout.n), nTxinHeight, throwaway))
                         {
                             LogPrintf("%s(): The support was not found in the trie or queue\n", __func__);
                         }
                     }
                 }
             }
-            
+
             for (unsigned int i = 0; i < tx.vout.size(); ++i)
             {
                 const CTxOut& txout = tx.vout[i];
-            
+
                 std::vector<std::vector<unsigned char> > vvchParams;
                 int op;
                 if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams))
@@ -329,7 +329,7 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
                     {
                         assert(vvchParams.size() == 2);
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                        if (!trieCache.addClaim(name, COutPoint(tx.GetHash(), i), ClaimIdHash(tx.GetHash(), i), txout.nValue, nHeight))
+                        if (!trieBuffer.addClaim(name, COutPoint(tx.GetHash(), i), ClaimIdHash(tx.GetHash(), i), txout.nValue, nHeight))
                         {
                             LogPrintf("%s: Something went wrong inserting the name\n", __func__);
                         }
@@ -350,7 +350,7 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
                         if (itSpent != spentClaims.end())
                         {
                             spentClaims.erase(itSpent);
-                            if (!trieCache.addClaim(name, COutPoint(tx.GetHash(), i), claimId, txout.nValue, nHeight))
+                            if (!trieBuffer.addClaim(name, COutPoint(tx.GetHash(), i), claimId, txout.nValue, nHeight))
                             {
                                 LogPrintf("%s: Something went wrong updating a claim\n", __func__);
                             }
@@ -365,7 +365,7 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
                         assert(vvchParams.size() == 2);
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         uint160 supportedClaimId(vvchParams[1]);
-                        if (!trieCache.addSupport(name, COutPoint(tx.GetHash(), i), txout.nValue, supportedClaimId, nHeight))
+                        if (!trieBuffer.addSupport(name, COutPoint(tx.GetHash(), i), txout.nValue, supportedClaimId, nHeight))
                         {
                             LogPrintf("%s: Something went wrong inserting the claim support\n", __func__);
                         }
@@ -443,8 +443,8 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
         insertUndoType dummyInsertSupportUndo;
         supportQueueRowType dummyExpireSupportUndo;
         std::vector<std::pair<std::string, int> > dummyTakeoverHeightUndo;
-        trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo, dummyInsertSupportUndo, dummyExpireSupportUndo, dummyTakeoverHeightUndo);
-        pblock->hashClaimTrie = trieCache.getMerkleHash();
+        trieBuffer.incrementBlock(dummyInsertUndo, dummyExpireUndo, dummyInsertSupportUndo, dummyExpireSupportUndo, dummyTakeoverHeightUndo);
+        pblock->hashClaimTrie = trieBuffer.getMerkleHash();
 
         CValidationState state;
         if (!TestBlockValidity(state, chainparams, *pblock, pindexPrev, false, false)) {
@@ -568,7 +568,7 @@ void static BitcoinMiner(const CChainParams& chainparams)
             while (true)
             {
                 unsigned int nHashesDone = 0;
-                
+
                 // Check if something found
                 while (true)
                 {
@@ -599,7 +599,7 @@ void static BitcoinMiner(const CChainParams& chainparams)
                 }
                 if (found)
                     break;
-                
+
                 // Meter hashes/sec
                 static int64_t nHashCounter;
                 if (nHPSTimerStart == 0)
