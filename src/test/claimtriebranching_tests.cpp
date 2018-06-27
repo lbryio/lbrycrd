@@ -316,7 +316,7 @@ struct ClaimTrieChainFixture{
         // from disk
         pclaimTrie->WriteToDisk();
         pclaimTrie->clear();
-        pclaimTrie->ReadFromDisk(true);
+        BOOST_CHECK(pclaimTrie->ReadFromDisk(true));
     }
 
 };

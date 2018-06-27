@@ -136,20 +136,17 @@ bool CClaimTrieDb::seekByKey(std::map<K, V, C> &map) const
     const size_t hash = hashType<K, V>();
     boost::scoped_ptr<CDBIterator> pcursor(const_cast<CClaimTrieDb*>(this)->NewIterator());
 
-    bool found = false;
-
     for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next()) {
         std::pair<size_t, K> key;
         if (pcursor->GetKey(key)) {
             if (hash == key.first) {
                 V value;
                 if (!pcursor->GetValue(value)) return false;
-                found = true;
                 map.insert(std::make_pair(key.second, value));
             }
         }
     }
-    return found;
+    return true;
 }
 
 template <typename K, typename V, typename C>
