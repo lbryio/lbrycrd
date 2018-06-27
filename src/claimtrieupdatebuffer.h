@@ -179,6 +179,8 @@ protected:
 
     int getNumBlocksOfContinuousOwnership(const std::string& name) const;
 
+    bool exists(const std::string &name, CClaimTrieNode *&currentNode) const;
+
     template <typename K, typename V> void update(std::map<K, V> &map);
     template <typename K, typename V> typename std::map<K, V>::iterator getQueueCacheRow(const K &key, std::map<K, V> &map, bool createIfNotExists);
 };

@@ -26,7 +26,6 @@ bool CClaimTrieUpdateBuffer::recursiveComputeMerkleHash(CClaimTrieNode* tnCurren
     std::vector<unsigned char> vchToHash;
     nodeCacheType::const_iterator cachedNode;
 
-
     for (nodeMapType::iterator it = tnCurrent->children.begin(); it != tnCurrent->children.end(); ++it) {
         std::stringstream ss;
         ss << it->first;
@@ -35,9 +34,9 @@ bool CClaimTrieUpdateBuffer::recursiveComputeMerkleHash(CClaimTrieNode* tnCurren
             // the child might be in the cache, so look for it there
             cachedNode = cache.find(sNextPos);
             if (cachedNode != cache.end()) {
-                recursiveComputeMerkleHash(cachedNode->second, sNextPos);
+                recursiveComputeMerkleHash(cachedNode->second.get(), sNextPos);
             } else {
-                recursiveComputeMerkleHash(it->second, sNextPos);
+                recursiveComputeMerkleHash(it->second.get(), sNextPos);
             }
         }
         vchToHash.push_back(it->first);
@@ -77,7 +76,7 @@ uint256 CClaimTrieUpdateBuffer::getMerkleHash() const
     if (dirty()) {
         nodeCacheType::const_iterator cachedNode = cache.find("");
         if (cachedNode != cache.end()) {
-            recursiveComputeMerkleHash(cachedNode->second, "");
+            recursiveComputeMerkleHash(cachedNode->second.get(), "");
         } else {
             recursiveComputeMerkleHash(&(base->root), "");
         }
@@ -104,19 +103,13 @@ CClaimTrieNode* CClaimTrieUpdateBuffer::addNodeToCache(const std::string& positi
     } else {
         cacheCopy = new CClaimTrieNode(*original);
     }
-    cache[position] = cacheCopy;
+    cache[position].reset(cacheCopy);
 
     // check to see if there is the original node in block_originals,
     // if not, add it to block_originals cache
     nodeCacheType::const_iterator itOriginals = block_originals.find(position);
     if (block_originals.end() == itOriginals) {
-        CClaimTrieNode* originalCopy;
-        if(!original) {
-            originalCopy = new CClaimTrieNode();
-        } else {
-            originalCopy = new CClaimTrieNode(*original);
-        }
-        block_originals[position] = originalCopy;
+        block_originals[position].reset(new CClaimTrieNode(*cacheCopy));
     }
     return cacheCopy;
 }
@@ -137,7 +130,7 @@ bool CClaimTrieUpdateBuffer::insertClaimIntoTrie(const std::string& name, CClaim
     nodeCacheType::iterator cachedNode;
     cachedNode = cache.find("");
     if (cachedNode != cache.end()) {
-        currentNode = cachedNode->second;
+        currentNode = cachedNode->second.get();
     }
     for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur) {
         std::string sCurrentSubstring(name.begin(), itCur);
@@ -145,12 +138,12 @@ bool CClaimTrieUpdateBuffer::insertClaimIntoTrie(const std::string& name, CClaim
 
         cachedNode = cache.find(sNextSubstring);
         if (cachedNode != cache.end()) {
-            currentNode = cachedNode->second;
+            currentNode = cachedNode->second.get();
             continue;
         }
         nodeMapType::iterator childNode = currentNode->children.find(*itCur);
         if (childNode != currentNode->children.end()) {
-            currentNode = childNode->second;
+            currentNode = childNode->second.get();
             continue;
         }
 
@@ -165,18 +158,18 @@ bool CClaimTrieUpdateBuffer::insertClaimIntoTrie(const std::string& name, CClaim
         // order to calculate the merkle hash.
         cachedNode = cache.find(sCurrentSubstring);
         if (cachedNode != cache.end()) {
-            assert(cachedNode->second == currentNode);
+            assert(cachedNode->second.get() == currentNode);
         } else {
             currentNode = addNodeToCache(sCurrentSubstring, currentNode);
         }
         CClaimTrieNode* newNode = addNodeToCache(sNextSubstring, NULL);
-        currentNode->children[*itCur] = newNode;
+        currentNode->children[*itCur].reset(new CClaimTrieNode(*newNode));
         currentNode = newNode;
     }
 
     cachedNode = cache.find(name);
     if (cachedNode != cache.end()) {
-        assert(cachedNode->second == currentNode);
+        assert(cachedNode->second.get() == currentNode);
     } else {
         currentNode = addNodeToCache(name, currentNode);
     }
@@ -208,6 +201,26 @@ bool CClaimTrieUpdateBuffer::insertClaimIntoTrie(const std::string& name, CClaim
     return true;
 }
 
+bool CClaimTrieUpdateBuffer::exists(const std::string &name, CClaimTrieNode *&currentNode) const
+{
+    for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur) {
+        std::string sNextSubstring(name.begin(), itCur + 1);
+
+        nodeCacheType::const_iterator cachedNode = cache.find(sNextSubstring);
+        if (cachedNode != cache.end()) {
+            currentNode = cachedNode->second.get();
+            continue;
+        }
+        nodeMapType::iterator childNode = currentNode->children.find(*itCur);
+        if (childNode != currentNode->children.end()) {
+            currentNode = childNode->second.get();
+            continue;
+        }
+        return false;
+    }
+    return true;
+}
+
 bool CClaimTrieUpdateBuffer::removeClaimFromTrie(const std::string& name, const COutPoint& outPoint, CClaimValue& claim, bool fCheckTakeover)
 {
     assert(base);
@@ -215,30 +228,18 @@ bool CClaimTrieUpdateBuffer::removeClaimFromTrie(const std::string& name, const 
     nodeCacheType::iterator cachedNode;
     cachedNode = cache.find("");
     if (cachedNode != cache.end()) {
-        currentNode = cachedNode->second;
+        currentNode = cachedNode->second.get();
     }
     assert(currentNode != NULL); // If there is no root in either the trie or the cache, how can there be any names to remove?
-    for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur) {
-        std::string sCurrentSubstring(name.begin(), itCur);
-        std::string sNextSubstring(name.begin(), itCur + 1);
 
-        cachedNode = cache.find(sNextSubstring);
-        if (cachedNode != cache.end()) {
-            currentNode = cachedNode->second;
-            continue;
-        }
-        nodeMapType::iterator childNode = currentNode->children.find(*itCur);
-        if (childNode != currentNode->children.end()) {
-            currentNode = childNode->second;
-            continue;
-        }
+    if (!exists(name, currentNode)) {
         LogPrintf("%s: The name %s does not exist in the trie\n", __func__, name.c_str());
         return false;
     }
 
     cachedNode = cache.find(name);
     if (cachedNode != cache.end()) {
-        assert(cachedNode->second == currentNode);
+        assert(cachedNode->second.get() == currentNode);
     } else {
         currentNode = addNodeToCache(name, currentNode);
     }
@@ -283,7 +284,7 @@ bool CClaimTrieUpdateBuffer::removeClaimFromTrie(const std::string& name, const 
     CClaimTrieNode* rootNode = &(base->root);
     cachedNode = cache.find("");
     if (cachedNode != cache.end()) {
-        rootNode = cachedNode->second;
+        rootNode = cachedNode->second.get();
     }
     return recursivePruneName(rootNode, 0, name);
 }
@@ -301,11 +302,11 @@ bool CClaimTrieUpdateBuffer::recursivePruneName(CClaimTrieNode* tnCurrent, unsig
         CClaimTrieNode* tnNext = NULL;
         nodeCacheType::iterator cachedNode = cache.find(sNextSubstring);
         if (cachedNode != cache.end()) {
-            tnNext = cachedNode->second;
+            tnNext = cachedNode->second.get();
         } else {
             nodeMapType::iterator childNode = tnCurrent->children.find(cNext);
             if (childNode != tnCurrent->children.end())
-                tnNext = childNode->second;
+                tnNext = childNode->second.get();
         }
         if (tnNext == NULL) return false;
         bool fChildNullified = false;
@@ -344,8 +345,7 @@ bool CClaimTrieUpdateBuffer::recursivePruneName(CClaimTrieNode* tnCurrent, unsig
         // If the current node is in the cache, remove it from there
         nodeCacheType::iterator cachedNode = cache.find(sCurrentSubstring);
         if (cachedNode != cache.end()) {
-            assert(tnCurrent == cachedNode->second);
-            delete tnCurrent;
+            assert(tnCurrent == cachedNode->second.get());
             cache.erase(cachedNode);
         }
         fNullified = true;
@@ -503,28 +503,16 @@ bool CClaimTrieUpdateBuffer::reorderTrieNode(const std::string& name, bool fChec
         if(cachedNode == cache.end()) {
             currentNode = &(base->root);
         } else {
-            currentNode = cachedNode->second;
+            currentNode = cachedNode->second.get();
         }
-        for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur) {
-            std::string sCurrentSubstring(name.begin(), itCur);
-            std::string sNextSubstring(name.begin(), itCur + 1);
 
-            cachedNode = cache.find(sNextSubstring);
-            if (cachedNode != cache.end()) {
-                currentNode = cachedNode->second;
-                continue;
-            }
-            nodeMapType::iterator childNode = currentNode->children.find(*itCur);
-            if (childNode != currentNode->children.end()) {
-                currentNode = childNode->second;
-                continue;
-            }
+        if (!exists(name, currentNode)) {
             // The node doesn't exist, so it can't be reordered.
             return true;
         }
-        currentNode = new CClaimTrieNode(*currentNode);
+        boost::shared_ptr<CClaimTrieNode> newNode(new CClaimTrieNode(*currentNode));
         std::pair<nodeCacheType::iterator, bool> ret;
-        ret = cache.insert(std::pair<std::string, CClaimTrieNode*>(name, currentNode));
+        ret = cache.insert(std::make_pair(name, newNode));
         assert(ret.second);
         cachedNode = ret.first;
     }
@@ -568,18 +556,7 @@ bool CClaimTrieUpdateBuffer::getSupportsForName(const std::string& name, support
 
 bool CClaimTrieUpdateBuffer::insertSupportIntoMap(const std::string& name, CSupportValue support, bool fCheckTakeover)
 {
-    supportMapType::iterator cachedNode;
-    // If this node is already in the cache, use that
-    cachedNode = supportCache.find(name);
-    // If not, copy the one from base if it exists, and use that
-    if (cachedNode == supportCache.end()) {
-        supportMapEntryType node;
-        base->db.getQueueRow(name, node);
-        std::pair<supportMapType::iterator, bool> ret;
-        ret = supportCache.insert(std::pair<std::string, supportMapEntryType>(name, node));
-        assert(ret.second);
-        cachedNode = ret.first;
-    }
+    supportMapType::iterator cachedNode = getQueueCacheRow(name, supportCache, true);
     cachedNode->second.push_back(support);
     // See if this changed the biggest bid
     return reorderTrieNode(name,  fCheckTakeover);
@@ -587,18 +564,14 @@ bool CClaimTrieUpdateBuffer::insertSupportIntoMap(const std::string& name, CSupp
 
 bool CClaimTrieUpdateBuffer::removeSupportFromMap(const std::string& name, const COutPoint& outPoint, CSupportValue& support, bool fCheckTakeover)
 {
-    supportMapType::iterator cachedNode;
-    cachedNode = supportCache.find(name);
+    supportMapType::iterator cachedNode = supportCache.find(name);
     if (cachedNode == supportCache.end()) {
         supportMapEntryType node;
         if (!base->db.getQueueRow(name, node)) {
             // clearly, this support does not exist
             return false;
         }
-        std::pair<supportMapType::iterator, bool> ret;
-        ret = supportCache.insert(std::pair<std::string, supportMapEntryType>(name, node));
-        assert(ret.second);
-        cachedNode = ret.first;
+        cachedNode = getQueueCacheRow(name, supportCache, true);
     }
     supportMapEntryType::iterator itSupport;
     for (itSupport = cachedNode->second.begin(); itSupport != cachedNode->second.end(); ++itSupport) {
@@ -932,12 +905,9 @@ bool CClaimTrieUpdateBuffer::incrementBlock(insertUndoType& insertUndo, claimQue
             }
         }
     }
-    for (nodeCacheType::const_iterator itOriginals = block_originals.begin(); itOriginals != block_originals.end(); ++itOriginals) {
-        delete itOriginals->second;
-    }
     block_originals.clear();
     for (nodeCacheType::const_iterator itCache = cache.begin(); itCache != cache.end(); ++itCache) {
-        block_originals[itCache->first] = new CClaimTrieNode(*(itCache->second));
+        block_originals[itCache->first].reset(new CClaimTrieNode(*(itCache->second)));
     }
     namesToCheckForTakeover.clear();
     nCurrentHeight++;
@@ -992,12 +962,9 @@ bool CClaimTrieUpdateBuffer::decrementBlock(insertUndoType& insertUndo, claimQue
 
 bool CClaimTrieUpdateBuffer::finalizeDecrement()
 {
-    for (nodeCacheType::iterator itOriginals = block_originals.begin(); itOriginals != block_originals.end(); ++itOriginals) {
-        delete itOriginals->second;
-    }
     block_originals.clear();
     for (nodeCacheType::const_iterator itCache = cache.begin(); itCache != cache.end(); ++itCache) {
-        block_originals[itCache->first] = new CClaimTrieNode(*(itCache->second));
+        block_originals[itCache->first].reset(new CClaimTrieNode(*(itCache->second)));
     }
     return true;
 }
@@ -1021,7 +988,7 @@ int CClaimTrieUpdateBuffer::getNumBlocksOfContinuousOwnership(const std::string&
     const CClaimTrieNode* node = NULL;
     nodeCacheType::const_iterator itCache = cache.find(name);
     if (itCache != cache.end()) {
-        node = itCache->second;
+        node = itCache->second.get();
     }
     if (!node) {
         node = base->getNodeForName(name);
@@ -1055,13 +1022,7 @@ void CClaimTrieUpdateBuffer::setBestBlock(const uint256& hashBlockIn)
 
 bool CClaimTrieUpdateBuffer::clear()
 {
-    for (nodeCacheType::iterator itcache = cache.begin(); itcache != cache.end(); ++itcache) {
-        delete itcache->second;
-    }
     cache.clear();
-    for (nodeCacheType::iterator itOriginals = block_originals.begin(); itOriginals != block_originals.end(); ++itOriginals) {
-        delete itOriginals->second;
-    }
     block_originals.clear();
     dirtyHashes.clear();
     cacheHashes.clear();
@@ -1091,7 +1052,7 @@ bool CClaimTrieUpdateBuffer::flush()
     }
 
     for (nodeCacheType::iterator itcache = cache.begin(); itcache != cache.end(); ++itcache) {
-        if (!base->updateName(itcache->first, itcache->second)) {
+        if (!base->updateName(itcache->first, itcache->second.get())) {
             LogPrintf("%s: Failed to update name for:%s\n", __func__, itcache->first);
             return false;
         }
@@ -1153,7 +1114,7 @@ CClaimTrieProof CClaimTrieUpdateBuffer::getProofForName(const std::string& name)
         std::string currentPosition(name.begin(), itName);
         cachedNode = cache.find(currentPosition);
         if (cachedNode != cache.end()) {
-            current = cachedNode->second;
+            current = cachedNode->second.get();
         }
         CClaimValue claim;
         bool fNodeHasValue = current->getBestClaim(claim);
@@ -1167,10 +1128,10 @@ CClaimTrieProof CClaimTrieUpdateBuffer::getProofForName(const std::string& name)
         CClaimTrieNode* nextCurrent = NULL;
         for (nodeMapType::const_iterator itChildren = current->children.begin(); itChildren != current->children.end(); ++itChildren) {
             if (itName == name.end() || itChildren->first != *itName) { // Leaf node
-                uint256 childHash = getLeafHashForProof(currentPosition, itChildren->first, itChildren->second);
+                uint256 childHash = getLeafHashForProof(currentPosition, itChildren->first, itChildren->second.get());
                 children.push_back(std::make_pair(itChildren->first, childHash));
             } else { // Full node
-                nextCurrent = itChildren->second;
+                nextCurrent = itChildren->second.get();
                 uint256 childHash;
                 children.push_back(std::make_pair(itChildren->first, childHash));
             }

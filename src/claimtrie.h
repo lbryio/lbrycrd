@@ -12,6 +12,8 @@
 #include <string>
 #include <vector>
 
+#include <boost/shared_ptr.hpp>
+
 uint256 getValueHash(COutPoint outPoint, int nHeightOfLastTakeover);
 
 class CClaimValue
@@ -116,7 +118,7 @@ class CClaimTrie;
 
 typedef std::vector<CSupportValue> supportMapEntryType;
 
-typedef std::map<unsigned char, CClaimTrieNode*> nodeMapType;
+typedef std::map<unsigned char, boost::shared_ptr<CClaimTrieNode> > nodeMapType;
 
 typedef std::pair<std::string, CClaimTrieNode> namedNodeType;
 
@@ -321,7 +323,7 @@ typedef std::map<int, claimQueueRowType> claimQueueType;
 typedef std::vector<supportQueueEntryType> supportQueueRowType;
 typedef std::map<int, supportQueueRowType> supportQueueType;
 
-typedef std::map<std::string, CClaimTrieNode*, nodenamecompare> nodeCacheType;
+typedef std::map<std::string, boost::shared_ptr<CClaimTrieNode>, nodenamecompare> nodeCacheType;
 
 typedef std::map<std::string, uint256> hashMapType;
 
@@ -409,6 +411,7 @@ private:
     CClaimTrieDb db;
     void clear(CClaimTrieNode* current);
 
+    CClaimTrieNode* getNodeForName(const std::string& name);
     const CClaimTrieNode* getNodeForName(const std::string& name) const;
 
     bool updateName(const std::string& name, CClaimTrieNode* updatedNode);

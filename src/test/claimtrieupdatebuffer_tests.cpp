@@ -68,18 +68,18 @@ BOOST_AUTO_TEST_CASE(recursiveprune_test)
     base_node.insertClaim(test_claim);
 
     // node 1 has a claim so it should not be pruned
-    CClaimTrieNode node_1;
+    CClaimTrieNode *node_1 = new CClaimTrieNode;
     const char c = 't';
-    base_node.children[c] = &node_1;
-    node_1.insertClaim(test_claim);
+    base_node.children[c].reset(node_1);
+    node_1->insertClaim(test_claim);
     // set this just to make sure we get the right CClaimTrieNode back
-    node_1.nHeightOfLastTakeover = 10;
+    node_1->nHeightOfLastTakeover = 10;
 
     //node 2 does not have a claim so it should be pruned
     // thus we should find pruned node 1 in cache
-    CClaimTrieNode node_2;
+    CClaimTrieNode *node_2 = new CClaimTrieNode;
     const char c_2 = 'e';
-    node_1.children[c_2] = &node_2;
+    node_1->children[c_2].reset(node_2);
 
     cc.recursivePruneName(&base_node, 0, std::string("te"), NULL);
     BOOST_CHECK_EQUAL(1, cc.cacheSize());
