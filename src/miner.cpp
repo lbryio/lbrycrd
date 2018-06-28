@@ -342,10 +342,12 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
                         spentClaimsType::iterator itSpent;
                         for (itSpent = spentClaims.begin(); itSpent != spentClaims.end(); ++itSpent)
                         {
-                            if (itSpent->first == name && itSpent->second == claimId)
-                            {
+                            if (pclaimTrie->shouldNormalize() &&
+                                (normalizeClaimName(name) == normalizeClaimName(itSpent->first)) &&
+                                itSpent->second == claimId)
                                 break;
-                            }
+                            else if (itSpent->first == name && itSpent->second == claimId)
+                                break;
                         }
                         if (itSpent != spentClaims.end())
                         {
@@ -443,15 +445,33 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
         insertUndoType dummyInsertSupportUndo;
         supportQueueRowType dummyExpireSupportUndo;
         std::vector<std::pair<std::string, int> > dummyTakeoverHeightUndo;
+
+        if (nHeight == Params().GetConsensus().nNormalizedNameForkHeight) {
+            trieCache.setBestBlock(pindexPrev->GetBlockHash());
+            pclaimTrie = pclaimTrie->enableNormalizationFork(true, nHeight, trieCache);
+            CClaimTrieCache tmpTrieCache(pclaimTrie);
+            tmpTrieCache.setBestBlock(trieCache.getBestBlock());
+            trieCache = tmpTrieCache;
+            trieCache.getMerkleHash(true);
+        }
+
         trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo, dummyInsertSupportUndo, dummyExpireSupportUndo, dummyTakeoverHeightUndo);
+
         pblock->hashClaimTrie = trieCache.getMerkleHash();
+
+        // disable the fork enabled above
+        if (nHeight == Params().GetConsensus().nNormalizedNameForkHeight)
+            pclaimTrie = pclaimTrie->enableNormalizationFork(false, nHeight, trieCache);
 
         CValidationState state;
         if (!TestBlockValidity(state, chainparams, *pblock, pindexPrev, false, false)) {
             throw std::runtime_error(strprintf("%s: TestBlockValidity failed: %s", __func__, FormatStateMessage(state)));
         }
-    }
 
+        // disable the fork enabled in TestBlockValidity
+        if (nHeight == Params().GetConsensus().nNormalizedNameForkHeight)
+            pclaimTrie = pclaimTrie->enableNormalizationFork(false, nHeight, trieCache);
+    }
     return pblocktemplate.release();
 }
 

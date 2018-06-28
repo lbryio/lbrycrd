@@ -13,6 +13,12 @@
 #include <vector>
 #include <map>
 
+#include <boost/algorithm/string.hpp>
+#include <boost/locale/conversion.hpp>
+#include <boost/locale/localization_backend.hpp>
+#include <boost/locale.hpp>
+#include <boost/ptr_container/ptr_vector.hpp>
+
 // leveldb keys
 #define HASH_BLOCK 'h'
 #define CURRENT_HEIGHT 't'
@@ -27,6 +33,34 @@
 #define SUPPORT_EXP_QUEUE_ROW 'x'
 
 uint256 getValueHash(COutPoint outPoint, int nHeightOfLastTakeover);
+
+// lower-case and normalize any input string name
+// see: https://unicode.org/reports/tr15/#Norm_Forms
+inline std::string normalizeClaimName(const std::string& name)
+{
+    static std::locale utf8;
+    static bool initialized = false;
+    if (!initialized) {
+        static boost::locale::localization_backend_manager manager =
+            boost::locale::localization_backend_manager::global();
+        manager.select("icu");
+
+        static boost::locale::generator curLocale(manager);
+        utf8 = curLocale("en_US.UTF8");
+        initialized = true;
+    }
+
+    std::string normalized = boost::locale::normalize(name, boost::locale::norm_nfd, utf8);
+    // Non-locale aware lowercase
+    boost::algorithm::to_lower(normalized);
+
+    // Locale aware lowercase
+    /* normalized = boost::locale::to_lower(normalized, utf8); */
+
+    LogPrintf("%s: Normalized \"%s\" (%lu, %lu) to \"%s\" (%lu, %lu)\n", __func__, name, name.size(), sizeof(name), normalized, normalized.size(), sizeof(normalized));
+    // code points can be lost if we're not careful to make sure the string isn't shrinking here
+    return (normalized.size() >= name.size()) ? normalized : name;
+}
 
 class CClaimValue
 {
@@ -134,6 +168,10 @@ typedef std::map<unsigned char, CClaimTrieNode*> nodeMapType;
 
 typedef std::pair<std::string, CClaimTrieNode> namedNodeType;
 
+typedef boost::ptr_vector<CClaimTrieNode> claimTrieNodeListType;
+
+static claimTrieNodeListType claimTrieNodeList;
+
 class CClaimTrieNode
 {
 public:
@@ -158,6 +196,67 @@ public:
         READWRITE(hash);
         READWRITE(claims);
         READWRITE(nHeightOfLastTakeover);
+    }
+
+    CClaimTrieNode& cloneState(const CClaimTrieNode& other)
+    {
+        hash = other.hash;
+        nHeightOfLastTakeover = other.nHeightOfLastTakeover;
+        if (!claims.empty()) {
+            claims.reserve(other.claims.size());
+            std::copy(other.claims.begin(), other.claims.end(), claims.begin());
+        }
+
+        std::string sPos;
+        for (nodeMapType::const_iterator it = other.children.begin(); it != other.children.end(); ++it) {
+            std::stringstream ss;
+            ss << it->first;
+            sPos = ss.str();
+
+            CClaimTrieNode* newNode = new CClaimTrieNode();
+            newNode->cloneState(*it->second);
+            if (!it->second->claims.empty()) {
+                newNode->claims.reserve(it->second->claims.size());
+                for (std::vector<CClaimValue>::const_iterator cit = it->second->claims.begin(); cit != it->second->claims.end(); ++cit)
+                    newNode->claims.push_back(*cit);
+            }
+            children[sPos[sPos.size() - 1]] = newNode;
+
+            claimTrieNodeList.push_back(newNode);
+        }
+        return *this;
+    }
+
+    // NOTE: While normalization is hardcoded into this method, it's
+    // *only* used while enabling the normalization fork in order to
+    // flatten the namespace.
+    CClaimTrieNode& normalizeClone(const CClaimTrieNode& other)
+    {
+        hash = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
+        nHeightOfLastTakeover = other.nHeightOfLastTakeover;
+        if (!claims.empty()) {
+            claims.reserve(other.claims.size());
+            std::copy(other.claims.begin(), other.claims.end(), claims.begin());
+        }
+
+        std::string sPos;
+        for (nodeMapType::const_iterator it = other.children.begin(); it != other.children.end(); ++it) {
+            std::stringstream ss;
+            ss << it->first;
+            sPos = normalizeClaimName(ss.str());
+
+            CClaimTrieNode* newNode = new CClaimTrieNode();
+            newNode->normalizeClone(*it->second);
+            if (!it->second->claims.empty()) {
+                newNode->claims.reserve(it->second->claims.size());
+                for (std::vector<CClaimValue>::const_iterator cit = it->second->claims.begin(); cit != it->second->claims.end(); ++cit)
+                    newNode->claims.push_back(*cit);
+            }
+            children[sPos[sPos.size() - 1]] = newNode;
+
+            claimTrieNodeList.push_back(newNode);
+        }
+        return *this;
     }
 
     bool operator==(const CClaimTrieNode& other) const
@@ -301,17 +400,19 @@ class CClaimTrieCache;
 class CClaimTrie
 {
 public:
-    CClaimTrie(bool fMemory = false, bool fWipe = false, int nProportionalDelayFactor = 32)
-               : db(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false)
-               , nCurrentHeight(0), nExpirationTime(Params().GetConsensus().nOriginalClaimExpirationTime)
-               , nProportionalDelayFactor(nProportionalDelayFactor)
-               , root(uint256S("0000000000000000000000000000000000000000000000000000000000000001"))
+    CClaimTrie(bool fMemory = false, bool fWipe = false, bool fNormalize = false, int nProportionalDelayFactor = 32)
+        : db(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false), nCurrentHeight(0), nExpirationTime(Params().GetConsensus().nOriginalClaimExpirationTime), nProportionalDelayFactor(nProportionalDelayFactor), root(uint256S("0000000000000000000000000000000000000000000000000000000000000001")), fNormalize(fNormalize)
     {}
+
+    // Does not change the current trie, but returns a normalized equivalent trie
+    CClaimTrie* enableNormalizationFork(bool enable, int nHeight, CClaimTrieCache& trieCache);
 
     uint256 getMerkleHash();
 
     bool empty() const;
     void clear();
+
+    bool shouldNormalize();
 
     bool checkConsistency() const;
 
@@ -381,8 +482,9 @@ private:
                 expirationQueueType& supportExpirationQueueCache);
     bool updateName(const std::string& name, CClaimTrieNode* updatedNode);
     bool updateHash(const std::string& name, uint256& hash);
+    bool updateHashNormalized(const std::string& name, uint256& hash);
     bool updateTakeoverHeight(const std::string& name, int nTakeoverHeight);
-    bool recursiveNullify(CClaimTrieNode* node, std::string& name);
+    bool recursiveNullify(CClaimTrieNode* node, const std::string& name);
 
     bool recursiveCheckConsistency(const CClaimTrieNode* node) const;
 
@@ -420,6 +522,9 @@ private:
     void BatchWriteSupportExpirationQueueRows(CDBBatch& batch);
     template<typename K> bool keyTypeEmpty(char key, K& dummy) const;
 
+    void cloneState(const CClaimTrie&);
+    void copyAndNormalizeQueues(const CClaimTrie&);
+
     CClaimTrieNode root;
     uint256 hashBlock;
 
@@ -433,6 +538,8 @@ private:
 
     nodeCacheType dirtyNodes;
     supportMapType dirtySupportNodes;
+
+    bool fNormalize;
 };
 
 class CClaimTrieProofNode
@@ -470,7 +577,7 @@ public:
         nCurrentHeight = base->nCurrentHeight;
     }
 
-    uint256 getMerkleHash() const;
+    uint256 getMerkleHash(bool forceCompute = false) const;
 
     bool empty() const;
     bool flush();
@@ -543,11 +650,20 @@ public:
     CAmount getEffectiveAmountForClaim(const claimsForNameType& claims, const uint160& claimId, std::vector<CSupportValue>* supports = NULL) const;
 
 protected:
+    // Should be private: Do not use unless you know what you're doing.
+    CClaimTrieNode* addNodeToCache(const std::string& position, CClaimTrieNode* original) const;
+    bool recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent,
+        const std::string& sPos,
+        bool forceCompute = false) const;
+    bool recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos, const std::string& sName, bool* pfNullified = NULL) const;
+
+    mutable nodeCacheType cache;
+
+private:
     CClaimTrie* base;
 
     bool fRequireTakeoverHeights;
 
-    mutable nodeCacheType cache;
     mutable nodeCacheType block_originals;
     mutable std::set<std::string> dirtyHashes;
     mutable hashMapType cacheHashes;
@@ -570,11 +686,6 @@ protected:
     uint256 computeHash() const;
 
     bool reorderTrieNode(const std::string& name, bool fCheckTakeover) const;
-    bool recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent,
-                                    std::string sPos) const;
-    bool recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos,
-                            std::string sName,
-                            bool* pfNullified = NULL) const;
 
     bool clear() const;
 
@@ -632,8 +743,6 @@ protected:
 
     uint256 getLeafHashForProof(const std::string& currentPosition, unsigned char nodeChar,
                                 const CClaimTrieNode* currentNode) const;
-
-    CClaimTrieNode* addNodeToCache(const std::string& position, CClaimTrieNode* original) const;
 
     bool getOriginalInfoForName(const std::string& name, CClaimValue& claim) const;
 
