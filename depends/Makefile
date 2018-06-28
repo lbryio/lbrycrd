@@ -113,6 +113,7 @@ $(host_prefix)/.stamp_$(final_build_id): $(native_packages) $(packages)
 	$(AT)mkdir -p $(@D)
 	$(AT)echo copying packages: $^
 	$(AT)echo to: $(@D)
+	$(AT)echo "$(@D)" > /tmp/icu_install_dir
 	$(AT)cd $(@D); $(foreach package,$^, tar xf $($(package)_cached); )
 	$(AT)touch $@
 
