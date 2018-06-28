@@ -2,6 +2,7 @@
 #include "nameclaim.h"
 #include "hash.h"
 #include "util.h"
+#include "claimtrie.h"
 
 
 std::vector<unsigned char> uint32_t_to_vch(uint32_t n)
@@ -18,8 +19,8 @@ std::vector<unsigned char> uint32_t_to_vch(uint32_t n)
 uint32_t vch_to_uint32_t(std::vector<unsigned char>& vchN)
 {
     uint32_t n;
-    if (vchN.size() != 4)
-    {
+    static const size_t uint32Size = sizeof(uint32_t);
+    if (vchN.size() != uint32Size) {
         LogPrintf("%s() : a vector<unsigned char> with size other than 4 has been given", __func__);
         return 0;
     }
@@ -29,26 +30,25 @@ uint32_t vch_to_uint32_t(std::vector<unsigned char>& vchN)
 
 CScript ClaimNameScript(std::string name, std::string value)
 {
-     std::vector<unsigned char> vchName(name.begin(), name.end());
-     std::vector<unsigned char> vchValue(value.begin(), value.end());
-     return CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP << OP_TRUE; 
-
+    std::vector<unsigned char> vchName(name.begin(), name.end());
+    std::vector<unsigned char> vchValue(value.begin(), value.end());
+    return CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP << OP_TRUE;
 }
+
 CScript SupportClaimScript(std::string name, uint160 claimId)
 {
     std::vector<unsigned char> vchName(name.begin(), name.end());
-    std::vector<unsigned char> vchClaimId(claimId.begin(),claimId.end());  
+    std::vector<unsigned char> vchClaimId(claimId.begin(), claimId.end());
     return CScript() << OP_SUPPORT_CLAIM << vchName << vchClaimId << OP_2DROP << OP_DROP << OP_TRUE;
 }
+
 CScript UpdateClaimScript(std::string name, uint160 claimId, std::string value)
 {
     std::vector<unsigned char> vchName(name.begin(), name.end());
-    std::vector<unsigned char> vchClaimId(claimId.begin(),claimId.end());  
+    std::vector<unsigned char> vchClaimId(claimId.begin(), claimId.end());
     std::vector<unsigned char> vchValue(value.begin(), value.end());
     return CScript() << OP_UPDATE_CLAIM << vchName << vchClaimId << vchValue << OP_2DROP << OP_2DROP << OP_TRUE;
-
 }
-
 
 bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams)
 {
@@ -90,8 +90,8 @@ bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector
     }
     if (op == OP_UPDATE_CLAIM || op == OP_SUPPORT_CLAIM)
     {
-        if (vchParam2.size() != 160/8)
-        {
+        static const size_t claimIdHashSize = sizeof(uint160);
+        if (vchParam2.size() != claimIdHashSize) {
             return false;
         }
     }

@@ -7,8 +7,9 @@ $(package)_sha256_hash=727a932322d94287b62abb1bd2d41723eec4356a7728909e38adb65ca
 define $(package)_set_vars
 $(package)_config_opts_release=variant=release
 $(package)_config_opts_debug=variant=debug
-$(package)_config_opts=--layout=tagged --build-type=complete --user-config=user-config.jam
-$(package)_config_opts+=threading=multi link=static -sNO_BZIP2=1 -sNO_ZLIB=1
+$(package)_config_opts=--layout=tagged --build-type=complete --user-config=user-config.jam boost.locale.iconv=off boost.locale.posix=off
+$(package)_config_opts+=threading=multi link=static -sNO_BZIP2=1 -sNO_ZLIB=1 -sICU_PATH=$(shell cat /tmp/icu_install_dir)
+$(package)_config_opts+=-sICU_LINK="-L$(shell cat /tmp/icu_install_dir) -lsicudt -lsicuin -lsicuio -lsicule -lsiculx -lsicutest -lsicutu -lsicuuc"
 $(package)_config_opts_linux=threadapi=pthread runtime-link=shared
 $(package)_config_opts_darwin=--toolset=darwin-4.2.1 runtime-link=shared
 $(package)_config_opts_mingw32=binary-format=pe target-os=windows threadapi=win32 runtime-link=static
@@ -19,9 +20,17 @@ $(package)_toolset_$(host_os)=gcc
 $(package)_archiver_$(host_os)=$($(package)_ar)
 $(package)_toolset_darwin=darwin
 $(package)_archiver_darwin=$($(package)_libtool)
-$(package)_config_libraries=chrono,filesystem,program_options,system,thread,test
+$(package)_config_libraries=chrono,filesystem,program_options,system,locale,regex,thread,test
 $(package)_cxxflags=-fvisibility=hidden
 $(package)_cxxflags_linux=-fPIC
+$(package)_config_env+=BOOST_ICU_ICONV="off"
+$(package)_config_env+=BOOST_ICU_POSIX="off"
+$(package)_config_env+=ICU_PREFIX=$(shell cat /tmp/icu_install_dir)
+$(package)_config_env+=BOOST_ICU_LIBS="-L$(shell cat /tmp/icu_install_dir) -lsicudt -lsicuin -lsicuio -lsicule -lsiculx -lsicutest -lsicutu -lsicuuc"
+$(package)_build_env+=BOOST_ICU_ICONV="off"
+$(package)_build_env+=BOOST_ICU_POSIX="off"
+$(package)_build_env+=ICU_PREFIX=$(shell cat /tmp/icu_install_dir)
+$(package)_build_env+=BOOST_ICU_LIBS="-L$(shell cat /tmp/icu_install_dir) -lsicudt -lsicuin -lsicuio -lsicule -lsiculx -lsicutest -lsicutu -lsicuuc"
 endef
 
 define $(package)_preprocess_cmds
@@ -29,13 +38,13 @@ define $(package)_preprocess_cmds
 endef
 
 define $(package)_config_cmds
-  ./bootstrap.sh --without-icu --with-libraries=$(boost_config_libraries)
+  echo "int main() { return 0; }" > ./libs/locale/build/has_icu_test.cpp && echo "int main() { return 0; }" > ./libs/regex/build/has_icu_test.cpp && ./bootstrap.sh --with-icu=$(shell cat /tmp/icu_install_dir) --with-libraries=$(boost_config_libraries)
 endef
 
 define $(package)_build_cmds
-  ./b2 -d2 -j2 -d1 --prefix=$($(package)_staging_prefix_dir) $($(package)_config_opts) stage
+  ./b2 link=static cxxflags=-fPIC -d0 -j4 --prefix=$($(package)_staging_prefix_dir) $($(package)_config_opts)
 endef
 
 define $(package)_stage_cmds
-  ./b2 -d0 -j4 --prefix=$($(package)_staging_prefix_dir) $($(package)_config_opts) install
+  ./b2 link=static cxxflags=-fPIC -d0 -j4 --prefix=$($(package)_staging_prefix_dir) $($(package)_config_opts) install
 endef
