@@ -404,21 +404,21 @@ bool CWallet::Verify()
         } catch (const boost::filesystem::filesystem_error&) {
             // failure is ok (well, not really, but it's not worse than what we started with)
         }
-        
+
         // try again
         if (!bitdb.Open(GetDataDir())) {
             // if it still fails, it probably means we can't even create the database env
             return UIError(strprintf(_("Error initializing wallet database environment %s!"), GetDataDir()));
         }
     }
-    
+
     if (GetBoolArg("-salvagewallet", false))
     {
         // Recover readable keypairs:
         if (!CWalletDB::Recover(bitdb, walletFile, true))
             return false;
     }
-    
+
     if (boost::filesystem::exists(GetDataDir() / walletFile))
     {
         CDBEnv::VerifyResult r = bitdb.Verify(walletFile, CWalletDB::Recover);
@@ -433,7 +433,7 @@ bool CWallet::Verify()
         if (r == CDBEnv::RECOVER_FAIL)
             return UIError(strprintf(_("%s corrupt, salvage failed"), walletFile));
     }
-    
+
     return true;
 }
 
@@ -1762,9 +1762,9 @@ static void ApproximateBestSubset(vector<pair<CAmount, pair<const CWalletTx*,uns
         }
     }
 
-    //Reduces the approximate best subset by removing any inputs that are smaller than the surplus of nTotal beyond nTargetValue. 
+    //Reduces the approximate best subset by removing any inputs that are smaller than the surplus of nTotal beyond nTargetValue.
     for (unsigned int i = 0; i < vValue.size(); i++)
-    {                        
+    {
         if (vfBest[i] && (nBest - vValue[i].first) >= nTargetValue )
         {
             vfBest[i] = false;
@@ -2203,7 +2203,7 @@ bool CWallet::CreateTransaction(const vector<CRecipient>& vecSend, CWalletTx& wt
                             // Insert change txn at random position:
                             nChangePosInOut = GetRandInt(txNew.vout.size()+1);
                         }
-                        else if (nChangePosInOut > txNew.vout.size())
+                        else if (static_cast<size_t>(nChangePosInOut) > txNew.vout.size())
                         {
                             strFailReason = _("Change index out of range");
                             return false;
@@ -2531,7 +2531,7 @@ bool CWallet::SetDefaultKey(const CPubKey &vchPubKey)
 
 /**
  * Mark old keypool keys as used,
- * and generate all new keys 
+ * and generate all new keys
  */
 bool CWallet::NewKeyPool()
 {

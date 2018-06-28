@@ -155,7 +155,7 @@ struct update_descendant_state
         modifySize(_modifySize), modifyFee(_modifyFee), modifyCount(_modifyCount)
     {}
 
-    void operator() (CTxMemPoolEntry &e)
+    void operator() (CTxMemPoolEntry &e) const
         { e.UpdateDescendantState(modifySize, modifyFee, modifyCount); }
 
     private:
@@ -170,7 +170,7 @@ struct update_ancestor_state
         modifySize(_modifySize), modifyFee(_modifyFee), modifyCount(_modifyCount), modifySigOps(_modifySigOps)
     {}
 
-    void operator() (CTxMemPoolEntry &e)
+    void operator() (CTxMemPoolEntry &e) const
         { e.UpdateAncestorState(modifySize, modifyFee, modifyCount, modifySigOps); }
 
     private:
@@ -184,7 +184,7 @@ struct update_fee_delta
 {
     update_fee_delta(int64_t _feeDelta) : feeDelta(_feeDelta) { }
 
-    void operator() (CTxMemPoolEntry &e) { e.UpdateFeeDelta(feeDelta); }
+    void operator() (CTxMemPoolEntry &e) const { e.UpdateFeeDelta(feeDelta); }
 
 private:
     int64_t feeDelta;
@@ -194,7 +194,7 @@ struct update_lock_points
 {
     update_lock_points(const LockPoints& _lp) : lp(_lp) { }
 
-    void operator() (CTxMemPoolEntry &e) { e.UpdateLockPoints(lp); }
+    void operator() (CTxMemPoolEntry &e) const { e.UpdateLockPoints(lp); }
 
 private:
     const LockPoints& lp;
@@ -217,7 +217,7 @@ struct mempoolentry_txid
 class CompareTxMemPoolEntryByDescendantScore
 {
 public:
-    bool operator()(const CTxMemPoolEntry& a, const CTxMemPoolEntry& b)
+    bool operator()(const CTxMemPoolEntry& a, const CTxMemPoolEntry& b) const
     {
         bool fUseADescendants = UseDescendantScore(a);
         bool fUseBDescendants = UseDescendantScore(b);
@@ -239,7 +239,7 @@ public:
     }
 
     // Calculate which score to use for an entry (avoiding division).
-    bool UseDescendantScore(const CTxMemPoolEntry &a)
+    bool UseDescendantScore(const CTxMemPoolEntry &a) const
     {
         double f1 = (double)a.GetModifiedFee() * a.GetSizeWithDescendants();
         double f2 = (double)a.GetModFeesWithDescendants() * a.GetTxSize();
@@ -254,7 +254,7 @@ public:
 class CompareTxMemPoolEntryByScore
 {
 public:
-    bool operator()(const CTxMemPoolEntry& a, const CTxMemPoolEntry& b)
+    bool operator()(const CTxMemPoolEntry& a, const CTxMemPoolEntry& b) const
     {
         double f1 = (double)a.GetModifiedFee() * b.GetTxSize();
         double f2 = (double)b.GetModifiedFee() * a.GetTxSize();
@@ -268,7 +268,7 @@ public:
 class CompareTxMemPoolEntryByEntryTime
 {
 public:
-    bool operator()(const CTxMemPoolEntry& a, const CTxMemPoolEntry& b)
+    bool operator()(const CTxMemPoolEntry& a, const CTxMemPoolEntry& b) const
     {
         return a.GetTime() < b.GetTime();
     }
@@ -277,7 +277,7 @@ public:
 class CompareTxMemPoolEntryByAncestorFee
 {
 public:
-    bool operator()(const CTxMemPoolEntry& a, const CTxMemPoolEntry& b)
+    bool operator()(const CTxMemPoolEntry& a, const CTxMemPoolEntry& b) const
     {
         double aFees = a.GetModFeesWithAncestors();
         double aSize = a.GetSizeWithAncestors();
@@ -619,7 +619,7 @@ public:
 
     /** Estimate priority needed to get into the next nBlocks */
     double estimatePriority(int nBlocks) const;
-    
+
     /** Write/Read estimates to disk */
     bool WriteFeeEstimates(CAutoFile& fileout) const;
     bool ReadFeeEstimates(CAutoFile& filein);
@@ -665,7 +665,7 @@ private:
     void removeUnchecked(txiter entry);
 };
 
-/** 
+/**
  * CCoinsView that brings transactions from a memorypool into view.
  * It does not check for spendings by memory pool transactions.
  */
@@ -685,7 +685,7 @@ typedef std::pair<double, CTxMemPool::txiter> TxCoinAgePriority;
 
 struct TxCoinAgePriorityCompare
 {
-    bool operator()(const TxCoinAgePriority& a, const TxCoinAgePriority& b)
+    bool operator()(const TxCoinAgePriority& a, const TxCoinAgePriority& b) const
     {
         if (a.first == b.first)
             return CompareTxMemPoolEntryByScore()(*(b.second), *(a.second)); //Reverse order to make sort less than
