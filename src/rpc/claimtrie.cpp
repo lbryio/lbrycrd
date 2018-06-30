@@ -7,6 +7,22 @@
 // Maximum block decrement that is allowed from rpc calls
 const int MAX_RPC_BLOCK_DECREMENTS = 50;
 
+uint160 ParseClaimtrieId(const UniValue& v, std::string strName)
+{
+    std::string strHex;
+    if (v.isStr())
+        strHex = v.get_str();
+    if (!IsHex(strHex)) // Note: IsHex("") is false
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strName + " must be a 20-character hexadecimal string (not '" + strHex + "')");
+    if (40 != strHex.length())
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("%s must be of length %d (not %d)", strName, 40, strHex.length()));
+
+    uint160 result;
+    result.SetHex(strHex);
+    return result;
+}
+
+
 UniValue getclaimsintrie(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() > 0)
@@ -380,8 +396,7 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
         );
 
     LOCK(cs_main);
-    uint160 claimId;
-    claimId.SetHex(params[0].get_str());
+    uint160 claimId = ParseClaimtrieId(params[0], "Claim-id (parameter 1)");
     UniValue claim(UniValue::VOBJ);
     std::string name;
     CClaimValue claimValue;
@@ -512,10 +527,7 @@ UniValue getclaimsfortx(const UniValue& params, bool fHelp)
         );
 
     LOCK(cs_main);
-
-    uint256 hash;
-    hash.SetHex(params[0].get_str());
-
+    uint256 hash = ParseHashV(params[0], "txid (parameter 1)");
     UniValue ret(UniValue::VARR);
 
     int op;
@@ -741,8 +753,7 @@ UniValue getnameproof(const UniValue& params, bool fHelp)
     uint256 blockHash;
     if (params.size() == 2)
     {
-        std::string strBlockHash = params[1].get_str();
-        blockHash = uint256S(strBlockHash);
+        blockHash = ParseHashV(params[1], "blockhash (optional parameter 2)");
     }
     else
     {

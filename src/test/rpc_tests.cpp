@@ -332,4 +332,23 @@ BOOST_AUTO_TEST_CASE(rpc_convert_values_generatetoaddress)
     BOOST_CHECK_EQUAL(result[2].get_int(), 9);
 }
 
+BOOST_AUTO_TEST_CASE(rpc_claimtrie_validation)
+{
+    // std::runtime_error: parameter 2 must be hexadecimal string (not 'not_hex')
+    BOOST_CHECK_THROW(CallRPC("getnameproof test not_hex"), runtime_error);
+    // std::runtime_error: Block not found
+    BOOST_CHECK_THROW(CallRPC("getnameproof test aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), runtime_error);
+    // Generate a block to validate the NO_THROW case.
+    UniValue result = CallRPC("generate 1");
+    BOOST_CHECK_NO_THROW(CallRPC(string("getnameproof test ") + result[0].get_str()));
+
+    BOOST_CHECK_THROW(CallRPC("getclaimsfortx not_hex"), runtime_error);
+    BOOST_CHECK_NO_THROW(CallRPC("getclaimsfortx aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+
+    BOOST_CHECK_THROW(CallRPC("getclaimbyid not_hex"), runtime_error);
+    // Wrong length.
+    BOOST_CHECK_THROW(CallRPC("getclaimbyid a"), runtime_error);
+    BOOST_CHECK_NO_THROW(CallRPC("getclaimbyid aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+}
+
 BOOST_AUTO_TEST_SUITE_END()
