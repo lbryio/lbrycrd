@@ -332,4 +332,17 @@ BOOST_AUTO_TEST_CASE(rpc_convert_values_generatetoaddress)
     BOOST_CHECK_EQUAL(result[2].get_int(), 9);
 }
 
+BOOST_AUTO_TEST_CASE(rpc_claimtrie_validation) {
+    // std::runtime_error: parameter 2 must be hexadecimal string (not 'not_hex')
+    BOOST_CHECK_THROW(CallRPC("getnameproof test not_hex"), runtime_error);
+    // std::runtime_error: Block not found
+    BOOST_CHECK_THROW(CallRPC("getnameproof test a3b807410df0b60fcb9736768df5823938b2f838694939ba45f3c0a1bff150ed"), runtime_error);
+
+    BOOST_CHECK_THROW(CallRPC("getclaimsfortx not_hex"), runtime_error);
+    BOOST_CHECK_NO_THROW(CallRPC("getclaimsfortx a3b807410df0b60fcb9736768df5823938b2f838694939ba45f3c0a1bff150ed"));
+
+    BOOST_CHECK_THROW(CallRPC("getclaimbyid not_hex"), runtime_error);
+    BOOST_CHECK_NO_THROW(CallRPC("getclaimbyid a3b807410df0b60fcb9736768df5823938b2f838694939ba45f3c0a1bff150ed"));
+}
+
 BOOST_AUTO_TEST_SUITE_END()
