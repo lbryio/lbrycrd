@@ -374,7 +374,8 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_claim)
     BOOST_CHECK(is_best_claim("test",tx4)); 
     fixture.DecrementBlocks(1);
 
-    // check claim takeover 
+    // check claim takeover, note that CClaimTrie.nProportionalDelayFactor is set to 1
+    // instead of 32 in test_bitcoin.cpp
     CMutableTransaction tx6 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
     fixture.IncrementBlocks(10); 
     BOOST_CHECK(is_best_claim("test",tx6));
