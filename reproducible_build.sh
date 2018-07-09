@@ -215,6 +215,10 @@ function install_brew_packages() {
     brew_if_not_installed pkg-config
     brew_if_not_installed protobuf
     brew_if_not_installed gmp
+
+    if [ "${CHECK_CODE_FORMAT}" = true ]; then
+        brew_if_not_installed clang-format
+    fi
 }
 
 function install_apt_packages() {
@@ -371,7 +375,9 @@ function build_lbrycrd() {
 function clang_format_diff(){
     # run a code formatting check on any commits not in master
     # requires clang-format
-    git remote add origin2 https://github.com/lbryio/lbrycrd.git
+    if ! git config remote.origin2.url > /dev/null; then
+        git remote add origin2 https://github.com/lbryio/lbrycrd.git
+    fi
     git fetch origin2
     git diff -U0 origin2/master -- '*.h' '*.cpp' | ./contrib/devtools/clang-format-diff.py -p1
 }
