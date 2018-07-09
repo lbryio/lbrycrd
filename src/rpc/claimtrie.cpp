@@ -382,7 +382,7 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
     LOCK(cs_main);
 
     // Used for validation.
-    ParseHashV(params[0], "Claim-id (parameter 1)");
+    ParseHexV(params[0], "Claim-id (parameter 1)");
 
     uint160 claimId;
     claimId.SetHex(params[0].get_str());
@@ -742,7 +742,7 @@ UniValue getnameproof(const UniValue& params, bool fHelp)
     uint256 blockHash;
     if (params.size() == 2)
     {
-        uint256 hash = ParseHashV(params[1], "blockhash (optional parameter 2)");
+        blockHash = ParseHashV(params[1], "blockhash (optional parameter 2)");
     }
     else
     {
