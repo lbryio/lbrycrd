@@ -360,12 +360,13 @@ function build_lbrycrd() {
 		LDFLAGS="${LDFLAGS}" \
 		CPPFLAGS="${CPPFLAGS}" >> "${LBRYCRD_LOG}" 2>&1
     background make "${LBRYCRD_LOG}" "Waiting for lbrycrd to finish building"
-    # tests don't work on OSX. Should definitely figure out why
-    # that is but, for now, not letting that stop the rest
-    # of the build
-    if [ "${OS_NAME}" = "linux" ]; then
-	src/test/test_lbrycrd
-    fi
+    # Looking into this error on OS X
+    ## tests don't work on OSX. Should definitely figure out why
+    ## that is but, for now, not letting that stop the rest
+    ## of the build
+    #if [ "${OS_NAME}" = "linux" ]; then
+        src/test/test_lbrycrd
+    #fi
     strip src/lbrycrdd
     strip src/lbrycrd-cli
     strip src/lbrycrd-tx
