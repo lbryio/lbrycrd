@@ -200,10 +200,9 @@ struct ClaimTrieChainFixture{
         }
 
         CValidationState state;
-        bool *fMissingInputs;
+        bool fMissingInputs;
         CFeeRate txFeeRate = CFeeRate(0);
-        BOOST_CHECK(AcceptToMemoryPool(mempool, state, tx, false, fMissingInputs, &txFeeRate));
-
+        BOOST_CHECK(AcceptToMemoryPool(mempool, state, tx, false, &fMissingInputs, &txFeeRate));
     }
 
     //spend a bid into some non claimtrie related unspent 
