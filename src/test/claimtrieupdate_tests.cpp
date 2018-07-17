@@ -7,20 +7,20 @@
 using namespace std;
 
 
-class CClaimTrieCacheTest : public CClaimTrieCache {
+class CClaimTrieUpdateBufferTest : public CClaimTrieUpdateBuffer {
 public:
-    CClaimTrieCacheTest(CClaimTrie* base):
-        CClaimTrieCache(base, false){}
+    CClaimTrieUpdateBufferTest(CClaimTrie* base):
+        CClaimTrieUpdateBuffer(base, false){}
 
     bool recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent,
                                     std::string sPos) const
     {
-        return CClaimTrieCache::recursiveComputeMerkleHash(tnCurrent, sPos);
+        return CClaimTrieUpdateBuffer::recursiveComputeMerkleHash(tnCurrent, sPos);
     }
 
     bool recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos, std::string sName, bool* pfNullified) const
     {
-        return CClaimTrieCache::recursivePruneName(tnCurrent,nPos,sName, pfNullified);
+        return CClaimTrieUpdateBuffer::recursivePruneName(tnCurrent,nPos,sName, pfNullified);
     }
     int cacheSize()
     {
@@ -41,7 +41,7 @@ BOOST_AUTO_TEST_CASE(merklehash_test)
 {
     // check empty trie
     uint256 one(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
-    CClaimTrieCacheTest cc(pclaimTrie);
+    CClaimTrieUpdateBufferTest cc(pclaimTrie);
     BOOST_CHECK(one == cc.getMerkleHash());
 
     // check trie with only root node
@@ -52,7 +52,7 @@ BOOST_AUTO_TEST_CASE(merklehash_test)
 
 BOOST_AUTO_TEST_CASE(recursiveprune_test)
 {
-    CClaimTrieCacheTest cc(pclaimTrie);
+    CClaimTrieUpdateBufferTest cc(pclaimTrie);
     BOOST_CHECK_EQUAL(0, cc.cacheSize());
 
     COutPoint outpoint;

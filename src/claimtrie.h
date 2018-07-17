@@ -293,7 +293,7 @@ struct claimsForNameType
     : claims(claims), supports(supports), nLastTakeoverHeight(nLastTakeoverHeight) {}
 };
 
-class CClaimTrieCache;
+class CClaimTrieUpdateBuffer;
 
 class CClaimTrie
 {
@@ -357,7 +357,7 @@ public:
     unsigned int getTotalClaimsInTrie() const;
     CAmount getTotalValueOfClaimsInTrie(bool fControllingOnly) const;
 
-    friend class CClaimTrieCache;
+    friend class CClaimTrieUpdateBuffer;
 
     CDBWrapper db;
     int nCurrentHeight;
@@ -457,10 +457,10 @@ public:
     int nHeightOfLastTakeover;
 };
 
-class CClaimTrieCache
+class CClaimTrieUpdateBuffer
 {
 public:
-    CClaimTrieCache(CClaimTrie* base, bool fRequireTakeoverHeights = true)
+    CClaimTrieUpdateBuffer(CClaimTrie* base, bool fRequireTakeoverHeights = true)
                     : base(base),
                       fRequireTakeoverHeights(fRequireTakeoverHeights)
     {
@@ -509,7 +509,7 @@ public:
                         supportQueueRowType& expireSupportUndo,
                         std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
 
-    ~CClaimTrieCache() { clear(); }
+    ~CClaimTrieUpdateBuffer() { clear(); }
 
     bool insertClaimIntoTrie(const std::string& name, CClaimValue claim,
                              bool fCheckTakeover = false) const;

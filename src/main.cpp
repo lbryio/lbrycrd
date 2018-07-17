@@ -2037,7 +2037,7 @@ bool AbortNode(CValidationState& state, const std::string& strMessage, const std
  * @param out The out point that corresponds to the tx input.
  * @return True on success.
  */
-static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CClaimTrieCache& trieCache, const COutPoint& out)
+static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CClaimTrieUpdateBuffer& trieCache, const COutPoint& out)
 {
     bool fClean = true;
 
@@ -2114,7 +2114,7 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CClaimTr
     return fClean;
 }
 
-bool DisconnectBlock(const CBlock& block, CValidationState& state, const CBlockIndex* pindex, CCoinsViewCache& view, CClaimTrieCache& trieCache, bool* pfClean)
+bool DisconnectBlock(const CBlock& block, CValidationState& state, const CBlockIndex* pindex, CCoinsViewCache& view, CClaimTrieUpdateBuffer& trieCache, bool* pfClean)
 {
     assert(pindex->GetBlockHash() == view.GetBestBlock());
     assert(pindex->GetBlockHash() == trieCache.getBestBlock());
@@ -2395,7 +2395,7 @@ static int64_t nTimeIndex = 0;
 static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 
-bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, CClaimTrieCache& trieCache, bool fJustCheck)
+bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, CClaimTrieUpdateBuffer& trieCache, bool fJustCheck)
 {
     const CChainParams& chainparams = Params();
     AssertLockHeld(cs_main);
@@ -2995,7 +2995,7 @@ bool static DisconnectTip(CValidationState& state, const Consensus::Params& cons
     int64_t nStart = GetTimeMicros();
     {
         CCoinsViewCache view(pcoinsTip);
-        CClaimTrieCache trieCache(pclaimTrie);
+        CClaimTrieUpdateBuffer trieCache(pclaimTrie);
         if (!DisconnectBlock(block, state, pindexDelete, view, trieCache))
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
         assert(view.Flush());
@@ -3061,7 +3061,7 @@ bool static ConnectTip(CValidationState& state, const CChainParams& chainparams,
     LogPrint("bench", "  - Load block from disk: %.2fms [%.2fs]\n", (nTime2 - nTime1) * 0.001, nTimeReadFromDisk * 0.000001);
     {
         CCoinsViewCache view(pcoinsTip);
-        CClaimTrieCache trieCache(pclaimTrie);
+        CClaimTrieUpdateBuffer trieCache(pclaimTrie);
         bool rv = ConnectBlock(*pblock, state, pindexNew, view, trieCache);
         GetMainSignals().BlockChecked(*pblock, state);
         if (!rv) {
@@ -3872,7 +3872,7 @@ bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams,
         return error("%s: CheckIndexAgainstCheckpoint(): %s", __func__, state.GetRejectReason().c_str());
 
     CCoinsViewCache viewNew(pcoinsTip);
-    CClaimTrieCache trieCache(pclaimTrie);
+    CClaimTrieUpdateBuffer trieCache(pclaimTrie);
     CBlockIndex indexDummy(block);
     indexDummy.pprev = pindexPrev;
     indexDummy.nHeight = pindexPrev->nHeight + 1;
@@ -4197,7 +4197,7 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
     nCheckLevel = std::max(0, std::min(4, nCheckLevel));
     LogPrintf("Verifying last %i blocks at level %i\n", nCheckDepth, nCheckLevel);
     CCoinsViewCache coins(coinsview);
-    CClaimTrieCache trieCache(pclaimTrie);
+    CClaimTrieUpdateBuffer trieCache(pclaimTrie);
     CBlockIndex* pindexState = chainActive.Tip();
     CBlockIndex* pindexFailure = NULL;
     int nGoodTransactions = 0;
@@ -4271,7 +4271,7 @@ bool GetProofForName(const CBlockIndex* pindexProof, const std::string& name, CC
         return false;
     }
     CCoinsViewCache coins(pcoinsTip);
-    CClaimTrieCache trieCache(pclaimTrie);
+    CClaimTrieUpdateBuffer trieCache(pclaimTrie);
     CBlockIndex* pindexState = chainActive.Tip();
     CValidationState state;
     for (CBlockIndex *pindex = chainActive.Tip(); pindex && pindex->pprev && pindexState != pindexProof; pindex=pindex->pprev)
