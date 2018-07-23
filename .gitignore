@@ -120,3 +120,5 @@ share/BitcoindComparisonTool.jar
 /doc/doxygen/
 
 libbitcoinconsensus.pc
+
+cmake-build-*/
