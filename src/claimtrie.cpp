@@ -90,16 +90,27 @@ bool CClaimTrieNode::removeClaim(const COutPoint& outPoint, CClaimValue& claim)
     return true;
 }
 
-bool CClaimTrieNode::getBestClaim(CClaimValue& claim) const
+bool CClaimTrieNode::getBestClaim(CClaimValue& claim, int maxHeight) const
 {
     if (claims.empty())
     {
         return false;
     }
-    else
+    else if (maxHeight < 0)
     {
         claim = claims.front();
         return true;
+    }
+    else
+    {
+       // we are already sorted (with reorder getting called on insert/remove)
+       for (std::vector<CClaimValue>::const_iterator itclaim = claims.begin(); itclaim != claims.end(); ++itclaim) {
+            if (itclaim->nHeight <= maxHeight) {
+                claim = *itclaim;
+                return true;
+            }
+        }
+        return false;
     }
 }
 
@@ -133,8 +144,8 @@ void CClaimTrieNode::reorderClaims(supportMapEntryType& supports)
             }
         }
     }
-    
-    std::make_heap(claims.begin(), claims.end());
+
+    std::sort(claims.rbegin(), claims.rend()); // max of effectiveAmount should be first
 }
 
 uint256 CClaimTrie::getMerkleHash()
@@ -438,12 +449,12 @@ const CClaimTrieNode* CClaimTrie::getNodeForName(const std::string& name) const
     return current;
 }
 
-bool CClaimTrie::getInfoForName(const std::string& name, CClaimValue& claim) const
+bool CClaimTrie::getInfoForName(const std::string& name, CClaimValue& claim, int maxHeight) const
 {
     const CClaimTrieNode* current = getNodeForName(name);
     if (current)
     {
-        return current->getBestClaim(claim);
+        return current->getBestClaim(claim, maxHeight);
     }
     return false;
 }

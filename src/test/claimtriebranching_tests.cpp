@@ -1064,4 +1064,25 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_hardfork_disktest)
     BOOST_CHECK(best_claim_effective_amount_equals("test2",1)); // the support expires one block before
 }
 
+BOOST_AUTO_TEST_CASE(claimtriebranching_getBest_supports_confirmations)
+{
+    ClaimTrieChainFixture fixture;
+    int height = chainActive.Tip()->nHeight;
+
+    std::string name("test");
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(),name,"one",42);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),name,"two",43);
+    fixture.IncrementBlocks(1);
+    CClaimValue claim;
+    BOOST_CHECK(pclaimTrie->getInfoForName(name, claim));
+    BOOST_CHECK(claim.nAmount == 43);
+
+    BOOST_CHECK(pclaimTrie->getInfoForName(name, claim, height + 1));
+    BOOST_CHECK(!pclaimTrie->getInfoForName(name, claim, height));
+    fixture.IncrementBlocks(4);
+    BOOST_CHECK_EQUAL(height + 5, chainActive.Tip()->nHeight);
+    BOOST_CHECK(pclaimTrie->getInfoForName(name, claim, height + 2));
+    BOOST_CHECK(!pclaimTrie->getInfoForName(name, claim, height));
+}
+
 BOOST_AUTO_TEST_SUITE_END()
