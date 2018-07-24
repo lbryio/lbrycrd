@@ -146,7 +146,7 @@ public:
 
     bool insertClaim(CClaimValue claim);
     bool removeClaim(const COutPoint& outPoint, CClaimValue& claim);
-    bool getBestClaim(CClaimValue& claim) const;
+    bool getBestClaim(CClaimValue& claim, int maxHeight = -1) const;
     bool empty() const {return children.empty() && claims.empty();}
     bool haveClaim(const COutPoint& outPoint) const;
     void reorderClaims(supportMapEntryType& supports);
@@ -316,7 +316,7 @@ public:
     bool ReadFromDisk(bool check = false);
 
     std::vector<namedNodeType> flattenTrie() const;
-    bool getInfoForName(const std::string& name, CClaimValue& claim) const;
+    bool getInfoForName(const std::string& name, CClaimValue& claim, int maxHeight = -1) const;
     bool getLastTakeoverForName(const std::string& name, int& lastTakeoverHeight) const;
 
     claimsForNameType getClaimsForName(const std::string& name) const;
