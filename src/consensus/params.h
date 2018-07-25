@@ -58,8 +58,11 @@ struct Params {
     bool fPowNoRetargeting;
     int64_t nPowTargetSpacing;
     int64_t nPowTargetTimespan;
+    /** how long it took claims to expire before the hard fork */
     int64_t nOriginalClaimExpirationTime;
+    /** how long it takes claims to expire after the hard fork */
     int64_t nExtendedClaimExpirationTime;
+    /** blocks before the hard fork that changed the expiration time */
     int64_t nExtendedClaimExpirationForkHeight;
     int64_t GetExpirationTime(int64_t nHeight) const {
         return nHeight < nExtendedClaimExpirationForkHeight ?
