@@ -2681,7 +2681,7 @@ bool CClaimTrieCache::forkForExpirationChange(bool increment) const
         if (pcursor->GetKey(key))
         {
             int height = key.second;
-            // if we've looked throught this in dirtyExprirationQueueRows, don't use it
+            // if we've looked through this in dirtyExprirationQueueRows, don't use it
             // because its stale
             if ((key.first == EXP_QUEUE_ROW) & (dirtyHeights.count(height) == 0))
             {
