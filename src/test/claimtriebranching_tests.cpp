@@ -121,8 +121,7 @@ bool CreateBlock(CBlockTemplate* pblocktemplate)
     txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
     pblock->vtx[0] = CTransaction(txCoinbase);
     pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
-    for (uint32_t i = 0; ; ++i)
-    {
+    for (uint32_t i = 0;; ++i) {
         pblock->nNonce = i;
         if (CheckProofOfWork(pblock->GetPoWHash(), pblock->nBits, Params().GetConsensus()))
         {
@@ -179,8 +178,8 @@ struct ClaimTrieChainFixture{
         num_txs_for_next_block = 0;
         num_txs = 0; 
         coinbase_txs_used = 0;
-        // generate coinbases to spend 
-        CreateCoinbases(40,coinbase_txs);
+        // generate coinbases to spend
+        CreateCoinbases(40, coinbase_txs);
     }
 
     ~ClaimTrieChainFixture()
@@ -230,7 +229,7 @@ struct ClaimTrieChainFixture{
         return tx; 
     }
 
-    CMutableTransaction MakeClaim(const CTransaction &prev, std::string name, std::string value)
+    CMutableTransaction MakeClaim(const CTransaction& prev, std::string name, std::string value)
     {
         return MakeClaim(prev, name, value, prev.vout[0].nValue);
     }
@@ -270,7 +269,7 @@ struct ClaimTrieChainFixture{
         return tx;
     }
 
-    //create i blocks  
+    //create i blocks
     void IncrementBlocks(int num_blocks, bool mark = false)
     {
         if (mark)
@@ -306,10 +305,9 @@ struct ClaimTrieChainFixture{
             {
                 BOOST_FAIL("removing block failed");
             }
-
         }
         mempool.clear();
-        num_txs_for_next_block = 0; 
+        num_txs_for_next_block = 0;
     }
 
     // decrement back to last mark
@@ -354,17 +352,18 @@ BOOST_AUTO_TEST_CASE(claim_test)
 
     fixture.DecrementBlocks(1);
     BOOST_CHECK(!is_best_claim("test",tx1));
-
      
     // there is a competing bid inserted same height
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
     CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(is_best_claim("test",tx3));
+    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").claims.size());
 
     fixture.DecrementBlocks(1); 
     BOOST_CHECK(!is_best_claim("test",tx2));
     BOOST_CHECK(!is_best_claim("test",tx3));
+    BOOST_CHECK_EQUAL(0U, pclaimTrie->getClaimsForName("test").claims.size());
 
     // make two claims , one older 
     CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
@@ -376,6 +375,7 @@ BOOST_AUTO_TEST_CASE(claim_test)
     BOOST_CHECK(is_best_claim("test",tx4)); 
     fixture.IncrementBlocks(1);
     BOOST_CHECK(is_best_claim("test",tx4));
+    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").claims.size());
 
     fixture.DecrementBlocks(1); 
     BOOST_CHECK(is_best_claim("test",tx4)); 
@@ -392,9 +392,10 @@ BOOST_AUTO_TEST_CASE(claim_test)
     CMutableTransaction tx7 = fixture.MakeClaim(fixture.GetCoinbase(),"test","two",2);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(is_claim_in_queue("test",tx7));
-    BOOST_CHECK(is_best_claim("test",tx6)); 
+    BOOST_CHECK(is_best_claim("test",tx6));
     fixture.IncrementBlocks(10);
     BOOST_CHECK(is_best_claim("test",tx7));
+    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").claims.size());
 
     fixture.DecrementBlocks(10);
     BOOST_CHECK(is_claim_in_queue("test",tx7));
@@ -562,7 +563,7 @@ BOOST_AUTO_TEST_CASE(update_on_support_test)
     BOOST_CHECK(best_claim_effective_amount_equals("test",2));
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx1));
+    BOOST_CHECK(is_best_claim("test", tx1));
 }
 
 /*
@@ -596,7 +597,7 @@ BOOST_AUTO_TEST_CASE(support_spend_test)
     CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(),tx5,"test",2);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(is_best_claim("test",tx5));
-    
+    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").claims.size());
 
     // build the spend where s2 is sppent on txin[1] and tx3 is  spent on txin[0]   
     uint32_t prevout = 0;
@@ -661,14 +662,16 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     CMutableTransaction u3 = fixture.MakeUpdate(tx3,"test","one",ClaimIdHash(tx3.GetHash(),0),2);  
     fixture.IncrementBlocks(1);
     BOOST_CHECK(is_best_claim("test",u3));
-    fixture.DecrementBlocks(11); 
+    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").claims.size());
+    fixture.DecrementBlocks(11);
 
     // losing update on winning claim happens without delay
     CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",3);
     CMutableTransaction tx6 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     fixture.IncrementBlocks(10);
-    BOOST_CHECK(is_best_claim("test",tx5)); 
-    CMutableTransaction u4 = fixture.MakeUpdate(tx5,"test","one",ClaimIdHash(tx5.GetHash(),0),1);  
+    BOOST_CHECK(is_best_claim("test",tx5));
+    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").claims.size());
+    CMutableTransaction u4 = fixture.MakeUpdate(tx5,"test","one",ClaimIdHash(tx5.GetHash(),0),1);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(is_best_claim("test",tx6));
 
@@ -704,7 +707,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     fixture.IncrementBlocks(10);
     BOOST_CHECK(is_best_claim("test",tx));
 
-    fixture.DecrementBlocks(10);    
+    fixture.DecrementBlocks(10);
     BOOST_CHECK(is_best_claim("test",tx7));
     fixture.DecrementBlocks(11);
 }
@@ -995,7 +998,7 @@ BOOST_AUTO_TEST_CASE(hardfork_support_test)
 
     // check that the support expires as expected
     fixture.IncrementBlocks(fixture.extendedExpiration - blocks_before_fork);
-    BOOST_CHECK(is_best_claim("test",u2));
+    BOOST_CHECK(is_best_claim("test", u2));
     fixture.DecrementBlocks(fixture.extendedExpiration - blocks_before_fork);
     fixture.IncrementBlocks(fixture.extendedExpiration - blocks_before_fork - 1);
     BOOST_CHECK(is_best_claim("test",u1));
@@ -1057,15 +1060,15 @@ BOOST_AUTO_TEST_CASE(hardfork_disk_test)
     // increment to original expiration, should not be expired
     fixture.IncrementBlocks(fixture.originalExpiration - height_of_update_before_expiration);
     BOOST_CHECK(is_best_claim("test2", u2));
-    BOOST_CHECK(best_claim_effective_amount_equals("test2",2));
+    BOOST_CHECK(best_claim_effective_amount_equals("test2", 2));
     fixture.DecrementBlocks(fixture.originalExpiration - height_of_update_before_expiration);
     // increment to extended expiration, should be expired and not one block before
     fixture.IncrementBlocks(fixture.extendedExpiration - height_of_update_before_expiration);
     BOOST_CHECK(!is_best_claim("test2", u2));
     fixture.DecrementBlocks(fixture.extendedExpiration - height_of_update_before_expiration);
-    fixture.IncrementBlocks(fixture.extendedExpiration - height_of_update_before_expiration-1);
+    fixture.IncrementBlocks(fixture.extendedExpiration - height_of_update_before_expiration - 1);
     BOOST_CHECK(is_best_claim("test2", u2));
-    BOOST_CHECK(best_claim_effective_amount_equals("test2",1)); // the support expires one block before
+    BOOST_CHECK(best_claim_effective_amount_equals("test2", 1)); // the support expires one block before
 }
 
 BOOST_AUTO_TEST_CASE(insert_update_claim_test)
@@ -1085,8 +1088,8 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
 
     CMutableTransaction tx1 = BuildTransaction(fixture.GetCoinbase());
     tx1.vout[0].scriptPubKey = CScript() << OP_CLAIM_NAME
-             << std::vector<unsigned char>(sName1.begin(), sName1.end())
-             << std::vector<unsigned char>(sValue1.begin(), sValue2.end()) << OP_2DROP << OP_DROP << OP_TRUE;
+                                         << std::vector<unsigned char>(sName1.begin(), sName1.end())
+                                         << std::vector<unsigned char>(sValue1.begin(), sValue2.end()) << OP_2DROP << OP_DROP << OP_TRUE;
     uint160 tx1ClaimId = ClaimIdHash(tx1.GetHash(), 0);
     COutPoint tx1OutPoint(tx1.GetHash(), 0);
 
@@ -1141,19 +1144,16 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     CBlockIndex* pindexState = chainActive.Tip();
     CValidationState state;
     CBlockIndex* pindex;
-    for (pindex = chainActive.Tip(); pindex && pindex->pprev; pindex=pindex->pprev)
-    {
+    for (pindex = chainActive.Tip(); pindex && pindex->pprev; pindex = pindex->pprev) {
         CBlock block;
         BOOST_CHECK(ReadBlockFromDisk(block, pindex, Params().GetConsensus()));
-        if (pindex == pindexState && (coins.DynamicMemoryUsage() + pcoinsTip->DynamicMemoryUsage()) <= nCoinCacheUsage)
-        {
+        if (pindex == pindexState && (coins.DynamicMemoryUsage() + pcoinsTip->DynamicMemoryUsage()) <= nCoinCacheUsage) {
             bool fClean = true;
             BOOST_CHECK(DisconnectBlock(block, state, pindex, coins, trieCache, &fClean));
             pindexState = pindex->pprev;
         }
     }
-    while (pindex != chainActive.Tip())
-    {
+    while (pindex != chainActive.Tip()) {
         pindex = chainActive.Next(pindex);
         CBlock block;
         BOOST_CHECK(ReadBlockFromDisk(block, pindex, Params().GetConsensus()));
@@ -1214,7 +1214,6 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), sName2, sValue2, tx1.vout[0].nValue - 1);
     COutPoint tx2OutPoint(tx2.GetHash(), 0);
     CMutableTransaction tx4 = fixture.Spend(tx2);
-    COutPoint tx4OutPoint(tx4.GetHash(), 0);
     fixture.IncrementBlocks(1);
 
     BOOST_CHECK(pclaimTrie->empty());
@@ -1334,7 +1333,6 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     // spend the update (tx6 spends tx3)
 
     CMutableTransaction tx6 = fixture.Spend(tx3);
-    COutPoint tx6OutPoint(tx6.GetHash(), 0);
     fixture.IncrementBlocks(1, true);
 
     BOOST_CHECK(!pclaimTrie->empty());
@@ -1562,7 +1560,6 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
 
     // spent tx10 with tx12 instead which is not a claim operation of any kind
     CMutableTransaction tx12 = BuildTransaction(tx10);
-    COutPoint tx12OutPoint(tx12.GetHash(), 0);
 
     fixture.IncrementBlocks(1);
 
@@ -1589,6 +1586,23 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
 
     // roll back
     fixture.DecrementBlocks();
+}
+
+BOOST_AUTO_TEST_CASE(basic_merkle_test)
+{
+    ClaimTrieChainFixture fixture;
+
+    std::string sName("atest");
+    std::string sValue("testa");
+
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue, 10);
+    fixture.IncrementBlocks(20);
+    uint256 tx1MerkleHash = pclaimTrie->getMerkleHash();
+    fixture.DecrementBlocks(20);
+    BOOST_CHECK(tx1MerkleHash != pclaimTrie->getMerkleHash());
+    fixture.CommitTx(tx1);
+    fixture.IncrementBlocks(20);
+    BOOST_CHECK(tx1MerkleHash == pclaimTrie->getMerkleHash());
 }
 
 BOOST_AUTO_TEST_CASE(claim_expiration_test)
@@ -1662,8 +1676,6 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
 
     // spend the claim. verify the expiration event is removed.
     CMutableTransaction tx2 = fixture.Spend(tx1);
-    COutPoint tx2OutPoint(tx2.GetHash(), 0);
-
     fixture.IncrementBlocks(1); // 101
 
     BOOST_CHECK(pclaimTrie->empty());
@@ -1768,6 +1780,7 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint == tx1OutPoint);
+    uint256 tx1MerkleHash = pclaimTrie->getMerkleHash();
 
     // roll back to before tx3 is valid
     fixture.DecrementBlocks(1); // 10
@@ -1780,6 +1793,7 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint == tx1OutPoint);
+    BOOST_CHECK(tx1MerkleHash == pclaimTrie->getMerkleHash());
 
     // advance until the expiration event occurs. verify the expiration event occurs on time.
     fixture.IncrementBlocks(189, true); // 200
@@ -1795,6 +1809,7 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint == tx3OutPoint);
+    BOOST_CHECK(tx1MerkleHash != pclaimTrie->getMerkleHash());
 
     // spend tx1
     fixture.CommitTx(tx2);
@@ -1808,6 +1823,7 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint == tx1OutPoint);
+    BOOST_CHECK(tx1MerkleHash == pclaimTrie->getMerkleHash());
 
     // roll all the way back
     fixture.DecrementBlocks();
@@ -1959,6 +1975,8 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     std::string sValue1("testa");
     std::string sValue2("testb");
 
+    int initialHeight = chainActive.Height();
+
     CClaimValue val;
 
     // Test 1: create 1 LBC claim (tx1), create 5 LBC support (tx3), create 5 LBC claim (tx2)
@@ -2022,6 +2040,8 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
 
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint.n == 0);
+    uint256 tx1MerkleHash = pclaimTrie->getMerkleHash();
 
     CMutableTransaction tx4 = BuildTransaction(tx1);
     CMutableTransaction tx5 = BuildTransaction(tx2);
@@ -2038,6 +2058,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx2.GetHash());
+    BOOST_CHECK(tx1MerkleHash != pclaimTrie->getMerkleHash());
 
     // unspend tx3, verify tx1 regains control
     fixture.DecrementBlocks(1); // 21
@@ -2048,6 +2069,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx1.GetHash());
+    BOOST_CHECK(tx1MerkleHash == pclaimTrie->getMerkleHash());
 
     // update tx1 with tx7, verify tx7 has control
     uint160 claimId = ClaimIdHash(tx1.GetHash(), 0);
@@ -2061,12 +2083,14 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx7.GetHash());
+    BOOST_CHECK(tx1MerkleHash != pclaimTrie->getMerkleHash());
 
     // roll back to before tx7 is inserted, verify tx1 has control
     fixture.DecrementBlocks(1); // 21
 
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx1.GetHash());
+    BOOST_CHECK(tx1MerkleHash == pclaimTrie->getMerkleHash());
 
     // roll back to before tx2 is valid
     fixture.DecrementBlocks(1); // 20
@@ -2082,6 +2106,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx2.GetHash());
+    BOOST_CHECK(tx1MerkleHash != pclaimTrie->getMerkleHash());
 
     // roll back to before tx3 is inserted
     fixture.DecrementBlocks(15); // 6
@@ -2109,9 +2134,11 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx2.GetHash());
+    BOOST_CHECK(tx1MerkleHash != pclaimTrie->getMerkleHash());
 
     // roll all the way back
     fixture.DecrementBlocks(22); // 0
+    BOOST_CHECK(initialHeight == chainActive.Height());
 
     // Make sure that when a support in the queue gets spent and then the spend is
     // undone, it goes back into the queue in the right spot
@@ -2128,6 +2155,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx2.GetHash());
+    BOOST_CHECK(tx1MerkleHash != pclaimTrie->getMerkleHash());
 
     // advance a few blocks
     fixture.IncrementBlocks(5); // 6
@@ -2163,6 +2191,8 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx1.GetHash());
+    BOOST_CHECK(val.outPoint.n == 0);
+    tx1MerkleHash = pclaimTrie->getMerkleHash(); // tx1MerkleHash doesn't match right here (but it should?)
 
     // spend tx3 again, then undo the spend and roll back until it's back in the queue
     fixture.CommitTx(tx6);
@@ -2172,6 +2202,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx2.GetHash());
+    BOOST_CHECK(tx1MerkleHash != pclaimTrie->getMerkleHash());
 
     fixture.DecrementBlocks(1); // 13
 
@@ -2179,6 +2210,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx1.GetHash());
+    BOOST_CHECK(tx1MerkleHash == pclaimTrie->getMerkleHash());
 
     // roll all the way back
     fixture.DecrementBlocks(13);
@@ -2325,11 +2357,13 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     BOOST_CHECK(val.outPoint.hash == tx1.GetHash());
 
     // advance a few blocks
-    fixture.IncrementBlocks(5);// 6
+    fixture.IncrementBlocks(5); // 6
 
     // put tx2 into the blockchain
     fixture.CommitTx(tx2);
     fixture.IncrementBlocks(1); // 7
+
+    uint256 rootMerkleHash = pclaimTrie->getMerkleHash();
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(!pclaimTrie->queueEmpty());
@@ -2337,6 +2371,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx1.GetHash());
+    BOOST_CHECK(rootMerkleHash == pclaimTrie->getMerkleHash());
 
     // advance some, insert tx3, should be immediately valid
     fixture.IncrementBlocks(2); // 9
@@ -2349,6 +2384,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx1.GetHash());
+    BOOST_CHECK(rootMerkleHash == pclaimTrie->getMerkleHash());
 
     // advance until tx2 is valid, verify tx1 retains control
     fixture.IncrementBlocks(3); // 13
@@ -2359,7 +2395,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx1.GetHash());
-
+    BOOST_CHECK(rootMerkleHash == pclaimTrie->getMerkleHash());
     BOOST_CHECK(pclaimTrie->haveClaim(sName, tx2cp));
 
     // roll all the way back
@@ -2383,6 +2419,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx2.GetHash());
+    BOOST_CHECK(rootMerkleHash != pclaimTrie->getMerkleHash());
 
     // advance a few blocks
     fixture.IncrementBlocks(9); // 10
@@ -2397,6 +2434,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx2.GetHash());
+    BOOST_CHECK(rootMerkleHash != pclaimTrie->getMerkleHash());
 
     // advance some
     fixture.IncrementBlocks(5); // 16
@@ -2411,6 +2449,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx2.GetHash());
+    BOOST_CHECK(rootMerkleHash != pclaimTrie->getMerkleHash());
 
     // advance until tx1 is valid
     fixture.IncrementBlocks(5); // 22
@@ -2605,6 +2644,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK(!pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    uint256 rootMerkleHash = pclaimTrie->getMerkleHash();
 
     // Advance until tx2 is valid
     fixture.IncrementBlocks(50); // 102
@@ -2613,6 +2653,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK(!pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK(rootMerkleHash == pclaimTrie->getMerkleHash());
 
     fixture.IncrementBlocks(1); // 103
 
@@ -2622,6 +2663,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx1.GetHash());
+    rootMerkleHash = pclaimTrie->getMerkleHash();
 
     // Update tx1 so that it expires after tx3 expires
     uint160 claimId = ClaimIdHash(tx1.GetHash(), 0);
@@ -2635,6 +2677,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx4.GetHash());
+    BOOST_CHECK(rootMerkleHash != pclaimTrie->getMerkleHash());
 
     // Advance until the support expires
     fixture.IncrementBlocks(97); // 201
@@ -2643,6 +2686,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK(pclaimTrie->queueEmpty());
     BOOST_CHECK(!pclaimTrie->supportEmpty());
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    rootMerkleHash = pclaimTrie->getMerkleHash();
 
     fixture.IncrementBlocks(1); // 202
 
@@ -2652,6 +2696,8 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx2.GetHash());
+    BOOST_CHECK(rootMerkleHash != pclaimTrie->getMerkleHash());
+    rootMerkleHash = pclaimTrie->getMerkleHash();
 
     // undo the block, make sure control goes back
     fixture.DecrementBlocks(1); // 201
@@ -2662,6 +2708,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx4.GetHash());
+    BOOST_CHECK(rootMerkleHash != pclaimTrie->getMerkleHash());
 
     // redo the block, make sure it expires again
     fixture.IncrementBlocks(1); // 202
@@ -2672,6 +2719,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx2.GetHash());
+    rootMerkleHash = pclaimTrie->getMerkleHash();
 
     // roll back some, spend the support, and make sure nothing unexpected
     // happens at the time the support should have expired
@@ -2684,6 +2732,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK(pclaimTrie->supportQueueEmpty());
     BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
     BOOST_CHECK(val.outPoint.hash == tx4.GetHash());
+    BOOST_CHECK(rootMerkleHash != pclaimTrie->getMerkleHash());
 
     fixture.Spend(tx3);
     fixture.IncrementBlocks(1); // 154
@@ -2750,64 +2799,48 @@ bool verify_proof(const CClaimTrieProof proof, uint256 rootHash, const std::stri
     std::string computedReverseName;
     bool verifiedValue = false;
 
-    for (std::vector<CClaimTrieProofNode>::const_reverse_iterator itNodes = proof.nodes.rbegin(); itNodes != proof.nodes.rend(); ++itNodes)
-    {
+    for (std::vector<CClaimTrieProofNode>::const_reverse_iterator itNodes = proof.nodes.rbegin(); itNodes != proof.nodes.rend(); ++itNodes) {
         bool foundChildInChain = false;
         std::vector<unsigned char> vchToHash;
-        for (std::vector<std::pair<unsigned char, uint256> >::const_iterator itChildren = itNodes->children.begin(); itChildren != itNodes->children.end(); ++itChildren)
-        {
+        for (std::vector<std::pair<unsigned char, uint256> >::const_iterator itChildren = itNodes->children.begin(); itChildren != itNodes->children.end(); ++itChildren) {
             vchToHash.push_back(itChildren->first);
             uint256 childHash;
-            if (itChildren->second.IsNull())
-            {
-                if (previousComputedHash.IsNull())
-                {
+            if (itChildren->second.IsNull()) {
+                if (previousComputedHash.IsNull()) {
                     return false;
                 }
-                if (foundChildInChain)
-                {
+                if (foundChildInChain) {
                     return false;
                 }
                 foundChildInChain = true;
                 computedReverseName += itChildren->first;
                 childHash = previousComputedHash;
-            }
-            else
-            {
+            } else {
                 childHash = itChildren->second;
             }
             vchToHash.insert(vchToHash.end(), childHash.begin(), childHash.end());
         }
-        if (itNodes != proof.nodes.rbegin() && !foundChildInChain)
-        {
+        if (itNodes != proof.nodes.rbegin() && !foundChildInChain) {
             return false;
         }
-        if (itNodes->hasValue)
-        {
+        if (itNodes->hasValue) {
             uint256 valHash;
-            if (itNodes->valHash.IsNull())
-            {
-                if (itNodes != proof.nodes.rbegin())
-                {
+            if (itNodes->valHash.IsNull()) {
+                if (itNodes != proof.nodes.rbegin()) {
                     return false;
                 }
-                if (!proof.hasValue)
-                {
+                if (!proof.hasValue) {
                     return false;
                 }
                 valHash = getValueHash(proof.outPoint,
-                                       proof.nHeightOfLastTakeover);
+                    proof.nHeightOfLastTakeover);
 
                 verifiedValue = true;
-            }
-            else
-            {
+            } else {
                 valHash = itNodes->valHash;
             }
             vchToHash.insert(vchToHash.end(), valHash.begin(), valHash.end());
-        }
-        else if (proof.hasValue && itNodes == proof.nodes.rbegin())
-        {
+        } else if (proof.hasValue && itNodes == proof.nodes.rbegin()) {
             return false;
         }
         CHash256 hasher;
@@ -2817,20 +2850,16 @@ bool verify_proof(const CClaimTrieProof proof, uint256 rootHash, const std::stri
         uint256 calculatedHash(vchHash);
         previousComputedHash = calculatedHash;
     }
-    if (previousComputedHash != rootHash)
-    {
+    if (previousComputedHash != rootHash) {
         return false;
     }
-    if (proof.hasValue && !verifiedValue)
-    {
+    if (proof.hasValue && !verifiedValue) {
         return false;
     }
     std::string::reverse_iterator itComputedName = computedReverseName.rbegin();
     std::string::const_iterator itName = name.begin();
-    for (; itName != name.end() && itComputedName != computedReverseName.rend(); ++itName, ++itComputedName)
-    {
-        if (*itName != *itComputedName)
-        {
+    for (; itName != name.end() && itComputedName != computedReverseName.rend(); ++itName, ++itComputedName) {
+        if (*itName != *itComputedName) {
             return false;
         }
     }
@@ -2986,7 +3015,7 @@ BOOST_AUTO_TEST_CASE(bogus_claimtrie_hash_test)
     bogusHashClaimTrie.SetHex("aaa");
     pblockTemp->block.hashClaimTrie = bogusHashClaimTrie;
 
-    for (int i = 0; ; ++i)
+    for (uint32_t i = 0; ; ++i)
     {
         pblockTemp->block.nNonce = i;
         if (CheckProofOfWork(pblockTemp->block.GetPoWHash(), pblockTemp->block.nBits, Params().GetConsensus()))
