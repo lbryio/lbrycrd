@@ -293,7 +293,7 @@ struct ClaimTrieChainFixture{
     //disconnect i blocks from tip
     void DecrementBlocks(int num_blocks)
     {
-        for(int i = 0; i< num_blocks; i++){
+        for (int i = 0; i < num_blocks; i++) {
             CValidationState state;
             CBlockIndex* pblockindex = chainActive.Tip();
             InvalidateBlock(state, Params().GetConsensus(), pblockindex);
@@ -392,7 +392,7 @@ BOOST_AUTO_TEST_CASE(claim_test)
     CMutableTransaction tx7 = fixture.MakeClaim(fixture.GetCoinbase(),"test","two",2);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(is_claim_in_queue("test",tx7));
-    BOOST_CHECK(is_best_claim("test",tx6));
+    BOOST_CHECK(is_best_claim("test", tx6));
     fixture.IncrementBlocks(10);
     BOOST_CHECK(is_best_claim("test",tx7));
     BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").claims.size());
@@ -669,9 +669,9 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",3);
     CMutableTransaction tx6 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     fixture.IncrementBlocks(10);
-    BOOST_CHECK(is_best_claim("test",tx5));
+    BOOST_CHECK(is_best_claim("test", tx5));
     BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").claims.size());
-    CMutableTransaction u4 = fixture.MakeUpdate(tx5,"test","one",ClaimIdHash(tx5.GetHash(),0),1);
+    CMutableTransaction u4 = fixture.MakeUpdate(tx5, "test", "one", ClaimIdHash(tx5.GetHash(), 0), 1);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(is_best_claim("test",tx6));
 
@@ -2999,11 +2999,11 @@ BOOST_AUTO_TEST_CASE(bogus_claimtrie_hash_test)
 
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue1, 1);
 
-    CBlockTemplate *pblockTemp;
+    CBlockTemplate* pblockTemp;
     BOOST_CHECK(pblockTemp = CreateNewBlock(Params(), tx1.vout[0].scriptPubKey));
     pblockTemp->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     pblockTemp->block.nVersion = 1;
-    pblockTemp->block.nTime = chainActive.Tip()->GetBlockTime()+Params().GetConsensus().nPowTargetSpacing;
+    pblockTemp->block.nTime = chainActive.Tip()->GetBlockTime() + Params().GetConsensus().nPowTargetSpacing;
     CMutableTransaction txCoinbase(pblockTemp->block.vtx[0]);
     txCoinbase.vin[0].scriptSig = CScript() << CScriptNum(chainActive.Height());
     txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
@@ -3015,11 +3015,9 @@ BOOST_AUTO_TEST_CASE(bogus_claimtrie_hash_test)
     bogusHashClaimTrie.SetHex("aaa");
     pblockTemp->block.hashClaimTrie = bogusHashClaimTrie;
 
-    for (uint32_t i = 0; ; ++i)
-    {
+    for (uint32_t i = 0;; ++i) {
         pblockTemp->block.nNonce = i;
-        if (CheckProofOfWork(pblockTemp->block.GetPoWHash(), pblockTemp->block.nBits, Params().GetConsensus()))
-        {
+        if (CheckProofOfWork(pblockTemp->block.GetPoWHash(), pblockTemp->block.nBits, Params().GetConsensus())) {
             break;
         }
     }
@@ -3029,7 +3027,7 @@ BOOST_AUTO_TEST_CASE(bogus_claimtrie_hash_test)
     BOOST_CHECK(success);
     BOOST_CHECK(state.IsValid());
     BOOST_CHECK(pblockTemp->block.GetHash() != chainActive.Tip()->GetBlockHash());
-    BOOST_CHECK_EQUAL(orig_chain_height,chainActive.Height());
+    BOOST_CHECK_EQUAL(orig_chain_height, chainActive.Height());
     delete pblockTemp;
 }
 
