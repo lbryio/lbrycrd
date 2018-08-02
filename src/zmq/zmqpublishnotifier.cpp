@@ -22,6 +22,7 @@ static int zmq_send_multipart(void *sock, const void* data, size_t size, ...)
         int rc = zmq_msg_init_size(&msg, size);
         if (rc != 0)
         {
+            va_end(args);
             zmqError("Unable to initialize ZMQ msg");
             return -1;
         }
@@ -34,6 +35,7 @@ static int zmq_send_multipart(void *sock, const void* data, size_t size, ...)
         rc = zmq_msg_send(&msg, sock, data ? ZMQ_SNDMORE : 0);
         if (rc == -1)
         {
+            va_end(args);
             zmqError("Unable to send ZMQ msg");
             zmq_msg_close(&msg);
             return -1;
@@ -46,6 +48,7 @@ static int zmq_send_multipart(void *sock, const void* data, size_t size, ...)
 
         size = va_arg(args, size_t);
     }
+    va_end(args);
     return 0;
 }
 
