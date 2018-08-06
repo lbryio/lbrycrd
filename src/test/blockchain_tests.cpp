@@ -24,7 +24,7 @@ static CBlockIndex* CreateBlockIndexWithNbits(uint32_t nbits)
 
 static void RejectDifficultyMismatch(double difficulty, double expected_difficulty) {
      BOOST_CHECK_MESSAGE(
-        DoubleEquals(difficulty, expected_difficulty, 0.00001),
+        DoubleEquals(difficulty, expected_difficulty, 0.058593),
         "Difficulty was " + std::to_string(difficulty)
             + " but was expected to be " + std::to_string(expected_difficulty));
 }
@@ -45,12 +45,12 @@ BOOST_FIXTURE_TEST_SUITE(blockchain_tests, BasicTestingSetup)
 
 BOOST_AUTO_TEST_CASE(get_difficulty_for_very_low_target)
 {
-    TestDifficulty(0x1f111111, 0.000001);
+    TestDifficulty(0x1f00ffff, 0.058593);
 }
 
 BOOST_AUTO_TEST_CASE(get_difficulty_for_low_target)
 {
-    TestDifficulty(0x1ef88f6f, 0.000016);
+    TestDifficulty(0x1ef88f6f, 1.029916);
 }
 
 BOOST_AUTO_TEST_CASE(get_difficulty_for_mid_target)

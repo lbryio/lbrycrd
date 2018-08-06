@@ -14,6 +14,7 @@
 #include <chain.h>
 #include <chainparams.h>
 #include <checkpoints.h>
+#include <claimtrie.h>
 #include <compat/sanity.h>
 #include <consensus/validation.h>
 #include <fs.h>
@@ -41,6 +42,7 @@
 #include <txmempool.h>
 #include <torcontrol.h>
 #include <ui_interface.h>
+#include <uint256.h>
 #include <util.h>
 #include <utilmoneystr.h>
 #include <validationinterface.h>
@@ -264,6 +266,8 @@ void Shutdown()
         pcoinscatcher.reset();
         pcoinsdbview.reset();
         pblocktree.reset();
+        delete pclaimTrie;
+        pclaimTrie = nullptr;
     }
     g_wallet_init_interface.Stop();
 
@@ -1455,6 +1459,8 @@ bool AppInitMain()
                 // fails if it's still open from the previous loop. Close it first:
                 pblocktree.reset();
                 pblocktree.reset(new CBlockTreeDB(nBlockTreeDBCache, false, fReset));
+                delete pclaimTrie;
+                pclaimTrie = new CClaimTrie(false, fReindex);
 
                 if (fReset) {
                     pblocktree->WriteReindexing(true);
@@ -1493,6 +1499,12 @@ bool AppInitMain()
                 // This is called again in ThreadImport after the reindex completes.
                 if (!fReindex && !LoadGenesisBlock(chainparams)) {
                     strLoadError = _("Error initializing block database");
+                    break;
+                }
+
+                if (!pclaimTrie->ReadFromDisk(true))
+                {
+                    strLoadError = _("Error loading the claim trie from disk");
                     break;
                 }
 
@@ -1687,6 +1699,9 @@ bool AppInitMain()
         chain_active_height = chainActive.Height();
     }
     LogPrintf("nBestHeight = %d\n", chain_active_height);
+
+    const Consensus::Params& consensusParams = Params().GetConsensus();
+    pclaimTrie->setExpirationTime(consensusParams.GetExpirationTime(chain_active_height));
 
     if (gArgs.GetBoolArg("-listenonion", DEFAULT_LISTEN_ONION))
         StartTorControl();

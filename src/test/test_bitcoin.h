@@ -95,6 +95,11 @@ struct TestChain100Setup : public TestingSetup {
     CKey coinbaseKey; // private/public key needed to spend coinbase transactions
 };
 
+struct RegTestingSetup: public TestingSetup {
+    RegTestingSetup();
+    ~RegTestingSetup();
+};
+
 class CTxMemPoolEntry;
 
 struct TestMemPoolEntryHelper

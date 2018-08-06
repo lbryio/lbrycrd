@@ -1549,6 +1549,7 @@ bool static ProcessHeadersMessage(CNode *pfrom, CConnman *connman, const std::ve
                 // nMinimumChainWork, even if a peer has a chain past our tip,
                 // as an anti-DoS measure.
                 if (IsOutboundDisconnectionCandidate(pfrom)) {
+                    LogPrintf("Disconnecting outbound peer %d (%s < %s) -- headers chain has insufficient work\n", pfrom->GetId(), nodestate->pindexBestKnownBlock->nChainWork.GetHex(), nMinimumChainWork.GetHex());
                     LogPrintf("Disconnecting outbound peer %d -- headers chain has insufficient work\n", pfrom->GetId());
                     pfrom->fDisconnect = true;
                 }
@@ -1647,6 +1648,8 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         vRecv >> nVersion >> nServiceInt >> nTime >> addrMe;
         nSendVersion = std::min(nVersion, PROTOCOL_VERSION);
         nServices = ServiceFlags(nServiceInt);
+        LogPrint(BCLog::NET, "peer=%d services (%08x offered, %08x expected);\n", pfrom->GetId(), nServices, GetDesirableServiceFlags(nServices));
+
         if (!pfrom->fInbound)
         {
             connman->SetServices(pfrom->addr, nServices);
@@ -2014,6 +2017,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
     else if (strCommand == NetMsgType::GETBLOCKS)
     {
+        LogPrintf("%s: Got GETBLOCKS message\n", __func__);
         CBlockLocator locator;
         uint256 hashStop;
         vRecv >> locator >> hashStop;
@@ -3516,17 +3520,24 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
         std::vector<CInv> vInv;
         {
             LOCK(pto->cs_inventory);
-            vInv.reserve(std::max<size_t>(pto->vInventoryBlockToSend.size(), INVENTORY_BROADCAST_MAX));
+            /* vInv.reserve(std::max<size_t>(pto->vInventoryBlockToSend.size(), INVENTORY_BROADCAST_MAX)); */
+            // FIXME: Bitcoin bug?!
+            vInv.reserve(std::min<size_t>(pto->vInventoryBlockToSend.size(), INVENTORY_BROADCAST_MAX));
 
             // Add blocks
+            size_t count = 0;
             for (const uint256& hash : pto->vInventoryBlockToSend) {
                 vInv.push_back(CInv(MSG_BLOCK, hash));
                 if (vInv.size() == MAX_INV_SZ) {
                     connman->PushMessage(pto, msgMaker.Make(NetMsgType::INV, vInv));
                     vInv.clear();
                 }
+                if (++count >= INVENTORY_BROADCAST_MAX)
+                    break;
             }
-            pto->vInventoryBlockToSend.clear();
+            pto->vInventoryBlockToSend.erase(pto->vInventoryBlockToSend.begin(),
+                                             pto->vInventoryBlockToSend.begin() + count);
+            //pto->vInventoryBlockToSend.clear();
 
             // Check whether periodic sends should happen
             bool fSendTrickle = pto->fWhitelisted;
