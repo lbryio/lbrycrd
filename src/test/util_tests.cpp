@@ -558,27 +558,27 @@ BOOST_AUTO_TEST_CASE(util_GetChainName)
     std::string error;
 
     test_args.ParseParameters(0, (char**)argv_testnet, error);
-    BOOST_CHECK_EQUAL(test_args.GetChainName(), "main");
+    BOOST_CHECK_EQUAL(test_args.GetChainName(), "lbrycrd");
 
     test_args.ParseParameters(2, (char**)argv_testnet, error);
-    BOOST_CHECK_EQUAL(test_args.GetChainName(), "test");
+    BOOST_CHECK_EQUAL(test_args.GetChainName(), "lbrycrdtest");
 
     test_args.ParseParameters(2, (char**)argv_regtest, error);
     BOOST_CHECK_EQUAL(test_args.GetChainName(), "regtest");
 
     test_args.ParseParameters(3, (char**)argv_test_no_reg, error);
-    BOOST_CHECK_EQUAL(test_args.GetChainName(), "test");
+    BOOST_CHECK_EQUAL(test_args.GetChainName(), "lbrycrdtest");
 
     test_args.ParseParameters(3, (char**)argv_both, error);
     BOOST_CHECK_THROW(test_args.GetChainName(), std::runtime_error);
 
     test_args.ParseParameters(0, (char**)argv_testnet, error);
     test_args.ReadConfigString(testnetconf);
-    BOOST_CHECK_EQUAL(test_args.GetChainName(), "test");
+    BOOST_CHECK_EQUAL(test_args.GetChainName(), "lbrycrdtest");
 
     test_args.ParseParameters(2, (char**)argv_testnet, error);
     test_args.ReadConfigString(testnetconf);
-    BOOST_CHECK_EQUAL(test_args.GetChainName(), "test");
+    BOOST_CHECK_EQUAL(test_args.GetChainName(), "lbrycrdtest");
 
     test_args.ParseParameters(2, (char**)argv_regtest, error);
     test_args.ReadConfigString(testnetconf);
@@ -586,7 +586,7 @@ BOOST_AUTO_TEST_CASE(util_GetChainName)
 
     test_args.ParseParameters(3, (char**)argv_test_no_reg, error);
     test_args.ReadConfigString(testnetconf);
-    BOOST_CHECK_EQUAL(test_args.GetChainName(), "test");
+    BOOST_CHECK_EQUAL(test_args.GetChainName(), "lbrycrdtest");
 
     test_args.ParseParameters(3, (char**)argv_both, error);
     test_args.ReadConfigString(testnetconf);
@@ -598,11 +598,11 @@ BOOST_AUTO_TEST_CASE(util_GetChainName)
 
     test_args.ParseParameters(0, (char**)argv_testnet, error);
     test_args.ReadConfigString(testnetconf);
-    BOOST_CHECK_EQUAL(test_args.GetChainName(), "test");
+    BOOST_CHECK_EQUAL(test_args.GetChainName(), "lbrycrdtest");
 
     test_args.ParseParameters(2, (char**)argv_testnet, error);
     test_args.ReadConfigString(testnetconf);
-    BOOST_CHECK_EQUAL(test_args.GetChainName(), "test");
+    BOOST_CHECK_EQUAL(test_args.GetChainName(), "lbrycrdtest");
 
     test_args.ParseParameters(2, (char**)argv_regtest, error);
     test_args.ReadConfigString(testnetconf);
@@ -610,7 +610,7 @@ BOOST_AUTO_TEST_CASE(util_GetChainName)
 
     test_args.ParseParameters(2, (char**)argv_test_no_reg, error);
     test_args.ReadConfigString(testnetconf);
-    BOOST_CHECK_EQUAL(test_args.GetChainName(), "test");
+    BOOST_CHECK_EQUAL(test_args.GetChainName(), "lbrycrdtest");
 
     test_args.ParseParameters(3, (char**)argv_both, error);
     test_args.ReadConfigString(testnetconf);

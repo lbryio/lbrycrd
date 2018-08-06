@@ -11,6 +11,8 @@
 #include <script/standard.h>
 #include <uint256.h>
 
+#include "nameclaim.h"
+
 typedef std::vector<unsigned char> valtype;
 
 MutableTransactionSignatureCreator::MutableTransactionSignatureCreator(const CMutableTransaction* txToIn, unsigned int nInIn, const CAmount& amountIn, int nHashTypeIn) : txTo(txToIn), nIn(nInIn), nHashType(nHashTypeIn), amount(amountIn), checker(txTo, nIn, amountIn) {}
@@ -100,8 +102,10 @@ static bool SignStep(const SigningProvider& provider, const BaseSignatureCreator
     ret.clear();
     std::vector<unsigned char> sig;
 
+    const CScript& strippedScriptPubKey = StripClaimScriptPrefix(scriptPubKey);
+
     std::vector<valtype> vSolutions;
-    if (!Solver(scriptPubKey, whichTypeRet, vSolutions))
+    if (!Solver(strippedScriptPubKey, whichTypeRet, vSolutions))
         return false;
 
     switch (whichTypeRet)
