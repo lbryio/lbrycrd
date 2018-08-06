@@ -4,6 +4,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <pow.h>
+#include <lbry.h>
 
 #include <arith_uint256.h>
 #include <chain.h>
@@ -12,38 +13,38 @@
 
 unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params& params)
 {
-    assert(pindexLast != nullptr);
     unsigned int nProofOfWorkLimit = UintToArith256(params.powLimit).GetCompact();
+    // Genesis block
+    if (pindexLast == nullptr)
+        return nProofOfWorkLimit;
 
-    // Only change once per difficulty adjustment interval
-    if ((pindexLast->nHeight+1) % params.DifficultyAdjustmentInterval() != 0)
+    if (params.fPowAllowMinDifficultyBlocks &&
+        pindexLast->nHeight >= params.nAllowMinDiffMinHeight &&
+        pindexLast->nHeight < params.nAllowMinDiffMaxHeight)
     {
-        if (params.fPowAllowMinDifficultyBlocks)
-        {
-            // Special difficulty rule for testnet:
-            // If the new block's timestamp is more than 2* 10 minutes
-            // then allow mining of a min-difficulty block.
-            if (pblock->GetBlockTime() > pindexLast->GetBlockTime() + params.nPowTargetSpacing*2)
-                return nProofOfWorkLimit;
-            else
-            {
-                // Return the last non-special-min-difficulty-rules-block
-                const CBlockIndex* pindex = pindexLast;
-                while (pindex->pprev && pindex->nHeight % params.DifficultyAdjustmentInterval() != 0 && pindex->nBits == nProofOfWorkLimit)
-                    pindex = pindex->pprev;
-                return pindex->nBits;
-            }
+        // Special difficulty rule for testnet:
+        // If the new block's timestamp is twice the target block time
+        // then allow mining of a min-difficulty block.
+        // This is to prevent the testnet from getting stuck when a large amount
+        // of hashrate drops off the network.
+        // This rule was not implemented properly until testnet block 277299.
+        if (pblock->GetBlockTime() > pindexLast->GetBlockTime() + params.nPowTargetSpacing*2){
+            return nProofOfWorkLimit;
         }
-        return pindexLast->nBits;
+
+        // Special difficulty rule for LBRY testnet killed at block 1100000.
     }
 
-    // Go back by what we want to be 14 days worth of blocks
-    int nHeightFirst = pindexLast->nHeight - (params.DifficultyAdjustmentInterval()-1);
+    // Go back the full period unless it's the first retarget after genesis.
+    int blockstogoback = params.DifficultyAdjustmentInterval();
+    blockstogoback = std::min(blockstogoback, pindexLast->nHeight);
+
+    int nHeightFirst = pindexLast->nHeight - blockstogoback;
     assert(nHeightFirst >= 0);
     const CBlockIndex* pindexFirst = pindexLast->GetAncestor(nHeightFirst);
     assert(pindexFirst);
 
-    return CalculateNextWorkRequired(pindexLast, pindexFirst->GetBlockTime(), params);
+    return CalculateLbryNextWorkRequired(pindexLast, pindexFirst->GetBlockTime(), params);
 }
 
 unsigned int CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlockTime, const Consensus::Params& params)

@@ -1,0 +1,2655 @@
+[
+    {
+        "name": "abandonclaim",
+        "namespace": "Claimtrie",
+        "description": "Create a transaction which spends a txout which assigned a value to a name, effectively abandoning that claim.",
+        "arguments": [
+            {
+                "name": "txid",
+                "type": "string",
+                "description": "The transaction containing the unspent txout which should be spent.",
+                "is_required": true
+            },
+            {
+                "name": "lbrycrdaddress",
+                "type": "string",
+                "description": "The lbrycrd address to send to.",
+                "is_required": true
+            },
+            {
+                "name": "amount",
+                "type": "number",
+                "description": "The amount to send to the lbrycrd address. eg 0.1",
+                "is_required": true
+            }
+        ],
+        "examples": [],
+        "returns": "\"transactionid\"  (string) The new transaction id."
+    },
+    {
+        "name": "abandonsupport",
+        "namespace": "Claimtrie",
+        "description": "Create a transaction which spends a txout which supported a name claim, effectively abandoning that support.",
+        "arguments": [
+            {
+                "name": "txid",
+                "type": "string",
+                "description": "The transaction containing the unspent txout which should be spent.",
+                "is_required": true
+            },
+            {
+                "name": "lbrycrdaddress",
+                "type": "string",
+                "description": "The lbrycrd address to send to.",
+                "is_required": true
+            },
+            {
+                "name": "amount",
+                "type": "number",
+                "description": "The amount to send to the lbrycrd address. eg 0.1",
+                "is_required": true
+            }
+        ],
+        "examples": [],
+        "returns": "\"transactionid\"  (string) The new transaction id."
+    },
+    {
+        "name": "checknormalization",
+        "namespace": "Claimtrie",
+        "description": "Given an unnormalized name of a claim, return normalized version of it",
+        "arguments": [
+            {
+                "name": "name",
+                "type": "string",
+                "description": "the name to normalize",
+                "is_required": true
+            }
+        ],
+        "examples": [],
+        "returns": "\"normalized\"        (string) fully normalized name"
+    },
+    {
+        "name": "claimname",
+        "namespace": "Claimtrie",
+        "description": "Create a transaction which issues a claim assigning a value to a name. The claim will be authoritative if the transaction amount is greater than the transaction amount of all other unspent transactions which issue a claim over the same name, and it will remain authoritative as long as it remains unspent and there are no other greater unspent transactions issuing a claim over the same name. The amount is a real and is rounded to the nearest 0.00000001",
+        "arguments": [
+            {
+                "name": "name",
+                "type": "string",
+                "description": "The name to be assigned the value.",
+                "is_required": true
+            },
+            {
+                "name": "value",
+                "type": "string",
+                "description": "The value to assign to the name encoded in hexadecimal.",
+                "is_required": true
+            },
+            {
+                "name": "amount",
+                "type": "number",
+                "description": "The amount in LBRYcrd to send. eg 0.1",
+                "is_required": true
+            }
+        ],
+        "examples": [],
+        "returns": "\"transactionid\"  (string) The transaction id."
+    },
+    {
+        "name": "getclaimbyid",
+        "namespace": "Claimtrie",
+        "description": "Get a claim by claim id",
+        "arguments": [
+            {
+                "name": "claimId",
+                "type": "string",
+                "description": "the claimId of this claim",
+                "is_required": true
+            }
+        ],
+        "examples": [],
+        "returns": "{\n  \"name\"                (string) the original name of the claim (before normalization)\n  \"normalized_name\"      (string) the name of this claim (after normalization)\n  \"value\"               (string) claim metadata\n  \"claimId\"             (string) the claimId of this claim\n  \"txid\"                (string) the hash of the transaction which has successfully claimed this name\n  \"n\"                   (numeric) vout value\n  \"amount\"              (numeric) txout value\n  \"effective amount\"    (numeric) txout amount plus amount from all supports associated with the claim\n  \"supports\"            (array of object) supports for this claim\n  [\n    \"txid\"              (string) the txid of the support\n    \"n\"                 (numeric) the index of the support in the transaction's list of outputs\n    \"height\"            (numeric) the height at which the support was included in the blockchain\n    \"valid at height\"   (numeric) the height at which the support is valid\n    \"amount\"            (numeric) the amount of the support\n  ]\n  \"height\"              (numeric) the height of the block in which this claim transaction is located\n  \"valid at height\"     (numeric) the height at which the claim is valid\n}"
+    },
+    {
+        "name": "getclaimsforname",
+        "namespace": "Claimtrie",
+        "description": "Return all claims and supports for a name",
+        "arguments": [
+            {
+                "name": "name",
+                "type": "string",
+                "description": "the name for which to get claims and supports",
+                "is_required": true
+            },
+            {
+                "name": "blockhash",
+                "type": "string",
+                "description": "get claims for name at the block specified by this block hash. If none is given, the latest active block will be used.",
+                "is_required": false
+            }
+        ],
+        "examples": [],
+        "returns": "{\n  \"nLastTakeoverHeight\" (numeric) the last height at which ownership of the name changed\n  \"normalized_name\"      (string) the name of these claims after normalization\n  \"claims\": [      (array of object) claims for this name\n    {\n      \"claimId\"    (string) the claimId of this claim\n      \"txid\"       (string) the txid of this claim\n      \"n\"          (numeric) the index of the claim in the transaction's list of outputs\n      \"nHeight\"    (numeric) the height at which the claim was included in the blockchain\n      \"nValidAtHeight\" (numeric) the height at which the claim became/becomes valid\n      \"nAmount\"    (numeric) the amount of the claim\n      \"value\"      (string) the value of the name, if it exists\n      \"nEffectiveAmount\" (numeric) the total effective amount of the claim, taking into effect whether the claim or support has reached its nValidAtHeight\n      \"supports\" : [ (array of object) supports for this claim\n        \"txid\"     (string) the txid of the support\n        \"n\"        (numeric) the index of the support in the transaction's list of outputs\n        \"nHeight\"  (numeric) the height at which the support was included in the blockchain\n        \"nValidAtHeight\" (numeric) the height at which the support became/becomes valid\n        \"nAmount\"  (numeric) the amount of the support\n      ]\n      \"name\"       (string) the original name of this claim before normalization\n    }\n  ],\n  \"supports without claims\": [ (array of object) supports that did not match a claim for this name\n    {\n      \"txid\"     (string) the txid of the support\n      \"n\"        (numeric) the index of the support in the transaction's list of outputs\n      \"nHeight\"  (numeric) the height at which the support was included in the blockchain\n      \"nValidAtHeight\" (numeric) the height at which the support became/becomes valid\n      \"nAmount\"  (numeric) the amount of the support\n    }\n  ]\n}"
+    },
+    {
+        "name": "getclaimsfortx",
+        "namespace": "Claimtrie",
+        "description": "Return any claims or supports found in a transaction",
+        "arguments": [
+            {
+                "name": "txid",
+                "type": "string",
+                "description": "the txid of the transaction to check for unspent claims",
+                "is_required": true
+            }
+        ],
+        "examples": [],
+        "returns": "[\n  {\n    \"nOut\"                   (numeric) the index of the claim or support in the transaction's list out outputs\n    \"claim type\"             (string) 'claim' or 'support'\n    \"name\"                   (string) the name claimed or supported\n    \"claimId\"                (string) if a claim, its ID\n    \"value\"                  (string) if a name claim, the value of the claim\n    \"supported txid\"         (string) if a support, the txid of the supported claim\n    \"supported nout\"         (numeric) if a support, the index of the supported claim in its transaction\n    \"depth\"                  (numeric) the depth of the transaction in the main chain\n    \"in claim trie\"          (boolean) if a name claim, whether the claim is active, i.e. has made it into the trie\n    \"is controlling\"         (boolean) if a name claim, whether the claim is the current controlling claim for the name\n    \"in support map\"         (boolean) if a support, whether the support is active, i.e. has made it into the support map\n    \"in queue\"               (boolean) whether the claim is in a queue waiting to be inserted into the trie or support map\n    \"blocks to valid\"        (numeric) if in a queue, the number of blocks until it's inserted into the trie or support map\n  }\n]"
+    },
+    {
+        "name": "getclaimsintrie",
+        "namespace": "Claimtrie",
+        "description": "Return all claims in the name trie.",
+        "arguments": [
+            {
+                "name": "blockhash",
+                "type": "string",
+                "description": "get claims in the trie at the block specified by this block hash. If none is given, the latest active block will be used.",
+                "is_required": false
+            }
+        ],
+        "examples": [],
+        "returns": "[\n  {\n    \"normalized_name\"     (string) the name of these claims (after normalization)\n    \"claims\": [          (array of object) the claims for this name\n      {\n        \"claimId\"        (string) the claimId of the claim\n        \"txid\"           (string) the txid of the claim\n        \"n\"              (numeric) the vout value of the claim\n        \"amount\"         (numeric) txout amount\n        \"height\"         (numeric) the height of the block in which this transaction is located\n        \"value\"          (string) the value of this claim\n        \"name\"           (string) the original name of this claim (before normalization)\n      }\n    ]\n  }\n]"
+    },
+    {
+        "name": "getclaimtrie",
+        "namespace": "Claimtrie",
+        "description": "DEPRECATED. Return the entire name trie.",
+        "arguments": [
+            {
+                "name": "blockhash",
+                "type": "string",
+                "description": "get claim in the trie at the block specified by this block hash. If none is given, the latest active block will be used.",
+                "is_required": false
+            }
+        ],
+        "examples": [],
+        "returns": "[\n {\n  \"name\"           (string) the name of the node\n  \"hash\"           (string) the hash of the node\n  \"txid\"           (string) (if value exists) the hash of the transaction which has successfully claimed this name\n  \"n\"              (numeric) (if value exists) vout value\n  \"value\"          (numeric) (if value exists) txout value\n  \"height\"         (numeric) (if value exists) the height of the block in which this transaction is located\n }\n]"
+    },
+    {
+        "name": "getnameproof",
+        "namespace": "Claimtrie",
+        "description": "Return the cryptographic proof that a name maps to a value or doesn't.",
+        "arguments": [
+            {
+                "name": "name",
+                "type": "string",
+                "description": "the name to get a proof for",
+                "is_required": true
+            },
+            {
+                "name": "blockhash",
+                "type": "string",
+                "description": "the hash of the block which is the basis of the proof. If none is given, the latest block will be used.",
+                "is_required": false
+            }
+        ],
+        "examples": [],
+        "returns": "{\n  \"nodes\" : [       (array of object) full nodes (i.e.\n                                        those which lead to\n                                        the requested name)\n    \"children\" : [  (array of object) the children of\n                                       this node\n      \"child\" : {   (object) a child node, either leaf or\n                               reference to a full node\n        \"character\" : \"char\" (string) the character which\n                                          leads from the parent\n                                          to this child node\n        \"nodeHash\" :  \"hash\" (string, if exists) the hash of\n                                                     the node if\n                                                     this is a \n                                                     leaf node\n        }\n      ]\n    \"valueHash\"     (string, if exists) the hash of this\n                                          node's value, if\n                                          it has one. If \n                                          this is the\n                                          requested name\n                                          this will not\n                                          exist whether\n                                          the node has a\n                                          value or not\n    ]\n  \"txhash\" : \"hash\" (string, if exists) the txid of the\n                                            claim which controls\n                                            this name, if there\n                                            is one.\n  \"nOut\" : n,         (numeric) the nOut of the claim which\n                                  controls this name, if there\n                                  is one.\n  \"last takeover height\"  (numeric) the most recent height at\n                                      which the value of a name\n                                      changed other than through\n                                      an update to the winning\n                                      bid\n  }\n}"
+    },
+    {
+        "name": "gettotalclaimednames",
+        "namespace": "Claimtrie",
+        "description": "Return the total number of names that have been successfully claimed, and therefore exist in the trie",
+        "arguments": [],
+        "examples": [],
+        "returns": "\"total names\"                (numeric) the total number of\n                                         names in the trie"
+    },
+    {
+        "name": "gettotalclaims",
+        "namespace": "Claimtrie",
+        "description": "Return the total number of active claims in the trie",
+        "arguments": [],
+        "examples": [],
+        "returns": "\"total claims\"             (numeric) the total number\n                                       of active claims"
+    },
+    {
+        "name": "gettotalvalueofclaims",
+        "namespace": "Claimtrie",
+        "description": "Return the total value of the claims in the trie",
+        "arguments": [
+            {
+                "name": "controlling_only",
+                "type": "boolean",
+                "description": "only include the value of controlling claims",
+                "is_required": true
+            }
+        ],
+        "examples": [],
+        "returns": "\"total value\"                 (numeric) the total value of the\n                                          claims in the trie"
+    },
+    {
+        "name": "getvalueforname",
+        "namespace": "Claimtrie",
+        "description": "Return the winning value associated with a name, if one exists",
+        "arguments": [
+            {
+                "name": "name",
+                "type": "string",
+                "description": "the name to look up",
+                "is_required": true
+            },
+            {
+                "name": "blockhash",
+                "type": "string",
+                "description": "get the value associated with the name at the block specified by this block hash. If none is given, the latest active block will be used.",
+                "is_required": false
+            }
+        ],
+        "examples": [],
+        "returns": "\"value\"            (string) the value of the name, if it exists\n\"claimId\"          (string) the claimId for this name claim\n\"txid\"             (string) the hash of the transaction which successfully claimed the name\n\"n\"                (numeric) vout value\n\"amount\"           (numeric) txout amount\n\"effective amount\" (numeric) txout amount plus amount from all supports associated with the claim\n\"height\"           (numeric) the height of the block in which this transaction is located\n\"name\"             (string) the original name of this claim (before normalization)"
+    },
+    {
+        "name": "listnameclaims",
+        "namespace": "Claimtrie",
+        "description": "Return a list of all transactions claiming names.",
+        "arguments": [
+            {
+                "name": "includesupports",
+                "type": "boolean",
+                "description": "Whether to also include claim supports. Default is true.",
+                "is_required": false
+            },
+            {
+                "name": "activeonly",
+                "type": "boolean",
+                "description": "Whether to only include transactions which are still active, i.e. have not been spent. Default is false.",
+                "is_required": false
+            },
+            {
+                "name": "minconf",
+                "type": "number",
+                "description": "Only include transactions confirmed at least this many time.",
+                "is_required": false
+            }
+        ],
+        "examples": [],
+        "returns": "[\n  {\n    \"name\":\"claimedname\",        (string) The name that is claimed.\n    \"claimtype\":\"claimtype\",     (string) CLAIM or SUPPORT.\n    \"claimId\":\"claimId\",         (string) The claimId of the claim.\n    \"value\":\"value\"              (string) The value assigned to the name, if claimtype is CLAIM.\n    \"account\":\"accountname\",     (string) The account name associated with the transaction. \n                                              It will be \"\" for the default account.\n    \"address\":\"lbrycrdaddress\",  (string) The lbrycrd address of the transaction.\n    \"category\":\"name\"            (string) Always name\n    \"amount\": x.xxx,               (numeric) The amount in LBC.\n    \"vout\": n,                     (numeric) The vout value\n    \"fee\": x.xxx,                  (numeric) The amount of the fee in LBC.\n    \"height\": n                    (numeric) The height of the block in which this transaction was included.\n    \"confirmations\": n,            (numeric) The number of confirmations for the transaction\n    \"blockhash\": \"hashvalue\",    (string) The block hash containing the transaction.\n    \"blockindex\": n,               (numeric) The block index containing the transaction.\n    \"txid\": \"transactionid\",     (string) The transaction id.\n    \"time\": xxx,                   (numeric) The transaction time in seconds since epoch (midnight Jan 1 1970 GMT).\n    \"timereceived\": xxx,           (numeric) The time received in seconds since epoch (midnight Jan 1 1970 GMT).\n    \"comment\": \"...\",            (string) If a comment is associated with the transaction.\n  }\n]"
+    },
+    {
+        "name": "supportclaim",
+        "namespace": "Claimtrie",
+        "description": "Increase the value of a claim. Whichever claim has the greatest value, including all support values, will be the authoritative claim, according to the rest of the rules. The name is the name which is claimed by the claim that will be supported, the txid is the txid of the claim that will be supported, nout is the transaction output which contains the claim to be supported, and amount is the amount which will be added to the value of the claim. If the claim is currently the authoritative claim, this support will go into effect immediately. Otherwise, it will go into effect after 100 blocks. The support will be in effect until it is spent, and will lose its effect when the claim is spent or expires. The amount is a real and is rounded to the nearest .00000001",
+        "arguments": [
+            {
+                "name": "name",
+                "type": "string",
+                "description": "The name claimed by the claim to support.",
+                "is_required": true
+            },
+            {
+                "name": "claimid",
+                "type": "string",
+                "description": "The claimid of the claim to support. This can be obtained by TODO PUT IN PLACE THAT SHOWS THIS.",
+                "is_required": true
+            },
+            {
+                "name": "amount",
+                "type": "number",
+                "description": "The amount in LBC to use to support the claim.",
+                "is_required": true
+            }
+        ],
+        "examples": [],
+        "returns": "\"transactionid\"  (string) The transaction id of the support."
+    },
+    {
+        "name": "updateclaim",
+        "namespace": "Claimtrie",
+        "description": "Create a transaction which issues a claim assigning a value to a name, spending the previous txout which issued a claim over the same name and therefore superseding that claim. The claim will be authoritative if the transaction amount is greater than the transaction amount of all other unspent transactions which issue a claim over the same name, and it will remain authoritative as long as it remains unspent and there are no greater unspent transactions issuing a claim over the same name.",
+        "arguments": [
+            {
+                "name": "txid",
+                "type": "string",
+                "description": "The transaction containing the unspent txout which should be spent.",
+                "is_required": true
+            },
+            {
+                "name": "value",
+                "type": "string",
+                "description": "The value to assign to the name encoded in hexadecimal.",
+                "is_required": true
+            },
+            {
+                "name": "amount",
+                "type": "number",
+                "description": "The amount in LBRYcrd to use to bid for the name. eg 0.1",
+                "is_required": true
+            }
+        ],
+        "examples": [],
+        "returns": "\"transactionid\"  (string) The new transaction id."
+    },
+    {
+        "name": "getbestblockhash",
+        "namespace": "Blockchain",
+        "description": "Returns the hash of the best (tip) block in the longest block chain. Result \"hex\" (string) the block hash hex encoded",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getbestblockhash",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getbestblockhash\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "getblock",
+        "namespace": "Blockchain",
+        "description": "If verbose is false, returns a string that is serialized, hex-encoded data for block 'hash'. If verbose is true, returns an Object with information about block <hash>.",
+        "arguments": [
+            {
+                "name": "hash",
+                "type": "string",
+                "description": "The block hash",
+                "is_required": true
+            },
+            {
+                "name": "verbose",
+                "type": "boolean",
+                "description": "true for a json object, false for the hex encoded data",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getblock \"00000000c937983704a73af28acdec37b049d214adbda81d7e2a3dd146f6ed09\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getblock\", \"params\": [\"00000000c937983704a73af28acdec37b049d214adbda81d7e2a3dd146f6ed09\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"hash\" : \"hash\",     (string) the block hash (same as provided)\n  \"confirmations\" : n,   (numeric) The number of confirmations, or -1 if the block is not on the main chain\n  \"size\" : n,            (numeric) The block size\n  \"height\" : n,          (numeric) The block height or index\n  \"version\" : n,         (numeric) The block version\n  \"versionHex\" : \"00000000\", (string) The block version formatted in hexadecimal\n  \"merkleroot\" : \"xxxx\", (string) The merkle root\n  \"nameclaimroot\" : \"xxxx\",  (string) The hash of the root of the name claim trie\n  \"tx\" : [               (array of string) The transaction ids\n     \"transactionid\"     (string) The transaction id\n     ,...\n  ],\n  \"time\" : ttt,          (numeric) The block time in seconds since epoch (Jan 1 1970 GMT)\n  \"mediantime\" : ttt,    (numeric) The median block time in seconds since epoch (Jan 1 1970 GMT)\n  \"nonce\" : n,           (numeric) The nonce\n  \"bits\" : \"1d00ffff\", (string) The bits\n  \"difficulty\" : x.xxx,  (numeric) The difficulty\n  \"chainwork\" : \"xxxx\",  (string) Expected number of hashes required to produce the chain up to this block (in hex)\n  \"previousblockhash\" : \"hash\",  (string) The hash of the previous block\n  \"nextblockhash\" : \"hash\"       (string) The hash of the next block\n}\n\nResult (for verbose=false):\n\"data\"             (string) A string that is serialized, hex-encoded data for block 'hash'."
+    },
+    {
+        "name": "getblockchaininfo",
+        "namespace": "Blockchain",
+        "description": "Returns an object containing various state info regarding block chain processing.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getblockchaininfo",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getblockchaininfo\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"chain\": \"xxxx\",        (string) current network name as defined in BIP70 (main, test, regtest)\n  \"blocks\": xxxxxx,         (numeric) the current number of blocks processed in the server\n  \"headers\": xxxxxx,        (numeric) the current number of headers we have validated\n  \"bestblockhash\": \"...\", (string) the hash of the currently best block\n  \"difficulty\": xxxxxx,     (numeric) the current difficulty\n  \"mediantime\": xxxxxx,     (numeric) median time for the current best block\n  \"verificationprogress\": xxxx, (numeric) estimate of verification progress [0..1]\n  \"chainwork\": \"xxxx\"     (string) total amount of work in active chain, in hexadecimal\n  \"pruned\": xx,             (boolean) if the blocks are subject to pruning\n  \"pruneheight\": xxxxxx,    (numeric) heighest block available\n  \"softforks\": [            (array) status of softforks in progress\n     {\n        \"id\": \"xxxx\",        (string) name of softfork\n        \"version\": xx,         (numeric) block version\n        \"enforce\": {           (object) progress toward enforcing the softfork rules for new-version blocks\n           \"status\": xx,       (boolean) true if threshold reached\n           \"found\": xx,        (numeric) number of blocks with the new version found\n           \"required\": xx,     (numeric) number of blocks required to trigger\n           \"window\": xx,       (numeric) maximum size of examined window of recent blocks\n        },\n        \"reject\": { ... }      (object) progress toward rejecting pre-softfork blocks (same fields as \"enforce\")\n     }, ...\n  ],\n  \"bip9_softforks\": {          (object) status of BIP9 softforks in progress\n     \"xxxx\" : {                (string) name of the softfork\n        \"status\": \"xxxx\",    (string) one of \"defined\", \"started\", \"lockedin\", \"active\", \"failed\"\n        \"bit\": xx,             (numeric) the bit, 0-28, in the block version field used to signal this soft fork\n        \"startTime\": xx,       (numeric) the minimum median time past of a block at which the bit gains its meaning\n        \"timeout\": xx          (numeric) the median time past of a block at which the deployment is considered failed if not yet locked in\n     }\n  }\n}"
+    },
+    {
+        "name": "getblockcount",
+        "namespace": "Blockchain",
+        "description": "Returns the number of blocks in the longest block chain.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getblockcount",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getblockcount\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "n    (numeric) The current block count"
+    },
+    {
+        "name": "getblockhash",
+        "namespace": "Blockchain",
+        "description": "Returns hash of block in best-block-chain at index provided.",
+        "arguments": [
+            {
+                "name": "index",
+                "type": "number",
+                "description": "The block index",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getblockhash 1000",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getblockhash\", \"params\": [1000] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "\"hash\"         (string) The block hash"
+    },
+    {
+        "name": "getblockheader",
+        "namespace": "Blockchain",
+        "description": "If verbose is false, returns a string that is serialized, hex-encoded data for blockheader 'hash'. If verbose is true, returns an Object with information about blockheader <hash>.",
+        "arguments": [
+            {
+                "name": "hash",
+                "type": "string",
+                "description": "The block hash",
+                "is_required": true
+            },
+            {
+                "name": "verbose",
+                "type": "boolean",
+                "description": "true for a json object, false for the hex encoded data",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getblockheader \"00000000c937983704a73af28acdec37b049d214adbda81d7e2a3dd146f6ed09\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getblockheader\", \"params\": [\"00000000c937983704a73af28acdec37b049d214adbda81d7e2a3dd146f6ed09\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"hash\" : \"hash\",     (string) the block hash (same as provided)\n  \"confirmations\" : n,   (numeric) The number of confirmations, or -1 if the block is not on the main chain\n  \"height\" : n,          (numeric) The block height or index\n  \"version\" : n,         (numeric) The block version\n  \"versionHex\" : \"00000000\", (string) The block version formatted in hexadecimal\n  \"merkleroot\" : \"xxxx\", (string) The merkle root\n  \"time\" : ttt,          (numeric) The block time in seconds since epoch (Jan 1 1970 GMT)\n  \"mediantime\" : ttt,    (numeric) The median block time in seconds since epoch (Jan 1 1970 GMT)\n  \"nonce\" : n,           (numeric) The nonce\n  \"bits\" : \"1d00ffff\", (string) The bits\n  \"difficulty\" : x.xxx,  (numeric) The difficulty\n  \"previousblockhash\" : \"hash\",  (string) The hash of the previous block\n  \"nextblockhash\" : \"hash\",      (string) The hash of the next block\n  \"chainwork\" : \"0000...1f3\"     (string) Expected number of hashes required to produce the current chain (in hex)\n}\n\nResult (for verbose=false):\n\"data\"             (string) A string that is serialized, hex-encoded data for block 'hash'."
+    },
+    {
+        "name": "getchaintips",
+        "namespace": "Blockchain",
+        "description": "Return information about all known tips in the block tree, including the main chain as well as orphaned branches.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getchaintips",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getchaintips\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "[\n  {\n    \"height\": xxxx,         (numeric) height of the chain tip\n    \"hash\": \"xxxx\",         (string) block hash of the tip\n    \"branchlen\": 0          (numeric) zero for main chain\n    \"status\": \"active\"      (string) \"active\" for the main chain\n  },\n  {\n    \"height\": xxxx,\n    \"hash\": \"xxxx\",\n    \"branchlen\": 1          (numeric) length of branch connecting the tip to the main chain\n    \"status\": \"xxxx\"        (string) status of the chain (active, valid-fork, valid-headers, headers-only, invalid)\n  }\n]\nPossible values for status:\n1.  \"invalid\"               This branch contains at least one invalid block\n2.  \"headers-only\"          Not all blocks for this branch are available, but the headers are valid\n3.  \"valid-headers\"         All blocks are available for this branch, but they were never fully validated\n4.  \"valid-fork\"            This branch is not part of the active chain, but is fully validated\n5.  \"active\"                This is the tip of the active main chain, which is certainly valid"
+    },
+    {
+        "name": "getdifficulty",
+        "namespace": "Blockchain",
+        "description": "Returns the proof-of-work difficulty as a multiple of the minimum difficulty.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getdifficulty",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getdifficulty\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "n.nnn       (numeric) the proof-of-work difficulty as a multiple of the minimum difficulty."
+    },
+    {
+        "name": "getmempoolinfo",
+        "namespace": "Blockchain",
+        "description": "Returns details on the active state of the TX memory pool.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getmempoolinfo",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getmempoolinfo\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"size\": xxxxx,               (numeric) Current tx count\n  \"bytes\": xxxxx,              (numeric) Sum of all tx sizes\n  \"usage\": xxxxx,              (numeric) Total memory usage for the mempool\n  \"maxmempool\": xxxxx,         (numeric) Maximum memory usage for the mempool\n  \"mempoolminfee\": xxxxx       (numeric) Minimum fee for tx to be accepted\n}"
+    },
+    {
+        "name": "getrawmempool",
+        "namespace": "Blockchain",
+        "description": "Returns all transaction ids in memory pool as a json array of string transaction ids.",
+        "arguments": [
+            {
+                "name": "verbose",
+                "type": "boolean",
+                "description": "true for a json object, false for array of transaction ids",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getrawmempool true",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getrawmempool\", \"params\": [true] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "[                     (json array of string)\n  \"transactionid\"     (string) The transaction id\n  ,...\n]\n\nResult: (for verbose = true):\n{                           (json object)\n  \"transactionid\" : {       (json object)\n    \"size\" : n,             (numeric) transaction size in bytes\n    \"fee\" : n,              (numeric) transaction fee in LBC\n    \"modifiedfee\" : n,      (numeric) transaction fee with fee deltas used for mining priority\n    \"time\" : n,             (numeric) local time transaction entered pool in seconds since 1 Jan 1970 GMT\n    \"height\" : n,           (numeric) block height when transaction entered pool\n    \"startingpriority\" : n, (numeric) priority when transaction entered pool\n    \"currentpriority\" : n,  (numeric) transaction priority now\n    \"descendantcount\" : n,  (numeric) number of in-mempool descendant transactions (including this one)\n    \"descendantsize\" : n,   (numeric) size of in-mempool descendants (including this one)\n    \"descendantfees\" : n,   (numeric) modified fees (see above) of in-mempool descendants (including this one)\n    \"depends\" : [           (array) unconfirmed transactions used as inputs for this transaction\n        \"transactionid\",    (string) parent transaction id\n       ... ]\n  }, ...\n}"
+    },
+    {
+        "name": "gettxout",
+        "namespace": "Blockchain",
+        "description": "Returns details about an unspent transaction output.",
+        "arguments": [
+            {
+                "name": "txid",
+                "type": "string",
+                "description": "The transaction id",
+                "is_required": true
+            },
+            {
+                "name": "n",
+                "type": "number",
+                "description": "vout number",
+                "is_required": true
+            },
+            {
+                "name": "includemempool",
+                "type": "boolean",
+                "description": "Whether to include the mem pool",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "Get unspent transactions",
+                "cli": "> lbrycrd-cli listunspent"
+            },
+            {
+                "title": "View the details",
+                "cli": "> lbrycrd-cli gettxout \"txid\" 1"
+            },
+            {
+                "title": "As a json rpc call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"gettxout\", \"params\": [\"txid\", 1] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"bestblock\" : \"hash\",    (string) the block hash\n  \"confirmations\" : n,       (numeric) The number of confirmations\n  \"value\" : x.xxx,           (numeric) The transaction value in LBC\n  \"scriptPubKey\" : {         (json object)\n     \"asm\" : \"code\",       (string) \n     \"hex\" : \"hex\",        (string) \n     \"reqSigs\" : n,          (numeric) Number of required signatures\n     \"type\" : \"pubkeyhash\", (string) The type, eg pubkeyhash\n     \"addresses\" : [          (array of string) array of lbrycrd addresses\n        \"lbrycrdaddress\"     (string) lbrycrd address\n        ,...\n     ]\n  },\n  \"version\" : n,            (numeric) The version\n  \"coinbase\" : true|false   (boolean) Coinbase or not\n}"
+    },
+    {
+        "name": "gettxoutproof",
+        "namespace": "Blockchain",
+        "description": "Returns a hex-encoded proof that \"txid\" was included in a block. NOTE: By default this function only works sometimes. This is when there is an unspent output in the utxo for this transaction. To make it always work, you need to maintain a transaction index, using the -txindex command line option or specify the block in which the transaction is included in manually (by blockhash). Return the raw transaction data.",
+        "arguments": [
+            {
+                "name": "txids",
+                "type": "string",
+                "description": "A json array of txids to filter [ \"txid\" (string) A transaction hash ,... ]",
+                "is_required": true
+            },
+            {
+                "name": "block hash",
+                "type": "string",
+                "description": "If specified, looks for txid in the block with this hash",
+                "is_required": false
+            }
+        ],
+        "examples": [],
+        "returns": "\"data\"           (string) A string that is a serialized, hex-encoded data for the proof."
+    },
+    {
+        "name": "gettxoutsetinfo",
+        "namespace": "Blockchain",
+        "description": "Returns statistics about the unspent transaction output set. Note this call may take some time.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli gettxoutsetinfo",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"gettxoutsetinfo\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"height\":n,     (numeric) The current block height (index)\n  \"bestblock\": \"hex\",   (string) the best block hash hex\n  \"transactions\": n,      (numeric) The number of transactions\n  \"txouts\": n,            (numeric) The number of output transactions\n  \"bytes_serialized\": n,  (numeric) The serialized size\n  \"hash_serialized\": \"hash\",   (string) The serialized hash\n  \"total_amount\": x.xxx          (numeric) The total amount\n}"
+    },
+    {
+        "name": "verifychain",
+        "namespace": "Blockchain",
+        "description": "Verifies blockchain database.",
+        "arguments": [
+            {
+                "name": "checklevel",
+                "type": "number",
+                "description": "How thorough the block verification is.",
+                "is_required": false
+            },
+            {
+                "name": "numblocks",
+                "type": "number",
+                "description": "The number of blocks to check.",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli verifychain",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"verifychain\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "true|false       (boolean) Verified or not"
+    },
+    {
+        "name": "verifytxoutproof",
+        "namespace": "Blockchain",
+        "description": "Verifies that a proof points to a transaction in a block, returning the transaction it commits to and throwing an RPC error if the block is not in our best chain",
+        "arguments": [
+            {
+                "name": "proof",
+                "type": "string",
+                "description": "The hex-encoded proof generated by gettxoutproof",
+                "is_required": true
+            }
+        ],
+        "examples": [],
+        "returns": "[\"txid\"]      (array, strings) The txid(s) which the proof commits to, or empty array if the proof is invalid"
+    },
+    {
+        "name": "getinfo",
+        "namespace": "Control",
+        "description": "Returns an object containing various state info.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getinfo",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getinfo\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"version\": xxxxx,           (numeric) the server version\n  \"protocolversion\": xxxxx,   (numeric) the protocol version\n  \"walletversion\": xxxxx,     (numeric) the wallet version\n  \"balance\": xxxxxxx,         (numeric) the total lbrycrd balance of the wallet\n  \"blocks\": xxxxxx,           (numeric) the current number of blocks processed in the server\n  \"timeoffset\": xxxxx,        (numeric) the time offset\n  \"connections\": xxxxx,       (numeric) the number of connections\n  \"proxy\": \"host:port\",     (string, optional) the proxy used by the server\n  \"difficulty\": xxxxxx,       (numeric) the current difficulty\n  \"testnet\": true|false,      (boolean) if the server is using testnet or not\n  \"keypoololdest\": xxxxxx,    (numeric) the timestamp (seconds since GMT epoch) of the oldest pre-generated key in the key pool\n  \"keypoolsize\": xxxx,        (numeric) how many new keys are pre-generated\n  \"unlocked_until\": ttt,      (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n  \"paytxfee\": x.xxxx,         (numeric) the transaction fee set in LBC/kB\n  \"relayfee\": x.xxxx,         (numeric) minimum relay fee for non-free transactions in LBC/kB\n  \"errors\": \"...\"           (string) any error messages\n}"
+    },
+    {
+        "name": "help",
+        "namespace": "Control",
+        "description": "List all commands, or get help for a specified command.",
+        "arguments": [
+            {
+                "name": "command",
+                "type": "string",
+                "description": "The command to get help on",
+                "is_required": false
+            }
+        ],
+        "examples": [],
+        "returns": "\"text\"     (string) The help text"
+    },
+    {
+        "name": "stop",
+        "namespace": "Control",
+        "description": "Stop LBRYcrd server.",
+        "arguments": [],
+        "examples": []
+    },
+    {
+        "name": "generate",
+        "namespace": "Generating",
+        "description": "Mine up to numblocks blocks immediately (before the RPC call returns)",
+        "arguments": [
+            {
+                "name": "numblocks",
+                "type": "number",
+                "description": "How many blocks are generated immediately.",
+                "is_required": true
+            },
+            {
+                "name": "maxtries",
+                "type": "number",
+                "description": "How many iterations to try (default = 1000000). Result [ blockhashes ] (array) hashes of blocks generated",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "Generate 11 blocks",
+                "cli": "> lbrycrd-cli generate 11"
+            }
+        ]
+    },
+    {
+        "name": "generatetoaddress",
+        "namespace": "Generating",
+        "description": "Mine blocks immediately to a specified address (before the RPC call returns)",
+        "arguments": [
+            {
+                "name": "numblocks",
+                "type": "number",
+                "description": "How many blocks are generated immediately.",
+                "is_required": true
+            },
+            {
+                "name": "address",
+                "type": "string",
+                "description": "The address to send the newly generated bitcoin to.",
+                "is_required": true
+            },
+            {
+                "name": "maxtries",
+                "type": "number",
+                "description": "How many iterations to try (default = 1000000). Result [ blockhashes ] (array) hashes of blocks generated",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "Generate 11 blocks to myaddress",
+                "cli": "> lbrycrd-cli generatetoaddress 11 \"myaddress\""
+            }
+        ]
+    },
+    {
+        "name": "getblocktemplate",
+        "namespace": "Mining",
+        "description": "If the request parameters include a 'mode' key, that is used to explicitly select between the default 'template' request or a 'proposal'. It returns data needed to construct a block to work on. See https://en.bitcoin.it/wiki/BIP_0022 for full specification.",
+        "arguments": [
+            {
+                "name": "jsonrequestobject",
+                "type": "string",
+                "description": "A json object in the following spec { \"mode\":\"template\" (string, optional) This must be set to \"template\" or omitted \"capabilities\":[ (array, optional) A list of strings \"support\" (string) client side supported feature, 'longpoll', 'coinbasetxn', 'coinbasevalue', 'proposal', 'serverlist', 'workid' ,... ] }",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getblocktemplate",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getblocktemplate\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"version\" : n,                    (numeric) The block version\n  \"previousblockhash\" : \"xxxx\",    (string) The hash of current highest block\n  \"transactions\" : [                (array) contents of non-coinbase transactions that should be included in the next block\n      {\n         \"data\" : \"xxxx\",          (string) transaction data encoded in hexadecimal (byte-for-byte)\n         \"hash\" : \"xxxx\",          (string) hash/id encoded in little-endian hexadecimal\n         \"depends\" : [              (array) array of numbers \n             n                        (numeric) transactions before this one (by 1-based index in 'transactions' list) that must be present in the final block if this one is\n             ,...\n         ],\n         \"fee\": n,                   (numeric) difference in value between transaction inputs and outputs (in Satoshis); for coinbase transactions, this is a negative Number of the total collected block fees (ie, not including the block subsidy); if key is not present, fee is unknown and clients MUST NOT assume there isn't one\n         \"sigops\" : n,               (numeric) total number of SigOps, as counted for purposes of block limits; if key is not present, sigop count is unknown and clients MUST NOT assume there aren't any\n         \"required\" : true|false     (boolean) if provided and true, this transaction must be in the final block\n      }\n      ,...\n  ],\n  \"coinbaseaux\" : {                  (json object) data that should be included in the coinbase's scriptSig content\n      \"flags\" : \"flags\"            (string) \n  },\n  \"coinbasevalue\" : n,               (numeric) maximum allowable input to coinbase transaction, including the generation award and transaction fees (in Satoshis)\n  \"coinbasetxn\" : { ... },           (json object) information for coinbase transaction\n  \"target\" : \"xxxx\",               (string) The hash target\n  \"mintime\" : xxx,                   (numeric) The minimum timestamp appropriate for next block time in seconds since epoch (Jan 1 1970 GMT)\n  \"mutable\" : [                      (array of string) list of ways the block template may be changed \n     \"value\"                         (string) A way the block template may be changed, e.g. 'time', 'transactions', 'prevblock'\n     ,...\n  ],\n  \"noncerange\" : \"00000000ffffffff\",   (string) A range of valid nonces\n  \"sigoplimit\" : n,                 (numeric) limit of sigops in blocks\n  \"sizelimit\" : n,                  (numeric) limit of block size\n  \"curtime\" : ttt,                  (numeric) current timestamp in seconds since epoch (Jan 1 1970 GMT)\n  \"bits\" : \"xxx\",                 (string) compressed target of next block\n  \"height\" : n                      (numeric) The height of the next block\n}"
+    },
+    {
+        "name": "getgenerate",
+        "namespace": "Mining",
+        "description": "Return if the server is set to generate coins or not. The default is false. It is set with the command line argument -gen (or lbrycrd.conf setting gen) It can also be set with the setgenerate call. Result true|false (boolean) If the server is set to generate coins or not",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getgenerate",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getgenerate\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "gethashespersec",
+        "namespace": "Mining",
+        "description": "Returns a recent hashes per second performance measurement while generating. See the getgenerate and setgenerate calls to turn generation on and off.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli gethashespersec",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"gethashespersec\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "n            (numeric) The recent hashes per second when generation is on (will return 0 if generation is off)"
+    },
+    {
+        "name": "getmininginfo",
+        "namespace": "Mining",
+        "description": "Returns a json object containing mining-related information.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getmininginfo",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getmininginfo\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"blocks\": nnn,             (numeric) The current block\n  \"currentblocksize\": nnn,   (numeric) The last block size\n  \"currentblocktx\": nnn,     (numeric) The last block transaction\n  \"difficulty\": xxx.xxxxx    (numeric) The current difficulty\n  \"errors\": \"...\"          (string) Current errors\n  \"generate\": true|false     (boolean) If the generation is on or off (see getgenerate or setgenerate calls)\n  \"genproclimit\": n          (numeric) The processor limit for generation. -1 if no generation. (see getgenerate or setgenerate calls)\n  \"hashespersec\": n          (numeric) The hashes per second of the generation, or 0 if no generation.\n  \"pooledtx\": n              (numeric) The size of the mem pool\n  \"testnet\": true|false      (boolean) If using testnet or not\n  \"chain\": \"xxxx\",         (string) current network name as defined in BIP70 (main, test, regtest)\n}"
+    },
+    {
+        "name": "getnetworkhashps",
+        "namespace": "Mining",
+        "description": "Returns the estimated network hashes per second based on the last n blocks. Pass in [blocks] to override # of blocks, -1 specifies since last difficulty change. Pass in [height] to estimate the network speed at the time when a certain block was found.",
+        "arguments": [
+            {
+                "name": "blocks",
+                "type": "number",
+                "description": "The number of blocks, or -1 for blocks since last difficulty change.",
+                "is_required": false
+            },
+            {
+                "name": "height",
+                "type": "number",
+                "description": "To estimate at the time of the given height.",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getnetworkhashps",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getnetworkhashps\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "x             (numeric) Hashes per second estimated"
+    },
+    {
+        "name": "prioritisetransaction",
+        "namespace": "Mining",
+        "description": "Accepts the transaction into mined blocks at a higher (or lower) priority",
+        "arguments": [
+            {
+                "name": "txid",
+                "type": "string",
+                "description": "The transaction id.",
+                "is_required": true
+            },
+            {
+                "name": "priority delta",
+                "type": "number",
+                "description": "The priority to add or subtract. The transaction selection algorithm considers the tx as it would have a higher priority. (priority of a transaction is calculated: coinage * value_in_satoshis / txsize)",
+                "is_required": true
+            },
+            {
+                "name": "fee delta",
+                "type": "number",
+                "description": "The fee value (in satoshis) to add (or subtract, if negative). The fee is not actually paid, only the algorithm for selecting transactions into a block considers the transaction as it would have paid a higher (or lower) fee. Result true (boolean) Returns true",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli prioritisetransaction \"txid\" 0.0 10000",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"prioritisetransaction\", \"params\": [\"txid\", 0.0, 10000] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "setgenerate",
+        "namespace": "Mining",
+        "description": "Set 'generate' true or false to turn generation on or off. Generation is limited to 'genproclimit' processors, -1 is unlimited. See the getgenerate call for the current setting.",
+        "arguments": [
+            {
+                "name": "generate",
+                "type": "boolean",
+                "description": "Set to true to turn on generation, off to turn off.",
+                "is_required": true
+            },
+            {
+                "name": "genproclimit",
+                "type": "number",
+                "description": "Set the processor limit for when generation is on. Can be -1 for unlimited.",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "Set the generation on with a limit of one processor",
+                "cli": "> lbrycrd-cli setgenerate true 1"
+            },
+            {
+                "title": "Check the setting",
+                "cli": "> lbrycrd-cli getgenerate"
+            },
+            {
+                "title": "Turn off generation",
+                "cli": "> lbrycrd-cli setgenerate false"
+            },
+            {
+                "title": "Using json rpc",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"setgenerate\", \"params\": [true, 1] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "submitblock",
+        "namespace": "Mining",
+        "description": "Attempts to submit new block to network. The 'jsonparametersobject' parameter is currently ignored. See https://en.bitcoin.it/wiki/BIP_0022 for full specification.",
+        "arguments": [
+            {
+                "name": "hexdata",
+                "type": "string",
+                "description": "the hex-encoded block data to submit",
+                "is_required": true
+            },
+            {
+                "name": "jsonparametersobject",
+                "type": "string",
+                "description": "object of optional parameters { \"workid\" : \"id\" (string, optional) if the server provided a workid, it MUST be included with submissions }",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli submitblock \"mydata\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"submitblock\", \"params\": [\"mydata\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": ""
+    },
+    {
+        "name": "addnode",
+        "namespace": "Network",
+        "description": "Attempts add or remove a node from the addnode list. Or try a connection to a node once.",
+        "arguments": [
+            {
+                "name": "node",
+                "type": "string",
+                "description": "The node (see getpeerinfo for nodes)",
+                "is_required": true
+            },
+            {
+                "name": "command",
+                "type": "string",
+                "description": "'add' to add a node to the list, 'remove' to remove a node from the list, 'onetry' to try a connection to the node once",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli addnode \"192.168.0.6:8333\" \"onetry\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"addnode\", \"params\": [\"192.168.0.6:8333\", \"onetry\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "clearbanned",
+        "namespace": "Network",
+        "description": "Clear all banned IPs.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli clearbanned",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"clearbanned\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "disconnectnode",
+        "namespace": "Network",
+        "description": "Immediately disconnects from the specified node.",
+        "arguments": [
+            {
+                "name": "node",
+                "type": "string",
+                "description": "The node (see getpeerinfo for nodes)",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli disconnectnode \"192.168.0.6:8333\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"disconnectnode\", \"params\": [\"192.168.0.6:8333\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "getaddednodeinfo",
+        "namespace": "Network",
+        "description": "Returns information about the given added node, or all added nodes (note that onetry addnodes are not listed here) If dns is false, only a list of added nodes will be provided, otherwise connected information will also be available.",
+        "arguments": [
+            {
+                "name": "dns",
+                "type": "boolean",
+                "description": "If false, only a list of added nodes will be provided, otherwise connected information will also be available.",
+                "is_required": true
+            },
+            {
+                "name": "node",
+                "type": "string",
+                "description": "If provided, return information about this specific node, otherwise all nodes are returned.",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getaddednodeinfo true \"192.168.0.201\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getaddednodeinfo\", \"params\": [true, \"192.168.0.201\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "[\n  {\n    \"addednode\" : \"192.168.0.201\",   (string) The node ip address\n    \"connected\" : true|false,          (boolean) If connected\n    \"addresses\" : [\n       {\n         \"address\" : \"192.168.0.201:8333\",  (string) The lbrycrd server host and port\n         \"connected\" : \"outbound\"           (string) connection, inbound or outbound\n       }\n       ,...\n     ]\n  }\n  ,...\n]"
+    },
+    {
+        "name": "getconnectioncount",
+        "namespace": "Network",
+        "description": "Returns the number of connections to other nodes.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getconnectioncount",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getconnectioncount\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "n          (numeric) The connection count"
+    },
+    {
+        "name": "getnettotals",
+        "namespace": "Network",
+        "description": "Returns information about network traffic, including bytes in, bytes out, and current time.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getnettotals",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getnettotals\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"totalbytesrecv\": n,   (numeric) Total bytes received\n  \"totalbytessent\": n,   (numeric) Total bytes sent\n  \"timemillis\": t,       (numeric) Total cpu time\n  \"uploadtarget\":\n  {\n    \"timeframe\": n,                         (numeric) Length of the measuring timeframe in seconds\n    \"target\": n,                            (numeric) Target in bytes\n    \"target_reached\": true|false,           (boolean) True if target is reached\n    \"serve_historical_blocks\": true|false,  (boolean) True if serving historical blocks\n    \"bytes_left_in_cycle\": t,               (numeric) Bytes left in current time cycle\n    \"time_left_in_cycle\": t                 (numeric) Seconds left in current time cycle\n  }\n}"
+    },
+    {
+        "name": "getnetworkinfo",
+        "namespace": "Network",
+        "description": "Returns an object containing various state info regarding P2P networking.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getnetworkinfo",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getnetworkinfo\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"version\": xxxxx,                      (numeric) the server version\n  \"subversion\": \"/Satoshi:x.x.x/\",     (string) the server subversion string\n  \"protocolversion\": xxxxx,              (numeric) the protocol version\n  \"localservices\": \"xxxxxxxxxxxxxxxx\", (string) the services we offer to the network\n  \"timeoffset\": xxxxx,                   (numeric) the time offset\n  \"connections\": xxxxx,                  (numeric) the number of connections\n  \"networks\": [                          (array) information per network\n  {\n    \"name\": \"xxx\",                     (string) network (ipv4, ipv6 or onion)\n    \"limited\": true|false,               (boolean) is the network limited using -onlynet?\n    \"reachable\": true|false,             (boolean) is the network reachable?\n    \"proxy\": \"host:port\"               (string) the proxy that is used for this network, or empty if none\n  }\n  ,...\n  ],\n  \"relayfee\": x.xxxxxxxx,                (numeric) minimum relay fee for non-free transactions in LBC/kB\n  \"localaddresses\": [                    (array) list of local addresses\n  {\n    \"address\": \"xxxx\",                 (string) network address\n    \"port\": xxx,                         (numeric) network port\n    \"score\": xxx                         (numeric) relative score\n  }\n  ,...\n  ]\n  \"warnings\": \"...\"                    (string) any network warnings (such as alert messages) \n}"
+    },
+    {
+        "name": "getpeerinfo",
+        "namespace": "Network",
+        "description": "Returns data about each connected network node as a json array of objects.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getpeerinfo",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getpeerinfo\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "[\n  {\n    \"id\": n,                   (numeric) Peer index\n    \"addr\":\"host:port\",      (string) The ip address and port of the peer\n    \"addrlocal\":\"ip:port\",   (string) local address\n    \"services\":\"xxxxxxxxxxxxxxxx\",   (string) The services offered\n    \"relaytxes\":true|false,    (boolean) Whether peer has asked us to relay transactions to it\n    \"lastsend\": ttt,           (numeric) The time in seconds since epoch (Jan 1 1970 GMT) of the last send\n    \"lastrecv\": ttt,           (numeric) The time in seconds since epoch (Jan 1 1970 GMT) of the last receive\n    \"bytessent\": n,            (numeric) The total bytes sent\n    \"bytesrecv\": n,            (numeric) The total bytes received\n    \"conntime\": ttt,           (numeric) The connection time in seconds since epoch (Jan 1 1970 GMT)\n    \"timeoffset\": ttt,         (numeric) The time offset in seconds\n    \"pingtime\": n,             (numeric) ping time (if available)\n    \"minping\": n,              (numeric) minimum observed ping time (if any at all)\n    \"pingwait\": n,             (numeric) ping wait (if non-zero)\n    \"version\": v,              (numeric) The peer version, such as 7001\n    \"subver\": \"/Satoshi:0.8.5/\",  (string) The string version\n    \"inbound\": true|false,     (boolean) Inbound (true) or Outbound (false)\n    \"startingheight\": n,       (numeric) The starting height (block) of the peer\n    \"banscore\": n,             (numeric) The ban score\n    \"synced_headers\": n,       (numeric) The last header we have in common with this peer\n    \"synced_blocks\": n,        (numeric) The last block we have in common with this peer\n    \"inflight\": [\n       n,                        (numeric) The heights of blocks we're currently asking from this peer\n       ...\n    ]\n    \"bytessent_per_msg\": {\n       \"addr\": n,             (numeric) The total bytes sent aggregated by message type\n       ...\n    }\n    \"bytesrecv_per_msg\": {\n       \"addr\": n,             (numeric) The total bytes received aggregated by message type\n       ...\n    }\n  }\n  ,...\n]"
+    },
+    {
+        "name": "listbanned",
+        "namespace": "Network",
+        "description": "List all banned IPs/Subnets.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli listbanned",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"listbanned\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "ping",
+        "namespace": "Network",
+        "description": "Requests that a ping be sent to all other nodes, to measure ping time. Results provided in getpeerinfo, pingtime and pingwait fields are decimal seconds. Ping command is handled in queue with all other commands, so it measures processing backlog, not just network ping.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli ping",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"ping\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "setban",
+        "namespace": "Network",
+        "description": "Attempts add or remove a IP/Subnet from the banned list.",
+        "arguments": [
+            {
+                "name": "ip(/netmask)",
+                "type": "string",
+                "description": "The IP/Subnet (see getpeerinfo for nodes ip) with a optional netmask (default is /32 = single ip)",
+                "is_required": true
+            },
+            {
+                "name": "command",
+                "type": "string",
+                "description": "'add' to add a IP/Subnet to the list, 'remove' to remove a IP/Subnet from the list",
+                "is_required": true
+            },
+            {
+                "name": "bantime",
+                "type": "number",
+                "description": "time in seconds how long (or until when if [absolute] is set) the ip is banned (0 or empty means using the default time of 24h which can also be overwritten by the -bantime startup argument)",
+                "is_required": false
+            },
+            {
+                "name": "absolute",
+                "type": "boolean",
+                "description": "If set, the bantime must be a absolute timestamp in seconds since epoch (Jan 1 1970 GMT)",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli setban \"192.168.0.0/24\" \"add\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"setban\", \"params\": [\"192.168.0.6\", \"add\" 86400] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "createrawtransaction",
+        "namespace": "Rawtransactions",
+        "description": "Create a transaction spending the given inputs and creating new outputs. Outputs can be addresses or data. Returns hex-encoded raw transaction. Note that the transaction's inputs are not signed, and it is not stored in the wallet or transmitted to the network.",
+        "arguments": [
+            {
+                "name": "transactions",
+                "type": "string",
+                "description": "A json array of json objects [ { \"txid\":\"id\", (string, required) The transaction id \"vout\":n (numeric, required) The output number } ,... ]",
+                "is_required": true
+            },
+            {
+                "name": "outputs",
+                "type": "string",
+                "description": "a json object with outputs { \"address\": x.xxx (numeric or string, required) The key is the lbrycrd address, the numeric value (can be string) is the LBC amount \"data\": \"hex\", (string, required) The key is \"data\", the value is hex encoded data ... }",
+                "is_required": true
+            },
+            {
+                "name": "locktime",
+                "type": "number",
+                "description": "Raw locktime. Non-0 value also locktime-activates inputs",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli createrawtransaction \"[{\\\"txid\\\":\\\"myid\\\",\\\"vout\\\":0}]\" \"{\\\"data\\\":\\\"00010203\\\"}\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"createrawtransaction\", \"params\": [\"[{\\\"txid\\\":\\\"myid\\\",\\\"vout\\\":0}]\", \"{\\\"data\\\":\\\"00010203\\\"}\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "\"transaction\"            (string) hex string of the transaction"
+    },
+    {
+        "name": "decoderawtransaction",
+        "namespace": "Rawtransactions",
+        "description": "Return a JSON object representing the serialized, hex-encoded transaction.",
+        "arguments": [
+            {
+                "name": "hex",
+                "type": "string",
+                "description": "The transaction hex string",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli decoderawtransaction \"hexstring\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"decoderawtransaction\", \"params\": [\"hexstring\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"txid\" : \"id\",        (string) The transaction id\n  \"size\" : n,             (numeric) The transaction size\n  \"version\" : n,          (numeric) The version\n  \"locktime\" : ttt,       (numeric) The lock time\n  \"vin\" : [               (array of json objects)\n     {\n       \"txid\": \"id\",    (string) The transaction id\n       \"vout\": n,         (numeric) The output number\n       \"scriptSig\": {     (json object) The script\n         \"asm\": \"asm\",  (string) asm\n         \"hex\": \"hex\"   (string) hex\n       },\n       \"sequence\": n     (numeric) The script sequence number\n     }\n     ,...\n  ],\n  \"vout\" : [             (array of json objects)\n     {\n       \"value\" : x.xxx,            (numeric) The value in LBC\n       \"n\" : n,                    (numeric) index\n       \"scriptPubKey\" : {          (json object)\n         \"asm\" : \"asm\",          (string) the asm\n         \"hex\" : \"hex\",          (string) the hex\n         \"reqSigs\" : n,            (numeric) The required sigs\n         \"type\" : \"pubkeyhash\",  (string) The type, eg 'pubkeyhash'\n         \"addresses\" : [           (json array of string)\n           \"12tvKAXCxZjSmdNbao16dKXC8tRWfcF5oc\"   (string) lbrycrd address\n           ,...\n         ]\n       }\n     }\n     ,...\n  ],\n}"
+    },
+    {
+        "name": "decodescript",
+        "namespace": "Rawtransactions",
+        "description": "Decode a hex-encoded script.",
+        "arguments": [
+            {
+                "name": "hex",
+                "type": "string",
+                "description": "the hex encoded script",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli decodescript \"hexstring\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"decodescript\", \"params\": [\"hexstring\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"asm\":\"asm\",   (string) Script public key\n  \"hex\":\"hex\",   (string) hex encoded public key\n  \"type\":\"type\", (string) The output type\n  \"reqSigs\": n,    (numeric) The required signatures\n  \"addresses\": [   (json array of string)\n     \"address\"     (string) lbrycrd address\n     ,...\n  ],\n  \"p2sh\",\"address\" (string) script address\n}"
+    },
+    {
+        "name": "fundrawtransaction",
+        "namespace": "Rawtransactions",
+        "description": "Add inputs to a transaction until it has enough in value to meet its out value. This will not modify existing inputs, and will add one change output to the outputs. Note that inputs which were signed may need to be resigned after completion since in/outputs have been added. The inputs added will not be signed, use signrawtransaction for that. Note that all existing inputs must have their previous output transaction be in the wallet. Note that all inputs selected must be of standard form and P2SH scripts must be in the wallet using importaddress or addmultisigaddress (to calculate fees). Only pay-to-pubkey, multisig, and P2SH versions thereof are currently supported for watch-only",
+        "arguments": [
+            {
+                "name": "hexstring",
+                "type": "string",
+                "description": "The hex string of the raw transaction",
+                "is_required": true
+            },
+            {
+                "name": "options",
+                "type": "object",
+                "description": "{ \"changeAddress\" (string, optional, default pool address) The bitcoin address to receive the change \"changePosition\" (numeric, optional, default random) The index of the change output \"includeWatching\" (boolean, optional, default false) Also select inputs which are watch only \"lockUnspents\" (boolean, optional, default false) Lock selected unspent outputs } for backward compatibility: passing in a true instead of an object will result in {\"includeWatching\":true}",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "Create a transaction with no inputs",
+                "cli": "> lbrycrd-cli createrawtransaction \"[]\" \"{\\\"myaddress\\\":0.01}\""
+            },
+            {
+                "title": "Add sufficient unsigned inputs to meet the output value",
+                "cli": "> lbrycrd-cli fundrawtransaction \"rawtransactionhex\""
+            },
+            {
+                "title": "Sign the transaction",
+                "cli": "> lbrycrd-cli signrawtransaction \"fundedtransactionhex\""
+            },
+            {
+                "title": "Send the transaction",
+                "cli": "> lbrycrd-cli sendrawtransaction \"signedtransactionhex\""
+            }
+        ],
+        "returns": "{\n  \"hex\":       \"value\", (string)  The resulting raw transaction (hex-encoded string)\n  \"fee\":       n,         (numeric) Fee the resulting transaction pays\n  \"changepos\": n          (numeric) The position of the added change output, or -1\n}\n\"hex\""
+    },
+    {
+        "name": "getrawtransaction",
+        "namespace": "Rawtransactions",
+        "description": "NOTE: By default this function only works sometimes. This is when the tx is in the mempool or there is an unspent output in the utxo for this transaction. To make it always work, you need to maintain a transaction index, using the -txindex command line option. Return the raw transaction data. If verbose=0, returns a string that is serialized, hex-encoded data for 'txid'. If verbose is non-zero, returns an Object with information about 'txid'.",
+        "arguments": [
+            {
+                "name": "txid",
+                "type": "string",
+                "description": "The transaction id",
+                "is_required": true
+            },
+            {
+                "name": "verbose",
+                "type": "number",
+                "description": "If 0, return a string, other return a json object",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getrawtransaction \"mytxid\" 1",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getrawtransaction\", \"params\": [\"mytxid\", 1] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "\"data\"      (string) The serialized, hex-encoded data for 'txid'\n\nResult (if verbose > 0):\n{\n  \"hex\" : \"data\",       (string) The serialized, hex-encoded data for 'txid'\n  \"txid\" : \"id\",        (string) The transaction id (same as provided)\n  \"size\" : n,             (numeric) The transaction size\n  \"version\" : n,          (numeric) The version\n  \"locktime\" : ttt,       (numeric) The lock time\n  \"vin\" : [               (array of json objects)\n     {\n       \"txid\": \"id\",    (string) The transaction id\n       \"vout\": n,         (numeric) \n       \"scriptSig\": {     (json object) The script\n         \"asm\": \"asm\",  (string) asm\n         \"hex\": \"hex\"   (string) hex\n       },\n       \"sequence\": n      (numeric) The script sequence number\n     }\n     ,...\n  ],\n  \"vout\" : [              (array of json objects)\n     {\n       \"value\" : x.xxx,            (numeric) The value in LBC\n       \"n\" : n,                    (numeric) index\n       \"scriptPubKey\" : {          (json object)\n         \"asm\" : \"asm\",          (string) the asm\n         \"hex\" : \"hex\",          (string) the hex\n         \"reqSigs\" : n,            (numeric) The required sigs\n         \"type\" : \"pubkeyhash\",  (string) The type, eg 'pubkeyhash'\n         \"addresses\" : [           (json array of string)\n           \"lbrycrdaddress\"        (string) lbrycrd address\n           ,...\n         ]\n       }\n     }\n     ,...\n  ],\n  \"blockhash\" : \"hash\",   (string) the block hash\n  \"confirmations\" : n,      (numeric) The confirmations\n  \"time\" : ttt,             (numeric) The transaction time in seconds since epoch (Jan 1 1970 GMT)\n  \"blocktime\" : ttt         (numeric) The block time in seconds since epoch (Jan 1 1970 GMT)\n}"
+    },
+    {
+        "name": "sendrawtransaction",
+        "namespace": "Rawtransactions",
+        "description": "Submits raw transaction (serialized, hex-encoded) to local node and network. Also see createrawtransaction and signrawtransaction calls.",
+        "arguments": [
+            {
+                "name": "hexstring",
+                "type": "string",
+                "description": "The hex string of the raw transaction)",
+                "is_required": true
+            },
+            {
+                "name": "allowhighfees",
+                "type": "boolean",
+                "description": "Allow high fees",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "Create a transaction",
+                "cli": "> lbrycrd-cli createrawtransaction \"[{\\\"txid\\\" : \\\"mytxid\\\",\\\"vout\\\":0}]\" \"{\\\"myaddress\\\":0.01}\""
+            },
+            {
+                "title": "Sign the transaction, and get back the hex",
+                "cli": "> lbrycrd-cli signrawtransaction \"myhex\""
+            },
+            {
+                "title": "Send the transaction (signed hex)",
+                "cli": "> lbrycrd-cli sendrawtransaction \"signedhex\""
+            },
+            {
+                "title": "As a json rpc call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"sendrawtransaction\", \"params\": [\"signedhex\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "\"hex\"             (string) The transaction hash in hex"
+    },
+    {
+        "name": "signrawtransaction",
+        "namespace": "Rawtransactions",
+        "description": "Sign inputs for raw transaction (serialized, hex-encoded). The second optional argument (may be null) is an array of previous transaction outputs that this transaction depends on but may not yet be in the block chain. The third optional argument (may be null) is an array of base58-encoded private keys that, if given, will be the only keys used to sign the transaction.",
+        "arguments": [
+            {
+                "name": "hexstring",
+                "type": "string",
+                "description": "The transaction hex string",
+                "is_required": true
+            },
+            {
+                "name": "prevtxs",
+                "type": "string",
+                "description": "An json array of previous dependent transaction outputs [ (json array of json objects, or 'null' if none provided) { \"txid\":\"id\", (string, required) The transaction id \"vout\":n, (numeric, required) The output number \"scriptPubKey\": \"hex\", (string, required) script key \"redeemScript\": \"hex\" (string, required for P2SH) redeem script } ,... ]",
+                "is_required": false
+            },
+            {
+                "name": "privatekeys",
+                "type": "string",
+                "description": "A json array of base58-encoded private keys for signing [ (json array of strings, or 'null' if none provided) \"privatekey\" (string) private key in base58-encoding ,... ]",
+                "is_required": false
+            },
+            {
+                "name": "sighashtype",
+                "type": "string",
+                "description": "The signature hash type. Must be one of \"ALL\" \"NONE\" \"SINGLE\" \"ALL|ANYONECANPAY\" \"NONE|ANYONECANPAY\" \"SINGLE|ANYONECANPAY\"",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli signrawtransaction \"myhex\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"signrawtransaction\", \"params\": [\"myhex\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"hex\" : \"value\",           (string) The hex-encoded raw transaction with signature(s)\n  \"complete\" : true|false,   (boolean) If the transaction has a complete set of signatures\n  \"errors\" : [                 (json array of objects) Script verification errors (if there are any)\n    {\n      \"txid\" : \"hash\",           (string) The hash of the referenced, previous transaction\n      \"vout\" : n,                (numeric) The index of the output to spent and used as input\n      \"scriptSig\" : \"hex\",       (string) The hex-encoded signature script\n      \"sequence\" : n,            (numeric) Script sequence number\n      \"error\" : \"text\"           (string) Verification or signing error related to the input\n    }\n    ,...\n  ]\n}"
+    },
+    {
+        "name": "createmultisig",
+        "namespace": "Util",
+        "description": "Creates a multi-signature address with n signature of m keys required. It returns a json object with the address and redeemScript.",
+        "arguments": [
+            {
+                "name": "nrequired",
+                "type": "number",
+                "description": "The number of required signatures out of the n keys or addresses.",
+                "is_required": true
+            },
+            {
+                "name": "keys",
+                "type": "string",
+                "description": "A json array of keys which are lbrycrd addresses or hex-encoded public keys [ \"key\" (string) lbrycrd address or hex-encoded public key ,... ]",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "title": "Create a multisig address from 2 addresses",
+                "cli": "> lbrycrd-cli createmultisig 2 \"[\\\"16sSauSf5pF2UkUwvKGq4qjNRzBZYqgEL5\\\",\\\"171sgjn4YtPu27adkKGrdDwzRTxnRkBfKV\\\"]\""
+            },
+            {
+                "title": "As a json rpc call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"createmultisig\", \"params\": [2, \"[\\\"16sSauSf5pF2UkUwvKGq4qjNRzBZYqgEL5\\\",\\\"171sgjn4YtPu27adkKGrdDwzRTxnRkBfKV\\\"]\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"address\":\"multisigaddress\",  (string) The value of the new multisig address.\n  \"redeemScript\":\"script\"       (string) The string value of the hex-encoded redemption script.\n}"
+    },
+    {
+        "name": "estimatefee",
+        "namespace": "Util",
+        "description": "Estimates the approximate fee per kilobyte needed for a transaction to begin confirmation within nblocks blocks.",
+        "arguments": [
+            {
+                "name": "nblocks",
+                "type": "number",
+                "description": [],
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli estimatefee 6"
+            }
+        ],
+        "returns": "n              (numeric) estimated fee-per-kilobyte\n\nA negative value is returned if not enough transactions and blocks\nhave been observed to make an estimate."
+    },
+    {
+        "name": "estimatepriority",
+        "namespace": "Util",
+        "description": "Estimates the approximate priority a zero-fee transaction needs to begin confirmation within nblocks blocks.",
+        "arguments": [
+            {
+                "name": "nblocks",
+                "type": "number",
+                "description": [],
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli estimatepriority 6"
+            }
+        ],
+        "returns": "n              (numeric) estimated priority\n\nA negative value is returned if not enough transactions and blocks\nhave been observed to make an estimate."
+    },
+    {
+        "name": "estimatesmartfee",
+        "namespace": "Util",
+        "description": "WARNING: This interface is unstable and may disappear or change! Estimates the approximate fee per kilobyte needed for a transaction to begin confirmation within nblocks blocks if possible and return the number of blocks for which the estimate is valid.",
+        "arguments": [
+            {
+                "name": "nblocks",
+                "type": "number",
+                "description": [],
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli estimatesmartfee 6"
+            }
+        ],
+        "returns": "{\n  \"feerate\" : x.x,     (numeric) estimate fee-per-kilobyte (in BTC)\n  \"blocks\" : n         (numeric) block number where estimate was found\n}\n\nA negative value is returned if not enough transactions and blocks\nhave been observed to make an estimate for any number of blocks.\nHowever it will not return a value below the mempool reject fee."
+    },
+    {
+        "name": "estimatesmartpriority",
+        "namespace": "Util",
+        "description": "WARNING: This interface is unstable and may disappear or change! Estimates the approximate priority a zero-fee transaction needs to begin confirmation within nblocks blocks if possible and return the number of blocks for which the estimate is valid.",
+        "arguments": [
+            {
+                "name": "nblocks",
+                "type": "number",
+                "description": [],
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli estimatesmartpriority 6"
+            }
+        ],
+        "returns": "{\n  \"priority\" : x.x,    (numeric) estimated priority\n  \"blocks\" : n         (numeric) block number where estimate was found\n}\n\nA negative value is returned if not enough transactions and blocks\nhave been observed to make an estimate for any number of blocks.\nHowever if the mempool reject fee is set it will return 1e9 * MAX_MONEY."
+    },
+    {
+        "name": "validateaddress",
+        "namespace": "Util",
+        "description": "Return information about the given lbrycrd address.",
+        "arguments": [
+            {
+                "name": "lbrycrdaddress",
+                "type": "string",
+                "description": "The lbrycrd address to validate",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli validateaddress \"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"validateaddress\", \"params\": [\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"isvalid\" : true|false,       (boolean) If the address is valid or not. If not, this is the only property returned.\n  \"address\" : \"lbrycrdaddress\", (string) The lbrycrd address validated\n  \"scriptPubKey\" : \"hex\",       (string) The hex encoded scriptPubKey generated by the address\n  \"ismine\" : true|false,        (boolean) If the address is yours or not\n  \"iswatchonly\" : true|false,   (boolean) If the address is watchonly\n  \"isscript\" : true|false,      (boolean) If the key is a script\n  \"pubkey\" : \"publickeyhex\",    (string) The hex value of the raw public key\n  \"iscompressed\" : true|false,  (boolean) If the address is compressed\n  \"account\" : \"account\"         (string) DEPRECATED. The account associated with the address, \"\" is the default account\n}"
+    },
+    {
+        "name": "verifymessage",
+        "namespace": "Util",
+        "description": "Verify a signed message",
+        "arguments": [
+            {
+                "name": "lbrycrdaddress",
+                "type": "string",
+                "description": "The lbrycrd address to use for the signature.",
+                "is_required": true
+            },
+            {
+                "name": "signature",
+                "type": "string",
+                "description": "The signature provided by the signer in base 64 encoding (see signmessage).",
+                "is_required": true
+            },
+            {
+                "name": "message",
+                "type": "string",
+                "description": "The message that was signed.",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "title": "Unlock the wallet for 30 seconds",
+                "cli": "> lbrycrd-cli walletpassphrase \"mypassphrase\" 30"
+            },
+            {
+                "title": "Create the signature",
+                "cli": "> lbrycrd-cli signmessage \"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\" \"my message\""
+            },
+            {
+                "title": "Verify the signature",
+                "cli": "> lbrycrd-cli verifymessage \"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\" \"signature\" \"my message\""
+            },
+            {
+                "title": "As json rpc",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"verifymessage\", \"params\": [\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\", \"signature\", \"my message\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "true|false   (boolean) If the signature is verified or not."
+    },
+    {
+        "name": "abandontransaction",
+        "namespace": "Wallet",
+        "description": "Mark in-wallet transaction <txid> as abandoned This will mark this transaction and all its in-wallet descendants as abandoned which will allow for their inputs to be respent. It can be used to replace \"stuck\" or evicted transactions. It only works on transactions which are not included in a block and are not currently in the mempool. It has no effect on transactions which are already conflicted or abandoned.",
+        "arguments": [
+            {
+                "name": "txid",
+                "type": "string",
+                "description": "The transaction id",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli abandontransaction \"1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"abandontransaction\", \"params\": [\"1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": ""
+    },
+    {
+        "name": "addmultisigaddress",
+        "namespace": "Wallet",
+        "description": "Add a nrequired-to-sign multisignature address to the wallet. Each key is a Bitcoin address or hex-encoded public key. If 'account' is specified (DEPRECATED), assign address to that account.",
+        "arguments": [
+            {
+                "name": "nrequired",
+                "type": "number",
+                "description": "The number of required signatures out of the n keys or addresses.",
+                "is_required": true
+            },
+            {
+                "name": "keysobject",
+                "type": "string",
+                "description": "A json array of lbrycrd addresses or hex-encoded public keys [ \"address\" (string) lbrycrd address or hex-encoded public key ..., ]",
+                "is_required": true
+            },
+            {
+                "name": "account",
+                "type": "string",
+                "description": "DEPRECATED. An account to assign the addresses to.",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "Add a multisig address from 2 addresses",
+                "cli": "> lbrycrd-cli addmultisigaddress 2 \"[\\\"16sSauSf5pF2UkUwvKGq4qjNRzBZYqgEL5\\\",\\\"171sgjn4YtPu27adkKGrdDwzRTxnRkBfKV\\\"]\""
+            },
+            {
+                "title": "As json rpc call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"addmultisigaddress\", \"params\": [2, \"[\\\"16sSauSf5pF2UkUwvKGq4qjNRzBZYqgEL5\\\",\\\"171sgjn4YtPu27adkKGrdDwzRTxnRkBfKV\\\"]\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "\"lbrycrdaddress\"  (string) A lbrycrd address associated with the keys."
+    },
+    {
+        "name": "backupwallet",
+        "namespace": "Wallet",
+        "description": "Safely copies current wallet file to destination, which can be a directory or a path with filename.",
+        "arguments": [
+            {
+                "name": "destination",
+                "type": "string",
+                "description": "The destination directory or file",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli backupwallet \"backup.dat\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"backupwallet\", \"params\": [\"backup.dat\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "dumpprivkey",
+        "namespace": "Wallet",
+        "description": "Reveals the private key corresponding to 'lbrycrdaddress'. Then the importprivkey can be used with this output",
+        "arguments": [
+            {
+                "name": "lbrycrdaddress",
+                "type": "string",
+                "description": "The lbrycrd address for the private key",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli importprivkey \"mykey\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"dumpprivkey\", \"params\": [\"myaddress\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "\"key\"                (string) The private key"
+    },
+    {
+        "name": "dumpwallet",
+        "namespace": "Wallet",
+        "description": "Dumps all wallet keys in a human-readable format.",
+        "arguments": [
+            {
+                "name": "filename",
+                "type": "string",
+                "description": "The filename",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli dumpwallet \"test\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"dumpwallet\", \"params\": [\"test\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "encryptwallet",
+        "namespace": "Wallet",
+        "description": "Encrypts the wallet with 'passphrase'. This is for first time encryption. After this, any calls that interact with private keys such as sending or signing will require the passphrase to be set prior the making these calls. Use the walletpassphrase call for this, and then walletlock call. If the wallet is already encrypted, use the walletpassphrasechange call. Note that this will shutdown the server.",
+        "arguments": [
+            {
+                "name": "passphrase",
+                "type": "string",
+                "description": "The pass phrase to encrypt the wallet with. It must be at least 1 character, but should be long.",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "title": "Encrypt you wallet",
+                "cli": "> lbrycrd-cli encryptwallet \"my pass phrase\""
+            },
+            {
+                "title": "Now set the passphrase to use the wallet, such as for signing or sending LBC",
+                "cli": "> lbrycrd-cli walletpassphrase \"my pass phrase\""
+            },
+            {
+                "title": "Now we can so something like sign",
+                "cli": "> lbrycrd-cli signmessage \"lbrycrdaddress\" \"test message\""
+            },
+            {
+                "title": "Now lock the wallet again by removing the passphrase",
+                "cli": "> lbrycrd-cli walletlock"
+            },
+            {
+                "title": "As a json rpc call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"encryptwallet\", \"params\": [\"my pass phrase\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "getaccount",
+        "namespace": "Wallet",
+        "description": "DEPRECATED. Returns the account associated with the given address.",
+        "arguments": [
+            {
+                "name": "lbrycrdaddress",
+                "type": "string",
+                "description": "The lbrycrd address for account lookup.",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getaccount \"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getaccount\", \"params\": [\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "\"accountname\"        (string) the account address"
+    },
+    {
+        "name": "getaccountaddress",
+        "namespace": "Wallet",
+        "description": "DEPRECATED. Returns the current Bitcoin address for receiving payments to this account.",
+        "arguments": [
+            {
+                "name": "account",
+                "type": "string",
+                "description": "The account name for the address. It can also be set to the empty string \"\" to represent the default account. The account does not need to exist, it will be created and a new address created if there is no account by the given name.",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getaccountaddress \"myaccount\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getaccountaddress\", \"params\": [\"myaccount\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "\"lbrycrdaddress\"   (string) The account lbrycrd address"
+    },
+    {
+        "name": "getaddressesbyaccount",
+        "namespace": "Wallet",
+        "description": "DEPRECATED. Returns the list of addresses for the given account.",
+        "arguments": [
+            {
+                "name": "account",
+                "type": "string",
+                "description": "The account name.",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getaddressesbyaccount \"tabby\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getaddressesbyaccount\", \"params\": [\"tabby\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "[                     (json array of string)\n  \"lbrycrdaddress\"  (string) a lbrycrd address associated with the given account\n  ,...\n]"
+    },
+    {
+        "name": "getbalance",
+        "namespace": "Wallet",
+        "description": "If account is not specified, returns the server's total available balance. If account is specified (DEPRECATED), returns the balance in the account. Note that the account \"\" is not the same as leaving the parameter out. The server total may be different to the balance in the default \"\" account.",
+        "arguments": [
+            {
+                "name": "account",
+                "type": "string",
+                "description": "DEPRECATED. The selected account, or \"*\" for entire wallet. It may be the default account using \"\".",
+                "is_required": false
+            },
+            {
+                "name": "minconf",
+                "type": "number",
+                "description": "Only include transactions confirmed at least this many times.",
+                "is_required": false
+            },
+            {
+                "name": "includeWatchonly",
+                "type": "boolean",
+                "description": "Also include balance in watchonly addresses (see 'importaddress')",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "The total amount in the wallet",
+                "cli": "> lbrycrd-cli getbalance"
+            },
+            {
+                "title": "The total amount in the wallet at least 5 blocks confirmed",
+                "cli": "> lbrycrd-cli getbalance \"*\" 6"
+            },
+            {
+                "title": "As a json rpc call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getbalance\", \"params\": [\"*\", 6] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "amount              (numeric) The total amount in LBC received for this account."
+    },
+    {
+        "name": "getnewaddress",
+        "namespace": "Wallet",
+        "description": "Returns a new Bitcoin address for receiving payments. If 'account' is specified (DEPRECATED), it is added to the address book so payments received with the address will be credited to 'account'.",
+        "arguments": [
+            {
+                "name": "account",
+                "type": "string",
+                "description": "DEPRECATED. The account name for the address to be linked to. If not provided, the default account \"\" is used. It can also be set to the empty string \"\" to represent the default account. The account does not need to exist, it will be created if there is no account by the given name.",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getnewaddress",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getnewaddress\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "\"lbrycrdaddress\"    (string) The new lbrycrd address"
+    },
+    {
+        "name": "getrawchangeaddress",
+        "namespace": "Wallet",
+        "description": "Returns a new Bitcoin address, for receiving change. This is for use with raw transactions, NOT normal use.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getrawchangeaddress",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getrawchangeaddress\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "\"address\"    (string) The address"
+    },
+    {
+        "name": "getreceivedbyaccount",
+        "namespace": "Wallet",
+        "description": "DEPRECATED. Returns the total amount received by addresses with <account> in transactions with at least [minconf] confirmations.",
+        "arguments": [
+            {
+                "name": "account",
+                "type": "string",
+                "description": "The selected account, may be the default account using \"\".",
+                "is_required": true
+            },
+            {
+                "name": "minconf",
+                "type": "number",
+                "description": "Only include transactions confirmed at least this many times.",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "Amount received by the default account with at least 1 confirmation",
+                "cli": "> lbrycrd-cli getreceivedbyaccount \"\""
+            },
+            {
+                "title": "Amount received at the tabby account including unconfirmed amounts with zero confirmations",
+                "cli": "> lbrycrd-cli getreceivedbyaccount \"tabby\" 0"
+            },
+            {
+                "title": "The amount with at least 6 confirmation, very safe",
+                "cli": "> lbrycrd-cli getreceivedbyaccount \"tabby\" 6"
+            },
+            {
+                "title": "As a json rpc call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getreceivedbyaccount\", \"params\": [\"tabby\", 6] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "amount              (numeric) The total amount in LBC received for this account."
+    },
+    {
+        "name": "getreceivedbyaddress",
+        "namespace": "Wallet",
+        "description": "Returns the total amount received by the given lbrycrdaddress in transactions with at least minconf confirmations.",
+        "arguments": [
+            {
+                "name": "lbrycrdaddress",
+                "type": "string",
+                "description": "The lbrycrd address for transactions.",
+                "is_required": true
+            },
+            {
+                "name": "minconf",
+                "type": "number",
+                "description": "Only include transactions confirmed at least this many times.",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "The amount from transactions with at least 1 confirmation",
+                "cli": "> lbrycrd-cli getreceivedbyaddress \"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\""
+            },
+            {
+                "title": "The amount including unconfirmed transactions, zero confirmations",
+                "cli": "> lbrycrd-cli getreceivedbyaddress \"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\" 0"
+            },
+            {
+                "title": "The amount with at least 6 confirmation, very safe",
+                "cli": "> lbrycrd-cli getreceivedbyaddress \"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\" 6"
+            },
+            {
+                "title": "As a json rpc call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getreceivedbyaddress\", \"params\": [\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\", 6] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "amount   (numeric) The total amount in LBC received at this address."
+    },
+    {
+        "name": "gettransaction",
+        "namespace": "Wallet",
+        "description": "Get detailed information about in-wallet transaction <txid>",
+        "arguments": [
+            {
+                "name": "txid",
+                "type": "string",
+                "description": "The transaction id",
+                "is_required": true
+            },
+            {
+                "name": "includeWatchonly",
+                "type": "boolean",
+                "description": "Whether to include watchonly addresses in balance calculation and details[]",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli gettransaction \"1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d\" true",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"gettransaction\", \"params\": [\"1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"amount\" : x.xxx,        (numeric) The transaction amount in LBC\n  \"confirmations\" : n,     (numeric) The number of confirmations\n  \"blockhash\" : \"hash\",  (string) The block hash\n  \"blockindex\" : xx,       (numeric) The index of the transaction in the block that includes it\n  \"blocktime\" : ttt,       (numeric) The time in seconds since epoch (1 Jan 1970 GMT)\n  \"txid\" : \"transactionid\",   (string) The transaction id.\n  \"time\" : ttt,            (numeric) The transaction time in seconds since epoch (1 Jan 1970 GMT)\n  \"timereceived\" : ttt,    (numeric) The time received in seconds since epoch (1 Jan 1970 GMT)\n  \"bip125-replaceable\": \"yes|no|unknown\"  (string) Whether this transaction could be replaced due to BIP125 (replace-by-fee);\n                                                   may be unknown for unconfirmed transactions not in the mempool\n  \"details\" : [\n    {\n      \"account\" : \"accountname\",  (string) DEPRECATED. The account name involved in the transaction, can be \"\" for the default account.\n      \"address\" : \"lbrycrdaddress\",   (string) The lbrycrd address involved in the transaction\n      \"category\" : \"send|receive\",    (string) The category, either 'send' or 'receive'\n      \"amount\" : x.xxx,                 (numeric) The amount in LBC\n      \"label\" : \"label\",              (string) A comment for the address/transaction, if any\n      \"vout\" : n,                       (numeric) the vout value\n    }\n    ,...\n  ],\n  \"hex\" : \"data\"         (string) Raw data for transaction\n}"
+    },
+    {
+        "name": "getunconfirmedbalance",
+        "namespace": "Wallet",
+        "description": "Returns the server's total unconfirmed balance",
+        "arguments": [],
+        "examples": []
+    },
+    {
+        "name": "getwalletinfo",
+        "namespace": "Wallet",
+        "description": "Returns an object containing various wallet state info.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli getwalletinfo",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"getwalletinfo\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"walletversion\": xxxxx,     (numeric) the wallet version\n  \"balance\": xxxxxxx,         (numeric) the total confirmed balance of the wallet in LBC\n  \"unconfirmed_balance\": xxx, (numeric) the total unconfirmed balance of the wallet in LBC\n  \"immature_balance\": xxxxxx, (numeric) the total immature balance of the wallet in LBC\n  \"txcount\": xxxxxxx,         (numeric) the total number of transactions in the wallet\n  \"keypoololdest\": xxxxxx,    (numeric) the timestamp (seconds since GMT epoch) of the oldest pre-generated key in the key pool\n  \"keypoolsize\": xxxx,        (numeric) how many new keys are pre-generated\n  \"unlocked_until\": ttt,      (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n  \"paytxfee\": x.xxxx,         (numeric) the transaction fee configuration, set in LBC/kB\n}"
+    },
+    {
+        "name": "importaddress",
+        "namespace": "Wallet",
+        "description": "Adds a script (in hex) or address that can be watched as if it were in your wallet but cannot be used to spend.",
+        "arguments": [
+            {
+                "name": "script",
+                "type": "string",
+                "description": "The hex-encoded script (or address)",
+                "is_required": true
+            },
+            {
+                "name": "label",
+                "type": "string",
+                "description": "An optional label",
+                "is_required": false
+            },
+            {
+                "name": "rescan",
+                "type": "boolean",
+                "description": "Rescan the wallet for transactions",
+                "is_required": false
+            },
+            {
+                "name": "p2sh",
+                "type": "boolean",
+                "description": "Add the P2SH version of the script as well Note: This call can take minutes to complete if rescan is true. If you have the full public key, you should call importpubkey instead of this.",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "Import a script with rescan",
+                "cli": "> lbrycrd-cli importaddress \"myscript\""
+            },
+            {
+                "title": "Import using a label without rescan",
+                "cli": "> lbrycrd-cli importaddress \"myscript\" \"testing\" false"
+            },
+            {
+                "title": "As a JSON-RPC call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"importaddress\", \"params\": [\"myscript\", \"testing\", false] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "importprivkey",
+        "namespace": "Wallet",
+        "description": "Adds a private key (as returned by dumpprivkey) to your wallet.",
+        "arguments": [
+            {
+                "name": "lbrycrdprivkey",
+                "type": "string",
+                "description": "The private key (see dumpprivkey)",
+                "is_required": true
+            },
+            {
+                "name": "label",
+                "type": "string",
+                "description": "An optional label",
+                "is_required": false
+            },
+            {
+                "name": "rescan",
+                "type": "boolean",
+                "description": "Rescan the wallet for transactions Note: This call can take minutes to complete if rescan is true.",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "Dump a private key",
+                "cli": "> lbrycrd-cli dumpprivkey \"myaddress\""
+            },
+            {
+                "title": "Import the private key with rescan",
+                "cli": "> lbrycrd-cli importprivkey \"mykey\""
+            },
+            {
+                "title": "Import using a label and without rescan",
+                "cli": "> lbrycrd-cli importprivkey \"mykey\" \"testing\" false"
+            },
+            {
+                "title": "As a JSON-RPC call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"importprivkey\", \"params\": [\"mykey\", \"testing\", false] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "importprunedfunds",
+        "namespace": "Wallet",
+        "description": "Imports funds without rescan. Corresponding address or script must previously be included in wallet. Aimed towards pruned wallets. The end-user is responsible to import additional transactions that subsequently spend the imported outputs or rescan after the point in the blockchain the transaction is included.",
+        "arguments": [
+            {
+                "name": "rawtransaction",
+                "type": "string",
+                "description": "A raw transaction in hex funding an already-existing address in wallet",
+                "is_required": true
+            },
+            {
+                "name": "txoutproof",
+                "type": "string",
+                "description": "The hex output from gettxoutproof that contains the transaction",
+                "is_required": true
+            },
+            {
+                "name": "label",
+                "type": "string",
+                "description": "An optional label",
+                "is_required": false
+            }
+        ],
+        "examples": []
+    },
+    {
+        "name": "importpubkey",
+        "namespace": "Wallet",
+        "description": "Adds a public key (in hex) that can be watched as if it were in your wallet but cannot be used to spend.",
+        "arguments": [
+            {
+                "name": "pubkey",
+                "type": "string",
+                "description": "The hex-encoded public key",
+                "is_required": true
+            },
+            {
+                "name": "label",
+                "type": "string",
+                "description": "An optional label",
+                "is_required": false
+            },
+            {
+                "name": "rescan",
+                "type": "boolean",
+                "description": "Rescan the wallet for transactions Note: This call can take minutes to complete if rescan is true.",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "Import a public key with rescan",
+                "cli": "> lbrycrd-cli importpubkey \"mypubkey\""
+            },
+            {
+                "title": "Import using a label without rescan",
+                "cli": "> lbrycrd-cli importpubkey \"mypubkey\" \"testing\" false"
+            },
+            {
+                "title": "As a JSON-RPC call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"importpubkey\", \"params\": [\"mypubkey\", \"testing\", false] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "importwallet",
+        "namespace": "Wallet",
+        "description": "Imports keys from a wallet dump file (see dumpwallet).",
+        "arguments": [
+            {
+                "name": "filename",
+                "type": "string",
+                "description": "The wallet file",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "title": "Dump the wallet",
+                "cli": "> lbrycrd-cli dumpwallet \"test\""
+            },
+            {
+                "title": "Import the wallet",
+                "cli": "> lbrycrd-cli importwallet \"test\""
+            },
+            {
+                "title": "Import using the json rpc call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"importwallet\", \"params\": [\"test\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "keypoolrefill",
+        "namespace": "Wallet",
+        "description": "Fills the keypool.",
+        "arguments": [
+            {
+                "name": "newsize",
+                "type": "number",
+                "description": "The new keypool size",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli keypoolrefill",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"keypoolrefill\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "listaccounts",
+        "namespace": "Wallet",
+        "description": "DEPRECATED. Returns Object that has account names as keys, account balances as values.",
+        "arguments": [
+            {
+                "name": "minconf",
+                "type": "number",
+                "description": "Only include transactions with at least this many confirmations",
+                "is_required": false
+            },
+            {
+                "name": "includeWatchonly",
+                "type": "boolean",
+                "description": "Include balances in watchonly addresses (see 'importaddress')",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "List account balances where there at least 1 confirmation",
+                "cli": "> lbrycrd-cli listaccounts"
+            },
+            {
+                "title": "List account balances including zero confirmation transactions",
+                "cli": "> lbrycrd-cli listaccounts 0"
+            },
+            {
+                "title": "List account balances for 6 or more confirmations",
+                "cli": "> lbrycrd-cli listaccounts 6"
+            },
+            {
+                "title": "As json rpc call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"listaccounts\", \"params\": [6] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{                      (json object where keys are account names, and values are numeric balances\n  \"account\": x.xxx,  (numeric) The property name is the account name, and the value is the total balance for the account.\n  ...\n}"
+    },
+    {
+        "name": "listaddressgroupings",
+        "namespace": "Wallet",
+        "description": "Lists groups of addresses which have had their common ownership made public by common use as inputs or as the resulting change in past transactions",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli listaddressgroupings",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"listaddressgroupings\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "[\n  [\n    [\n      \"lbrycrdaddress\",     (string) The lbrycrd address\n      amount,                 (numeric) The amount in LBC\n      \"account\"             (string, optional) The account (DEPRECATED)\n    ]\n    ,...\n  ]\n  ,...\n]"
+    },
+    {
+        "name": "listlockunspent",
+        "namespace": "Wallet",
+        "description": "Returns list of temporarily unspendable outputs. See the lockunspent call to lock and unlock transactions for spending.",
+        "arguments": [],
+        "examples": [
+            {
+                "title": "List the unspent transactions",
+                "cli": "> lbrycrd-cli listunspent"
+            },
+            {
+                "title": "Lock an unspent transaction",
+                "cli": "> lbrycrd-cli lockunspent false \"[{\\\"txid\\\":\\\"a08e6907dbbd3d809776dbfc5d82e371b764ed838b5655e72f463568df1aadf0\\\",\\\"vout\\\":1}]\""
+            },
+            {
+                "title": "List the locked transactions",
+                "cli": "> lbrycrd-cli listlockunspent"
+            },
+            {
+                "title": "Unlock the transaction again",
+                "cli": "> lbrycrd-cli lockunspent true \"[{\\\"txid\\\":\\\"a08e6907dbbd3d809776dbfc5d82e371b764ed838b5655e72f463568df1aadf0\\\",\\\"vout\\\":1}]\""
+            },
+            {
+                "title": "As a json rpc call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"listlockunspent\", \"params\": [] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "[\n  {\n    \"txid\" : \"transactionid\",     (string) The transaction id locked\n    \"vout\" : n                      (numeric) The vout value\n  }\n  ,...\n]"
+    },
+    {
+        "name": "listreceivedbyaccount",
+        "namespace": "Wallet",
+        "description": "DEPRECATED. List balances by account.",
+        "arguments": [
+            {
+                "name": "minconf",
+                "type": "number",
+                "description": "The minimum number of confirmations before payments are included.",
+                "is_required": false
+            },
+            {
+                "name": "includeempty",
+                "type": "boolean",
+                "description": "Whether to include accounts that haven't received any payments.",
+                "is_required": false
+            },
+            {
+                "name": "includeWatchonly",
+                "type": "boolean",
+                "description": "Whether to include watchonly addresses (see 'importaddress').",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli listreceivedbyaccount 6 true",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"listreceivedbyaccount\", \"params\": [6, true, true] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "[\n  {\n    \"involvesWatchonly\" : true,   (bool) Only returned if imported addresses were involved in transaction\n    \"account\" : \"accountname\",  (string) The account name of the receiving account\n    \"amount\" : x.xxx,             (numeric) The total amount received by addresses with this account\n    \"confirmations\" : n,          (numeric) The number of confirmations of the most recent transaction included\n    \"label\" : \"label\"           (string) A comment for the address/transaction, if any\n  }\n  ,...\n]"
+    },
+    {
+        "name": "listreceivedbyaddress",
+        "namespace": "Wallet",
+        "description": "List balances by receiving address.",
+        "arguments": [
+            {
+                "name": "minconf",
+                "type": "number",
+                "description": "The minimum number of confirmations before payments are included.",
+                "is_required": false
+            },
+            {
+                "name": "includeempty",
+                "type": "boolean",
+                "description": "Whether to include addresses that haven't received any payments.",
+                "is_required": false
+            },
+            {
+                "name": "includeWatchonly",
+                "type": "boolean",
+                "description": "Whether to include watchonly addresses (see 'importaddress').",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli listreceivedbyaddress 6 true",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"listreceivedbyaddress\", \"params\": [6, true, true] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "[\n  {\n    \"involvesWatchonly\" : true,        (bool) Only returned if imported addresses were involved in transaction\n    \"address\" : \"receivingaddress\",  (string) The receiving address\n    \"account\" : \"accountname\",       (string) DEPRECATED. The account of the receiving address. The default account is \"\".\n    \"amount\" : x.xxx,                  (numeric) The total amount in LBC received by the address\n    \"confirmations\" : n,               (numeric) The number of confirmations of the most recent transaction included\n    \"label\" : \"label\"                (string) A comment for the address/transaction, if any\n  }\n  ,...\n]"
+    },
+    {
+        "name": "listsinceblock",
+        "namespace": "Wallet",
+        "description": "Get all transactions in blocks since block [blockhash], or all transactions if omitted",
+        "arguments": [
+            {
+                "name": "blockhash",
+                "type": "string",
+                "description": "The block hash to list transactions since",
+                "is_required": false
+            },
+            {
+                "name": "target-confirmations:",
+                "type": "number",
+                "description": "The confirmations required, must be 1 or more",
+                "is_required": false
+            },
+            {
+                "name": "includeWatchonly:",
+                "type": "boolean",
+                "description": "Include transactions to watchonly addresses (see 'importaddress')",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli listsinceblock \"000000000000000bacf66f7497b7dc45ef753ee9a7d38571037cdb1a57f663ad\" 6",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"listsinceblock\", \"params\": [\"000000000000000bacf66f7497b7dc45ef753ee9a7d38571037cdb1a57f663ad\", 6] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{\n  \"transactions\": [\n    \"account\":\"accountname\",       (string) DEPRECATED. The account name associated with the transaction. Will be \"\" for the default account.\n    \"address\":\"lbrycrdaddress\",    (string) The lbrycrd address of the transaction. Not present for move transactions (category = move).\n    \"category\":\"send|receive\",     (string) The transaction category. 'send' has negative amounts, 'receive' has positive amounts.\n    \"amount\": x.xxx,          (numeric) The amount in LBC. This is negative for the 'send' category, and for the 'move' category for moves \n                                          outbound. It is positive for the 'receive' category, and for the 'move' category for inbound funds.\n    \"vout\" : n,               (numeric) the vout value\n    \"fee\": x.xxx,             (numeric) The amount of the fee in LBC. This is negative and only available for the 'send' category of transactions.\n    \"confirmations\": n,       (numeric) The number of confirmations for the transaction. Available for 'send' and 'receive' category of transactions.\n    \"blockhash\": \"hashvalue\",     (string) The block hash containing the transaction. Available for 'send' and 'receive' category of transactions.\n    \"blockindex\": n,          (numeric) The index of the transaction in the block that includes it. Available for 'send' and 'receive' category of transactions.\n    \"blocktime\": xxx,         (numeric) The block time in seconds since epoch (1 Jan 1970 GMT).\n    \"txid\": \"transactionid\",  (string) The transaction id. Available for 'send' and 'receive' category of transactions.\n    \"time\": xxx,              (numeric) The transaction time in seconds since epoch (Jan 1 1970 GMT).\n    \"timereceived\": xxx,      (numeric) The time received in seconds since epoch (Jan 1 1970 GMT). Available for 'send' and 'receive' category of transactions.\n    \"comment\": \"...\",       (string) If a comment is associated with the transaction.\n    \"label\" : \"label\"       (string) A comment for the address/transaction, if any\n    \"to\": \"...\",            (string) If a comment to is associated with the transaction.\n  ],\n  \"lastblock\": \"lastblockhash\"     (string) The hash of the last block\n}"
+    },
+    {
+        "name": "listtransactions",
+        "namespace": "Wallet",
+        "description": "Returns up to 'count' most recent transactions skipping the first 'from' transactions for account 'account'.",
+        "arguments": [
+            {
+                "name": "account",
+                "type": "string",
+                "description": "DEPRECATED. The account name. Should be \"*\".",
+                "is_required": false
+            },
+            {
+                "name": "count",
+                "type": "number",
+                "description": "The number of transactions to return",
+                "is_required": false
+            },
+            {
+                "name": "from",
+                "type": "number",
+                "description": "The number of transactions to skip",
+                "is_required": false
+            },
+            {
+                "name": "includeWatchonly",
+                "type": "boolean",
+                "description": "Include transactions to watchonly addresses (see 'importaddress')",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "List the most recent 10 transactions in the systems",
+                "cli": "> lbrycrd-cli listtransactions"
+            },
+            {
+                "title": "List transactions 100 to 120",
+                "cli": "> lbrycrd-cli listtransactions \"*\" 20 100"
+            },
+            {
+                "title": "As a json rpc call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"listtransactions\", \"params\": [\"*\", 20, 100] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "[\n  {\n    \"account\":\"accountname\",       (string) DEPRECATED. The account name associated with the transaction. \n                                                It will be \"\" for the default account.\n    \"address\":\"lbrycrdaddress\",    (string) The lbrycrd address of the transaction. Not present for \n                                                move transactions (category = move).\n    \"category\":\"send|receive|move\", (string) The transaction category. 'move' is a local (off blockchain)\n                                                transaction between accounts, and not associated with an address,\n                                                transaction id or block. 'send' and 'receive' transactions are \n                                                associated with an address, transaction id and block details\n    \"amount\": x.xxx,          (numeric) The amount in LBC. This is negative for the 'send' category, and for the\n                                         'move' category for moves outbound. It is positive for the 'receive' category,\n                                         and for the 'move' category for inbound funds.\n    \"vout\": n,                (numeric) the vout value\n    \"fee\": x.xxx,             (numeric) The amount of the fee in LBC. This is negative and only available for the \n                                         'send' category of transactions.\n    \"abandoned\": xxx          (bool) 'true' if the transaction has been abandoned (inputs are respendable).\n    \"confirmations\": n,       (numeric) The number of confirmations for the transaction. Available for 'send' and \n                                         'receive' category of transactions. Negative confirmations indicate the\n                                         transaction conflicts with the block chain\n    \"trusted\": xxx            (bool) Whether we consider the outputs of this unconfirmed transaction safe to spend.\n    \"blockhash\": \"hashvalue\", (string) The block hash containing the transaction. Available for 'send' and 'receive'\n                                          category of transactions.\n    \"blockindex\": n,          (numeric) The index of the transaction in the block that includes it. Available for 'send' and 'receive'\n                                          category of transactions.\n    \"blocktime\": xxx,         (numeric) The block time in seconds since epoch (1 Jan 1970 GMT).\n    \"txid\": \"transactionid\", (string) The transaction id. Available for 'send' and 'receive' category of transactions.\n    \"time\": xxx,              (numeric) The transaction time in seconds since epoch (midnight Jan 1 1970 GMT).\n    \"timereceived\": xxx,      (numeric) The time received in seconds since epoch (midnight Jan 1 1970 GMT). Available \n                                          for 'send' and 'receive' category of transactions.\n    \"comment\": \"...\",       (string) If a comment is associated with the transaction.\n    \"label\": \"label\"        (string) A comment for the address/transaction, if any\n    \"otheraccount\": \"accountname\",  (string) For the 'move' category of transactions, the account the funds came \n                                          from (for receiving funds, positive amounts), or went to (for sending funds,\n                                          negative amounts).\n    \"bip125-replaceable\": \"yes|no|unknown\"  (string) Whether this transaction could be replaced due to BIP125 (replace-by-fee);\n                                                     may be unknown for unconfirmed transactions not in the mempool\n  }\n]"
+    },
+    {
+        "name": "listunspent",
+        "namespace": "Wallet",
+        "description": "Returns array of unspent transaction outputs with between minconf and maxconf (inclusive) confirmations. Optionally filter to only include txouts paid to specified addresses.",
+        "arguments": [],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli listunspent 6 9999999 \"[\\\"1PGFqEzfmQch1gKD3ra4k18PNj3tTUUSqg\\\",\\\"1LtvqCaApEdUGFkpKMM4MstjcaL4dKg8SP\\\"]\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"listunspent\", \"params\": [6, 9999999 \"[\\\"1PGFqEzfmQch1gKD3ra4k18PNj3tTUUSqg\\\",\\\"1LtvqCaApEdUGFkpKMM4MstjcaL4dKg8SP\\\"]\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "{txid, vout, scriptPubKey, amount, confirmations}\n\nArguments:\n1. minconf          (numeric, optional, default=1) The minimum confirmations to filter\n2. maxconf          (numeric, optional, default=9999999) The maximum confirmations to filter\n3. \"addresses\"    (string) A json array of lbrycrd addresses to filter\n    [\n      \"address\"   (string) lbrycrd address\n      ,...\n    ]\n\nResult\n[                   (array of json object)\n  {\n    \"txid\" : \"txid\",        (string) the transaction id \n    \"vout\" : n,               (numeric) the vout value\n    \"address\" : \"address\",  (string) the lbrycrd address\n    \"account\" : \"account\",  (string) DEPRECATED. The associated account, or \"\" for the default account\n    \"scriptPubKey\" : \"key\", (string) the script key\n    \"amount\" : x.xxx,         (numeric) the transaction amount in LBC\n    \"confirmations\" : n       (numeric) The number of confirmations\n  }\n  ,...\n]"
+    },
+    {
+        "name": "lockunspent",
+        "namespace": "Wallet",
+        "description": "Updates list of temporarily unspendable outputs. Temporarily lock (unlock=false) or unlock (unlock=true) specified transaction outputs. If no transaction outputs are specified when unlocking then all current locked transaction outputs are unlocked. A locked transaction output will not be chosen by automatic coin selection, when spending LBC. Locks are stored in memory only. Nodes start with zero locked outputs, and the locked output list is always cleared (by virtue of process exit) when a node stops or fails. Also see the listunspent call",
+        "arguments": [
+            {
+                "name": "unlock",
+                "type": "boolean",
+                "description": "Whether to unlock (true) or lock (false) the specified transactions",
+                "is_required": true
+            },
+            {
+                "name": "transactions",
+                "type": "string",
+                "description": "A json array of objects. Each object the txid (string) vout (numeric) [ (json array of json objects) { \"txid\":\"id\", (string) The transaction id \"vout\": n (numeric) The output number } ,... ]",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "List the unspent transactions",
+                "cli": "> lbrycrd-cli listunspent"
+            },
+            {
+                "title": "Lock an unspent transaction",
+                "cli": "> lbrycrd-cli lockunspent false \"[{\\\"txid\\\":\\\"a08e6907dbbd3d809776dbfc5d82e371b764ed838b5655e72f463568df1aadf0\\\",\\\"vout\\\":1}]\""
+            },
+            {
+                "title": "List the locked transactions",
+                "cli": "> lbrycrd-cli listlockunspent"
+            },
+            {
+                "title": "Unlock the transaction again",
+                "cli": "> lbrycrd-cli lockunspent true \"[{\\\"txid\\\":\\\"a08e6907dbbd3d809776dbfc5d82e371b764ed838b5655e72f463568df1aadf0\\\",\\\"vout\\\":1}]\""
+            },
+            {
+                "title": "As a json rpc call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"lockunspent\", \"params\": [false, \"[{\\\"txid\\\":\\\"a08e6907dbbd3d809776dbfc5d82e371b764ed838b5655e72f463568df1aadf0\\\",\\\"vout\\\":1}]\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "true|false    (boolean) Whether the command was successful or not"
+    },
+    {
+        "name": "move",
+        "namespace": "Wallet",
+        "description": "DEPRECATED. Move a specified amount from one account in your wallet to another.",
+        "arguments": [
+            {
+                "name": "fromaccount",
+                "type": "string",
+                "description": "The name of the account to move funds from. May be the default account using \"\".",
+                "is_required": true
+            },
+            {
+                "name": "toaccount",
+                "type": "string",
+                "description": "The name of the account to move funds to. May be the default account using \"\".",
+                "is_required": true
+            },
+            {
+                "name": "amount",
+                "type": "number",
+                "description": "Quantity of LBC to move between accounts.",
+                "is_required": true
+            },
+            {
+                "name": "minconf",
+                "type": "number",
+                "description": "Only use funds with at least this many confirmations.",
+                "is_required": false
+            },
+            {
+                "name": "comment",
+                "type": "string",
+                "description": "An optional comment, stored in the wallet only.",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "Move 0.01 LBC from the default account to the account named tabby",
+                "cli": "> lbrycrd-cli move \"\" \"tabby\" 0.01"
+            },
+            {
+                "title": "Move 0.01 LBC timotei to akiko with a comment and funds have 6 confirmations",
+                "cli": "> lbrycrd-cli move \"timotei\" \"akiko\" 0.01 6 \"happy birthday!\""
+            },
+            {
+                "title": "As a json rpc call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"move\", \"params\": [\"timotei\", \"akiko\", 0.01, 6, \"happy birthday!\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "true|false           (boolean) true if successful."
+    },
+    {
+        "name": "removeprunedfunds",
+        "namespace": "Wallet",
+        "description": "Deletes the specified transaction from the wallet. Meant for use with pruned wallets and as a companion to importprunedfunds. This will effect wallet balances.",
+        "arguments": [
+            {
+                "name": "txid",
+                "type": "string",
+                "description": "The hex-encoded id of the transaction you are deleting",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli removeprunedfunds \"a8d0c0184dde994a09ec054286f1ce581bebf46446a512166eae7628734ea0a5\"",
+                "title": "As a JSON-RPC call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"removprunedfunds\", \"params\": [\"a8d0c0184dde994a09ec054286f1ce581bebf46446a512166eae7628734ea0a5\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "sendfrom",
+        "namespace": "Wallet",
+        "description": "DEPRECATED (use sendtoaddress). Sent an amount from an account to a lbrycrd address.",
+        "arguments": [
+            {
+                "name": "fromaccount",
+                "type": "string",
+                "description": "The name of the account to send funds from. May be the default account using \"\".",
+                "is_required": true
+            },
+            {
+                "name": "tolbrycrdaddress",
+                "type": "string",
+                "description": "The lbrycrd address to send funds to.",
+                "is_required": true
+            },
+            {
+                "name": "amount",
+                "type": "number",
+                "description": "The amount in LBC (transaction fee is added on top).",
+                "is_required": true
+            },
+            {
+                "name": "minconf",
+                "type": "number",
+                "description": "Only use funds with at least this many confirmations.",
+                "is_required": false
+            },
+            {
+                "name": "comment",
+                "type": "string",
+                "description": "A comment used to store what the transaction is for. This is not part of the transaction, just kept in your wallet.",
+                "is_required": false
+            },
+            {
+                "name": "comment-to",
+                "type": "string",
+                "description": "An optional comment to store the name of the person or organization to which you're sending the transaction. This is not part of the transaction, it is just kept in your wallet.",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "Send 0.01 LBC from the default account to the address, must have at least 1 confirmation",
+                "cli": "> lbrycrd-cli sendfrom \"\" \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 0.01"
+            },
+            {
+                "title": "Send 0.01 from the tabby account to the given address, funds must have at least 6 confirmations",
+                "cli": "> lbrycrd-cli sendfrom \"tabby\" \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 0.01 6 \"donation\" \"seans outpost\""
+            },
+            {
+                "title": "As a json rpc call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"sendfrom\", \"params\": [\"tabby\", \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\", 0.01, 6, \"donation\", \"seans outpost\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "\"transactionid\"        (string) The transaction id."
+    },
+    {
+        "name": "sendmany",
+        "namespace": "Wallet",
+        "description": "Send multiple times. Amounts are double-precision floating point numbers.",
+        "arguments": [
+            {
+                "name": "fromaccount",
+                "type": "string",
+                "description": "DEPRECATED. The account to send the funds from. Should be \"\" for the default account",
+                "is_required": true
+            },
+            {
+                "name": "amounts",
+                "type": "string",
+                "description": "A json object with addresses and amounts { \"address\":amount (numeric or string) The lbrycrd address is the key, the numeric amount (can be string) in LBC is the value ,... }",
+                "is_required": true
+            },
+            {
+                "name": "minconf",
+                "type": "number",
+                "description": "Only use the balance confirmed at least this many times.",
+                "is_required": false
+            },
+            {
+                "name": "comment",
+                "type": "string",
+                "description": "A comment",
+                "is_required": false
+            },
+            {
+                "name": "subtractfeefromamount",
+                "type": "string",
+                "description": "A json array with addresses. The fee will be equally deducted from the amount of each selected address. Those recipients will receive less LBC than you enter in their corresponding amount field. If no addresses are specified here, the sender pays the fee. [ \"address\" (string) Subtract fee from this address ,... ]",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "title": "Send two amounts to two different addresses:",
+                "cli": "> lbrycrd-cli sendmany \"\" \"{\\\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\\\":0.01,\\\"1353tsE8YMTA4EuV7dgUXGjNFf9KpVvKHz\\\":0.02}\""
+            },
+            {
+                "title": "Send two amounts to two different addresses setting the confirmation and comment:",
+                "cli": "> lbrycrd-cli sendmany \"\" \"{\\\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\\\":0.01,\\\"1353tsE8YMTA4EuV7dgUXGjNFf9KpVvKHz\\\":0.02}\" 6 \"testing\""
+            },
+            {
+                "title": "Send two amounts to two different addresses, subtract fee from amount:",
+                "cli": "> lbrycrd-cli sendmany \"\" \"{\\\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\\\":0.01,\\\"1353tsE8YMTA4EuV7dgUXGjNFf9KpVvKHz\\\":0.02}\" 1 \"\" \"[\\\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\\\",\\\"1353tsE8YMTA4EuV7dgUXGjNFf9KpVvKHz\\\"]\""
+            },
+            {
+                "title": "As a json rpc call",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"sendmany\", \"params\": [\"\", \"{\\\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\\\":0.01,\\\"1353tsE8YMTA4EuV7dgUXGjNFf9KpVvKHz\\\":0.02}\", 6, \"testing\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "\"transactionid\"          (string) The transaction id for the send. Only 1 transaction is created regardless of \n                                    the number of addresses."
+    },
+    {
+        "name": "sendtoaddress",
+        "namespace": "Wallet",
+        "description": "Send an amount to a given address.",
+        "arguments": [
+            {
+                "name": "lbrycrdaddress",
+                "type": "string",
+                "description": "The lbrycrd address to send to.",
+                "is_required": true
+            },
+            {
+                "name": "amount",
+                "type": "number",
+                "description": "The amount in LBC to send. eg 0.1",
+                "is_required": true
+            },
+            {
+                "name": "comment",
+                "type": "string",
+                "description": "A comment used to store what the transaction is for. This is not part of the transaction, just kept in your wallet.",
+                "is_required": false
+            },
+            {
+                "name": "comment-to",
+                "type": "string",
+                "description": "A comment to store the name of the person or organization to which you're sending the transaction. This is not part of the transaction, just kept in your wallet.",
+                "is_required": false
+            },
+            {
+                "name": "subtractfeefromamount",
+                "type": "boolean",
+                "description": "The fee will be deducted from the amount being sent. The recipient will receive less LBC than you enter in the amount field.",
+                "is_required": false
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli sendtoaddress \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 0.1 \"\" \"\" true",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"sendtoaddress\", \"params\": [\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\", 0.1, \"donation\", \"seans outpost\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "\"transactionid\"  (string) The transaction id."
+    },
+    {
+        "name": "setaccount",
+        "namespace": "Wallet",
+        "description": "DEPRECATED. Sets the account associated with the given address.",
+        "arguments": [
+            {
+                "name": "lbrycrdaddress",
+                "type": "string",
+                "description": "The lbrycrd address to be associated with an account.",
+                "is_required": true
+            },
+            {
+                "name": "account",
+                "type": "string",
+                "description": "The account to assign the address to.",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli setaccount \"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\" \"tabby\"",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"setaccount\", \"params\": [\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\", \"tabby\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "settxfee",
+        "namespace": "Wallet",
+        "description": "Set the transaction fee per kB. Overwrites the paytxfee parameter.",
+        "arguments": [
+            {
+                "name": "amount",
+                "type": "number",
+                "description": "The transaction fee in LBC/kB Result true|false (boolean) Returns true if successful",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "cli": "> lbrycrd-cli settxfee 0.00001",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"settxfee\", \"params\": [0.00001] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ]
+    },
+    {
+        "name": "signmessage",
+        "namespace": "Wallet",
+        "description": "Sign a message with the private key of an address",
+        "arguments": [
+            {
+                "name": "lbrycrdaddress",
+                "type": "string",
+                "description": "The lbrycrd address to use for the private key.",
+                "is_required": true
+            },
+            {
+                "name": "message",
+                "type": "string",
+                "description": "The message to create a signature of.",
+                "is_required": true
+            }
+        ],
+        "examples": [
+            {
+                "title": "Unlock the wallet for 30 seconds",
+                "cli": "> lbrycrd-cli walletpassphrase \"mypassphrase\" 30"
+            },
+            {
+                "title": "Create the signature",
+                "cli": "> lbrycrd-cli signmessage \"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\" \"my message\""
+            },
+            {
+                "title": "Verify the signature",
+                "cli": "> lbrycrd-cli verifymessage \"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\" \"signature\" \"my message\""
+            },
+            {
+                "title": "As json rpc",
+                "curl": "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", \"method\": \"signmessage\", \"params\": [\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\", \"my message\"] }' -H 'content-type: text/plain;' http://127.0.0.1:9245/"
+            }
+        ],
+        "returns": "\"signature\"          (string) The signature of the message encoded in base 64"
+    }
+]
