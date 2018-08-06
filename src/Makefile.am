@@ -19,7 +19,7 @@ else
 LIBUNIVALUE = $(UNIVALUE_LIBS)
 endif
 
-BITCOIN_INCLUDES=-I$(builddir) $(BDB_CPPFLAGS) $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS)
+BITCOIN_INCLUDES=-I$(builddir) $(BDB_CPPFLAGS) $(ICU_CPPFLAGS) $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS) $(ICU_CFLAGS)
 
 BITCOIN_INCLUDES += -I$(srcdir)/secp256k1/include
 BITCOIN_INCLUDES += $(UNIVALUE_CFLAGS)
@@ -102,6 +102,7 @@ BITCOIN_CORE_H = \
   chainparamsseeds.h \
   checkpoints.h \
   checkqueue.h \
+  claimtrie.h \
   clientversion.h \
   coins.h \
   compat.h \
@@ -127,12 +128,14 @@ BITCOIN_CORE_H = \
   key.h \
   key_io.h \
   keystore.h \
+  lbry.h \
   dbwrapper.h \
   limitedmap.h \
   logging.h \
   memusage.h \
   merkleblock.h \
   miner.h \
+  nameclaim.h \
   net.h \
   net_processing.h \
   netaddress.h \
@@ -178,10 +181,12 @@ BITCOIN_CORE_H = \
   txdb.h \
   txmempool.h \
   ui_interface.h \
+  uint256.h \
   undo.h \
   util.h \
   utilmemory.h \
   utilmoneystr.h \
+  utilstrencodings.h \
   utiltime.h \
   validation.h \
   validationinterface.h \
@@ -221,6 +226,7 @@ libbitcoin_server_a_SOURCES = \
   blockencodings.cpp \
   chain.cpp \
   checkpoints.cpp \
+  claimtrie.cpp \
   consensus/tx_verify.cpp \
   httprpc.cpp \
   httpserver.cpp \
@@ -228,8 +234,10 @@ libbitcoin_server_a_SOURCES = \
   index/txindex.cpp \
   init.cpp \
   dbwrapper.cpp \
+  lbry.cpp \
   merkleblock.cpp \
   miner.cpp \
+  nameclaim.cpp \
   net.cpp \
   net_processing.cpp \
   noui.cpp \
@@ -240,6 +248,7 @@ libbitcoin_server_a_SOURCES = \
   pow.cpp \
   rest.cpp \
   rpc/blockchain.cpp \
+  rpc/claimtrie.cpp \
   rpc/mining.cpp \
   rpc/misc.cpp \
   rpc/net.cpp \
@@ -253,6 +262,8 @@ libbitcoin_server_a_SOURCES = \
   txdb.cpp \
   txmempool.cpp \
   ui_interface.cpp \
+  uint256.cpp \
+  utilstrencodings.cpp \
   validation.cpp \
   validationinterface.cpp \
   versionbits.cpp \
@@ -416,6 +427,7 @@ libbitcoin_util_a_SOURCES = \
   support/cleanse.cpp \
   sync.cpp \
   threadinterrupt.cpp \
+  uint256.cpp \
   util.cpp \
   utilmoneystr.cpp \
   utilstrencodings.cpp \
@@ -441,7 +453,7 @@ nodist_libbitcoin_util_a_SOURCES = $(srcdir)/obj/build.h
 bitcoind_SOURCES = bitcoind.cpp
 bitcoind_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 bitcoind_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-bitcoind_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
+bitcoind_LDFLAGS = -L$(ICU_PREFIX)/lib $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
 if TARGET_WINDOWS
 bitcoind_SOURCES += bitcoind-res.rc
@@ -461,7 +473,7 @@ bitcoind_LDADD = \
   $(LIBMEMENV) \
   $(LIBSECP256K1)
 
-bitcoind_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS)
+bitcoind_LDADD += $(BOOST_LIBS) $(ICU_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS)
 
 # bitcoin-cli binary #
 bitcoin_cli_SOURCES = bitcoin-cli.cpp

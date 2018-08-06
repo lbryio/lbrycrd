@@ -48,7 +48,11 @@ struct BIP9Deployment {
  */
 struct Params {
     uint256 hashGenesisBlock;
-    int nSubsidyHalvingInterval;
+    int nSubsidyLevelInterval;
+    /** Used to check majorities for block version upgrade */
+    int nMajorityEnforceBlockUpgrade;
+    int nMajorityRejectBlockOutdated;
+    int nMajorityWindow;
     /* Block hash that is excepted from BIP16 enforcement */
     uint256 BIP16Exception;
     /** Block height and hash at which BIP34 becomes active */
@@ -70,8 +74,17 @@ struct Params {
     uint256 powLimit;
     bool fPowAllowMinDifficultyBlocks;
     bool fPowNoRetargeting;
+    int nNormalizedNameForkHeight;
     int64_t nPowTargetSpacing;
     int64_t nPowTargetTimespan;
+    int64_t nOriginalClaimExpirationTime;
+    int64_t nExtendedClaimExpirationTime;
+    int64_t nExtendedClaimExpirationForkHeight;
+    int64_t GetExpirationTime(int64_t nHeight) const {
+        return nHeight < nExtendedClaimExpirationForkHeight ?
+            nOriginalClaimExpirationTime :
+            nExtendedClaimExpirationTime;
+    }
     int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
     uint256 nMinimumChainWork;
     uint256 defaultAssumeValid;

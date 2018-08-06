@@ -9,6 +9,8 @@
 #include <script/interpreter.h>
 #include <consensus/validation.h>
 
+#include <nameclaim.h>
+
 // TODO remove the following dependencies
 #include <chain.h>
 #include <coins.h>
@@ -129,8 +131,9 @@ unsigned int GetP2SHSigOpCount(const CTransaction& tx, const CCoinsViewCache& in
         const Coin& coin = inputs.AccessCoin(tx.vin[i].prevout);
         assert(!coin.IsSpent());
         const CTxOut &prevout = coin.out;
-        if (prevout.scriptPubKey.IsPayToScriptHash())
-            nSigOps += prevout.scriptPubKey.GetSigOpCount(tx.vin[i].scriptSig);
+        const CScript& scriptPubKey = StripClaimScriptPrefix(prevout.scriptPubKey);
+        if (scriptPubKey.IsPayToScriptHash())
+            nSigOps += scriptPubKey.GetSigOpCount(tx.vin[i].scriptSig);
     }
     return nSigOps;
 }
@@ -178,6 +181,12 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state, bool fChe
         nValueOut += txout.nValue;
         if (!MoneyRange(nValueOut))
             return state.DoS(100, false, REJECT_INVALID, "bad-txns-txouttotal-toolarge");
+
+        // check claimtrie transactions
+        if (ClaimScriptSize(txout.scriptPubKey) > MAX_CLAIM_SCRIPT_SIZE)
+            return state.DoS(100, false, REJECT_INVALID, "bad-txns-claimscriptsize-toolarge");
+        if (ClaimNameSize(txout.scriptPubKey) > MAX_CLAIM_NAME_SIZE)
+            return state.DoS(100, false, REJECT_INVALID, "bad-txns-claimscriptname-toolarge");
     }
 
     // Check for duplicate inputs - note that this check is slow so we skip it in CheckBlock
