@@ -21,10 +21,12 @@ class CBlockIndex;
 class CCoinsViewDBCursor;
 class uint256;
 
+struct CDiskTxPos;
+
 //! No need to periodic flush if at least this much space still available.
 static constexpr int MAX_BLOCK_COINSDB_USAGE = 10;
 //! -dbcache default (MiB)
-static const int64_t nDefaultDbCache = 450;
+static const int64_t nDefaultDbCache = sizeof(void*) > 4 ? 700 : 450;
 //! -dbbatchsize default (bytes)
 static const int64_t nDefaultDbBatchSize = 16 << 20;
 //! max. -dbcache (MiB)
@@ -98,6 +100,8 @@ public:
     bool ReadLastBlockFile(int &nFile);
     bool WriteReindexing(bool fReindexing);
     void ReadReindexing(bool &fReindexing);
+    bool ReadTxIndex(const uint256 &txid, CDiskTxPos &pos);
+    bool WriteTxIndex(const std::vector<std::pair<uint256, CDiskTxPos> > &list);
     bool WriteFlag(const std::string &name, bool fValue);
     bool ReadFlag(const std::string &name, bool &fValue);
     bool LoadBlockIndexGuts(const Consensus::Params& consensusParams, std::function<CBlockIndex*(const uint256&)> insertBlockIndex);

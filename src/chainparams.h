@@ -99,9 +99,11 @@ protected:
     std::string strNetworkID;
     CBlock genesis;
     std::vector<SeedSpec6> vFixedSeeds;
+    bool fMiningRequiresPeers;
     bool fDefaultConsistencyChecks;
     bool fRequireStandard;
     bool m_is_test_chain;
+    bool fTestnetToBeDeprecatedFieldRPC;
     CCheckpointData checkpointData;
     ChainTxData chainTxData;
 };

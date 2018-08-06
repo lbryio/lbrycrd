@@ -20,7 +20,8 @@
 #include <vector>
 
 // Maximum number of bytes pushable to the stack
-static const unsigned int MAX_SCRIPT_ELEMENT_SIZE = 520;
+/* static const unsigned int MAX_SCRIPT_ELEMENT_SIZE = 520; */
+static const unsigned int MAX_SCRIPT_ELEMENT_SIZE = 20000; // bytes
 
 // Maximum number of non-push operations per script
 static const int MAX_OPS_PER_SCRIPT = 201;
@@ -29,7 +30,7 @@ static const int MAX_OPS_PER_SCRIPT = 201;
 static const int MAX_PUBKEYS_PER_MULTISIG = 20;
 
 // Maximum script length in bytes
-static const int MAX_SCRIPT_SIZE = 10000;
+static const int MAX_SCRIPT_SIZE = 20005;
 
 // Maximum number of values on script interpreter stack
 static const int MAX_STACK_SIZE = 1000;
@@ -182,8 +183,11 @@ enum opcodetype
     OP_NOP4 = 0xb3,
     OP_NOP5 = 0xb4,
     OP_NOP6 = 0xb5,
+    OP_CLAIM_NAME = OP_NOP6,
     OP_NOP7 = 0xb6,
+    OP_SUPPORT_CLAIM = OP_NOP7,
     OP_NOP8 = 0xb7,
+    OP_UPDATE_CLAIM = OP_NOP8,
     OP_NOP9 = 0xb8,
     OP_NOP10 = 0xb9,
 

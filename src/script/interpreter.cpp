@@ -285,7 +285,7 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
     // static const CScriptNum bnFalse(0);
     // static const CScriptNum bnTrue(1);
     static const valtype vchFalse(0);
-    // static const valtype vchZero(0);
+    static const valtype vchZero(0);
     static const valtype vchTrue(1, 1);
 
     CScript::const_iterator pc = script.begin();
@@ -423,6 +423,13 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                     break;
                 }
 
+                case OP_CLAIM_NAME: case OP_SUPPORT_CLAIM: case OP_UPDATE_CLAIM:
+                {
+                    CScriptNum n(OP_0);
+                    stack.push_back(vchZero);
+                }
+                break;
+
                 case OP_CHECKSEQUENCEVERIFY:
                 {
                     if (!(flags & SCRIPT_VERIFY_CHECKSEQUENCEVERIFY)) {
@@ -458,7 +465,7 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                 }
 
                 case OP_NOP1: case OP_NOP4: case OP_NOP5:
-                case OP_NOP6: case OP_NOP7: case OP_NOP8: case OP_NOP9: case OP_NOP10:
+                case OP_NOP9: case OP_NOP10:
                 {
                     if (flags & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
                         return set_error(serror, SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS);

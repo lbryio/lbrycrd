@@ -31,7 +31,7 @@ define $(package)_extract_cmds
 endef
 
 define $(package)_set_vars
-$(package)_config_opts=--target=$(host) --disable-lto-support
+$(package)_config_opts=--target=$(host) --disable-libuuid
 $(package)_ldflags+=-Wl,-rpath=\\$$$$$$$$\$$$$$$$$ORIGIN/../lib
 $(package)_cc=$($(package)_extract_dir)/toolchain/bin/clang
 $(package)_cxx=$($(package)_extract_dir)/toolchain/bin/clang++
@@ -55,11 +55,10 @@ define $(package)_stage_cmds
   cd $($(package)_extract_dir)/toolchain && \
   mkdir -p $($(package)_staging_prefix_dir)/lib/clang/$($(package)_clang_version)/include && \
   mkdir -p $($(package)_staging_prefix_dir)/bin $($(package)_staging_prefix_dir)/include && \
-  cp bin/clang $($(package)_staging_prefix_dir)/bin/ &&\
-  cp -P bin/clang++ $($(package)_staging_prefix_dir)/bin/ &&\
+  cp -P bin/clang bin/clang++ $($(package)_staging_prefix_dir)/bin/ &&\
   cp lib/libLTO.so $($(package)_staging_prefix_dir)/lib/ && \
   cp -rf lib/clang/$($(package)_clang_version)/include/* $($(package)_staging_prefix_dir)/lib/clang/$($(package)_clang_version)/include/ && \
-  cp bin/llvm-dsymutil $($(package)_staging_prefix_dir)/bin/$(host)-dsymutil && \
+  cp bin/$(host)-dsymutil $($(package)_staging_prefix_dir)/bin && \
   if `test -d include/c++/`; then cp -rf include/c++/ $($(package)_staging_prefix_dir)/include/; fi && \
   if `test -d lib/c++/`; then cp -rf lib/c++/ $($(package)_staging_prefix_dir)/lib/; fi
 endef

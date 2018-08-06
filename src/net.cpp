@@ -1578,6 +1578,7 @@ void CConnman::ThreadDNSAddressSeed()
         } else {
             std::vector<CNetAddr> vIPs;
             std::vector<CAddress> vAdd;
+            // NOTE: After we fork, we can require additional service bits
             ServiceFlags requiredServiceBits = GetDesirableServiceFlags(NODE_NONE);
             std::string host = strprintf("x%x.%s", requiredServiceBits, seed);
             CNetAddr resolveSource;

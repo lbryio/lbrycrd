@@ -204,7 +204,9 @@ void PaymentServerTests::paymentServerTests()
     for (const std::pair<CScript, CAmount>& sendingTo : sendingTos) {
         CTxDestination dest;
         if (ExtractDestination(sendingTo.first, dest))
-            QCOMPARE(PaymentServer::verifyAmount(sendingTo.second), false);
+            // LBRY has a max money defined as 1000x bitcoin's, so we
+            // modify the value here to fail this test properly.
+            QCOMPARE(PaymentServer::verifyAmount(sendingTo.second * 1000), false);
     }
 
     delete server;

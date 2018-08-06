@@ -18,6 +18,7 @@
 #include <flatfile.h>
 #include <hash.h>
 #include <index/txindex.h>
+#include <nameclaim.h>
 #include <policy/fees.h>
 #include <policy/policy.h>
 #include <policy/settings.h>
@@ -54,7 +55,7 @@
 #include <boost/thread.hpp>
 
 #if defined(NDEBUG)
-# error "Bitcoin cannot be compiled without assertions."
+# error "LBRYcrd cannot be compiled without assertions."
 #endif
 
 #define MICRO 0.000001
@@ -88,7 +89,6 @@ CChainState& ChainstateActive() {
     assert(g_chainstate);
     return *g_chainstate;
 }
-
 CChain& ChainActive() {
     assert(g_chainstate);
     return g_chainstate->m_chain;
@@ -126,6 +126,7 @@ uint256 hashAssumeValid;
 arith_uint256 nMinimumChainWork;
 
 CFeeRate minRelayTxFee = CFeeRate(DEFAULT_MIN_RELAY_TX_FEE);
+CAmount minFeePerNameClaimChar = MIN_FEE_PER_NAMECLAIM_CHAR;
 
 CBlockPolicyEstimator feeEstimator;
 CTxMemPool mempool(&feeEstimator);
@@ -176,10 +177,13 @@ CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& loc
             }
         }
     }
+
     return chain.Genesis();
 }
 
 std::unique_ptr<CBlockTreeDB> pblocktree;
+// FIXME: make unique_ptr
+CClaimTrie *pclaimTrie = nullptr;
 
 // See definition for documentation
 static void FindFilesToPruneManual(std::set<int>& setFilesToPrune, int nManualPruneHeight);
@@ -575,9 +579,10 @@ bool MemPoolAccept::PreChecks(ATMPArgs& args, Workspace& ws)
     // Do not work on transactions that are too small.
     // A transaction with 1 segwit input and 1 P2WPHK output has non-witness size of 82 bytes.
     // Transactions smaller than this are not relayed to mitigate CVE-2017-12842 by not relaying
-    // 64-byte transactions.
-    if (::GetSerializeSize(tx, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) < MIN_STANDARD_TX_NONWITNESS_SIZE)
-        return state.Invalid(ValidationInvalidReason::TX_NOT_STANDARD, false, REJECT_NONSTANDARD, "tx-size-small");
+    //
+    // NOTE: LBRY does not honor this node rule.
+    /* if (::GetSerializeSize(tx, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) < MIN_STANDARD_TX_NONWITNESS_SIZE) */
+    /*    return state.Invalid(ValidationInvalidReason::TX_NOT_STANDARD, false, REJECT_NONSTANDARD, "tx-size-small"); */
 
     // Only accept nLockTime-using transactions that can be mined in the next
     // block; we don't want our mempool filled up with transactions that can't
@@ -627,6 +632,7 @@ bool MemPoolAccept::PreChecks(ATMPArgs& args, Workspace& ws)
         }
     }
 
+    
     LockPoints lp;
     m_view.SetBackend(m_viewmempool);
 
@@ -989,7 +995,7 @@ bool MemPoolAccept::Finalize(ATMPArgs& args, Workspace& ws)
     // Remove conflicting transactions from the mempool
     for (CTxMemPool::txiter it : allConflicting)
     {
-        LogPrint(BCLog::MEMPOOL, "replacing tx %s with %s for %s BTC additional fees, %d delta bytes\n",
+        LogPrint(BCLog::MEMPOOL, "replacing tx %s with %s for %s LBC additional fees, %d delta bytes\n",
                 it->GetTx().GetHash().ToString(),
                 hash.ToString(),
                 FormatMoney(nModifiedFees - nConflictingFees),
@@ -1163,7 +1169,7 @@ bool ReadBlockFromDisk(CBlock& block, const FlatFilePos& pos, const Consensus::P
     }
 
     // Check the header
-    if (!CheckProofOfWork(block.GetHash(), block.nBits, consensusParams))
+    if (!CheckProofOfWork(block.GetPoWHash(), block.nBits, consensusParams))
         return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
 
     return true;
@@ -1231,17 +1237,54 @@ bool ReadRawBlockFromDisk(std::vector<uint8_t>& block, const CBlockIndex* pindex
     return ReadRawBlockFromDisk(block, block_pos, message_start);
 }
 
+bool withinLevelBounds(int nReduction, int nLevel)
+{
+    if (((nReduction * nReduction + nReduction) >> 1) > nLevel)
+        return false;
+    nReduction += 1;
+    if (((nReduction * nReduction + nReduction) >> 1) <= nLevel)
+        return false;
+    return true;
+}
+
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 {
-    int halvings = nHeight / consensusParams.nSubsidyHalvingInterval;
-    // Force block reward to zero when right shift is undefined.
-    if (halvings >= 64)
+    if (nHeight == 0)
+    {
+        return 400000000 * COIN;
+    }
+    else if (nHeight <= 5100)
+    {
+        return 1 * COIN;
+    }
+    else if (nHeight <= 55000)
+    {
+        int l = nHeight - 5000;
+        int nLevel = 0;
+        for (int i = 0; i < l; i+=100)
+        {
+            nLevel++;
+        }
+        return nLevel * COIN;
+    }
+    CAmount nStartingSubsidy = 500 * COIN;
+    int nLevel = (nHeight - 55001) / consensusParams.nSubsidyLevelInterval;
+    int nReduction = ((-1 + (int)sqrt((8 * nLevel) + 1)) / 2);
+    while (!(withinLevelBounds(nReduction, nLevel)))
+    {
+        if (((nReduction * nReduction + nReduction) >> 1) > nLevel)
+        {
+            nReduction--;
+        }
+        else
+        {
+            nReduction++;
+        }
+    }
+    CAmount nSubsidyReduction = nReduction * COIN;
+    if (nSubsidyReduction >= nStartingSubsidy)
         return 0;
-
-    CAmount nSubsidy = 50 * COIN;
-    // Subsidy is cut in half every 210,000 blocks which will occur approximately every 4 years.
-    nSubsidy >>= halvings;
-    return nSubsidy;
+    return nStartingSubsidy - nSubsidyReduction;
 }
 
 CoinsViews::CoinsViews(
@@ -1437,10 +1480,12 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txund
     // mark inputs spent
     if (!tx.IsCoinBase()) {
         txundo.vprevout.reserve(tx.vin.size());
-        for (const CTxIn &txin : tx.vin) {
-            txundo.vprevout.emplace_back();
-            bool is_spent = inputs.SpendCoin(txin.prevout, &txundo.vprevout.back());
+        for(size_t i = 0; i < tx.vin.size(); i++) {
+            const CTxIn& txin = tx.vin[i];
+            Coin coin{};
+            bool is_spent = inputs.SpendCoin(txin.prevout, &coin);
             assert(is_spent);
+            txundo.vprevout.push_back(coin);
         }
     }
     // add outputs
@@ -1654,13 +1699,22 @@ static bool AbortNode(CValidationState& state, const std::string& strMessage, co
  * Restore the UTXO in a Coin at a given COutPoint
  * @param undo The Coin to be restored.
  * @param view The coins view to which to apply the changes.
+ * @param view The claim trieCache to which to apply the changes.
  * @param out The out point that corresponds to the tx input.
  * @return A DisconnectResult as an int
  */
-int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
+int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CClaimTrieCache& trieCache, const COutPoint& out)
 {
-    bool fClean = true;
+    Coin& undo = txUndo.vprevout[index];
+    unsigned int nClaimValidHeight = 0;
+    bool fIsClaim = false;
+    const auto claimIt = txUndo.claimInfo.find(index);
+    if (claimIt != txUndo.claimInfo.end()) {
+        nClaimValidHeight = claimIt->second.nClaimValidHeight;
+        fIsClaim = claimIt->second.fIsClaim;
+    }
 
+    bool fClean = true;
     if (view.HaveCoin(out)) fClean = false; // overwriting transaction output
 
     if (undo.nHeight == 0) {
@@ -1675,6 +1729,59 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
             return DISCONNECT_FAILED; // adding output for transaction without known metadata
         }
     }
+
+    /* restore claim if applicable */
+    int op;
+    std::vector<std::vector<unsigned char> > vvchParams;
+    if (fIsClaim && DecodeClaimScript(undo.out.scriptPubKey, op, vvchParams))
+    {
+        if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
+        {
+            uint160 claimId{};
+            if (op == OP_CLAIM_NAME)
+            {
+                assert(vvchParams.size() == 2);
+                claimId = ClaimIdHash(out.hash, out.n);
+            }
+            else if (op == OP_UPDATE_CLAIM)
+            {
+                assert(vvchParams.size() == 3);
+                claimId = uint160(vvchParams[1]);
+            }
+            std::string name(vvchParams[0].begin(), vvchParams[0].end());
+            int nValidHeight = static_cast<int>(nClaimValidHeight);
+            if (nValidHeight > 0 && nValidHeight >= undo.nHeight)
+            {
+                LogPrintf("%s: (txid: %s, nOut: %d) Restoring %s to the claim trie due to a block being disconnected\n", __func__, out.hash.ToString(), out.n, name);
+                if (!trieCache.undoSpendClaim(name, COutPoint(out.hash, out.n), claimId, undo.out.nValue, undo.nHeight, nValidHeight))
+                    LogPrintf("%s: Something went wrong inserting the claim\n", __func__);
+            }
+            else
+            {
+                LogPrintf("%s: (txid: %s, nOut: %d) Not restoring %s to the claim trie because it expired before it was spent\n", __func__, out.hash.ToString(), out.n, name.c_str());
+                LogPrintf("%s: nValidHeight = %d, undo.nHeight = %d, nCurrentHeight = %d\n", __func__, nValidHeight, undo.nHeight, chainActive.Height());
+            }
+        }
+        else if (op == OP_SUPPORT_CLAIM)
+        {
+            assert(vvchParams.size() == 2);
+            std::string name(vvchParams[0].begin(), vvchParams[0].end());
+            uint160 supportedClaimId(vvchParams[1]);
+            int nValidHeight = static_cast<int>(nClaimValidHeight);
+            if (nValidHeight > 0 && nValidHeight >= undo.nHeight)
+            {
+                LogPrintf("%s: (txid: %s, nOut: %d) Restoring support for %s in claimid %s due to a block being disconnected\n", __func__, out.hash.ToString(), out.n, name, supportedClaimId.ToString());
+                if (!trieCache.undoSpendSupport(name, COutPoint(out.hash, out.n), supportedClaimId, undo.out.nValue, undo.nHeight, nValidHeight))
+                    LogPrintf("%s: Something went wrong inserting support for the claim\n", __func__);
+            }
+            else
+            {
+                LogPrintf("%s: (txid: %s, nOut: %d) Not restoring support for %s in claimid %s because the support expired before it was spent\n", __func__, out.hash.ToString(), out.n, name, supportedClaimId.ToString());
+                LogPrintf("%s: nValidHeight = %d, undo.nHeight = %d, nCurrentHeight = %d\n", __func__, nValidHeight, undo.nHeight, chainActive.Height());
+            }
+        }
+    }
+
     // The potential_overwrite parameter to AddCoin is only allowed to be false if we know for
     // sure that the coin did not already exist in the cache. As we have queried for that above
     // using HaveCoin, we don't need to guess. When fClean is false, a coin already existed and
@@ -1686,8 +1793,11 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
 
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
  *  When FAILED is returned, view is left in an indeterminate state. */
-DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view)
+DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view, CClaimTrieCache& trieCache)
 {
+    assert(pindex->GetBlockHash() == view.GetBestBlock());
+    assert(pindex->GetBlockHash() == trieCache.getBestBlock());
+
     bool fClean = true;
 
     CBlockUndo blockUndo;
@@ -1700,6 +1810,9 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
         error("DisconnectBlock(): block and undo data inconsistent");
         return DISCONNECT_FAILED;
     }
+
+    const bool decremented = trieCache.decrementBlock(blockUndo.insertUndo, blockUndo.expireUndo, blockUndo.insertSupportUndo, blockUndo.expireSupportUndo, blockUndo.takeoverHeightUndo);
+    assert(decremented);
 
     // undo transactions in reverse order
     for (int i = block.vtx.size() - 1; i >= 0; i--) {
@@ -1720,6 +1833,56 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
             }
         }
 
+        // remove any claims
+        for (size_t j = 0; j < tx.vout.size(); j++)
+        {
+            const CTxOut& txout = tx.vout[j];
+
+            int op;
+            std::vector<std::vector<unsigned char>> vvchParams;
+            if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams))
+            {
+                if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
+                {
+                    uint160 claimId;
+                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                    std::string value(vvchParams[1].begin(), vvchParams[1].end());
+                    if (op == OP_CLAIM_NAME)
+                    {
+                        assert(vvchParams.size() == 2);
+                        claimId = ClaimIdHash(hash, j);
+                        LogPrintf("--- %s[%lu]: OP_CLAIM_NAME \"%s\" with claimId %s and tx prevout %s at index %d\n",
+                                  __func__, pindex->nHeight, name, claimId.GetHex(), hash.ToString(), j);
+                    }
+                    else if (op == OP_UPDATE_CLAIM)
+                    {
+                        assert(vvchParams.size() == 3);
+                        claimId = uint160(vvchParams[1]);
+                        LogPrintf("--- %s[%lu]: OP_UPDATE_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n",
+                                  __func__, pindex->nHeight, name, claimId.GetHex(), hash.ToString(), j);
+                    }
+                    LogPrintf("%s: (txid: %s, nOut: %d) Trying to remove %s from the claim trie due to its block being disconnected\n",
+                              __func__, hash.ToString(), j, name);
+                    if (!trieCache.undoAddClaim(name, COutPoint(hash, j), pindex->nHeight))
+                    {
+                        LogPrintf("%s: Could not find the claim in the trie or the cache\n", __func__);
+                    }
+                }
+                else if (op == OP_SUPPORT_CLAIM)
+                {
+                    assert(vvchParams.size() == 2);
+                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                    uint160 supportedClaimId(vvchParams[1]);
+                    LogPrintf("--- %s[%lu]: OP_SUPPORT_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n",
+                              __func__, pindex->nHeight, name, supportedClaimId.GetHex(), hash.ToString(), j);
+                    LogPrintf("%s: (txid: %s, nOut: %d) Removing support for claim id %s on %s due to its block being disconnected\n",
+                              __func__, hash.ToString(), j, supportedClaimId.ToString(), name);
+                    if (!trieCache.undoAddSupport(name, COutPoint(hash, j), pindex->nHeight))
+                        LogPrintf("%s: Something went wrong removing support for name %s in hash %s\n", __func__, name.c_str(), hash.ToString());
+                }
+            }
+        }
+
         // restore inputs
         if (i > 0) { // not coinbases
             CTxUndo &txundo = blockUndo.vtxundo[i-1];
@@ -1729,16 +1892,30 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
             }
             for (unsigned int j = tx.vin.size(); j-- > 0;) {
                 const COutPoint &out = tx.vin[j].prevout;
-                int res = ApplyTxInUndo(std::move(txundo.vprevout[j]), view, out);
+                /* int res = ApplyTxInUndo(std::move(txundo.vprevout[j]), txundo, view, trieCache, out); */
+                int res = ApplyTxInUndo(j, txundo, view, trieCache, out);
                 if (res == DISCONNECT_FAILED) return DISCONNECT_FAILED;
                 fClean = fClean && res != DISCONNECT_UNCLEAN;
             }
             // At this point, all of txundo.vprevout should have been moved out.
+            //
+            // Note: This comment is no longer true, but doesn't
+            // affect anything either since it's no longer accessed.
         }
     }
 
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
+    assert(trieCache.finalizeDecrement());
+    trieCache.setBestBlock(pindex->pprev->GetBlockHash());
+    assert(trieCache.getMerkleHash() == pindex->pprev->hashClaimTrie);
+
+    if (pindex->nHeight == Params().GetConsensus().nExtendedClaimExpirationForkHeight)
+    {
+        LogPrintf("Decremented past the extended claim expiration hard fork height\n");
+        pclaimTrie->setExpirationTime(Params().GetConsensus().GetExpirationTime(pindex->nHeight-1));
+        trieCache.forkForExpirationChange(false);
+    }
 
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
@@ -1766,7 +1943,7 @@ static bool WriteUndoDataForBlock(const CBlockUndo& blockundo, CValidationState&
     if (pindex->GetUndoPos().IsNull()) {
         FlatFilePos _pos;
         if (!FindUndoPos(state, pindex->nFile, _pos, ::GetSerializeSize(blockundo, CLIENT_VERSION) + 40))
-            return error("ConnectBlock(): FindUndoPos failed");
+            return error("WriteUndoDataForBlock(): FindUndoPos failed");
         if (!UndoWriteToDisk(blockundo, _pos, pindex->pprev->GetBlockHash(), chainparams.MessageStart()))
             return AbortNode(state, "Failed to write undo data");
 
@@ -1900,7 +2077,7 @@ static int64_t nBlocksTotal = 0;
  *  Validity checks that depend on the UTXO set are also done; ConnectBlock()
  *  can fail if those validity checks fail (among other reasons). */
 bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex,
-                  CCoinsViewCache& view, const CChainParams& chainparams, bool fJustCheck)
+                  CCoinsViewCache& view, CClaimTrieCache& trieCache, const CChainParams& chainparams, bool fJustCheck)
 {
     AssertLockHeld(cs_main);
     assert(pindex);
@@ -1934,12 +2111,18 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     uint256 hashPrevBlock = pindex->pprev == nullptr ? uint256() : pindex->pprev->GetBlockHash();
     assert(hashPrevBlock == view.GetBestBlock());
 
+    // also verify that the trie cache's current state corresponds to the previous block
+    assert(hashPrevBlock == trieCache.getBestBlock());
+
     // Special case for the genesis block, skipping connection of its transactions
     // (its coinbase is unspendable)
     if (block.GetHash() == chainparams.GetConsensus().hashGenesisBlock) {
         if (!fJustCheck)
+        {
             view.SetBestBlock(pindex->GetBlockHash());
-        return true;
+            trieCache.setBestBlock(pindex->GetBlockHash());
+        }
+        /* return true; */
     }
 
     nBlocksTotal++;
@@ -2049,20 +2232,23 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     // post BIP34 before approximately height 486,000,000 and presumably will
     // be reset before it reaches block 1,983,702 and starts doing unnecessary
     // BIP30 checking again.
-    assert(pindex->pprev);
-    CBlockIndex *pindexBIP34height = pindex->pprev->GetAncestor(chainparams.GetConsensus().BIP34Height);
-    //Only continue to enforce if we're below BIP34 activation height or the block hash at that height doesn't correspond.
-    fEnforceBIP30 = fEnforceBIP30 && (!pindexBIP34height || !(pindexBIP34height->GetBlockHash() == chainparams.GetConsensus().BIP34Hash));
+    /* assert(pindex->pprev); */
+    if (pindex->pprev)
+    {
+        CBlockIndex *pindexBIP34height = pindex->pprev->GetAncestor(chainparams.GetConsensus().BIP34Height);
+        //Only continue to enforce if we're below BIP34 activation height or the block hash at that height doesn't correspond.
+        fEnforceBIP30 = fEnforceBIP30 && (!pindexBIP34height || !(pindexBIP34height->GetBlockHash() == chainparams.GetConsensus().BIP34Hash));
 
-    // TODO: Remove BIP30 checking from block height 1,983,702 on, once we have a
-    // consensus change that ensures coinbases at those heights can not
-    // duplicate earlier coinbases.
-    if (fEnforceBIP30 || pindex->nHeight >= BIP34_IMPLIES_BIP30_LIMIT) {
-        for (const auto& tx : block.vtx) {
-            for (size_t o = 0; o < tx->vout.size(); o++) {
-                if (view.HaveCoin(COutPoint(tx->GetHash(), o))) {
+        // TODO: Remove BIP30 checking from block height 1,983,702 on, once we have a
+        // consensus change that ensures coinbases at those heights can not
+        // duplicate earlier coinbases.
+        if (fEnforceBIP30 || pindex->nHeight >= BIP34_IMPLIES_BIP30_LIMIT) {
+            for (const auto& tx : block.vtx) {
+                for (size_t o = 0; o < tx->vout.size(); o++) {
+                    if (view.HaveCoin(COutPoint(tx->GetHash(), o))) {
                     return state.Invalid(ValidationInvalidReason::CONSENSUS, error("ConnectBlock(): tried to overwrite transaction"),
-                                     REJECT_INVALID, "bad-txns-BIP30");
+                                         REJECT_INVALID, "bad-txns-BIP30");
+                    }
                 }
             }
         }
@@ -2077,6 +2263,14 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     // Get the script flags for this block
     unsigned int flags = GetBlockScriptFlags(pindex, chainparams.GetConsensus());
 
+    // v 13 LBRYcrd hard fork to extend expiration time
+    if (pindex->nHeight == Params().GetConsensus().nExtendedClaimExpirationForkHeight)
+    {
+        LogPrintf("Incremented past the extended claim expiration hard fork height\n");
+        pclaimTrie->setExpirationTime(chainparams.GetConsensus().GetExpirationTime(pindex->nHeight));
+        trieCache.forkForExpirationChange(true);
+    }
+
     int64_t nTime2 = GetTimeMicros(); nTimeForks += nTime2 - nTime1;
     LogPrint(BCLog::BENCH, "    - Fork checks: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime2 - nTime1), nTimeForks * MICRO, nTimeForks * MILLI / nBlocksTotal);
 
@@ -2088,12 +2282,16 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     CAmount nFees = 0;
     int nInputs = 0;
     int64_t nSigOpsCost = 0;
+    CDiskTxPos pos(pindex->GetBlockPos(), GetSizeOfCompactSize(block.vtx.size()));
+    std::vector<std::pair<uint256, CDiskTxPos> > vPos;
+    vPos.reserve(block.vtx.size());
     blockundo.vtxundo.reserve(block.vtx.size() - 1);
     std::vector<PrecomputedTransactionData> txdata;
     txdata.reserve(block.vtx.size()); // Required so that pointers to individual PrecomputedTransactionData don't get invalidated
     for (unsigned int i = 0; i < block.vtx.size(); i++)
     {
         const CTransaction &tx = *(block.vtx[i]);
+        std::map<unsigned int, unsigned int> mClaimUndoHeights;
 
         nInputs += tx.vin.size();
 
@@ -2157,9 +2355,133 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                               state.GetRejectCode(), state.GetRejectReason(), state.GetDebugMessage());
                 }
                 return error("ConnectBlock(): CheckInputs on %s failed with %s",
-                    tx.GetHash().ToString(), FormatStateMessage(state));
+                             tx.GetHash().ToString(), FormatStateMessage(state));
             }
             control.Add(vChecks);
+
+            // To handle claim updates, stick all claims found in the inputs into a map of
+            // name: (txhash, nOut). When running through the outputs, if any claim's
+            // name is found in the map, send the name's txhash and nOut to the trie cache,
+            // and then remove the name: (txhash, nOut) mapping from the map.
+            // If there are two or more claims in the inputs with the same name, only
+            // use the first.
+
+            typedef std::vector<std::pair<std::string, uint160> > spentClaimsType;
+            spentClaimsType spentClaims;
+
+            for (unsigned int j = 0; j < tx.vin.size(); j++)
+            {
+                const CTxIn& txin = tx.vin[j];
+                const Coin& coin = view.AccessCoin(txin.prevout);
+
+                int op;
+                std::vector<std::vector<unsigned char> > vvchParams;
+                if (DecodeClaimScript(coin.out.scriptPubKey, op, vvchParams))
+                {
+                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                    if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
+                    {
+                        uint160 claimId;
+                        std::string value(vvchParams[1].begin(), vvchParams[1].end());
+                        if (op == OP_CLAIM_NAME)
+                        {
+                            assert(vvchParams.size() == 2);
+                            claimId = ClaimIdHash(txin.prevout.hash, txin.prevout.n);
+                            LogPrintf("+++ %s[%lu]: OP_CLAIM_NAME \"%s\"with claimId %s and tx prevout %s at index %d\n",
+                                      __func__, pindex->nHeight, name, claimId.GetHex(), txin.prevout.hash.GetHex(), txin.prevout.n);
+                        }
+                        else if (op == OP_UPDATE_CLAIM)
+                        {
+                            assert(vvchParams.size() == 3);
+                            claimId = uint160(vvchParams[1]);
+                            LogPrintf("+++ %s[%lu]: OP_UPDATE_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n",
+                                      __func__, pindex->nHeight, name, claimId.GetHex(), txin.prevout.hash.GetHex(), txin.prevout.n);
+                        }
+                        int nValidAtHeight;
+                        LogPrintf("%s: Removing %s (%s) from the claim trie. Tx: %s, nOut: %d\n",
+                                  __func__, name, claimId.GetHex(), txin.prevout.hash.GetHex(), txin.prevout.n);
+                        if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), coin.nHeight, nValidAtHeight))
+                        {
+                            mClaimUndoHeights[j] = nValidAtHeight;
+                            std::pair<std::string, uint160> entry(name, claimId);
+                            spentClaims.push_back(entry);
+                        }
+                        else
+                        {
+                            LogPrintf("%s(): The claim was not found in the trie or queue and therefore can't be updated\n", __func__);
+                        }
+                    }
+                    else if (op == OP_SUPPORT_CLAIM)
+                    {
+                        assert(vvchParams.size() == 2);
+                        uint160 supportedClaimId(vvchParams[1]);
+                        LogPrintf("+++ %s[%lu]: OP_SUPPORT_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n",
+                                  __func__, pindex->nHeight, name,
+                                  supportedClaimId.GetHex(), txin.prevout.hash.GetHex(), txin.prevout.n);
+                        int nValidAtHeight;
+                        LogPrintf("%s: Removing support for %s in %s. Tx: %s, nOut: %d, removed txid: %s\n",
+                                  __func__, supportedClaimId.ToString(), name, txin.prevout.hash.ToString(),
+                                  txin.prevout.n, tx.GetHash().ToString());
+                        if (trieCache.spendSupport(name, COutPoint(txin.prevout.hash, txin.prevout.n), coin.nHeight, nValidAtHeight))
+                        {
+                            mClaimUndoHeights[j] = nValidAtHeight;
+                        }
+                    }
+                }
+            }
+
+            for (unsigned int j = 0; j < tx.vout.size(); j++)
+            {
+                const CTxOut& txout = tx.vout[j];
+
+                int op;
+                std::vector<std::vector<unsigned char> > vvchParams;
+                if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams))
+                {
+                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                    if (op == OP_CLAIM_NAME)
+                    {
+                        assert(vvchParams.size() == 2);
+                        LogPrintf("%s: Inserting %s into the claim trie. Tx: %s, nOut: %d\n",
+                                  __func__, name, tx.GetHash().GetHex(), j);
+                        if (!trieCache.addClaim(name, COutPoint(tx.GetHash(), j), ClaimIdHash(tx.GetHash(), j), txout.nValue, pindex->nHeight))
+                        {
+                            LogPrintf("%s: Something went wrong inserting the claim\n", __func__);
+                        }
+                    }
+                    else if (op == OP_UPDATE_CLAIM)
+                    {
+                        assert(vvchParams.size() == 3);
+                        uint160 claimId(vvchParams[1]);
+                        LogPrintf("%s: Got a claim update. Name: %s, claimId: %s, new txid: %s, nOut: %d\n",
+                                  __func__, name, claimId.GetHex(), tx.GetHash().GetHex(), j);
+                        spentClaimsType::iterator itSpent;
+                        for (itSpent = spentClaims.begin(); itSpent != spentClaims.end(); ++itSpent)
+                        {
+                            if (itSpent->second == claimId &&
+                                trieCache.normalizeClaimName(name) == trieCache.normalizeClaimName(itSpent->first))
+                                break;
+                        }
+                        if (itSpent != spentClaims.end())
+                        {
+                            spentClaims.erase(itSpent);
+                            if (!trieCache.addClaim(name, COutPoint(tx.GetHash(), j), claimId, txout.nValue, pindex->nHeight))
+                            {
+                                LogPrintf("%s: Something went wrong updating the claim\n", __func__);
+                            }
+                        }
+                    }
+                    else if (op == OP_SUPPORT_CLAIM)
+                    {
+                        assert(vvchParams.size() == 2);
+                        uint160 supportedClaimId(vvchParams[1]);
+                        if (!trieCache.addSupport(name, COutPoint(tx.GetHash(), j), txout.nValue, supportedClaimId, pindex->nHeight))
+                        {
+                            LogPrintf("%s: Something went wrong inserting the support\n", __func__);
+                        }
+                    }
+                }
+            }
         }
 
         CTxUndo undoDummy;
@@ -2167,7 +2489,43 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
             blockundo.vtxundo.push_back(CTxUndo());
         }
         UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
+        if (i > 0 && !mClaimUndoHeights.empty())
+        {
+            /* std::vector<CTxInUndo>& txinUndos = blockUndo.vtxundo.back().vprevout */
+            /* CTxUndo &txundo = blockUndo.vtxundo[i-1]; */
+            CTxUndo& txUndo = blockundo.vtxundo.back();
+            for (std::map<unsigned int, unsigned int>::iterator itHeight = mClaimUndoHeights.begin(); itHeight != mClaimUndoHeights.end(); ++itHeight)
+            {
+                // Note: by appearing in this map, we know it's a claim so the bool is redundant
+                txUndo.claimInfo[itHeight->first] = { itHeight->second, true };
+            }
+        }
+        // The CTxUndo vector contains the heights at which claims should be put into the trie.
+        // This is necessary because some claims are inserted immediately into the trie, and
+        // others are inserted after a delay, depending on the state of the claim trie at the time
+        // that the claim was originally inserted into the blockchain. That state will not be
+        // available when and if this block is disconnected.
+        // It also contains whether or not any given txin represents a claim that should
+        // be put back into the trie. If we didn't find a claim or support in the trie
+        // or cache when trying to spend it, we shouldn't try to put a claim or support back
+        // in. Some OP_UPDATE_CLAIM's, for example, may be invalid, and so may never have been
+        // inserted into the trie in the first place.
+
+        vPos.push_back(std::make_pair(tx.GetHash(), pos));
+        pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
+
+    const auto incremented = trieCache.incrementBlock(blockundo.insertUndo, blockundo.expireUndo, blockundo.insertSupportUndo, blockundo.expireSupportUndo, blockundo.takeoverHeightUndo);
+    assert(incremented);
+
+    if (trieCache.getMerkleHash() != block.hashClaimTrie)
+    {
+        return state.DoS(100,
+                         error("ConnectBlock() : the merkle root of the claim trie does not match "
+                               "(actual=%s vs block=%s)", trieCache.getMerkleHash().GetHex(),
+                               block.hashClaimTrie.GetHex()), REJECT_INVALID, "bad-claim-merkle-hash");
+    }
+
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
     LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n", (unsigned)block.vtx.size(), MILLI * (nTime3 - nTime2), MILLI * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
 
@@ -2186,7 +2544,9 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     if (fJustCheck)
         return true;
 
-    if (!WriteUndoDataForBlock(blockundo, state, pindex, chainparams))
+    if (pindex->pprev != nullptr &&
+        !WriteUndoDataForBlock(blockundo, state, pindex, chainparams) &&
+        !pblocktree->WriteTxIndex(vPos))
         return false;
 
     if (!pindex->IsValid(BLOCK_VALID_SCRIPTS)) {
@@ -2197,6 +2557,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     assert(pindex->phashBlock);
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
+    trieCache.setBestBlock(pindex->GetBlockHash());
 
     int64_t nTime5 = GetTimeMicros(); nTimeIndex += nTime5 - nTime4;
     LogPrint(BCLog::BENCH, "    - Index writing: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime5 - nTime4), nTimeIndex * MICRO, nTimeIndex * MILLI / nBlocksTotal);
@@ -2302,6 +2663,8 @@ bool CChainState::FlushStateToDisk(
             if (!CheckDiskSpace(GetDataDir(), 48 * 2 * 2 * CoinsTip().GetCacheSize())) {
                 return AbortNode(state, "Disk space is too low!", _("Error: Disk space is too low!").translated, CClientUIInterface::MSG_NOPREFIX);
             }
+            if (!pclaimTrie->WriteToDisk())
+                return state.Error("Failed to write to claim trie database");
             // Flush the chainstate (which may refer to block index entries).
             if (!CoinsTip().Flush())
                 return AbortNode(state, "Failed to write to coin database");
@@ -2427,11 +2790,14 @@ bool CChainState::DisconnectTip(CValidationState& state, const CChainParams& cha
     int64_t nStart = GetTimeMicros();
     {
         CCoinsViewCache view(&CoinsTip());
+        CClaimTrieCache trieCache(pclaimTrie);
         assert(view.GetBestBlock() == pindexDelete->GetBlockHash());
-        if (DisconnectBlock(block, pindexDelete, view) != DISCONNECT_OK)
+        if (DisconnectBlock(block, pindexDelete, view, trieCache) != DISCONNECT_OK)
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
         bool flushed = view.Flush();
         assert(flushed);
+        assert(trieCache.flush());
+        assert(pindexDelete->pprev->hashClaimTrie == trieCache.getMerkleHash());
     }
     LogPrint(BCLog::BENCH, "- Disconnect block: %.2fms\n", (GetTimeMicros() - nStart) * MILLI);
     // Write the chain state to disk, if necessary.
@@ -2555,7 +2921,8 @@ bool CChainState::ConnectTip(CValidationState& state, const CChainParams& chainp
     LogPrint(BCLog::BENCH, "  - Load block from disk: %.2fms [%.2fs]\n", (nTime2 - nTime1) * MILLI, nTimeReadFromDisk * MICRO);
     {
         CCoinsViewCache view(&CoinsTip());
-        bool rv = ConnectBlock(blockConnecting, state, pindexNew, view, chainparams);
+        CClaimTrieCache trieCache(pclaimTrie);
+        bool rv = ConnectBlock(blockConnecting, state, pindexNew, view, trieCache, chainparams);
         GetMainSignals().BlockChecked(blockConnecting, state);
         if (!rv) {
             if (state.IsInvalid())
@@ -2565,6 +2932,8 @@ bool CChainState::ConnectTip(CValidationState& state, const CChainParams& chainp
         nTime3 = GetTimeMicros(); nTimeConnectTotal += nTime3 - nTime2;
         LogPrint(BCLog::BENCH, "  - Connect total: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime3 - nTime2) * MILLI, nTimeConnectTotal * MICRO, nTimeConnectTotal * MILLI / nBlocksTotal);
         bool flushed = view.Flush();
+        assert(flushed);
+        flushed = trieCache.flush();
         assert(flushed);
     }
     int64_t nTime4 = GetTimeMicros(); nTimeFlush += nTime4 - nTime3;
@@ -3255,7 +3624,7 @@ static bool FindUndoPos(CValidationState &state, int nFile, FlatFilePos &pos, un
 static bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = true)
 {
     // Check proof of work matches claimed amount
-    if (fCheckPOW && !CheckProofOfWork(block.GetHash(), block.nBits, consensusParams))
+    if (fCheckPOW && !CheckProofOfWork(block.GetPoWHash(), block.nBits, consensusParams))
         return state.Invalid(ValidationInvalidReason::BLOCK_INVALID_HEADER, false, REJECT_INVALID, "high-hash", "proof of work failed");
 
     return true;
@@ -3787,6 +4156,7 @@ bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams,
     AssertLockHeld(cs_main);
     assert(pindexPrev && pindexPrev == ::ChainActive().Tip());
     CCoinsViewCache viewNew(&::ChainstateActive().CoinsTip());
+    CClaimTrieCache trieCache(pclaimTrie);
     uint256 block_hash(block.GetHash());
     CBlockIndex indexDummy(block);
     indexDummy.pprev = pindexPrev;
@@ -3800,7 +4170,7 @@ bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams,
         return error("%s: Consensus::CheckBlock: %s", __func__, FormatStateMessage(state));
     if (!ContextualCheckBlock(block, state, chainparams.GetConsensus(), pindexPrev))
         return error("%s: Consensus::ContextualCheckBlock: %s", __func__, FormatStateMessage(state));
-    if (!::ChainstateActive().ConnectBlock(block, state, &indexDummy, viewNew, chainparams, true))
+    if (!::ChainstateActive().ConnectBlock(block, state, &indexDummy, viewNew, trieCache, chainparams, true))
         return false;
     assert(state.IsValid());
 
@@ -4186,6 +4556,7 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
     nCheckLevel = std::max(0, std::min(4, nCheckLevel));
     LogPrintf("Verifying last %i blocks at level %i\n", nCheckDepth, nCheckLevel);
     CCoinsViewCache coins(coinsview);
+    CClaimTrieCache trieCache(pclaimTrie);
     CBlockIndex* pindex;
     CBlockIndex* pindexFailure = nullptr;
     int nGoodTransactions = 0;
@@ -4228,7 +4599,7 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
         // check level 3: check for inconsistencies during memory-only disconnect of tip blocks
         if (nCheckLevel >= 3 && (coins.DynamicMemoryUsage() + ::ChainstateActive().CoinsTip().DynamicMemoryUsage()) <= nCoinCacheUsage) {
             assert(coins.GetBestBlock() == pindex->GetBlockHash());
-            DisconnectResult res = ::ChainstateActive().DisconnectBlock(block, pindex, coins);
+            DisconnectResult res = ::ChainstateActive().DisconnectBlock(block, pindex, coins, trieCache);
             if (res == DISCONNECT_FAILED) {
                 return error("VerifyDB(): *** irrecoverable inconsistency in block data at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
             }
@@ -4263,7 +4634,7 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
             CBlock block;
             if (!ReadBlockFromDisk(block, pindex, chainparams.GetConsensus()))
                 return error("VerifyDB(): *** ReadBlockFromDisk failed at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
-            if (!::ChainstateActive().ConnectBlock(block, state, pindex, coins, chainparams))
+            if (!::ChainstateActive().ConnectBlock(block, state, pindex, coins, trieCache, chainparams))
                 return error("VerifyDB(): *** found unconnectable block at %d, hash=%s (%s)", pindex->nHeight, pindex->GetBlockHash().ToString(), FormatStateMessage(state));
         }
     }
@@ -4301,6 +4672,7 @@ bool CChainState::ReplayBlocks(const CChainParams& params)
 
     CCoinsView& db = this->CoinsDB();
     CCoinsViewCache cache(&db);
+    CClaimTrieCache trieCache(pclaimTrie);
 
     std::vector<uint256> hashHeads = db.GetHeadBlocks();
     if (hashHeads.empty()) return true; // We're already in a consistent state.
@@ -4335,7 +4707,7 @@ bool CChainState::ReplayBlocks(const CChainParams& params)
                 return error("RollbackBlock(): ReadBlockFromDisk() failed at %d, hash=%s", pindexOld->nHeight, pindexOld->GetBlockHash().ToString());
             }
             LogPrintf("Rolling back %s (%i)\n", pindexOld->GetBlockHash().ToString(), pindexOld->nHeight);
-            DisconnectResult res = DisconnectBlock(block, pindexOld, cache);
+            DisconnectResult res = DisconnectBlock(block, pindexOld, cache, trieCache);
             if (res == DISCONNECT_FAILED) {
                 return error("RollbackBlock(): DisconnectBlock failed at %d, hash=%s", pindexOld->nHeight, pindexOld->GetBlockHash().ToString());
             }
@@ -4357,7 +4729,9 @@ bool CChainState::ReplayBlocks(const CChainParams& params)
     }
 
     cache.SetBestBlock(pindexNew->GetBlockHash());
+    trieCache.setBestBlock(pindexNew->GetBlockHash());
     cache.Flush();
+    trieCache.flush();
     uiInterface.ShowProgress("", 100, false);
     return true;
 }

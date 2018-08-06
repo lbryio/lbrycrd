@@ -109,7 +109,12 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     CBlockIndex* pindexPrev = ::ChainActive().Tip();
     assert(pindexPrev != nullptr);
     nHeight = pindexPrev->nHeight + 1;
-
+    if (!pclaimTrie)
+    {
+        LogPrintf("CreateNewBlock(): pclaimTrie is invalid");
+        return NULL;
+    }
+    CClaimTrieCache trieCache(pclaimTrie);
     pblock->nVersion = ComputeBlockVersion(pindexPrev, chainparams.GetConsensus());
     // -regtest only: allow overriding block.nVersion with
     // -blockversion=N to test forking scenarios
@@ -136,7 +141,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     int nPackagesSelected = 0;
     int nDescendantsUpdated = 0;
-    addPackageTxs(nPackagesSelected, nDescendantsUpdated);
+    addPackageTxs(nPackagesSelected, nDescendantsUpdated, trieCache);
 
     int64_t nTime1 = GetTimeMicros();
 
@@ -163,6 +168,16 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     pblock->nBits          = GetNextWorkRequired(pindexPrev, pblock, chainparams.GetConsensus());
     pblock->nNonce         = 0;
     pblocktemplate->vTxSigOpsCost[0] = WITNESS_SCALE_FACTOR * GetLegacySigOpCount(*pblock->vtx[0]);
+
+    insertUndoType dummyInsertUndo;
+    claimQueueRowType dummyExpireUndo;
+    insertUndoType dummyInsertSupportUndo;
+    supportQueueRowType dummyExpireSupportUndo;
+    std::vector<std::pair<std::string, int> > dummyTakeoverHeightUndo;
+
+    trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo, dummyInsertSupportUndo, dummyExpireSupportUndo, dummyTakeoverHeightUndo);
+
+    pblock->hashClaimTrie = trieCache.getMerkleHash();
 
     CValidationState state;
     if (!TestBlockValidity(state, chainparams, *pblock, pindexPrev, false, false)) {
@@ -295,7 +310,7 @@ void BlockAssembler::SortForBlock(const CTxMemPool::setEntries& package, std::ve
 // Each time through the loop, we compare the best transaction in
 // mapModifiedTxs with the next transaction in the mempool to decide what
 // transaction package to work on next.
-void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpdated)
+void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpdated, CClaimTrieCache& trieCache)
 {
     // mapModifiedTx will store sorted packages after they are modified
     // because some of their txs are already in the block
@@ -315,6 +330,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
     // mempool has a lot of entries.
     const int64_t MAX_CONSECUTIVE_FAILURES = 1000;
     int64_t nConsecutiveFailed = 0;
+    std::vector<CTransactionRef> txs;
 
     while (mi != mempool.mapTx.get<ancestor_score>().end() || !mapModifiedTx.empty())
     {
@@ -404,6 +420,123 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
             }
             continue;
         }
+
+        typedef std::vector<std::pair<std::string, uint160> > spentClaimsType;
+        spentClaimsType spentClaims;
+
+        const CTransaction& tx = iter->GetTx();
+        for (const CTxIn& txin: tx.vin)
+        {
+            CCoinsViewCache view(pcoinsTip.get());
+            const Coin& coin = view.AccessCoin(txin.prevout);
+            CScript scriptPubKey;
+            if (coin.out.IsNull()) {
+                auto it = std::find_if(txs.begin(), txs.end(), [&txin](const CTransactionRef& tx) {
+                    return tx->GetHash() == txin.prevout.hash;
+                });
+                if (it == txs.end() || txin.prevout.n >= (*it)->vout.size())
+                    continue;
+                scriptPubKey = (*it)->vout[txin.prevout.n].scriptPubKey;
+            } else {
+                scriptPubKey = coin.out.scriptPubKey;
+            }
+
+            std::vector<std::vector<unsigned char> > vvchParams;
+            int op;
+
+            if (DecodeClaimScript(scriptPubKey, op, vvchParams))
+            {
+                std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
+                {
+                    uint160 claimId;
+                    if (op == OP_CLAIM_NAME)
+                    {
+                        assert(vvchParams.size() == 2);
+                        claimId = ClaimIdHash(txin.prevout.hash, txin.prevout.n);
+                    }
+                    else if (op == OP_UPDATE_CLAIM)
+                    {
+                        assert(vvchParams.size() == 3);
+                        claimId = uint160(vvchParams[1]);
+                    }
+                    int throwaway;
+                    if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), coin.nHeight, throwaway))
+                    {
+                        std::pair<std::string, uint160> entry(name, claimId);
+                        spentClaims.push_back(entry);
+                    }
+                    else
+                    {
+                        LogPrintf("%s(): The claim was not found in the trie or queue and therefore can't be updated\n", __func__);
+                    }
+                }
+                else if (op == OP_SUPPORT_CLAIM)
+                {
+                    assert(vvchParams.size() == 2);
+                    int throwaway;
+                    if (!trieCache.spendSupport(name, COutPoint(txin.prevout.hash, txin.prevout.n), coin.nHeight, throwaway))
+                    {
+                        LogPrintf("%s(): The support was not found in the trie or queue\n", __func__);
+                    }
+                }
+            }
+        }
+
+        for (unsigned int i = 0; i < tx.vout.size(); ++i)
+        {
+            const CTxOut& txout = tx.vout[i];
+            
+            std::vector<std::vector<unsigned char> > vvchParams;
+            int op;
+            if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams))
+            {
+                std::string name(vvchParams[0].begin(), vvchParams[0].end());
+                if (op == OP_CLAIM_NAME)
+                {
+                    assert(vvchParams.size() == 2);
+                    if (!trieCache.addClaim(name, COutPoint(tx.GetHash(), i), ClaimIdHash(tx.GetHash(), i), txout.nValue, nHeight))
+                    {
+                        LogPrintf("%s: Something went wrong inserting the name\n", __func__);
+                    }
+                }
+                else if (op == OP_UPDATE_CLAIM)
+                {
+                    assert(vvchParams.size() == 3);
+                    uint160 claimId(vvchParams[1]);
+                    spentClaimsType::iterator itSpent;
+                    for (itSpent = spentClaims.begin(); itSpent != spentClaims.end(); ++itSpent)
+                    {
+                        if (itSpent->second == claimId &&
+                            trieCache.normalizeClaimName(name) == trieCache.normalizeClaimName(itSpent->first))
+                            break;
+                    }
+                    if (itSpent != spentClaims.end())
+                    {
+                        spentClaims.erase(itSpent);
+                        if (!trieCache.addClaim(name, COutPoint(tx.GetHash(), i), claimId, txout.nValue, nHeight))
+                        {
+                            LogPrintf("%s: Something went wrong updating a claim\n", __func__);
+                        }
+                    }
+                    else
+                    {
+                        LogPrintf("%s(): This update refers to a claim that was not found in the trie or queue, and therefore cannot be updated. The claim may have expired or it may have never existed.\n", __func__);
+                    }
+                }
+                else if (op == OP_SUPPORT_CLAIM)
+                {
+                    assert(vvchParams.size() == 2);
+                    uint160 supportedClaimId(vvchParams[1]);
+                    if (!trieCache.addSupport(name, COutPoint(tx.GetHash(), i), txout.nValue, supportedClaimId, nHeight))
+                    {
+                        LogPrintf("%s: Something went wrong inserting the claim support\n", __func__);
+                    }
+                }
+            }
+        }
+
+        txs.emplace_back(MakeTransactionRef(tx));
 
         // This transaction will make it in; reset the failed counter.
         nConsecutiveFailed = 0;

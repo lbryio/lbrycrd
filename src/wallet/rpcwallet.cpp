@@ -315,7 +315,7 @@ static UniValue setlabel(const JSONRPCRequest& request)
 }
 
 
-static CTransactionRef SendMoney(interfaces::Chain::Lock& locked_chain, CWallet * const pwallet, const CTxDestination &address, CAmount nValue, bool fSubtractFeeFromAmount, const CCoinControl& coin_control, mapValue_t mapValue)
+static CTransactionRef SendMoney(interfaces::Chain::Lock& locked_chain, CWallet * const pwallet, const CTxDestination &address, CAmount nValue, bool fSubtractFeeFromAmount, const CCoinControl& coin_control, mapValue_t mapValue, const CScript& prefix = CScript())
 {
     CAmount curBalance = pwallet->GetBalance(0, coin_control.m_avoid_address_reuse).m_mine_trusted;
 
@@ -327,7 +327,7 @@ static CTransactionRef SendMoney(interfaces::Chain::Lock& locked_chain, CWallet 
         throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Insufficient funds");
 
     // Parse Bitcoin address
-    CScript scriptPubKey = GetScriptForDestination(address);
+    CScript scriptPubKey = prefix + GetScriptForDestination(address);
 
     // Create and send the transaction
     CAmount nFeeRequired;
@@ -348,6 +348,468 @@ static CTransactionRef SendMoney(interfaces::Chain::Lock& locked_chain, CWallet 
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
     return tx;
+}
+
+UniValue claimname(const JSONRPCRequest& request)
+{
+    std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
+    CWallet* const pwallet = wallet.get();
+
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() != 3)
+        throw std::runtime_error(
+            "claimname \"name\" \"value\" amount\n"
+            "\nCreate a transaction which issues a claim assigning a value to a name. The claim will be authoritative if the transaction amount is greater than the transaction amount of all other unspent transactions which issue a claim over the same name, and it will remain au\
+thoritative as long as it remains unspent and there are no other greater unspent transactions issuing a claim over the same name. The amount is a real and is rounded to the nearest 0.00000001\n"
+            + HelpRequiringPassphrase(pwallet) +
+            "\nArguments:\n"
+            "1. \"name\"  (string, required) The name to be assigned the value.\n"
+            "2. \"value\"  (string, required) The value to assign to the name encoded in hexadecimal.\n"
+            "3. \"amount\"  (numeric, required) The amount in LBRYcrd to send. eg 0.1\n"
+            "\nResult:\n"
+            "\"transactionid\"  (string) The transaction id.\n");
+    auto sName = request.params[0].get_str();
+    auto sValue = request.params[1].get_str();
+
+    if (!IsHex(sValue))
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "value must be hexadecimal");
+
+    std::vector<unsigned char> vchName (sName.begin(), sName.end());
+    std::vector<unsigned char> vchValue(ParseHex(sValue));
+
+    CAmount nAmount = AmountFromValue(request.params[2]);
+    EnsureWalletIsUnlocked(pwallet);
+    CScript claimScript = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
+
+    //Get new address
+    CPubKey newKey;
+    if (!pwallet->GetKeyFromPool(newKey))
+        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
+
+    CCoinControl cc;
+    cc.m_change_type = DEFAULT_ADDRESS_TYPE;
+    auto tx = SendMoney(pwallet, CTxDestination(newKey.GetID()), nAmount, false, cc, {}, {}, claimScript);
+    return tx->GetHash().GetHex();
+}
+
+UniValue updateclaim(const JSONRPCRequest& request)
+{
+    std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
+    CWallet* const pwallet = wallet.get();
+
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() != 3)
+        throw std::runtime_error(
+            "updateclaim \"txid\" \"value\" amount\n"
+            "Create a transaction which issues a claim assigning a value to a name, spending the previous txout which issued a claim over the same name and therefore superseding that claim. The claim will be authoritative if the transaction amount is greater than the transaction amount of all other unspent transactions which issue a claim over the same name, and it will remain authoritative as long as it remains unspent and there are no greater unspent transactions issuing a claim over the same name.\n"
+            + HelpRequiringPassphrase(pwallet) + "\n"
+            "Arguments:\n"
+            "1.  \"txid\"  (string, required) The transaction containing the unspent txout which should be spent.\n"
+            "2.  \"value\"  (string, required) The value to assign to the name encoded in hexadecimal.\n"
+            "3.  \"amount\"  (numeric, required) The amount in LBRYcrd to use to bid for the name. eg 0.1\n"
+            "\nResult:\n"
+            "\"transactionid\"  (string) The new transaction id.\n");
+
+    uint256 hash;
+    hash.SetHex(request.params[0].get_str());
+
+    auto sValue = request.params[1].get_str();
+    if (!IsHex(sValue))
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "value must be hexadecimal");
+
+    std::vector<unsigned char> vchValue(ParseHex(sValue));
+    CAmount nAmount = AmountFromValue(request.params[2]);
+
+    LOCK2(cs_main, pwallet->cs_wallet);
+    auto it = pwallet->mapWallet.find(hash);
+    if (it == pwallet->mapWallet.end()) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid or non-wallet transaction id");
+    }
+    const auto& wtx = it->second;
+    CTransactionRef wtxNew = nullptr;
+    for (uint32_t i = 0; i < wtx.tx->vout.size(); ++i)
+    {
+        const auto& out = wtx.tx->vout[i];
+        if (pwallet->IsMine(out) & isminetype::ISMINE_SPENDABLE)
+        {
+            std::vector<std::vector<unsigned char>> vvchParams;
+            int op;
+            if (DecodeClaimScript(out.scriptPubKey, op, vvchParams))
+            {
+                if (op == OP_SUPPORT_CLAIM)
+                    continue;
+
+                const auto& vchName = vvchParams[0];
+                EnsureWalletIsUnlocked(pwallet);
+                uint160 claimId;
+                if (op == OP_CLAIM_NAME) {
+                    claimId = ClaimIdHash(wtx.GetHash(), i);
+                }
+                else if (op == OP_UPDATE_CLAIM) {
+                    claimId = uint160(vvchParams[1]);
+                }
+                else {
+                    throw std::runtime_error("Error: op not implemented");
+                }
+                std::vector<unsigned char> vchClaimId(claimId.begin(), claimId.end());
+                auto updateScript = CScript() << OP_UPDATE_CLAIM << vchName << vchClaimId << vchValue << OP_2DROP << OP_2DROP;
+
+                CPubKey newKey;
+                if (!pwallet->GetKeyFromPool(newKey))
+                    throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
+
+                CCoinControl cc;
+                cc.m_change_type = DEFAULT_ADDRESS_TYPE;
+                wtxNew = SendMoney(pwallet, CTxDestination(newKey.GetID()), nAmount, false, cc, {}, {}, updateScript);
+                break;
+            }
+        }
+    }
+    if (wtxNew == nullptr)
+        throw std::runtime_error("Error: The given transaction contains no claim scripts owned by this wallet");
+    return wtxNew->GetHash().GetHex();
+}
+
+UniValue abandonclaim(const JSONRPCRequest& request)
+{
+    std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
+    CWallet* const pwallet = wallet.get();
+
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() != 2)
+        throw std::runtime_error(
+            "abandonclaim \"txid\" \"address\"\n"
+            "Create a transaction which spends a txout which assigned a value to a name, effectively abandoning that claim.\n"
+            + HelpRequiringPassphrase(pwallet) +
+            "\nArguments:\n"
+            "1. \"txid\"  (string, required) The transaction containing the unspent txout which should be spent.\n"
+            "2. \"address\"  (string, required) The lbrycrd address to send to.\n"
+            "\nResult:\n"
+            "\"transactionid\"  (string) The new transaction id.\n");
+
+    uint256 hash;
+    hash.SetHex(request.params[0].get_str());
+
+    CKeyID address;
+    address.SetHex(request.params[1].get_str());
+
+    LOCK2(cs_main, pwallet->cs_wallet);
+    auto it = pwallet->mapWallet.find(hash);
+    if (it == pwallet->mapWallet.end()) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid or non-wallet transaction id");
+    }
+    const auto& wtx = it->second;
+    std::vector<std::vector<unsigned char> > vvchParams;
+    CTransactionRef wtxNew = nullptr;
+    for (uint32_t i = 0; i < wtx.tx->vout.size(); ++i)
+    {
+        auto mine = pwallet->IsMine(wtx.tx->vout[i]);
+        if (mine & isminetype::ISMINE_CLAIM)
+        {
+            EnsureWalletIsUnlocked(pwallet);
+            CCoinControl cc;
+            cc.m_change_type = DEFAULT_ADDRESS_TYPE;
+            cc.Select(COutPoint(wtx.tx->GetHash(), i));
+            wtxNew = SendMoney(pwallet, address, wtx.tx->vout[i].nValue, true, cc, {}, {});
+            break;
+        }
+    }
+    if (wtxNew == nullptr)
+        throw std::runtime_error("Error: The given transaction contains no claim scripts owned by this wallet");
+    return wtxNew->GetHash().GetHex();
+}
+
+static void MaybePushAddress(UniValue& entry, const CTxDestination &dest);
+
+
+void ListNameClaims(const CWalletTx& wtx, CWallet* const pwallet, const std::string& strAccount, int nMinDepth,
+                    UniValue& ret, const bool include_supports, bool list_spent)
+{
+    CAmount nFee;
+    std::string strSentAccount;
+    std::list<COutputEntry> listSent;
+    std::list<COutputEntry> listReceived;
+
+    isminefilter filter = isminetype::ISMINE_CLAIM;
+    if (include_supports)
+        filter |= isminetype::ISMINE_SUPPORT;
+    wtx.GetAmounts(listReceived, listSent, nFee, strSentAccount, filter);
+
+    bool fAllAccounts = (strAccount == std::string("*"));
+
+    if ((!listReceived.empty() || nFee != 0) && (fAllAccounts || strAccount == strSentAccount))
+    {
+        for (const COutputEntry& s: listReceived)
+        {
+            if (!list_spent && pwallet->IsSpent(wtx.GetHash(), s.vout))
+                continue;
+
+            UniValue entry(UniValue::VOBJ);
+            const CScript& scriptPubKey = wtx.tx->vout[s.vout].scriptPubKey;
+            int op;
+            std::vector<std::vector<unsigned char>> vvchParams;
+            if (!DecodeClaimScript(scriptPubKey, op, vvchParams)) {
+                continue;
+            }
+            std::string sName (vvchParams[0].begin(), vvchParams[0].end());
+            entry.pushKV("name", sName);
+            if (op == OP_CLAIM_NAME)
+            {
+                uint160 claimId = ClaimIdHash(wtx.GetHash(), s.vout);
+                entry.pushKV("claimId", claimId.GetHex());
+                entry.pushKV("value", HexStr(vvchParams[1].begin(), vvchParams[1].end()));
+            }
+            else if (op == OP_UPDATE_CLAIM)
+            {
+                uint160 claimId(vvchParams[1]);
+                entry.pushKV("claimId", claimId.GetHex());
+                entry.pushKV("value", HexStr(vvchParams[2].begin(), vvchParams[2].end()));
+            }
+            else if (op == OP_SUPPORT_CLAIM)
+            {
+                uint160 claimId(vvchParams[1]);
+                entry.pushKV("supported_claimid", claimId.GetHex());
+                if (vvchParams.size() > 2) {
+                    entry.pushKV("value", HexStr(vvchParams[2].begin(), vvchParams[2].end()));
+                }
+            }
+            entry.pushKV("txid", wtx.GetHash().ToString());
+            entry.pushKV("account", strSentAccount);
+            MaybePushAddress(entry, s.destination);
+            entry.pushKV("amount", ValueFromAmount(s.amount));
+            entry.pushKV("vout", s.vout);
+            entry.pushKV("fee", ValueFromAmount(nFee));
+            auto it = mapBlockIndex.find(wtx.hashBlock);
+            if (it != mapBlockIndex.end())
+            {
+                CBlockIndex* pindex = it->second;
+                if (pindex)
+                {
+                    entry.pushKV("height", pindex->nHeight);
+                    entry.pushKV("expiration height", pindex->nHeight + pclaimTrie->nExpirationTime);
+                    if (pindex->nHeight + pclaimTrie->nExpirationTime > chainActive.Height())
+                    {
+                        entry.pushKV("expired", false);
+                        entry.pushKV("blocks to expiration", pindex->nHeight + pclaimTrie->nExpirationTime - chainActive.Height());
+                    }
+                    else
+                    {
+                        entry.pushKV("expired", true);
+                    }
+                }
+            }
+            entry.pushKV("confirmations", wtx.GetDepthInMainChain());
+            entry.pushKV("is spent", pwallet->IsSpent(wtx.GetHash(), s.vout));
+            if (op == OP_CLAIM_NAME)
+            {
+                entry.pushKV("is in name trie", pclaimTrie->haveClaim(sName, COutPoint(wtx.GetHash(), s.vout)));
+            }
+            else if (op == OP_SUPPORT_CLAIM)
+            {
+                entry.pushKV("is in support map", pclaimTrie->haveSupport(sName, COutPoint(wtx.GetHash(), s.vout)));
+            }
+            ret.push_back(entry);
+        }
+    }
+}
+
+UniValue listnameclaims(const JSONRPCRequest& request)
+{
+    std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
+    CWallet* const pwallet = wallet.get();
+
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() > 3)
+        throw std::runtime_error(
+            "listnameclaims includesuppports activeonly minconf\n"
+            "Return a list of all transactions claiming names.\n"
+            "\nArguments\n"
+            "1. includesupports  (bool, optional) Whether to also include claim supports. Default is true.\n"
+            "2. activeonly       (bool, optional, not implemented) Whether to only include transactions which are still active, i.e. have n\
+ot been spent. Default is false.\n"
+            "3. minconf          (numeric, optional, default=1) Only include transactions confirmed at least this many times.\n"
+            "\nResult:\n"
+            "[\n"
+            "  {\n"
+            "    \"name\":\"claimedname\",        (string) The name that is claimed.\n"
+            "    \"claimtype\":\"claimtype\",     (string) CLAIM or SUPPORT.\n"
+            "    \"claimId\":\"claimId\",         (string) The claimId of the claim.\n"
+            "    \"value\":\"value\"              (string) The value assigned to the name, if claimtype is CLAIM.\n"
+            "    \"account\":\"accountname\",     (string) The account name associated with the transaction. \n"
+            "                                              It will be \"\" for the default account.\n"
+            "    \"address\":\"lbrycrdaddress\",  (string) The lbrycrd address of the transaction.\n"
+            "    \"category\":\"name\"            (string) Always name\n"
+            "    \"amount\": x.xxx,               (numeric) The amount in LBC.\n"
+            "    \"vout\": n,                     (numeric) The vout value\n"
+            "    \"fee\": x.xxx,                  (numeric) The amount of the fee in LBC.\n"
+            "    \"height\": n                    (numeric) The height of the block in which this transaction was included.\n"
+            "    \"confirmations\": n,            (numeric) The number of confirmations for the transaction\n"
+            "    \"blockhash\": \"hashvalue\",    (string) The block hash containing the transaction.\n"
+            "    \"blockindex\": n,               (numeric) The block index containing the transaction.\n"
+            "    \"txid\": \"transactionid\",     (string) The transaction id.\n"
+            "    \"time\": xxx,                   (numeric) The transaction time in seconds since epoch (midnight Jan 1 1970 GMT).\n"
+            "    \"timereceived\": xxx,           (numeric) The time received in seconds since epoch (midnight Jan 1 1970 GMT).\n"
+            "    \"comment\": \"...\",            (string) If a comment is associated with the transaction.\n"
+            "  }\n"
+            "]\n");
+
+    std::string strAccount = "*";
+
+    auto include_supports = request.params.size() < 1 || request.params[0].get_bool();
+    bool fListSpent = request.params.size() > 1 && request.params[1].get_bool();
+
+    // Minimum confirmations
+    int nMinDepth = 1;
+    if (request.params.size() > 2)
+        nMinDepth = request.params[2].get_int();
+
+    UniValue ret(UniValue::VARR);
+    LOCK2(cs_main, pwallet->cs_wallet);
+    const auto& txOrdered = pwallet->wtxOrdered;
+
+    for (auto it = txOrdered.rbegin(); it != txOrdered.rend(); ++it)
+    {
+        auto *const pwtx = (*it).second.first;
+        if (pwtx != nullptr && pwtx->GetDepthInMainChain() >= nMinDepth)
+            ListNameClaims(*pwtx, pwallet, strAccount, 0, ret, include_supports, fListSpent);
+    }
+
+    auto arrTmp = ret.getValues();
+    std::reverse(arrTmp.begin(), arrTmp.end()); // Return oldest to newest
+
+    ret.clear();
+    ret.setArray();
+    ret.push_backV(arrTmp);
+
+    return ret;
+}
+
+UniValue supportclaim(const JSONRPCRequest& request)
+{
+    std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
+    CWallet* const pwallet = wallet.get();
+
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || (request.params.size() != 3 && request.params.size() != 4))
+        throw std::runtime_error(
+            "supportclaim \"name\" \"claimid\" \"amount\" \"value\"\n"
+            "Increase the value of a claim. Whichever claim has the greatest value, including all support values, will be the authoritative claim, according to the rest of the rules. The name is the name which is claimed by the claim that will be supported, the txid is the txid\
+ of the claim that will be supported, nout is the transaction output which contains the claim to be supported, and amount is the amount which will be added to the value of the claim. If the claim is currently the authoritative claim, this support will go into effect immediately \
+. Otherwise, it will go into effect after 100 blocks. The support will be in effect until it is spent, and will lose its effect when the claim is spent or expires. The amount is a real and is rounded to the nearest .00000001\n"
+            + HelpRequiringPassphrase(pwallet) +
+            "\nArguments:\n"
+            "1. \"name\"  (string, required) The name claimed by the claim to support.\n"
+            "2. \"claimid\"  (string, required) The claimid of the claim to support. This can be obtained by TODO PUT IN PLACE THAT SHOWS THIS.\n"
+            "3. \"amount\"  (numeric, required) The amount in LBC to use to support the claim.\n"
+            "4. \"value\"  (string, optional) The metadata of the support encoded in hexadecimal.\n"
+            "\nResult:\n"
+            "\"transactionid\"  (string) The transaction id of the support.\n");
+
+    auto sName = request.params[0].get_str();
+    auto sClaimId = request.params[1].get_str();
+
+    const size_t claimLength = 40;
+
+    if (!IsHex(sClaimId))
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "claimid must be a 20-character hexadecimal string (not '" + sClaimId + "')");
+    if (sClaimId.length() != claimLength)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("claimid must be of length %d", claimLength));
+
+    uint160 claimId;
+    claimId.SetHex(sClaimId);
+    std::vector<unsigned char> vchName (sName.begin(), sName.end());
+    std::vector<unsigned char> vchClaimId (claimId.begin(), claimId.end());
+    CAmount nAmount = AmountFromValue(request.params[2]);
+
+    LOCK2(cs_main, pwallet->cs_wallet);
+    EnsureWalletIsUnlocked(pwallet);
+    CScript supportScript = CScript() << OP_SUPPORT_CLAIM << vchName << vchClaimId;
+    auto lastOp = OP_DROP;
+    if (request.params.size() > 3) {
+        auto hex = request.params[3].get_str();
+        if (!IsHex(hex))
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "value/metadata must be of hexadecimal data");
+        supportScript = supportScript << ParseHex(hex);
+        lastOp = OP_2DROP;
+    }
+
+    supportScript = supportScript << OP_2DROP << lastOp;
+
+    CPubKey newKey;
+    if (!pwallet->GetKeyFromPool(newKey))
+        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
+
+    CCoinControl cc;
+    cc.m_change_type = DEFAULT_ADDRESS_TYPE;
+    auto tx = SendMoney(pwallet, CTxDestination(newKey.GetID()), nAmount, false, cc, {}, {}, supportScript);
+    return tx->GetHash().GetHex();
+}
+
+UniValue abandonsupport(const JSONRPCRequest& request)
+{
+    std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
+    CWallet* const pwallet = wallet.get();
+
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() != 2)
+        throw std::runtime_error(
+            "abandonsupport \"txid\" \"address\"\n"
+            "Create a transaction which spends a txout which supported a name claim, effectively abandoning that support.\n"
+            + HelpRequiringPassphrase(pwallet) +
+            "\nArguments:\n"
+            "1. \"txid\"  (string, required) The transaction containing the unspent txout which should be spent.\n"
+            "2. \"address\"  (string, required) The lbrycrd address to send to.\n"
+            "\nResult:\n"
+            "\"transactionid\"  (string) The new transaction id.\n");
+
+    uint256 hash;
+    hash.SetHex(request.params[0].get_str());
+
+    CKeyID address;
+    address.SetHex(request.params[1].get_str());
+
+    LOCK2(cs_main, pwallet->cs_wallet);
+    auto it = pwallet->mapWallet.find(hash);
+    if (it == pwallet->mapWallet.end()) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid or non-wallet transaction id");
+    }
+    const auto& wtx = it->second;
+    std::vector<std::vector<unsigned char> > vvchParams;
+    CTransactionRef wtxNew = nullptr;
+    for (unsigned int i = 0; i < wtx.tx->vout.size(); ++i)
+    {
+        auto mine = pwallet->IsMine(wtx.tx->vout[i]);
+        if (mine & isminetype::ISMINE_SUPPORT)
+        {
+            EnsureWalletIsUnlocked(pwallet);
+            CCoinControl cc;
+            cc.m_change_type = DEFAULT_ADDRESS_TYPE;
+            cc.Select(COutPoint(wtx.tx->GetHash(), i));
+            wtxNew = SendMoney(pwallet, address, wtx.tx->vout[i].nValue, true, cc, {}, {});
+            break;
+        }
+    }
+    if (wtxNew == nullptr)
+        throw std::runtime_error("Error: The given transaction contains no support scripts owned by this wallet");
+    return wtxNew->GetHash().GetHex();
 }
 
 static UniValue sendtoaddress(const JSONRPCRequest& request)
@@ -4267,6 +4729,13 @@ static const CRPCCommand commands[] =
     { "wallet",             "walletpassphrase",                 &walletpassphrase,              {"passphrase","timeout"} },
     { "wallet",             "walletpassphrasechange",           &walletpassphrasechange,        {"oldpassphrase","newpassphrase"} },
     { "wallet",             "walletprocesspsbt",                &walletprocesspsbt,             {"psbt","sign","sighashtype","bip32derivs"} },
+
+    { "Claimtrie",          "claimname",                        &claimname,                     {"name","value","amount"} },
+    { "Claimtrie",          "updateclaim",                      &updateclaim,                   {"txid","value","amount"} },
+    { "Claimtrie",          "abandonclaim",                     &abandonclaim,                  {"txid","address"} },
+    { "Claimtrie",          "listnameclaims",                   &listnameclaims,                {"includesuppports","activeonly","minconf"} },
+    { "Claimtrie",          "supportclaim",                     &supportclaim,                  {"name","claimid","amount","value"} },
+    { "Claimtrie",          "abandonsupport",                   &abandonsupport,                {"txid","address"} },
 };
 // clang-format on
 

@@ -7,6 +7,7 @@
 #define BITCOIN_UNDO_H
 
 #include <coins.h>
+#include <claimtrie.h>
 #include <compressor.h>
 #include <consensus/consensus.h>
 #include <primitives/transaction.h>
@@ -23,16 +24,24 @@
 class TxInUndoSerializer
 {
     const Coin* txout;
+    // whether the outpoint was the last unspent
+    bool fLastUnspent;
+    // if the outpoint was the last unspent: its version
+    unsigned int nVersion;
+    // If the outpoint was a claim or support, the height at which the claim or support should be inserted into the trie
+    unsigned int nClaimValidHeight;
+    // if the outpoint was a claim or support
+    bool fIsClaim;
 
 public:
     template<typename Stream>
     void Serialize(Stream &s) const {
-        ::Serialize(s, VARINT(txout->nHeight * 2 + (txout->fCoinBase ? 1u : 0u)));
-        if (txout->nHeight > 0) {
-            // Required to maintain compatibility with older undo format.
-            ::Serialize(s, (unsigned char)0);
-        }
+        ::Serialize(s, VARINT(txout->nHeight * 4 + (txout->fCoinBase ? 2u : 0u) + (fLastUnspent ? 1u : 0u)));
+        if (fLastUnspent)
+            ::Serialize(s, VARINT(this->nVersion));
         ::Serialize(s, CTxOutCompressor(REF(txout->out)));
+        ::Serialize(s, VARINT(nClaimValidHeight));
+        ::Serialize(s, fIsClaim);
     }
 
     explicit TxInUndoSerializer(const Coin* coin) : txout(coin) {}
@@ -41,22 +50,28 @@ public:
 class TxInUndoDeserializer
 {
     Coin* txout;
+    // whether the outpoint was the last unspent
+    bool fLastUnspent;
+    // if the outpoint was the last unspent: its version
+    unsigned int nVersion;
+    // If the outpoint was a claim or support, the height at which the claim or support should be inserted into the trie
+    unsigned int nClaimValidHeight;
+    // if the outpoint was a claim or support
+    bool fIsClaim;
 
 public:
     template<typename Stream>
     void Unserialize(Stream &s) {
         unsigned int nCode = 0;
         ::Unserialize(s, VARINT(nCode));
-        txout->nHeight = nCode / 2;
-        txout->fCoinBase = nCode & 1;
-        if (txout->nHeight > 0) {
-            // Old versions stored the version number for the last spend of
-            // a transaction's outputs. Non-final spends were indicated with
-            // height = 0.
-            unsigned int nVersionDummy;
-            ::Unserialize(s, VARINT(nVersionDummy));
-        }
+        txout->nHeight = nCode / 4; // >> 2?
+        txout->fCoinBase = (nCode & 2) ? 1: 0;
+        fLastUnspent = (nCode & 1) > 0;
+        if (fLastUnspent)
+            ::Unserialize(s, VARINT(this->nVersion));
         ::Unserialize(s, CTxOutCompressor(REF(txout->out)));
+        ::Unserialize(s, VARINT(nClaimValidHeight));
+        ::Unserialize(s, fIsClaim);
     }
 
     explicit TxInUndoDeserializer(Coin* coin) : txout(coin) {}
@@ -68,32 +83,39 @@ static const size_t MAX_INPUTS_PER_BLOCK = MAX_BLOCK_WEIGHT / MIN_TRANSACTION_IN
 /** Undo information for a CTransaction */
 class CTxUndo
 {
+    struct claimState
+    {
+        ADD_SERIALIZE_METHODS;
+
+        template <typename Stream, typename Operation>
+        inline void SerializationOp(Stream& s, Operation ser_action) {
+            READWRITE(nClaimValidHeight);
+            READWRITE(fIsClaim);
+        };
+
+        // If the outpoint was a claim or support, the height at which the
+        // claim or support should be inserted into the trie; indexed by Coin index
+        unsigned int nClaimValidHeight;
+        // if the outpoint was a claim or support; indexed by Coin index
+        bool fIsClaim;
+    };
+
+    using claimStateMap = std::map<unsigned int, claimState>;
+
 public:
     // undo information for all txins
     std::vector<Coin> vprevout;
+    claimStateMap claimInfo;
 
-    template <typename Stream>
-    void Serialize(Stream& s) const {
-        // TODO: avoid reimplementing vector serializer
-        uint64_t count = vprevout.size();
-        ::Serialize(s, COMPACTSIZE(REF(count)));
-        for (const auto& prevout : vprevout) {
-            ::Serialize(s, TxInUndoSerializer(&prevout));
-        }
+    CTxUndo() {
     }
 
-    template <typename Stream>
-    void Unserialize(Stream& s) {
-        // TODO: avoid reimplementing vector deserializer
-        uint64_t count = 0;
-        ::Unserialize(s, COMPACTSIZE(count));
-        if (count > MAX_INPUTS_PER_BLOCK) {
-            throw std::ios_base::failure("Too many input undo records");
-        }
-        vprevout.resize(count);
-        for (auto& prevout : vprevout) {
-            ::Unserialize(s, TxInUndoDeserializer(&prevout));
-        }
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action) {
+        READWRITE(vprevout);
+        READWRITE(claimInfo);
     }
 };
 
@@ -102,12 +124,22 @@ class CBlockUndo
 {
 public:
     std::vector<CTxUndo> vtxundo; // for all but the coinbase
+    insertUndoType insertUndo; // any claims that went from the queue to the trie
+    claimQueueRowType expireUndo; // any claims that expired
+    insertUndoType insertSupportUndo; // any supports that went from the support queue to the support map
+    supportQueueRowType expireSupportUndo; // any supports that expired
+    std::vector<std::pair<std::string, int> > takeoverHeightUndo; // for any name that was taken over, the previous time that name was taken over
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(vtxundo);
+        READWRITE(insertUndo);
+        READWRITE(expireUndo);
+        READWRITE(insertSupportUndo);
+        READWRITE(expireSupportUndo);
+        READWRITE(takeoverHeightUndo);
     }
 };
 

@@ -723,7 +723,7 @@ BOOST_AUTO_TEST_CASE(script_build)
                                ).PushSig(keys.key2).Add(CScript() << OP_NOP8).PushRedeem());
     tests.push_back(TestBuilder(CScript() << ToByteVector(keys.pubkey2C) << OP_CHECKSIG,
                                 "P2PK with non-push scriptSig but with P2SH validation", 0
-                               ).PushSig(keys.key2).Add(CScript() << OP_NOP8));
+                               ).PushSig(keys.key2).Add(CScript() << OP_NOP9));
     tests.push_back(TestBuilder(CScript() << ToByteVector(keys.pubkey2C) << OP_CHECKSIG,
                                 "P2SH(P2PK) with non-push scriptSig but no SIGPUSHONLY", SCRIPT_VERIFY_P2SH, true
                                ).PushSig(keys.key2).Add(CScript() << OP_NOP8).PushRedeem().ScriptError(SCRIPT_ERR_SIG_PUSHONLY));
@@ -1308,6 +1308,51 @@ BOOST_AUTO_TEST_CASE(script_combineSigs)
     BOOST_CHECK(combined.scriptSig == complete23);
     combined = CombineSignatures(txFrom.vout[0], txTo, partial3_sigs, partial3_sigs);
     BOOST_CHECK(combined.scriptSig == partial3c);
+}
+
+BOOST_AUTO_TEST_CASE(script_claimScript)
+{
+    // Test the claim scripts
+    // Outline:
+    // Spend normal tx to make claim
+    // Spend claim to update claim
+    // Spend updated claim to abandon name
+    CBasicKeyStore keystore;
+    std::vector<CKey> keys;
+    std::vector<CPubKey> pubkeys;
+    for (int i = 0; i < 4; i++)
+    {
+        CKey key;
+        key.MakeNewKey(false);
+        keys.push_back(key);
+        pubkeys.push_back(key.GetPubKey());
+        keystore.AddKey(key);
+    }
+
+    CScriptWitness wit;
+
+    std::string sName = "testname";
+    std::string sValue = "testvalue";
+    std::vector<unsigned char> vchName(sName.begin(), sName.end());
+    std::vector<unsigned char> vchValue(sValue.begin(), sValue.end());
+
+    CMutableTransaction txOrig = BuildCreditingTransaction(GetScriptForDestination(keys[0].GetPubKey().GetID()));
+
+    CMutableTransaction txClaim0 = BuildSpendingTransaction(CScript(), wit, txOrig);
+    CScript txClaimOut0 = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
+    txClaimOut0 = txClaimOut0 + GetScriptForDestination(keys[1].GetPubKey().GetID());
+    txClaim0.vout[0].scriptPubKey = txClaimOut0;
+    SignSignature(keystore, txOrig, txClaim0, 0, SIGHASH_ALL);
+
+    CMutableTransaction txClaim1 = BuildSpendingTransaction(CScript(), wit, txClaim0);
+    CScript txClaimOut1 = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
+    txClaimOut1 = txClaimOut1 + GetScriptForDestination(keys[2].GetPubKey().GetID());
+    txClaim1.vout[0].scriptPubKey = txClaimOut1;
+    SignSignature(keystore, txClaim0, txClaim1, 0, SIGHASH_ALL);
+
+    CMutableTransaction txFinal = BuildSpendingTransaction(CScript(), wit, txClaim1);
+    txFinal.vout[0].scriptPubKey = GetScriptForDestination(keys[3].GetPubKey().GetID());
+    SignSignature(keystore, txClaim1, txFinal, 0, SIGHASH_ALL);
 }
 
 BOOST_AUTO_TEST_CASE(script_standard_push)

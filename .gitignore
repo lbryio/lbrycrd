@@ -2,14 +2,13 @@
 
 *.exe
 *.pdb
-src/bitcoin
-src/bitcoind
-src/bitcoin-cli
-src/bitcoin-tx
-src/bitcoin-wallet
-src/test/test_bitcoin
-src/test/test_bitcoin_fuzzy
-src/qt/test/test_bitcoin-qt
+src/lbrycrdd
+src/lbrycrd-cli
+src/lbrycrd-tx
+src/test/test_lbrycrd
+src/lbrycrd-wallet
+src/qt/lbrycrd-qt
+src/qt/test/test_lbrycrd-qt
 
 # autoreconf
 Makefile.in

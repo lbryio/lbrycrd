@@ -172,7 +172,14 @@ BOOST_AUTO_TEST_CASE(stale_tip_peer_management)
         BOOST_CHECK(node->fDisconnect == false);
     }
 
-    SetMockTime(GetTime() + 3*consensusParams.nPowTargetSpacing + 1);
+    // STALE_CHECK_INTERVAL is used in PeerLogicValidation::CheckForStaleTipAndEvictPeers
+    // as minimal time to check tip stale i.e. 10 minutes
+    // we use maximum value of STALE_CHECK_INTERVAL and nPowTargetSpacing
+    // NOTE: STALE_CHECK_INTERVAL is static that why we use raw value 10 * 60, sync may need in future
+
+    auto time = std::max({static_cast<int64_t>(10 * 60), 3 * consensusParams.nPowTargetSpacing});
+
+    SetMockTime(GetTime() + time + 1);
 
     // Now tip should definitely be stale, and we should look for an extra
     // outbound peer

@@ -108,10 +108,10 @@ BOOST_AUTO_TEST_CASE(rpc_rawsign)
       "\"vout\":1,\"scriptPubKey\":\"a914b10c9df5f7edf436c697f02f1efdba4cf399615187\","
       "\"redeemScript\":\"512103debedc17b3df2badbcdd86d5feb4562b86fe182e5998abd8bcd4f122c6155b1b21027e940bb73ab8732bfdf7f9216ecefca5b94d6df834e77e108f68e66f126044c052ae\"}]";
     r = CallRPC(std::string("createrawtransaction ")+prevout+" "+
-      "{\"3HqAe9LtNBjnsfM4CyYaWTnvCaUYT7v4oZ\":11}");
+      "{\"rNNjqrDbSHxJZNfC54WsF8dxqbcue9SoiB\":11}");
     std::string notsigned = r.get_str();
-    std::string privkey1 = "\"KzsXybp9jX64P5ekX1KUxRQ79Jht9uzW7LorgwE65i5rWACL6LQe\"";
-    std::string privkey2 = "\"Kyhdf5LuKTRx4ge69ybABsiUAWjVRK4XGxAKk2FQLp2HjGMy87Z4\"";
+    std::string privkey1 = "\"5CtUoTnCE9UJwLKwDRrBM1wQFrceg4soqAWpjWacyrigM4F9g3C3\"";
+    std::string privkey2 = "\"5BiaUwJwp5pCcwKGrQ7raUFmH4eFwTwpzmsHnbbwExf7aAToyHZB\"";
     InitInterfaces interfaces;
     interfaces.chain = interfaces::MakeChain();
     g_rpc_interfaces = &interfaces;
@@ -337,6 +337,24 @@ BOOST_AUTO_TEST_CASE(rpc_convert_values_generatetoaddress)
     BOOST_CHECK_EQUAL(result[0].get_int(), 1);
     BOOST_CHECK_EQUAL(result[1].get_str(), "mhMbmE2tE9xzJYCV9aNC8jKWN31vtGrguU");
     BOOST_CHECK_EQUAL(result[2].get_int(), 9);
+}
+
+BOOST_AUTO_TEST_CASE(rpc_claimtrie_validation)
+{
+    // std::runtime_error: parameter 2 must be hexadecimal string (not 'not_hex')
+    BOOST_CHECK_THROW(CallRPC("getnameproof test not_hex"), std::runtime_error);
+    // std::runtime_error: Block not found
+    BOOST_CHECK_THROW(CallRPC("getnameproof test aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), std::runtime_error);
+    // Generate a block to validate the NO_THROW case.
+    BOOST_CHECK_NO_THROW(CallRPC("getnameproof test"));
+
+    BOOST_CHECK_THROW(CallRPC("getclaimsfortx not_hex"), std::runtime_error);
+    BOOST_CHECK_NO_THROW(CallRPC("getclaimsfortx aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+
+    BOOST_CHECK_THROW(CallRPC("getclaimbyid not_hex"), std::runtime_error);
+    // Wrong length. */
+    BOOST_CHECK_THROW(CallRPC("getclaimbyid a"), std::runtime_error);
+    BOOST_CHECK_NO_THROW(CallRPC("getclaimbyid aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 
 BOOST_AUTO_TEST_CASE(rpc_getblockstats_calculate_percentiles_by_weight)

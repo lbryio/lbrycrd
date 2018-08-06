@@ -178,6 +178,7 @@ public:
     //! block header
     int32_t nVersion;
     uint256 hashMerkleRoot;
+    uint256 hashClaimTrie;
     uint32_t nTime;
     uint32_t nBits;
     uint32_t nNonce;
@@ -206,6 +207,7 @@ public:
 
         nVersion       = 0;
         hashMerkleRoot = uint256();
+        hashClaimTrie  = uint256();
         nTime          = 0;
         nBits          = 0;
         nNonce         = 0;
@@ -222,6 +224,7 @@ public:
 
         nVersion       = block.nVersion;
         hashMerkleRoot = block.hashMerkleRoot;
+        hashClaimTrie  = block.hashClaimTrie;
         nTime          = block.nTime;
         nBits          = block.nBits;
         nNonce         = block.nNonce;
@@ -252,6 +255,7 @@ public:
         if (pprev)
             block.hashPrevBlock = pprev->GetBlockHash();
         block.hashMerkleRoot = hashMerkleRoot;
+        block.hashClaimTrie  = hashClaimTrie;
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
@@ -261,6 +265,11 @@ public:
     uint256 GetBlockHash() const
     {
         return *phashBlock;
+    }
+
+    uint256 GetBlockPoWHash() const
+    {
+        return GetBlockHeader().GetPoWHash();
     }
 
     /**
@@ -300,9 +309,10 @@ public:
 
     std::string ToString() const
     {
-        return strprintf("CBlockIndex(pprev=%p, nHeight=%d, merkle=%s, hashBlock=%s)",
+        return strprintf("CBlockIndex(pprev=%p, nHeight=%d, merkle=%s, claimtrie=%s, hashBlock=%s)",
             pprev, nHeight,
             hashMerkleRoot.ToString(),
+            hashClaimTrie.ToString(),
             GetBlockHash().ToString());
     }
 
@@ -380,6 +390,7 @@ public:
         READWRITE(this->nVersion);
         READWRITE(hashPrev);
         READWRITE(hashMerkleRoot);
+        READWRITE(hashClaimTrie);
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
@@ -391,19 +402,20 @@ public:
         block.nVersion        = nVersion;
         block.hashPrevBlock   = hashPrev;
         block.hashMerkleRoot  = hashMerkleRoot;
+        block.hashClaimTrie   = hashClaimTrie;
         block.nTime           = nTime;
         block.nBits           = nBits;
         block.nNonce          = nNonce;
         return block.GetHash();
     }
 
-
     std::string ToString() const
     {
         std::string str = "CDiskBlockIndex(";
         str += CBlockIndex::ToString();
-        str += strprintf("\n                hashBlock=%s, hashPrev=%s)",
+        str += strprintf("\n                hashBlock=%s, hashClaimTrie=%s, hashPrev=%s)",
             GetBlockHash().ToString(),
+            hashClaimTrie.ToString(),
             hashPrev.ToString());
         return str;
     }

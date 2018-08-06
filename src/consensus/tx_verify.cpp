@@ -9,6 +9,8 @@
 #include <script/interpreter.h>
 #include <consensus/validation.h>
 
+#include <nameclaim.h>
+
 // TODO remove the following dependencies
 #include <chain.h>
 #include <coins.h>
@@ -129,8 +131,9 @@ unsigned int GetP2SHSigOpCount(const CTransaction& tx, const CCoinsViewCache& in
         const Coin& coin = inputs.AccessCoin(tx.vin[i].prevout);
         assert(!coin.IsSpent());
         const CTxOut &prevout = coin.out;
-        if (prevout.scriptPubKey.IsPayToScriptHash())
-            nSigOps += prevout.scriptPubKey.GetSigOpCount(tx.vin[i].scriptSig);
+        const CScript& scriptPubKey = StripClaimScriptPrefix(prevout.scriptPubKey);
+        if (scriptPubKey.IsPayToScriptHash())
+            nSigOps += scriptPubKey.GetSigOpCount(tx.vin[i].scriptSig);
     }
     return nSigOps;
 }
