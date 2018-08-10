@@ -4267,40 +4267,43 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
     return true;
 }
 
+bool RollBackTo(const CBlockIndex* targetIndex, CCoinsViewCache& coinsCache, CClaimTrieCache& trieCache)
+{
+    AssertLockHeld(cs_main);
+    for (CBlockIndex* index = chainActive.Tip(); index && index != targetIndex; index = index->pprev) {
+        boost::this_thread::interruption_point();
+        CBlock block;
+
+        if (!ReadBlockFromDisk(block, index, Params().GetConsensus()))
+            return false; // return error() instead?
+
+        if (coinsCache.DynamicMemoryUsage() + pcoinsTip->DynamicMemoryUsage() > nCoinCacheUsage)
+            return false; // don't allow a single query to chew up all our memory?
+
+        if (ShutdownRequested())
+            return false;
+
+        CValidationState state;
+        if (!DisconnectBlock(block, state, index, coinsCache, trieCache))
+            return false;
+
+        if (state.IsError())
+            return false;
+    }
+    return true;
+}
+
 bool GetProofForName(const CBlockIndex* pindexProof, const std::string& name, CClaimTrieProof& proof)
 {
     AssertLockHeld(cs_main);
     if (!chainActive.Contains(pindexProof))
-    {
         return false;
-    }
-    CCoinsViewCache coins(pcoinsTip);
+
+    CCoinsViewCache coinsCache(pcoinsTip);
     CClaimTrieCache trieCache(pclaimTrie);
-    CBlockIndex* pindexState = chainActive.Tip();
-    CValidationState state;
-    for (CBlockIndex *pindex = chainActive.Tip(); pindex && pindex->pprev && pindexState != pindexProof; pindex=pindex->pprev)
-    {
-        boost::this_thread::interruption_point();
-        CBlock block;
-        if (!ReadBlockFromDisk(block, pindex, Params().GetConsensus()))
-        {
-            return false;
-        }
-        if (pindex == pindexState && (coins.DynamicMemoryUsage() + pcoinsTip->DynamicMemoryUsage()) <= nCoinCacheUsage)
-        {
-            bool fClean = true;
-            if (!DisconnectBlock(block, state, pindex, coins, trieCache, &fClean))
-            {
-                return false;
-            }
-            pindexState = pindex->pprev;
-        }
-        if (ShutdownRequested())
-            return false;
-    }
-    assert(pindexState == pindexProof);
-    proof = trieCache.getProofForName(name);
-    return true;
+    if (RollBackTo(pindexProof, coinsCache, trieCache))
+        return trieCache.getProofForName(name, proof);
+    return false;
 }
 
 void UnloadBlockIndex()
