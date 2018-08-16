@@ -298,6 +298,10 @@
         <translation>Portofel:</translation>
     </message>
     <message>
+        <source>default wallet</source>
+        <translation>portofel implicit</translation>
+    </message>
+    <message>
         <source>Click to disable network activity.</source>
         <translation>Click pentru a opri activitatea retelei.</translation>
     </message>
@@ -1787,6 +1791,10 @@
     <message>
         <source>&amp;Unban</source>
         <translation>&amp;Unban</translation>
+    </message>
+    <message>
+        <source>default wallet</source>
+        <translation>portofel implicit</translation>
     </message>
     <message>
         <source>Welcome to the %1 RPC console.</source>

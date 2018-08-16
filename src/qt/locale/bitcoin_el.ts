@@ -1601,6 +1601,10 @@
         <translation>Αντιγραφή τελών</translation>
     </message>
     <message>
+        <source>Copy fee</source>
+        <translation>Αντιγραφή τελών</translation>
+    </message>
+    <message>
         <source>or</source>
         <translation>ή</translation>
     </message>

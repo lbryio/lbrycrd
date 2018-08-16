@@ -3684,11 +3684,7 @@ Notitie: Omdat de vergoeding per byte wordt gerekend, zal een vergoeding van "10
     </message>
     <message>
         <source>The specified config file %s does not exist
-</source>
         <translation>Het opgegeven configuratiebestand %s bestaat niet
-</translation>
-    </message>
-    <message>
         <source>The transaction amount is too small to pay the fee</source>
         <translation>Het transactiebedrag is te klein om transactiekosten in rekening te brengen</translation>
     </message>
