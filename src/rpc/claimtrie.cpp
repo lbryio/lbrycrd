@@ -77,7 +77,7 @@ UniValue getclaimsintrie(const UniValue& params, bool fHelp)
                               __func__, itClaims->outPoint.hash.GetHex());
                     claim.push_back(Pair("error", "No value found for claim"));
                 }
-                else if (coin->vout.size() < itClaims->outPoint.n || coin->vout[itClaims->outPoint.n].IsNull())
+                else if (!coin->IsAvailable(itClaims->outPoint.n))
                 {
                     LogPrintf("%s: the specified txout of %s appears to have been spent\n", __func__, itClaims->outPoint.hash.GetHex());
                     claim.push_back(Pair("error", "Txout spent"));
@@ -153,7 +153,7 @@ bool getValueForClaim(const COutPoint& out, std::string& sValue)
                   __func__, out.hash.GetHex());
         return true;
     }
-    if (coin->vout.size() < out.n || coin->vout[out.n].IsNull())
+    if(!coin->IsAvailable(out.n))
     {
         LogPrintf("%s: the specified txout of %s appears to have been spent\n", __func__, out.hash.GetHex());
         return true;
