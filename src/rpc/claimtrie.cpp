@@ -398,17 +398,13 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
     LOCK(cs_main);
     uint160 claimId = ParseClaimtrieId(params[0], "Claim-id (parameter 1)");
     UniValue claim(UniValue::VOBJ);
-    std::string name;
     CClaimValue claimValue;
-    pclaimTrie->getClaimById(claimId, name, claimValue);
-    if (claimValue.claimId == claimId)
-    {
+    std::string name, sValue;
+    if (pclaimTrie->getClaimById(claimId, name, claimValue) && getValueForClaim(claimValue.outPoint, sValue)) {
         std::vector<CSupportValue> supports;
         CAmount effectiveAmount = pclaimTrie->getEffectiveAmountForClaimWithSupports(
             name, claimValue.claimId, supports);
 
-        std::string sValue;
-        getValueForClaim(claimValue.outPoint, sValue);
         claim.push_back(Pair("name", name));
         claim.push_back(Pair("value", sValue));
         claim.push_back(Pair("claimId", claimValue.claimId.GetHex()));

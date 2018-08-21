@@ -1353,11 +1353,11 @@ bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue c
         currentNode = addNodeToCache(name, currentNode);
     }
     bool fChanged = false;
+    base->addToClaimIndex(name, claim);
     if (currentNode->claims.empty())
     {
         fChanged = true;
         currentNode->insertClaim(claim);
-        base->addToClaimIndex(name, claim);
     }
     else
     {
