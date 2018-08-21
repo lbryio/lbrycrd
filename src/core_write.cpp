@@ -87,27 +87,23 @@ string ScriptToAsmStr(const CScript& script, const bool fAttemptSighashDecode)
             return str;
         }
         if (0 <= opcode && opcode <= OP_PUSHDATA4) {
-            if (vch.size() <= static_cast<vector<unsigned char>::size_type>(4)) {
-                str += strprintf("%d", CScriptNum(vch, false).getint());
-            } else {
-                // the IsUnspendable check makes sure not to try to decode OP_RETURN data that may match the format of a signature
-                if (fAttemptSighashDecode && !script.IsUnspendable()) {
-                    string strSigHashDecode;
-                    // goal: only attempt to decode a defined sighash type from data that looks like a signature within a scriptSig.
-                    // this won't decode correctly formatted public keys in Pubkey or Multisig scripts due to
-                    // the restrictions on the pubkey formats (see IsCompressedOrUncompressedPubKey) being incongruous with the
-                    // checks in CheckSignatureEncoding.
-                    if (CheckSignatureEncoding(vch, SCRIPT_VERIFY_STRICTENC, NULL)) {
-                        const unsigned char chSigHashType = vch.back();
-                        if (mapSigHashTypes.count(chSigHashType)) {
-                            strSigHashDecode = "[" + mapSigHashTypes.find(chSigHashType)->second + "]";
-                            vch.pop_back(); // remove the sighash type byte. it will be replaced by the decode.
-                        }
+            // the IsUnspendable check makes sure not to try to decode OP_RETURN data that may match the format of a signature
+            if (fAttemptSighashDecode && !script.IsUnspendable()) {
+                string strSigHashDecode;
+                // goal: only attempt to decode a defined sighash type from data that looks like a signature within a scriptSig.
+                // this won't decode correctly formatted public keys in Pubkey or Multisig scripts due to
+                // the restrictions on the pubkey formats (see IsCompressedOrUncompressedPubKey) being incongruous with the
+                // checks in CheckSignatureEncoding.
+                if (CheckSignatureEncoding(vch, SCRIPT_VERIFY_STRICTENC, NULL)) {
+                    const unsigned char chSigHashType = vch.back();
+                    if (mapSigHashTypes.count(chSigHashType)) {
+                        strSigHashDecode = "[" + mapSigHashTypes.find(chSigHashType)->second + "]";
+                        vch.pop_back(); // remove the sighash type byte. it will be replaced by the decode.
                     }
-                    str += HexStr(vch) + strSigHashDecode;
-                } else {
-                    str += HexStr(vch);
                 }
+                str += HexStr(vch) + strSigHashDecode;
+            } else {
+                str += HexStr(vch);
             }
         } else {
             str += GetOpName(opcode);
