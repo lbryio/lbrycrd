@@ -283,6 +283,9 @@ typedef std::map<std::string, CClaimTrieNode*, nodenamecompare> nodeCacheType;
 
 typedef std::map<std::string, uint256> hashMapType;
 
+typedef std::set<CClaimValue> claimIndexClaimListType;
+typedef std::vector<CClaimIndexElement> claimIndexElementListType;
+
 struct claimsForNameType
 {
     std::vector<CClaimValue> claims;
@@ -546,6 +549,8 @@ protected:
     mutable std::map<std::string, int> cacheTakeoverHeights; 
     mutable int nCurrentHeight; // Height of the block that is being worked on, which is
                                 // one greater than the height of the chain's tip
+    mutable claimIndexElementListType claimsToAdd;
+    mutable claimIndexClaimListType claimsToDelete;
 
     uint256 hashBlock;
 
