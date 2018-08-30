@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.7)
-project(lbrycrd_clion) # not expecting a full compile -- just something that allows clion syntax checking
+project(lbrycrd_clion) # Do not use for full compile. This is for CLion syntax checking only. 
 
 set (CMAKE_CXX_STANDARD 98) # 03 is not supported by cmake, but this will soon be 11 (after upstream bitcoin merge)
 # I thought that setting the standard would disable the clang-tidy c++11 tips; nope.
