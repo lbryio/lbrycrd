@@ -63,6 +63,14 @@
 void ForceActivation();
 #endif
 
+#if defined(Q_OS_MAC)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
+#include <objc/objc-runtime.h>
+#include <CoreServices/CoreServices.h>
+#endif
+
 namespace GUIUtil {
 
 QString dateTimeStr(const QDateTime &date)
@@ -372,6 +380,9 @@ void bringToFront(QWidget* w)
         }
         w->activateWindow();
         w->raise();
+    }
+}
+
     }
 }
 
