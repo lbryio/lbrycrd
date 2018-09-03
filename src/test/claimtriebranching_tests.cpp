@@ -3032,5 +3032,92 @@ BOOST_AUTO_TEST_CASE(bogus_claimtrie_hash_test)
     delete pblockTemp;
 }
 
+/*
+ * tests for CClaimTrie::getClaimById basic consistency checks
+ */
+BOOST_AUTO_TEST_CASE(get_claim_by_id_test_2)
+{
+    ClaimTrieChainFixture fixture;
+    const std::string name = "test";
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), name, "one", 1);
+    uint160 claimId = ClaimIdHash(tx1.GetHash(), 0);
+    CMutableTransaction txx = fixture.MakeClaim(fixture.GetCoinbase(), name, "one", 1);
+    uint160 claimIdx = ClaimIdHash(txx.GetHash(), 0);
+
+    fixture.IncrementBlocks(1);
+
+    CClaimValue claimValue;
+    std::string claimName;
+    pclaimTrie->getClaimById(claimId, claimName, claimValue);
+    BOOST_CHECK(claimName == name);
+    BOOST_CHECK(claimValue.claimId == claimId);
+
+    CMutableTransaction txa = fixture.Spend(tx1);
+    CMutableTransaction txb = fixture.Spend(txx);
+
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(!pclaimTrie->getClaimById(claimId, claimName, claimValue));
+    BOOST_CHECK(!pclaimTrie->getClaimById(claimIdx, claimName, claimValue));
+
+    fixture.DecrementBlocks(1);
+    pclaimTrie->getClaimById(claimId, claimName, claimValue);
+    BOOST_CHECK(claimName == name);
+    BOOST_CHECK(claimValue.claimId == claimId);
+
+    // this test fails
+    pclaimTrie->getClaimById(claimIdx, claimName, claimValue);
+    BOOST_CHECK(claimName == name);
+    BOOST_CHECK(claimValue.claimId == claimIdx);
+}
+
+BOOST_AUTO_TEST_CASE(get_claim_by_id_test_3)
+{
+    ClaimTrieChainFixture fixture;
+    pclaimTrie->setExpirationTime(5);
+    const std::string name = "test";
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), name, "one", 1);
+    uint160 claimId = ClaimIdHash(tx1.GetHash(), 0);
+
+    fixture.IncrementBlocks(1);
+
+    CClaimValue claimValue;
+    std::string claimName;
+    pclaimTrie->getClaimById(claimId, claimName, claimValue);
+    BOOST_CHECK(claimName == name);
+    BOOST_CHECK(claimValue.claimId == claimId);
+    // make second claim with activation delay 1
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), name, "one", 2);
+    uint160 claimId2 = ClaimIdHash(tx2.GetHash(), 0);
+
+    fixture.IncrementBlocks(1);
+    // second claim is not activated yet, but can still access by claim id
+    BOOST_CHECK(is_best_claim(name, tx1));
+    BOOST_CHECK(pclaimTrie->getClaimById(claimId2, claimName, claimValue));
+    BOOST_CHECK(claimName == name);
+    BOOST_CHECK(claimValue.claimId == claimId2);
+
+    fixture.IncrementBlocks(1);
+    // second claim has activated
+    BOOST_CHECK(is_best_claim(name, tx2));
+    BOOST_CHECK(pclaimTrie->getClaimById(claimId2, claimName, claimValue));
+    BOOST_CHECK(claimName == name);
+    BOOST_CHECK(claimValue.claimId == claimId2);
+
+
+    fixture.DecrementBlocks(1);
+    // second claim has been deactivated via decrement
+    // should still be accesible via claim id
+    BOOST_CHECK(is_best_claim(name, tx1));
+    BOOST_CHECK(pclaimTrie->getClaimById(claimId2, claimName, claimValue));
+    BOOST_CHECK(claimName == name);
+    BOOST_CHECK(claimValue.claimId == claimId2);
+
+    fixture.IncrementBlocks(1);
+    // second claim should have been re activated via increment
+    BOOST_CHECK(is_best_claim(name, tx2));
+    BOOST_CHECK(pclaimTrie->getClaimById(claimId2, claimName, claimValue));
+    BOOST_CHECK(claimName == name);
+    BOOST_CHECK(claimValue.claimId == claimId2);
+}
 
 BOOST_AUTO_TEST_SUITE_END()

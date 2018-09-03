@@ -27,7 +27,7 @@ uint256 getValueHash(COutPoint outPoint, int nHeightOfLastTakeover)
     txHasher.Write(outPoint.hash.begin(), outPoint.hash.size());
     std::vector<unsigned char> vchtxHash(txHasher.OUTPUT_SIZE);
     txHasher.Finalize(&(vchtxHash[0]));
-        
+
     CHash256 nOutHasher;
     std::stringstream ss;
     ss << outPoint.n;
@@ -48,7 +48,7 @@ uint256 getValueHash(COutPoint outPoint, int nHeightOfLastTakeover)
     hasher.Write(vchTakeoverHash.data(), vchTakeoverHash.size());
     std::vector<unsigned char> vchHash(hasher.OUTPUT_SIZE);
     hasher.Finalize(&(vchHash[0]));
-    
+
     uint256 valueHash(vchHash);
     return valueHash;
 }
@@ -116,7 +116,7 @@ bool CClaimTrieNode::haveClaim(const COutPoint& outPoint) const
 void CClaimTrieNode::reorderClaims(supportMapEntryType& supports)
 {
     std::vector<CClaimValue>::iterator itclaim;
-    
+
     for (itclaim = claims.begin(); itclaim != claims.end(); ++itclaim)
     {
         itclaim->nEffectiveAmount = itclaim->nAmount;
@@ -133,7 +133,7 @@ void CClaimTrieNode::reorderClaims(supportMapEntryType& supports)
             }
         }
     }
-    
+
     std::make_heap(claims.begin(), claims.end());
 }
 
@@ -606,12 +606,12 @@ void CClaimTrie::addToClaimIndex(const std::string& name, const CClaimValue& cla
 {
     CClaimIndexElement element = { name, claim };
     LogPrintf("%s: ClaimIndex[%s] updated %s\n", __func__, claim.claimId.GetHex(), name);
-
     db.Write(std::make_pair(CLAIM_BY_ID, claim.claimId), element);
 }
 
 void CClaimTrie::removeFromClaimIndex(const CClaimValue& claim)
 {
+    LogPrintf("%s: ClaimIndex[%s] removed\n", __func__, claim.claimId.GetHex());
     db.Erase(std::make_pair(CLAIM_BY_ID, claim.claimId));
 }
 
@@ -620,9 +620,14 @@ bool CClaimTrie::getClaimById(const uint160 claimId, std::string& name, CClaimVa
     CClaimIndexElement element;
     if (db.Read(std::make_pair(CLAIM_BY_ID, claimId), element))
     {
-        name = element.name;
-        claim = element.claim;
-        return true;
+        if (element.claim.claimId == claimId) {
+            name = element.name;
+            claim = element.claim;
+            return true;
+        } else {
+            LogPrintf("%s: ClaimIndex[%s] returned unmatched claimId %s when looking for %s\n",
+                __func__, claimId.GetHex(), element.claim.claimId.GetHex(), name);
+        }
     }
     return false;
 }
@@ -1357,7 +1362,6 @@ bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue c
     {
         fChanged = true;
         currentNode->insertClaim(claim);
-        base->addToClaimIndex(name, claim);
     }
     else
     {
@@ -1369,6 +1373,7 @@ bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue c
         if (currentTop != currentNode->claims.front())
             fChanged = true;
     }
+
     if (fChanged)
     {
         for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
@@ -1432,8 +1437,6 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoi
     CClaimValue currentTop = currentNode->claims.front();
 
     success = currentNode->removeClaim(outPoint, claim);
-    base->removeFromClaimIndex(claim);
-
     if (!currentNode->claims.empty())
     {
         supportMapEntryType node;
@@ -1444,7 +1447,7 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoi
     }
     else
         fChanged = true;
-    
+
     if (!success)
     {
         LogPrintf("%s: Removing a claim was unsuccessful. name = %s, txhash = %s, nOut = %d", __func__, name.c_str(), outPoint.hash.GetHex(), outPoint.n);
@@ -1612,6 +1615,8 @@ bool CClaimTrieCache::undoSpendClaim(const std::string& name, const COutPoint& o
     {
         nameOutPointType entry(name, claim.outPoint);
         addToExpirationQueue(claim.nHeight + base->nExpirationTime, entry);
+        CClaimIndexElement element = {name, claim};
+        claimsToAdd.push_back(element);
         return insertClaimIntoTrie(name, claim, false);
     }
     else
@@ -1630,7 +1635,8 @@ bool CClaimTrieCache::addClaimToQueues(const std::string& name, CClaimValue& cla
     itQueueNameRow->second.push_back(outPointHeightType(claim.outPoint, claim.nValidAtHeight));
     nameOutPointType expireEntry(name, claim.outPoint);
     addToExpirationQueue(claim.nHeight + base->nExpirationTime, expireEntry);
-    base->addToClaimIndex(name, claim);
+    CClaimIndexElement element = {name, claim};
+    claimsToAdd.push_back(element);
     return true;
 }
 
@@ -1669,8 +1675,6 @@ bool CClaimTrieCache::removeClaimFromQueue(const std::string& name, const COutPo
             std::swap(claim, itQueue->second);
             itQueueNameRow->second.erase(itQueueName);
             itQueueRow->second.erase(itQueue);
-
-            base->removeFromClaimIndex(claim);
             return true;
         }
     }
@@ -1707,6 +1711,7 @@ bool CClaimTrieCache::removeClaim(const std::string& name, const COutPoint& outP
         nValidAtHeight = claim.nValidAtHeight;
         int expirationHeight = nHeight + base->nExpirationTime;
         removeFromExpirationQueue(name, outPoint, expirationHeight);
+        claimsToDelete.insert(claim);
     }
     return removed;
 }
@@ -2154,6 +2159,7 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
         {
             CClaimValue claim;
             assert(removeClaimFromTrie(itEntry->name, itEntry->outPoint, claim, true));
+            claimsToDelete.insert(claim);
             expireUndo.push_back(std::make_pair(itEntry->name, claim));
             LogPrintf("Expiring claim %s: %s, nHeight: %d, nValidAtHeight: %d\n", claim.claimId.GetHex(), itEntry->name, claim.nHeight, claim.nValidAtHeight);
         }
@@ -2345,7 +2351,7 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
                 // remove all supports from the queue for that name
                 itSupportQueueNameRow->second.clear();
             }
-            
+
             // save the old last height so that it can be restored if the block is undone
             if (haveClaimInTrie)
             {
@@ -2378,7 +2384,7 @@ bool CClaimTrieCache::decrementBlock(insertUndoType& insertUndo, claimQueueRowTy
 {
     LogPrintf("%s: nCurrentHeight (before decrement): %d\n", __func__, nCurrentHeight);
     nCurrentHeight--;
-    
+
     if (expireSupportUndo.begin() != expireSupportUndo.end())
     {
         expirationQueueType::iterator itSupportExpireRow = getSupportExpirationQueueCacheRow(nCurrentHeight, true);
@@ -2388,7 +2394,7 @@ bool CClaimTrieCache::decrementBlock(insertUndoType& insertUndo, claimQueueRowTy
             itSupportExpireRow->second.push_back(nameOutPointType(itSupportExpireUndo->first, itSupportExpireUndo->second.outPoint));
         }
     }
-    
+
     for (insertUndoType::iterator itSupportUndo = insertSupportUndo.begin(); itSupportUndo != insertSupportUndo.end(); ++itSupportUndo)
     {
         supportQueueType::iterator itSupportRow = getSupportQueueCacheRow(itSupportUndo->nHeight, true);
@@ -2398,13 +2404,15 @@ bool CClaimTrieCache::decrementBlock(insertUndoType& insertUndo, claimQueueRowTy
         itSupportRow->second.push_back(std::make_pair(itSupportUndo->name, support));
         itSupportNameRow->second.push_back(outPointHeightType(support.outPoint, support.nValidAtHeight));
     }
-    
+
     if (expireUndo.begin() != expireUndo.end())
     {
         expirationQueueType::iterator itExpireRow = getExpirationQueueCacheRow(nCurrentHeight, true);
         for (claimQueueRowType::iterator itExpireUndo = expireUndo.begin(); itExpireUndo != expireUndo.end(); ++itExpireUndo)
         {
             insertClaimIntoTrie(itExpireUndo->first, itExpireUndo->second, false);
+            CClaimIndexElement element = {itExpireUndo->first, itExpireUndo->second};
+            claimsToAdd.push_back(element);
             itExpireRow->second.push_back(nameOutPointType(itExpireUndo->first, itExpireUndo->second.outPoint));
         }
     }
@@ -2418,7 +2426,7 @@ bool CClaimTrieCache::decrementBlock(insertUndoType& insertUndo, claimQueueRowTy
         itQueueRow->second.push_back(std::make_pair(itInsertUndo->name, claim));
         itQueueNameRow->second.push_back(outPointHeightType(itInsertUndo->outPoint, itInsertUndo->nHeight)); 
     }
-    
+
     for (std::vector<std::pair<std::string, int> >::iterator itTakeoverHeightUndo = takeoverHeightUndo.begin(); itTakeoverHeightUndo != takeoverHeightUndo.end(); ++itTakeoverHeightUndo)
     {
         cacheTakeoverHeights[itTakeoverHeightUndo->first] = itTakeoverHeightUndo->second;
@@ -2531,6 +2539,18 @@ bool CClaimTrieCache::flush()
 {
     if (dirty())
         getMerkleHash();
+
+    if (!claimsToDelete.empty()) {
+        for (claimIndexClaimListType::iterator it = claimsToDelete.begin(); it != claimsToDelete.end(); ++it)
+            base->removeFromClaimIndex(*it);
+        claimsToDelete.clear();
+    }
+    if (!claimsToAdd.empty()) {
+        for (claimIndexElementListType::iterator it = claimsToAdd.begin(); it != claimsToAdd.end(); ++it)
+            base->addToClaimIndex(it->name, it->claim);
+        claimsToAdd.clear();
+    }
+
     bool success = base->update(cache, cacheHashes, cacheTakeoverHeights, getBestBlock(), claimQueueCache, claimQueueNameCache, expirationQueueCache, nCurrentHeight, supportCache, supportQueueCache, supportQueueNameCache, supportExpirationQueueCache);
     if (success)
     {
