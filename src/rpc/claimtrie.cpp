@@ -397,17 +397,13 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
     LOCK(cs_main);
     uint160 claimId = ParseClaimtrieId(params[0], "Claim-id (parameter 1)");
     UniValue claim(UniValue::VOBJ);
-    std::string name;
     CClaimValue claimValue;
-    pclaimTrie->getClaimById(claimId, name, claimValue);
-    if (claimValue.claimId == claimId)
-    {
+    std::string name, sValue;
+    if (pclaimTrie->getClaimById(claimId, name, claimValue) && getValueForClaim(claimValue.outPoint, sValue)) {
         std::vector<CSupportValue> supports;
         CAmount effectiveAmount = pclaimTrie->getEffectiveAmountForClaimWithSupports(
             name, claimValue.claimId, supports);
 
-        std::string sValue;
-        getValueForClaim(claimValue.outPoint, sValue);
         claim.push_back(Pair("name", name));
         claim.push_back(Pair("value", sValue));
         claim.push_back(Pair("claimId", claimValue.claimId.GetHex()));
@@ -776,19 +772,68 @@ UniValue getnameproof(const UniValue& params, bool fHelp)
     return proofToJSON(proof);
 }
 
+UniValue getmissingclaimsfromindex(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() > 0)
+        throw std::runtime_error(
+            "getmissingclaimsfromindex\n"
+            "Return the claims that arent on claims_by_id index.\n"
+            "Arguments:\n"
+            "None\n"
+            "Result: \n"
+            "[\n"
+            "  \"name\"           (string) the claimed name\n"
+            "  \"claimId\"        (string) the claim id\n"
+            "]\n"
+        );
+
+    LOCK(cs_main);
+    UniValue ret(UniValue::VARR);
+    CCoinsViewCache view(pcoinsTip);
+    std::vector<namedNodeType> nodes = pclaimTrie->flattenTrie();
+
+    for (std::vector<namedNodeType>::iterator it = nodes.begin(); it != nodes.end(); ++it)
+    {
+        if (!it->second.claims.empty())
+        {
+            for (std::vector<CClaimValue>::iterator itClaims = it->second.claims.begin(); itClaims != it->second.claims.end(); ++itClaims)
+            {
+                UniValue missingClaim(UniValue::VOBJ);
+                CClaimValue indexedClaimValue;
+                std::string indexedName, indexedValue;
+                if (pclaimTrie->getClaimById(itClaims->claimId, indexedName, indexedClaimValue) && getValueForClaim(indexedClaimValue.outPoint, indexedValue)) {
+                    if(itClaims->claimId != indexedClaimValue.claimId || indexedName.compare(it->first) || indexedClaimValue.outPoint != itClaims->outPoint) {
+                        missingClaim.push_back(Pair("name", it->first));
+                        missingClaim.push_back(Pair("claimid", itClaims->claimId.GetHex()));
+                        ret.push_back(missingClaim);
+                    }
+                } else {
+                    missingClaim.push_back(Pair("name", it->first));
+                    missingClaim.push_back(Pair("claimid", itClaims->claimId.GetHex()));
+                    ret.push_back(missingClaim);
+                }
+            }
+        }
+    }
+    return ret;
+}
+
+
+
 static const CRPCCommand commands[] =
-{ //  category              name                           actor (function)        okSafeMode
-  //  --------------------- ------------------------     -----------------------  ----------
-    { "Claimtrie",             "getclaimsintrie",         &getclaimsintrie,         true  },
-    { "Claimtrie",             "getclaimtrie",            &getclaimtrie,            true  },
-    { "Claimtrie",             "getvalueforname",         &getvalueforname,         true  },
-    { "Claimtrie",             "getclaimsforname",        &getclaimsforname,        true  },
-    { "Claimtrie",             "gettotalclaimednames",    &gettotalclaimednames,    true  },
-    { "Claimtrie",             "gettotalclaims",          &gettotalclaims,          true  },
-    { "Claimtrie",             "gettotalvalueofclaims",   &gettotalvalueofclaims,   true  },
-    { "Claimtrie",             "getclaimsfortx",          &getclaimsfortx,          true  },
-    { "Claimtrie",             "getnameproof",            &getnameproof,            true  },
-    { "Claimtrie",             "getclaimbyid",            &getclaimbyid,            true  },
+{ //  category              name                              actor (function)            okSafeMode
+  //  --------------------- ------------------------        -----------------------      ----------
+    { "Claimtrie",             "getmissingclaimsfromindex", &getmissingclaimsfromindex,  true  },
+    { "Claimtrie",             "getclaimsintrie",           &getclaimsintrie,            true  },
+    { "Claimtrie",             "getclaimtrie",              &getclaimtrie,               true  },
+    { "Claimtrie",             "getvalueforname",           &getvalueforname,            true  },
+    { "Claimtrie",             "getclaimsforname",          &getclaimsforname,           true  },
+    { "Claimtrie",             "gettotalclaimednames",      &gettotalclaimednames,       true  },
+    { "Claimtrie",             "gettotalclaims",            &gettotalclaims,             true  },
+    { "Claimtrie",             "gettotalvalueofclaims",     &gettotalvalueofclaims,      true  },
+    { "Claimtrie",             "getclaimsfortx",            &getclaimsfortx,             true  },
+    { "Claimtrie",             "getnameproof",              &getnameproof,               true  },
+    { "Claimtrie",             "getclaimbyid",              &getclaimbyid,               true  },
 };
 
 void RegisterClaimTrieRPCCommands(CRPCTable &tableRPC)

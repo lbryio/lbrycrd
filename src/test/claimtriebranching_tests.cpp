@@ -840,6 +840,7 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
     pclaimTrie->getClaimById(claimId, claimName, claimValue);
     BOOST_CHECK(claimName == name);
     BOOST_CHECK(claimValue.claimId == claimId);
+    BOOST_CHECK(claimValue.nAmount == 2);
 
     fixture.MakeSupport(fixture.GetCoinbase(), tx1, name, 4);
     fixture.IncrementBlocks(1);
