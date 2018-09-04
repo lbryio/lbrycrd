@@ -374,6 +374,7 @@ function clang_format_diff(){
         git remote add origin2 https://github.com/lbryio/lbrycrd.git
     fi
     git fetch origin2
+    git checkout origin2/master contrib/devtools/clang-format-diff.py
     git diff -U0 origin2/master -- '*.h' '*.cpp' | ./contrib/devtools/clang-format-diff.py -p1
 }
 
