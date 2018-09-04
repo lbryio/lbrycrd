@@ -831,7 +831,7 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
 {
     ClaimTrieChainFixture fixture;
     const std::string name = "test";
-    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), name, "one", 1);
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), name, "one", 2);
     uint160 claimId = ClaimIdHash(tx1.GetHash(), 0);
     fixture.IncrementBlocks(1);
 
@@ -844,7 +844,7 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
     fixture.MakeSupport(fixture.GetCoinbase(), tx1, name, 4);
     fixture.IncrementBlocks(1);
 
-    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), name, "two", 1);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), name, "two", 2);
     uint160 claimId2 = ClaimIdHash(tx2.GetHash(), 0);
     fixture.IncrementBlocks(1);
 
@@ -852,7 +852,20 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
     BOOST_CHECK(claimName == name);
     BOOST_CHECK(claimValue.claimId == claimId2);
 
-    fixture.DecrementBlocks(1);
+
+    CMutableTransaction u1 = fixture.MakeUpdate(tx1, name, "updated one", claimId, 1);
+    fixture.IncrementBlocks(1);
+    pclaimTrie->getClaimById(claimId, claimName, claimValue);
+    BOOST_CHECK(claimName == name);
+    BOOST_CHECK(claimValue.claimId == claimId);
+    BOOST_CHECK(claimValue.nAmount == 1);
+    BOOST_CHECK(claimValue.outPoint.hash == u1.GetHash());
+
+    fixture.Spend(u1);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(!pclaimTrie->getClaimById(claimId, claimName, claimValue));
+
+    fixture.DecrementBlocks(3);
 
     CClaimValue claimValue2;
     claimName = "";
