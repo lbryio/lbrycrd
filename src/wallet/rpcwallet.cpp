@@ -426,6 +426,10 @@ UniValue claimname(const UniValue& params, bool fHelp)
         );
     string sName = params[0].get_str();
     string sValue = params[1].get_str();
+
+    if (!IsHex(sValue))
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "value must be hexadecimal");
+
     std::vector<unsigned char> vchName (sName.begin(), sName.end());
     std::vector<unsigned char> vchValue(ParseHex(sValue));
 
@@ -513,6 +517,10 @@ UniValue updateclaim(const UniValue& params, bool fHelp)
 
     std::vector<unsigned char> vchName;
     string sValue = params[1].get_str();
+
+    if (!IsHex(sValue))
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "value must be hexadecimal");
+
     std::vector<unsigned char> vchValue(ParseHex(sValue));
     CAmount nAmount = AmountFromValue(params[2]);
 
@@ -534,6 +542,9 @@ UniValue updateclaim(const UniValue& params, bool fHelp)
         {
             if (DecodeClaimScript(wtx.vout[i].scriptPubKey, op, vvchParams))
             {
+                if (op == OP_SUPPORT_CLAIM)
+                    continue;
+
                 vchName = vvchParams[0];
                 EnsureWalletIsUnlocked();
                 if (op == OP_CLAIM_NAME)
@@ -848,6 +859,14 @@ UniValue supportclaim(const UniValue& params, bool fHelp)
 
     string sName = params[0].get_str();
     string sClaimId = params[1].get_str();
+
+    const size_t claimLength = 40;
+
+    if (!IsHex(sClaimId))
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "claimid must be a 20-character hexadecimal string (not '" + sClaimId + "')");
+    if (sClaimId.length() != claimLength)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("claimid must be of length %d", claimLength));
+
     uint160 claimId;
     claimId.SetHex(sClaimId);
     std::vector<unsigned char> vchName (sName.begin(), sName.end());
