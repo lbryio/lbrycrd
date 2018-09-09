@@ -27,6 +27,9 @@ class ListTransactionsTest(BitcoinTestFramework):
     def skip_test_if_missing_module(self):
         self.skip_if_no_wallet()
 
+    def skip_test_if_missing_module(self):
+        self.skip_if_no_wallet()
+
     def run_test(self):
         self.nodes[0].generate(1)  # Get out of IBD
         self.sync_all()

@@ -37,6 +37,9 @@ class BIP68Test(BitcoinTestFramework):
     def skip_test_if_missing_module(self):
         self.skip_if_no_wallet()
 
+    def skip_test_if_missing_module(self):
+        self.skip_if_no_wallet()
+
     def run_test(self):
         self.relayfee = self.nodes[0].getnetworkinfo()["relayfee"]
 

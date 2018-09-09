@@ -46,6 +46,9 @@ class NULLDUMMYTest(BitcoinTestFramework):
     def skip_test_if_missing_module(self):
         self.skip_if_no_wallet()
 
+    def skip_test_if_missing_module(self):
+        self.skip_if_no_wallet()
+
     def run_test(self):
         self.address = self.nodes[0].getnewaddress()
         self.ms_address = self.nodes[0].addmultisigaddress(1, [self.address])['address']

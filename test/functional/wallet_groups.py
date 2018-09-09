@@ -21,6 +21,9 @@ class WalletGroupTest(BitcoinTestFramework):
     def skip_test_if_missing_module(self):
         self.skip_if_no_wallet()
 
+    def skip_test_if_missing_module(self):
+        self.skip_if_no_wallet()
+
     def run_test(self):
         # Mine some coins
         self.nodes[0].generate(110)

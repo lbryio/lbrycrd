@@ -9,11 +9,13 @@ from test_framework.address import ADDRESS_BCRT1_UNSPENDABLE
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.messages import CTransaction, hash256
 from test_framework.util import assert_equal, connect_nodes
+    assert_equal,
 from io import BytesIO
 from time import sleep
 
 def hash256_reversed(byte_str):
     return hash256(byte_str)[::-1]
+
 
 class ZMQSubscriber:
     def __init__(self, socket, topic):
@@ -41,6 +43,8 @@ class ZMQTest (BitcoinTestFramework):
     def skip_test_if_missing_module(self):
         self.skip_if_no_py3_zmq()
         self.skip_if_no_bitcoind_zmq()
+        self.skip_if_no_wallet()
+    def setup_nodes(self):
 
     def run_test(self):
         import zmq

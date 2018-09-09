@@ -69,6 +69,7 @@ from test_framework.segwit_addr import (
     decode,
 )
 
+
 class AddressTypeTest(BitcoinTestFramework):
     def set_test_params(self):
         self.num_nodes = 6

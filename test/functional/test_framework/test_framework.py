@@ -53,6 +53,13 @@ class SkipTest(Exception):
         self.message = message
 
 
+class SkipTest(Exception):
+    """This exception is raised to skip a test"""
+
+    def __init__(self, message):
+        self.message = message
+
+
 class BitcoinTestMetaClass(type):
     """Metaclass for BitcoinTestFramework.
 
@@ -570,6 +577,23 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
         """Skip the running test if bitcoin-cli has not been compiled."""
         if not self.is_cli_compiled():
             raise SkipTest("bitcoin-cli has not been compiled.")
+
+    def is_cli_compiled(self):
+        """Checks whether bitcoin-cli was compiled."""
+
+        return config["components"].getboolean("ENABLE_UTILS")
+
+    def is_wallet_compiled(self):
+        """Checks whether the wallet module was compiled."""
+        config = configparser.ConfigParser()
+        config.read_file(open(self.options.configfile))
+
+        return config["components"].getboolean("ENABLE_WALLET")
+
+    def is_zmq_compiled(self):
+        """Checks whether the zmq module was compiled."""
+        config = configparser.ConfigParser()
+        config.read_file(open(self.options.configfile))
 
     def is_cli_compiled(self):
         """Checks whether bitcoin-cli was compiled."""
