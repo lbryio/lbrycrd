@@ -3988,6 +3988,13 @@ UniValue sethdseed(const JSONRPCRequest& request)
     return NullUniValue;
 }
 
+        if (sigdata.witness) {
+            // Convert the non-witness utxo to witness
+            if (input.witness_utxo.IsNull() && input.non_witness_utxo) {
+                input.witness_utxo = input.non_witness_utxo->vout[txin.prevout.n];
+            }
+        }
+
 UniValue walletprocesspsbt(const JSONRPCRequest& request)
 {
     std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
