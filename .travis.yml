@@ -30,12 +30,10 @@ script:
 - if [[ "${TARGET}" == "osx" ]];     then ./reproducible_build.sh -t -o -c; fi
 - if [[ "${TARGET}" == "linux" ]];   then ./reproducible_build.sh -t -o -c -f; fi
 - if [[ "${TARGET}" == "windows" ]]; then ./packaging/build_windows.sh; fi
-- if [[ "${TARGET}" == "osx" ]];     then zip -j "dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}.zip" src/lbrycrdd
-  src/lbrycrd-cli src/lbrycrd-tx; fi
-- if [[ "${TARGET}" == "linux" ]];   then zip -j "dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}.zip" src/lbrycrdd
-  src/lbrycrd-cli src/lbrycrd-tx; fi
-- if [[ "${TARGET}" == "windows" ]]; then zip -j "dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}.zip" src/lbrycrdd.exe
-  src/lbrycrd-cli.exe src/lbrycrd-tx.exe; fi
+- if [[ "${TARGET}" == "osx" ]];     then zip -j "dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}.zip" src/lbrycrdd src/lbrycrd-cli src/lbrycrd-tx; fi
+- if [[ "${TARGET}" == "linux" ]];   then zip -j "dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}.zip" src/lbrycrdd src/lbrycrd-cli src/lbrycrd-tx; fi
+- if [[ "${TARGET}" == "windows" ]]; then zip -j "dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}.zip" src/lbrycrdd.exe src/lbrycrd-cli.exe src/lbrycrd-tx.exe; fi
+- sha256sum -b dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}.zip > dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}-sha256.txt
 before_cache:
 - ls -lh build
 - du -h -d 2 build
