@@ -40,8 +40,19 @@ script:
 before_cache:
 - ls -lh build
 - du -h -d 2 build
+before_deploy:
+- cat dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}-sha256.txt
 deploy:
-  provider: s3
+- provider: releases
+  draft: true
+  file: "dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}.zip"
+  name: "${TRAVIS_BRANCH}"
+  skip_cleanup: true
+  on:
+    tags: true
+  api_key:
+    secure: "Ni5WZNR5CefWXpyDUQLMQbQ2LH4Iot+0SqIoM9c4maW06al1M8vu57vWuj2cESsW7JsaBehCE45Cwmo5kWyEjAiZY8sIMmvixkMP/8uPWuLgNmnIbm7U+d0j652DmZshDYtt8EomqV2RhAx/rmBnzGkruLOw9WTp9ZdBN3WbTt/IpZ2gMgVbGWYGOx+uRw7/yGw8m4gShQheto/dycbyyR3XV2WP9wuLmNYkcQ6JumSoQdDWXcvVfbCwylGq2sLDKwhvfTr4iwYyYsWdmhfdEQl0WcIv5C8xgdiY2vzhi2LmLqFbS/fvKNC26Tfo4bOHFG/eOnvqc+yyEB8B/xqW9Gs+A0TUh/3N30vHYZGcpiDU35DwAN5bZ1+s+mr/ZrNzBJ5BgT8io3g0Ko8gykbDvFQVpg7kxFsqA1YCikEpG86lVGk6clTa5guJvAHse+DfnbWO1nfDxYQXW0md861m0txk8RpTC/TVNyH/lL/vsS7LB67EHhRdZY+O1+5sUGMdtvvhMoxJYCwQGpLkh43KRsKynkMUR94w2O9hc8cknXdV3wrndVz00XNdcur6y4D7HTll1tBrF68CA2yKUSY5hsjtPmdlN+DW8ou/rJiKOpQZ/Xzp69AQEheOFfDPItxQRYxWj0dMOk8eszf0wFvi1N7J/hT/IHnuX5ITfa/T4NE="
+- provider: s3
   access_key_id: AKIAICKFHNTR5RITASAQ
   secret_access_key:
     secure: Qfgs8vGnEUvgiZNP2S9zY8qHEzaDOceF/XTv32jRBOISWfTqOTE56DZbOp8WKHPAqn0dx04jKA1NfV9f06sXU1NVbiJ2VYISo6XAk0n3RBJL3/mhNxvut/zM2DHkFPljWTkWEColS0ZyA3m4eUyJvAw/i+mOBT/zDD/oIlS5Uo5l/x3LmF9fYBuei0ucwSQeNOr2wCMIl+pXrIU7B3lEzXh1asayW6A9y7DOqMLnrSQ7TLlSssbnhuhDVpFx0xxX/U2NPraotbGKdo3wwMbms/lluBe60I/LsDNp9/SZXMDXh2YLGUImr97octwpdzIMjF+kU7QAZJzM7grz8PU9+MQh2V5sn6Xsww2x4PdkmHGz/2FMzhrCrlPf5JCaPBH49G+w4/29HYmMrlimOOVx4qXCpQ/XtWWne/d6MF0qqT6JhdPuD9ohmTpxcHRkCe2fxUw6Yn3dj+/+YoCywAcwcBm5jLpAotmWoCmmcnm9rvB7bIuPPZAjJUZViCnyvwY4Tj3Fb+sOuK4b/O5D2+cuS+WgQRkN/RspYlXrXTIh8Efv/yhW5L9WdzG1OExJDw2hX5VTccRRgIKZxZp80U2eYqn2M07+1nU+ShX4kgiSon46k5cfacLgzLKWEyCxWSSTbsYcwRxvDEjtYy4wxAYx8+J3dgQPs/opDXoQTJMjud0=
