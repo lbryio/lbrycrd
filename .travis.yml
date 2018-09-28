@@ -37,17 +37,18 @@ script:
 - if [[ "${TARGET}" == "osx" ]];     then shasum -a 256 dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}.zip > dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}-sha256.txt; fi
 - if [[ "${TARGET}" == "linux" ]];   then sha256sum -b dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}.zip > dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}-sha256.txt; fi
 - if [[ "${TARGET}" == "windows" ]]; then sha256sum -b dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}.zip > dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}-sha256.txt; fi
+- cat dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}-sha256.txt
 before_cache:
 - ls -lh build
 - du -h -d 2 build
-before_deploy:
-- cat dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}-sha256.txt
 deploy:
 - provider: releases
   draft: true
   file: "dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}.zip"
   name: "${TRAVIS_BRANCH}"
   skip_cleanup: true
+  target_commitish: $TRAVIS_COMMIT
+  tag_name: $TRAVIS_TAG
   on:
     tags: true
   api_key:
