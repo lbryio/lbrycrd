@@ -2580,6 +2580,7 @@ static UniValue loadwallet(const JSONRPCRequest& request)
             + HelpExampleRpc("loadwallet", "\"test.dat\"")
                 },
             }.Check(request);
+    WalletLocation location(request.params[0].get_str());
 
     WalletLocation location(request.params[0].get_str());
 

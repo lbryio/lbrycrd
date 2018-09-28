@@ -913,6 +913,8 @@ public:
 
     const WalletLocation& GetLocation() const { return m_location; }
 
+    const WalletLocation& GetLocation() const { return m_location; }
+
     /** Get a name for this wallet for logging/debugging purposes.
      */
     const std::string& GetName() const { return m_location.GetName(); }
