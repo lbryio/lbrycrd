@@ -24,6 +24,7 @@ before_install:
 - date +%s > "${TRAVIS_BUILD_DIR}/start_time"
 - ls -lh build
 - du -h -d 2 build
+- if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
 - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install ccache; fi
 - if [ "$TRAVIS_OS_NAME" == "osx" ]; then export PATH="/usr/local/opt/ccache/libexec:$PATH"; fi
 install: true
