@@ -679,7 +679,18 @@ UniValue proofToJSON(const CClaimTrieProof& proof)
         }
         nodes.push_back(node);
     }
-    result.push_back(Pair("nodes", nodes));
+    if (!nodes.empty())
+        result.push_back(Pair("nodes", nodes));
+
+    UniValue pairs(UniValue::VARR);
+    for (CClaimTrieProof::pairCollectionType::const_iterator itPair = proof.pairs.begin(); itPair != proof.pairs.end(); ++itPair) {
+        UniValue child(UniValue::VOBJ);
+        child.push_back(Pair("odd", itPair->first));
+        child.push_back(Pair("hash", itPair->second.GetHex()));
+        pairs.push_back(child);
+    }
+    if (!pairs.empty())
+        result.push_back(Pair("pairs", pairs));
     if (proof.hasValue)
     {
         result.push_back(Pair("txhash", proof.outPoint.hash.GetHex()));
@@ -691,11 +702,11 @@ UniValue proofToJSON(const CClaimTrieProof& proof)
 
 UniValue getnameproof(const UniValue& params, bool fHelp)
 {
-    if (fHelp || (params.size() != 1 && params.size() != 2))
+    if (fHelp || params.size() < 1 || params.size() > 3)
         throw std::runtime_error(
             "getnameproof\n"
             "Return the cryptographic proof that a name maps to a value\n"
-            "or doesn't.\n"
+            "or doesn't. \n"
             "Arguments:\n"
             "1. \"name\"           (string) the name to get a proof for\n"
             "2. \"blockhash\"      (string, optional) the hash of the block\n"
@@ -704,9 +715,10 @@ UniValue getnameproof(const UniValue& params, bool fHelp)
             "                                            none is given, \n"
             "                                            the latest block\n"
             "                                            will be used.\n"
+            "3. \"claimId\"        (string, optional, post-fork) for validating a specific claim\n"
             "Result: \n"
             "{\n"
-            "  \"nodes\" : [       (array of object) full nodes (i.e.\n"
+            "  \"nodes\" : [       (array of object, pre-fork) full nodes (i.e.\n"
             "                                        those which lead to\n"
             "                                        the requested name)\n"
             "    \"children\" : [  (array of object) the children of\n"
@@ -730,8 +742,15 @@ UniValue getnameproof(const UniValue& params, bool fHelp)
             "                                          this will not\n"
             "                                          exist whether\n"
             "                                          the node has a\n"
-            "                                          value or not\n"  
+            "                                          value or not\n"
             "    ]\n"
+            "  \"pairs\" : [       (array of pairs, post-fork) hash can be validated by \n"
+            "                                                  hashing claim from the bottom up\n"
+            "                {\n"
+            "                    \"odd\"      (boolean) this value goes on the right of hash\n"
+            "                    \"hash\"     (boolean) the hash to be mixed in\n"
+            "                }\n"
+            "              ]\n"
             "  \"txhash\" : \"hash\" (string, if exists) the txid of the\n"
             "                                            claim which controls\n"
             "                                            this name, if there\n"
@@ -750,9 +769,12 @@ UniValue getnameproof(const UniValue& params, bool fHelp)
     LOCK(cs_main);
     std::string strName = params[0].get_str();
     uint256 blockHash;
-    if (params.size() == 2)
-    {
+    uint160 claimId;
+    if (params.size() > 1) {
         blockHash = ParseHashV(params[1], "blockhash (optional parameter 2)");
+
+        if (params.size() > 2)
+            claimId = ParseClaimtrieId(params[2], "claimId (optional parameter 3)");
     }
     else
     {
@@ -770,7 +792,7 @@ UniValue getnameproof(const UniValue& params, bool fHelp)
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Block too deep to generate proof");
 
     CClaimTrieProof proof;
-    if (!GetProofForName(pblockIndex, strName, proof))
+    if (!GetProofForName(pblockIndex, strName, proof, claimId))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Failed to generate proof");
 
     return proofToJSON(proof);

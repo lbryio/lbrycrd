@@ -58,6 +58,8 @@ struct Params {
     bool fPowNoRetargeting;
     int64_t nPowTargetSpacing;
     int64_t nPowTargetTimespan;
+    /** blocks before the hard fork that adds non-winning claims into the merkle hash */
+    int64_t nAllClaimsInMerkleForkHeight;
     /** how long it took claims to expire before the hard fork */
     int64_t nOriginalClaimExpirationTime;
     /** how long it takes claims to expire after the hard fork */

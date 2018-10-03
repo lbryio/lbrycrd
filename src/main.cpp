@@ -4267,7 +4267,7 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
     return true;
 }
 
-bool GetProofForName(const CBlockIndex* pindexProof, const std::string& name, CClaimTrieProof& proof)
+bool GetProofForName(const CBlockIndex* pindexProof, const std::string& name, CClaimTrieProof& proof, const uint160& claimId)
 {
     AssertLockHeld(cs_main);
     if (!chainActive.Contains(pindexProof))
@@ -4299,7 +4299,11 @@ bool GetProofForName(const CBlockIndex* pindexProof, const std::string& name, CC
             return false;
     }
     assert(pindexState == pindexProof);
-    proof = trieCache.getProofForName(name);
+
+    if (pindexProof->nHeight >= Params().GetConsensus().nAllClaimsInMerkleForkHeight)
+        proof = trieCache.getProofForNameBinaryTree(name, claimId);
+    else
+        proof = trieCache.getProofForName(name);
     return true;
 }
 

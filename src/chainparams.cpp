@@ -131,6 +131,7 @@ public:
         consensus.powLimit = uint256S("0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 150; //retarget every block
         consensus.nPowTargetSpacing = 150;
+        consensus.nAllClaimsInMerkleForkHeight = 1000000; // TODO: pick me
         consensus.nOriginalClaimExpirationTime = 262974;
         consensus.nExtendedClaimExpirationTime = 2102400;
         consensus.nExtendedClaimExpirationForkHeight = 400155;
@@ -218,6 +219,7 @@ public:
         consensus.powLimit = uint256S("0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 150;
         consensus.nPowTargetSpacing = 150;
+        consensus.nAllClaimsInMerkleForkHeight = 1000000; // TODO: pick me
         consensus.nOriginalClaimExpirationTime = 262974;
         consensus.nExtendedClaimExpirationTime = 2102400;
         consensus.nExtendedClaimExpirationForkHeight = 278160;
@@ -298,6 +300,7 @@ public:
         consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 1;//14 * 24 * 60 * 60; // two weeks
         consensus.nPowTargetSpacing = 1;
+        consensus.nAllClaimsInMerkleForkHeight = 2500; // TODO: pick me
         consensus.nOriginalClaimExpirationTime = 500;
         consensus.nExtendedClaimExpirationTime = 600;
         consensus.nExtendedClaimExpirationForkHeight = 800;

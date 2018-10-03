@@ -1,10 +1,12 @@
 #include "claimtrie.h"
 #include "coins.h"
+#include "consensus/merkle.h"
 #include "hash.h"
 
+#include <algorithm>
 #include <boost/scoped_ptr.hpp>
 #include <iostream>
-#include <algorithm>
+#include <vector>
 
 std::vector<unsigned char> heightToVch(int n)
 {
@@ -21,7 +23,7 @@ std::vector<unsigned char> heightToVch(int n)
     return vchHeight;
 }
 
-uint256 getValueHash(COutPoint outPoint, int nHeightOfLastTakeover)
+uint256 getValueHash(const COutPoint& outPoint, int nHeightOfLastTakeover)
 {
     CHash256 txHasher;
     txHasher.Write(outPoint.hash.begin(), outPoint.hash.size());
@@ -134,7 +136,8 @@ void CClaimTrieNode::reorderClaims(supportMapEntryType& supports)
         }
     }
 
-    std::make_heap(claims.begin(), claims.end());
+    // max of effectiveAmount should be first and the rest should be sorted for repeatable hashing of them
+    std::sort(claims.rbegin(), claims.rend());
 }
 
 uint256 CClaimTrie::getMerkleHash()
@@ -563,43 +566,13 @@ CAmount CClaimTrie::getEffectiveAmountForClaimWithSupports(const std::string& na
     return effectiveAmount;
 }
 
-bool CClaimTrie::checkConsistency() const
+bool CClaimTrie::checkConsistency()
 {
     if (empty())
         return true;
-    return recursiveCheckConsistency(&root);
-}
 
-bool CClaimTrie::recursiveCheckConsistency(const CClaimTrieNode* node) const
-{
-    std::vector<unsigned char> vchToHash;
-
-    for (nodeMapType::const_iterator it = node->children.begin(); it != node->children.end(); ++it)
-    {
-        if (recursiveCheckConsistency(it->second))
-        {
-            vchToHash.push_back(it->first);
-            vchToHash.insert(vchToHash.end(), it->second->hash.begin(), it->second->hash.end());
-        }
-        else
-            return false;
-    }
-
-    CClaimValue claim;
-    bool hasClaim = node->getBestClaim(claim);
-
-    if (hasClaim)
-    {
-        uint256 valueHash = getValueHash(claim.outPoint, node->nHeightOfLastTakeover);
-        vchToHash.insert(vchToHash.end(), valueHash.begin(), valueHash.end());
-    }
-
-    CHash256 hasher;
-    std::vector<unsigned char> vchHash(hasher.OUTPUT_SIZE);
-    hasher.Write(vchToHash.data(), vchToHash.size());
-    hasher.Finalize(&(vchHash[0]));
-    uint256 calculatedHash(vchHash);
-    return calculatedHash == node->hash;
+    CClaimTrieCache cache(this);
+    return root.hash == cache.getMerkleHash(true);
 }
 
 void CClaimTrie::addToClaimIndex(const std::string& name, const CClaimValue& claim)
@@ -1178,30 +1151,32 @@ bool CClaimTrie::ReadFromDisk(bool check)
     return true;
 }
 
-bool CClaimTrieCache::recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent, std::string sPos) const
+static const uint256 _noChildrenOrClaims = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
+static const uint256 _noChildren = uint256S("0000000000000000000000000000000000000000000000000000000000000002");
+static const uint256 _noClaims = uint256S("0000000000000000000000000000000000000000000000000000000000000003");
+
+bool CClaimTrieCache::recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent, std::string sPos, bool forceCompute) const
 {
     if (sPos == "" && tnCurrent->empty())
     {
-        cacheHashes[""] = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
+        cacheHashes[""] = _noChildrenOrClaims;
         return true;
     }
     std::vector<unsigned char> vchToHash;
     nodeCacheType::iterator cachedNode;
-
 
     for (nodeMapType::iterator it = tnCurrent->children.begin(); it != tnCurrent->children.end(); ++it)
     {
         std::stringstream ss;
         ss << it->first;
         std::string sNextPos = sPos + ss.str();
-        if (dirtyHashes.count(sNextPos) != 0)
-        {
+        if (forceCompute || dirtyHashes.count(sNextPos) != 0) {
             // the child might be in the cache, so look for it there
             cachedNode = cache.find(sNextPos);
             if (cachedNode != cache.end())
-                recursiveComputeMerkleHash(cachedNode->second, sNextPos);
+                recursiveComputeMerkleHash(cachedNode->second, sNextPos, forceCompute);
             else
-                recursiveComputeMerkleHash(it->second, sNextPos);
+                recursiveComputeMerkleHash(it->second, sNextPos, forceCompute);
         }
         vchToHash.push_back(it->first);
         hashMapType::iterator ithash = cacheHashes.find(sNextPos);
@@ -1237,20 +1212,80 @@ bool CClaimTrieCache::recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent, std:
     return true;
 }
 
-uint256 CClaimTrieCache::getMerkleHash() const
+bool CClaimTrieCache::recursiveComputeMerkleHashBinaryTree(CClaimTrieNode* tnCurrent, std::string sPos, bool forceCompute) const
+{
+    if (tnCurrent->empty()) {
+        cacheHashes[sPos] = _noChildrenOrClaims;
+        return true;
+    }
+
+    std::vector<uint256> childHashes;
+    for (nodeMapType::iterator it = tnCurrent->children.begin(); it != tnCurrent->children.end(); ++it) {
+        std::stringstream ss;
+        ss << it->first;
+        std::string sNextPos = sPos + ss.str();
+        if (forceCompute || dirtyHashes.count(sNextPos) != 0) {
+            // the child might be in the cache, so look for it there
+            nodeCacheType::iterator cachedNode = cache.find(sNextPos);
+            if (cachedNode != cache.end())
+                recursiveComputeMerkleHashBinaryTree(cachedNode->second, sNextPos, forceCompute);
+            else
+                recursiveComputeMerkleHashBinaryTree(it->second, sNextPos, forceCompute);
+        }
+        hashMapType::iterator ithash = cacheHashes.find(sNextPos);
+        if (ithash != cacheHashes.end()) {
+            childHashes.push_back(ithash->second);
+        } else {
+            childHashes.push_back(it->second->hash);
+        }
+    }
+
+    std::vector<uint256> claimHashes;
+
+    if (!tnCurrent->claims.empty()) {
+        int nHeightOfLastTakeover;
+        // TODO: make this takeover thing not need to look up the node again
+        bool found = getLastTakeoverForName(sPos, nHeightOfLastTakeover);
+        assert(found);
+        // assert(nHeightOfLastTakeover == tnCurrent->nHeightOfLastTakeover); it doesn't work, but why?
+
+        for (std::vector<CClaimValue>::iterator it = tnCurrent->claims.begin(); it != tnCurrent->claims.end(); ++it) {
+            uint256 valueHash = getValueHash(it->outPoint, nHeightOfLastTakeover);
+            claimHashes.push_back(valueHash);
+        }
+    }
+
+    uint256 left = ComputeMerkleRoot(childHashes);
+    uint256 right = ComputeMerkleRoot(claimHashes);
+    if (left.IsNull())
+        left = _noChildren;
+    if (right.IsNull())
+        right = _noClaims;
+
+    cacheHashes[sPos] = Hash(left.begin(), left.end(), right.begin(), right.end());
+    dirtyHashes.erase(sPos);
+    return true;
+}
+
+uint256 CClaimTrieCache::getMerkleHash(bool forceCompute) const
 {
     if (empty())
     {
-        uint256 one(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
-        return one;
+        return _noChildrenOrClaims;
     }
-    if (dirty())
-    {
+    if (forceCompute || dirty()) {
         nodeCacheType::iterator cachedNode = cache.find("");
-        if (cachedNode != cache.end())
-            recursiveComputeMerkleHash(cachedNode->second, "");
-        else
-            recursiveComputeMerkleHash(&(base->root), "");
+        if (nCurrentHeight >= Params().GetConsensus().nAllClaimsInMerkleForkHeight) {
+            if (cachedNode != cache.end())
+                recursiveComputeMerkleHashBinaryTree(cachedNode->second, "", forceCompute);
+            else
+                recursiveComputeMerkleHashBinaryTree(&(base->root), "", forceCompute);
+        } else {
+            if (cachedNode != cache.end())
+                recursiveComputeMerkleHash(cachedNode->second, "", forceCompute);
+            else
+                recursiveComputeMerkleHash(&(base->root), "", forceCompute);
+        }
     }
     hashMapType::iterator ithash = cacheHashes.find("");
     if (ithash != cacheHashes.end())
@@ -2377,6 +2412,12 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
     }
     namesToCheckForTakeover.clear();
     nCurrentHeight++;
+
+    if (nCurrentHeight == Params().GetConsensus().nAllClaimsInMerkleForkHeight) {
+        // this will be computationally expensive (hopefully on the order of seconds rather than minutes)
+        getMerkleHash(true);
+    }
+
     return true;
 }
 
@@ -2430,6 +2471,11 @@ bool CClaimTrieCache::decrementBlock(insertUndoType& insertUndo, claimQueueRowTy
     for (std::vector<std::pair<std::string, int> >::iterator itTakeoverHeightUndo = takeoverHeightUndo.begin(); itTakeoverHeightUndo != takeoverHeightUndo.end(); ++itTakeoverHeightUndo)
     {
         cacheTakeoverHeights[itTakeoverHeightUndo->first] = itTakeoverHeightUndo->second;
+    }
+
+    if (nCurrentHeight == Params().GetConsensus().nAllClaimsInMerkleForkHeight - 1) {
+        // this will be computationally expensive (hopefully on the order of seconds rather than minutes)
+        getMerkleHash(true);
     }
 
     return true;
@@ -2629,8 +2675,106 @@ CClaimTrieProof CClaimTrieCache::getProofForName(const std::string& name) const
         nodes.push_back(node);
         current = nextCurrent;
     }
-    return CClaimTrieProof(nodes, fNameHasValue, outPoint,
-                           nHeightOfLastTakeover);
+    CClaimTrieProof ret(fNameHasValue, outPoint, nHeightOfLastTakeover);
+    ret.nodes = nodes;
+    return ret;
+}
+
+CClaimTrieProof CClaimTrieCache::getProofForNameBinaryTree(const std::string& name, const uint160& claimId) const
+{
+    if (dirty())
+        getMerkleHash(); // flush out all the dirties
+
+    CClaimTrieNode* current = &(base->root);
+    nodeCacheType::const_iterator cachedNode;
+    bool fNameHasValue = false;
+    COutPoint outPoint;
+    int nHeightOfLastTakeover = -1;
+    std::vector<std::pair<bool, uint256> > pairs; // better to use struct { onRight, hash } ?
+    for (std::string::const_iterator itName = name.begin(); current; ++itName) {
+        std::string currentPosition(name.begin(), itName);
+        cachedNode = cache.find(currentPosition);
+        if (cachedNode != cache.end())
+            current = cachedNode->second;
+
+        std::vector<uint256> childHashes;
+        childHashes.reserve(current->children.size());
+        CClaimTrieNode* nextCurrent = NULL;
+        uint32_t nextCurrentIdx = 0;
+
+        // generate a list of child hashes
+        for (nodeMapType::const_iterator itChildren = current->children.begin(); itChildren != current->children.end(); ++itChildren) {
+            if (itName != name.end() && itChildren->first == *itName) {
+                nextCurrent = itChildren->second;
+                nextCurrentIdx = uint32_t(childHashes.size());
+            }
+            childHashes.push_back(itChildren->second->hash);
+        }
+
+        // generate a list of claim hashes (code copied from recursive computation)
+        std::vector<uint256> claimHashes;
+        if (!current->claims.empty()) {
+            claimHashes.reserve(current->claims.size());
+
+            bool found = getLastTakeoverForName(currentPosition, nHeightOfLastTakeover);
+            assert(found);
+
+            for (std::vector<CClaimValue>::iterator it = current->claims.begin(); it != current->claims.end(); ++it) {
+                uint256 valueHash = getValueHash(it->outPoint, nHeightOfLastTakeover);
+                claimHashes.push_back(valueHash);
+            }
+        }
+
+        // I am on a node; I need a hash(children, claims)
+        // if I am the last node on the list, it will be hash(children, x)
+        // else it will be hash(x, claims)
+
+        if (currentPosition == name) {
+            bool isNull = claimId.IsNull();
+            uint32_t claimIdx = 0;
+            for (std::vector<CClaimValue>::iterator it = current->claims.begin(); it != current->claims.end(); ++it, ++claimIdx) {
+                if (isNull || it->claimId == claimId) {
+                    fNameHasValue = true;
+                    outPoint = it->outPoint;
+                    break;
+                }
+            }
+            uint256 combined = ComputeMerkleRoot(childHashes);
+            if (combined.IsNull())
+                combined = _noChildren;
+            pairs.push_back(std::pair<bool, uint256>(true, combined));
+
+            if (!claimHashes.empty()) {
+                // the leaf node is the only place where we would need to hash in the peer tree of claims
+                std::vector<uint256> partials = ComputeMerkleBranch(claimHashes, claimIdx);
+                std::size_t walkback = 0;
+                for (std::vector<uint256>::iterator it = partials.begin(); it != partials.end(); ++it) {
+                    pairs.insert(pairs.end() - walkback++, std::pair<bool, uint256>(bool(claimIdx & 1), *it));
+                    claimIdx >>= 1;
+                }
+            }
+        } else {
+            uint256 combined = ComputeMerkleRoot(claimHashes);
+            if (combined.IsNull())
+                combined = _noClaims;
+            pairs.push_back(std::pair<bool, uint256>(false, combined));
+
+            if (!childHashes.empty()) {
+                std::vector<uint256> partials = ComputeMerkleBranch(childHashes, nextCurrentIdx);
+                std::size_t walkback = 0;
+                for (std::vector<uint256>::iterator it = partials.begin(); it != partials.end(); ++it) {
+                    pairs.insert(pairs.end() - walkback++, std::pair<bool, uint256>(bool(nextCurrentIdx & 1), *it));
+                    nextCurrentIdx >>= 1;
+                }
+            }
+        }
+
+        current = nextCurrent;
+    }
+    CClaimTrieProof ret(fNameHasValue, outPoint, nHeightOfLastTakeover);
+    std::reverse(pairs.begin(), pairs.end());
+    ret.pairs = pairs;
+    return ret;
 }
 
 

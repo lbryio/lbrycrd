@@ -26,7 +26,7 @@
 #define SUPPORT_QUEUE_NAME_ROW 'p'
 #define SUPPORT_EXP_QUEUE_ROW 'x'
 
-uint256 getValueHash(COutPoint outPoint, int nHeightOfLastTakeover);
+uint256 getValueHash(const COutPoint& outPoint, int nHeightOfLastTakeover);
 
 class CClaimValue
 {
@@ -313,7 +313,7 @@ public:
     bool empty() const;
     void clear();
 
-    bool checkConsistency() const;
+    bool checkConsistency();
 
     bool WriteToDisk();
     bool ReadFromDisk(bool check = false);
@@ -385,8 +385,6 @@ private:
     bool updateTakeoverHeight(const std::string& name, int nTakeoverHeight);
     bool recursiveNullify(CClaimTrieNode* node, std::string& name);
 
-    bool recursiveCheckConsistency(const CClaimTrieNode* node) const;
-
     bool InsertFromDisk(const std::string& name, CClaimTrieNode* node);
 
     unsigned int getTotalNamesRecursive(const CClaimTrieNode* current) const;
@@ -453,8 +451,11 @@ class CClaimTrieProof
 {
 public:
     CClaimTrieProof() {};
-    CClaimTrieProof(std::vector<CClaimTrieProofNode> nodes, bool hasValue, COutPoint outPoint, int nHeightOfLastTakeover) : nodes(nodes), hasValue(hasValue), outPoint(outPoint), nHeightOfLastTakeover(nHeightOfLastTakeover) {}
+    CClaimTrieProof(bool hasValue, COutPoint outPoint, int nHeightOfLastTakeover)
+        : hasValue(hasValue), outPoint(outPoint), nHeightOfLastTakeover(nHeightOfLastTakeover) {}
     std::vector<CClaimTrieProofNode> nodes;
+    typedef std::vector<std::pair<bool, uint256> > pairCollectionType;
+    pairCollectionType pairs; // true = on right
     bool hasValue;
     COutPoint outPoint;
     int nHeightOfLastTakeover;
@@ -471,7 +472,7 @@ public:
         nCurrentHeight = base->nCurrentHeight;
     }
 
-    uint256 getMerkleHash() const;
+    uint256 getMerkleHash(bool forceCompute = false) const;
 
     bool empty() const;
     bool flush();
@@ -520,6 +521,7 @@ public:
                              CClaimValue& claim,
                              bool fCheckTakeover = false) const;
     CClaimTrieProof getProofForName(const std::string& name) const;
+    CClaimTrieProof getProofForNameBinaryTree(const std::string& name, const uint160& claimId) const;
 
     bool finalizeDecrement() const;
 
@@ -558,7 +560,12 @@ protected:
 
     bool reorderTrieNode(const std::string& name, bool fCheckTakeover) const;
     bool recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent,
-                                    std::string sPos) const;
+        std::string sPos,
+        bool forceCompute) const;
+    bool recursiveComputeMerkleHashBinaryTree(CClaimTrieNode* tnCurrent,
+        std::string sPos,
+        bool forceCompute) const;
+
     bool recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos,
                             std::string sName,
                             bool* pfNullified = NULL) const;
