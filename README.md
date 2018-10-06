@@ -88,7 +88,7 @@ This project is MIT licensed. For the full license, see [LICENSE](LICENSE).
 We take security seriously. Please contact security@lbry.io regarding any security issues.
 Our PGP key is [here](https://keybase.io/lbry/key.asc) if you need it.
 
-## Contact
+## Contact & Support
 
 The primary contact for this project is [@kaykurokawa](https://github.com/kaykurokawa) (kay@lbry.io)
 
