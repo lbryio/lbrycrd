@@ -1293,6 +1293,12 @@ static void ListTransactions(interfaces::Chain::Lock& locked_chain, CWallet* con
 
     bool involvesWatchonly = wtx.IsFromMe(ISMINE_WATCH_ONLY);
 
+    bool list_sent = fAllAccounts;
+
+    if (IsDeprecatedRPCEnabled("accounts")) {
+        list_sent |= strAccount == strSentAccount;
+    }
+
     // Sent
     if (!filter_label)
     {
