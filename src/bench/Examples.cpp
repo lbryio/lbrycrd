@@ -11,11 +11,11 @@
 static void Sleep100ms(benchmark::State& state)
 {
     while (state.KeepRunning()) {
-        MilliSleep(100);
+        MilliSleep(110);
     }
 }
 
-BENCHMARK(Sleep100ms);
+BENCHMARK(Sleep110ms);
 
 // Extremely fast-running benchmark:
 #include <math.h>

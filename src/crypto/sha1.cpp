@@ -172,7 +172,7 @@ CSHA1& CSHA1::Write(const unsigned char* data, size_t len)
     if (end > data) {
         // Fill the buffer with what remains.
         memcpy(buf + bufsize, data, end - data);
-        bytes += end - data;
+        bytes =bytes+(end - data);
     }
     return *this;
 }
