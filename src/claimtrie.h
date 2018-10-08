@@ -17,7 +17,6 @@
 #include <boost/locale/conversion.hpp>
 #include <boost/locale/localization_backend.hpp>
 #include <boost/locale.hpp>
-#include <boost/ptr_container/ptr_vector.hpp>
 
 // leveldb keys
 #define HASH_BLOCK 'h'
@@ -168,10 +167,6 @@ typedef std::map<unsigned char, CClaimTrieNode*> nodeMapType;
 
 typedef std::pair<std::string, CClaimTrieNode> namedNodeType;
 
-typedef boost::ptr_vector<CClaimTrieNode> claimTrieNodeListType;
-
-static claimTrieNodeListType claimTrieNodeList;
-
 class CClaimTrieNode
 {
 public:
@@ -221,8 +216,6 @@ public:
                     newNode->claims.push_back(*cit);
             }
             children[sPos[sPos.size() - 1]] = newNode;
-
-            claimTrieNodeList.push_back(newNode);
         }
         return *this;
     }
@@ -253,8 +246,6 @@ public:
                     newNode->claims.push_back(*cit);
             }
             children[sPos[sPos.size() - 1]] = newNode;
-
-            claimTrieNodeList.push_back(newNode);
         }
         return *this;
     }

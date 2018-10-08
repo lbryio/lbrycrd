@@ -1556,7 +1556,7 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoi
 
     if (!success)
     {
-        LogPrintf("%s: Removing a claim was unsuccessful. name = %s, txhash = %s, nOut = %d", __func__, newName.c_str(), outPoint.hash.GetHex(), outPoint.n);
+        LogPrintf("%s: Removing a claim was unsuccessful. name = %s, txhash = %s, nOut = %d\n", __func__, newName.c_str(), outPoint.hash.GetHex(), outPoint.n);
         return false;
     }
 
@@ -2305,7 +2305,12 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
         {
             CClaimValue claim;
             const std::string& name = (base->shouldNormalize() ? normalizeClaimName(itEntry->name) : itEntry->name);
-            assert(removeClaimFromTrie(name, itEntry->outPoint, claim, true));
+            // Normalization may have pruned this claim already, so
+            // expiring it is now impossible.  Assert that
+            // normalization is enabled and the claim no longer exists
+            // in the claimtrie OR that the removal is successful.
+            assert((base->shouldNormalize() && !base->haveClaim(name, itEntry->outPoint)) ||
+                   removeClaimFromTrie(name, itEntry->outPoint, claim, true));
             claimsToDelete.insert(claim);
             expireUndo.push_back(std::make_pair(name, claim));
             LogPrintf("Expiring claim %s: %s, nHeight: %d, nValidAtHeight: %d\n", claim.claimId.GetHex(), name, claim.nHeight, claim.nValidAtHeight);
