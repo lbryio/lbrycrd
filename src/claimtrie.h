@@ -17,7 +17,6 @@
 #include <boost/locale/conversion.hpp>
 #include <boost/locale/localization_backend.hpp>
 #include <boost/locale.hpp>
-#include <boost/ptr_container/ptr_vector.hpp>
 
 // leveldb keys
 #define HASH_BLOCK 'h'
@@ -215,8 +214,6 @@ public:
                     newNode->claims.push_back(*cit);
             }
             children[sPos[sPos.size() - 1]] = newNode;
-
-            claimTrieNodeList.push_back(newNode);
         }
         return *this;
     }
@@ -247,8 +244,6 @@ public:
                     newNode->claims.push_back(*cit);
             }
             children[sPos[sPos.size() - 1]] = newNode;
-
-            claimTrieNodeList.push_back(newNode);
         }
         return *this;
     }
