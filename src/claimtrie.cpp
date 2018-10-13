@@ -973,7 +973,6 @@ void CClaimTrie::BatchWriteNode(CDBBatch& batch, const std::string& name, const 
     uint32_t num_claims = 0;
     if (pNode)
         num_claims = pNode->claims.size();
-    LogPrintf("%s: Writing %s to disk with %d claims\n", __func__, name, num_claims);
     if (pNode)
         batch.Write(std::make_pair(TRIE_NODE, name), *pNode);
     else
