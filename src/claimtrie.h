@@ -39,6 +39,15 @@ inline std::string normalizeClaimName(const std::string& name)
 {
     static std::locale utf8;
     static bool initialized = false;
+
+    // Check if it is a valid utf-8 string, if not, simply return the invalid string as is
+    try{
+        boost::locale::conv::to_utf<wchar_t>(name.c_str(), "UTF-8", boost::locale::conv::stop);
+    }
+    catch (boost::locale::conv::conversion_error e){
+        return name;
+    }
+
     if (!initialized) {
         static boost::locale::localization_backend_manager manager =
             boost::locale::localization_backend_manager::global();
@@ -50,15 +59,12 @@ inline std::string normalizeClaimName(const std::string& name)
     }
 
     std::string normalized = boost::locale::normalize(name, boost::locale::norm_nfd, utf8);
-    // Non-locale aware lowercase
-    boost::algorithm::to_lower(normalized);
 
     // Locale aware lowercase
-    /* normalized = boost::locale::to_lower(normalized, utf8); */
+    normalized = boost::locale::to_lower(normalized, utf8);
 
     LogPrintf("%s: Normalized \"%s\" (%lu, %lu) to \"%s\" (%lu, %lu)\n", __func__, name, name.size(), sizeof(name), normalized, normalized.size(), sizeof(normalized));
-    // code points can be lost if we're not careful to make sure the string isn't shrinking here
-    return (normalized.size() >= name.size()) ? normalized : name;
+    return normalized;
 }
 
 class CClaimValue
