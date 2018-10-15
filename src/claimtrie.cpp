@@ -970,9 +970,6 @@ bool CClaimTrie::updateTakeoverHeight(const std::string& name, int nTakeoverHeig
 
 void CClaimTrie::BatchWriteNode(CDBBatch& batch, const std::string& name, const CClaimTrieNode* pNode) const
 {
-    uint32_t num_claims = 0;
-    if (pNode)
-        num_claims = pNode->claims.size();
     if (pNode)
         batch.Write(std::make_pair(TRIE_NODE, name), *pNode);
     else
