@@ -159,14 +159,19 @@ bool PaymentRequestPlus::getMerchant(X509_STORE* certStore, QString& merchant) c
         std::string data_to_verify;                     // Everything but the signature
         rcopy.SerializeToString(&data_to_verify);
 
-        EVP_MD_CTX ctx;
-        EVP_PKEY *pubkey = X509_get_pubkey(signing_cert);
-        EVP_MD_CTX_init(&ctx);
-        if (!EVP_VerifyInit_ex(&ctx, digestAlgorithm, NULL) ||
-            !EVP_VerifyUpdate(&ctx, data_to_verify.data(), data_to_verify.size()) ||
-            !EVP_VerifyFinal(&ctx, (const unsigned char*)paymentRequest.signature().data(), (unsigned int)paymentRequest.signature().size(), pubkey)) {
+        EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+        if (!ctx)
+            throw SSLVerifyError("Unable to allocate OpenSSL context.");
+
+        EVP_PKEY* pubkey = X509_get_pubkey(signing_cert);
+        EVP_MD_CTX_init(ctx);
+        if (!EVP_VerifyInit_ex(ctx, digestAlgorithm, NULL) ||
+            !EVP_VerifyUpdate(ctx, data_to_verify.data(), data_to_verify.size()) ||
+            !EVP_VerifyFinal(ctx, (const unsigned char*)paymentRequest.signature().data(), (unsigned int)paymentRequest.signature().size(), pubkey)) {
+            EVP_MD_CTX_free(ctx);
             throw SSLVerifyError("Bad signature, invalid payment request.");
         }
+        EVP_MD_CTX_free(ctx);
 
         // OpenSSL API for getting human printable strings from certs is baroque.
         int textlen = X509_NAME_get_text_by_NID(certname, NID_commonName, NULL, 0);
