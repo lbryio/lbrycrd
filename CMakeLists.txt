@@ -4,9 +4,11 @@ project(lbrycrd_clion) # Do not use for full compile. This is for CLion syntax c
 set (CMAKE_CXX_STANDARD 98) # 03 is not supported by cmake, but this will soon be 11 (after upstream bitcoin merge)
 # I thought that setting the standard would disable the clang-tidy c++11 tips; nope.
 
-set(BOOST_ROOT "build/boost" CACHE PATH "Boost library path")
-set(Boost_NO_SYSTEM_PATHS on CACHE BOOL "Do not search system for Boost")
-find_package(Boost REQUIRED COMPONENTS filesystem program_options thread chrono) # locale coming shortly
+if(EXISTS "build/boost")
+    set(BOOST_ROOT "build/boost" CACHE PATH "Boost library path")
+    set(Boost_NO_SYSTEM_PATHS on CACHE BOOL "Do not search system for Boost")
+endif()
+find_package(Boost REQUIRED COMPONENTS filesystem program_options thread chrono locale)
 
 file(GLOB sources
         src/*.h src/*.cpp
