@@ -1998,7 +1998,7 @@ bool CClaimTrieCache::undoSpendSupport(const std::string& name, const COutPoint&
     }
 }
 
-bool CClaimTrieCache::removeSupport(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight, bool fCheckTakeover) const
+bool CClaimTrieCache::removeSupport(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight, bool fCheckTakeover) const
 {
     bool removed = false;
     CSupportValue support;
@@ -2008,7 +2008,7 @@ bool CClaimTrieCache::removeSupport(const std::string& name, const COutPoint& ou
         removed = true;
     if (removed)
     {
-        int expirationHeight = nHeight + base->nExpirationTime;
+        int expirationHeight = support.nHeight + base->nExpirationTime;
         removeSupportFromExpirationQueue(name, outPoint, expirationHeight);
         nValidAtHeight = support.nValidAtHeight;
     }
@@ -2060,17 +2060,17 @@ expirationQueueType::iterator CClaimTrieCache::getSupportExpirationQueueCacheRow
     return itQueueRow;
 }
 
-bool CClaimTrieCache::undoAddSupport(const std::string& name, const COutPoint& outPoint, int nHeight) const
+bool CClaimTrieCache::undoAddSupport(const std::string& name, const COutPoint& outPoint) const
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nHeight, nCurrentHeight);
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nCurrentHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nCurrentHeight);
     int throwaway;
-    return removeSupport(name, outPoint, nHeight, throwaway, false);
+    return removeSupport(name, outPoint, throwaway, false);
 }
 
-bool CClaimTrieCache::spendSupport(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight) const
+bool CClaimTrieCache::spendSupport(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nHeight, nCurrentHeight);
-    return removeSupport(name, outPoint, nHeight, nValidAtHeight, true);
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nCurrentHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nCurrentHeight);
+    return removeSupport(name, outPoint, nValidAtHeight, true);
 }
 
 bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo, std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const

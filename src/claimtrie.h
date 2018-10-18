@@ -493,10 +493,8 @@ public:
     bool addSupport(const std::string& name, const COutPoint& outPoint,
                     CAmount nAmount, uint160 supportedClaimId,
                     int nHeight) const;
-    bool undoAddSupport(const std::string& name, const COutPoint& outPoint,
-                        int nHeight) const;
-    bool spendSupport(const std::string& name, const COutPoint& outPoint,
-                      int nHeight, int& nValidAtHeight) const;
+    bool undoAddSupport(const std::string& name, const COutPoint& outPoint) const;
+    bool spendSupport(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const;
     bool undoSpendSupport(const std::string& name, const COutPoint& outPoint,
                           uint160 supportedClaimId, CAmount nAmount,
                           int nHeight, int nValidAtHeight) const;
@@ -591,9 +589,7 @@ protected:
     expirationQueueType::iterator getExpirationQueueCacheRow(int nHeight,
                                                              bool createIfNotExists) const;
 
-    bool removeSupport(const std::string& name, const COutPoint& outPoint,
-                       int nHeight, int& nValidAtHeight,
-                       bool fCheckTakeover) const;
+    bool removeSupport(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight, bool fCheckTakeover) const;
     bool removeSupportFromMap(const std::string& name, const COutPoint& outPoint,
                               CSupportValue& support,
                               bool fCheckTakeover) const;

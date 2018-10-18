@@ -118,6 +118,7 @@ BITCOIN_CORE_H = \
   merkleblock.h \
   miner.h \
   nameclaim.h \
+  claimscriptop.h \
   claimtrie.h \
   lbry.h \
   net.h \
@@ -190,6 +191,7 @@ libbitcoin_server_a_SOURCES = \
   main.cpp \
   merkleblock.cpp \
   miner.cpp \
+  claimscriptop.cpp \
   claimtrie.cpp \
   net.cpp \
   noui.cpp \
