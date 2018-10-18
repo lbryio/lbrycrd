@@ -7,7 +7,7 @@
 // Maximum block decrement that is allowed from rpc calls
 const int MAX_RPC_BLOCK_DECREMENTS = 50;
 
-uint160 ParseClaimtrieId(const UniValue& v, std::string strName)
+uint160 ParseClaimtrieId(const UniValue& v, const std::string& strName)
 {
     std::string strHex;
     if (v.isStr())
@@ -221,8 +221,8 @@ typedef std::map<uint160, std::vector<CSupportValue> > supportsWithoutClaimsMapT
 UniValue claimsAndSupportsToJSON(claimSupportMapType::const_iterator itClaimsAndSupports, int nCurrentHeight)
 {
     UniValue ret(UniValue::VOBJ);
-    const CClaimValue claim = itClaimsAndSupports->second.first;
-    const std::vector<CSupportValue> supports = itClaimsAndSupports->second.second;
+    const CClaimValue& claim = itClaimsAndSupports->second.first;
+    const std::vector<CSupportValue>& supports = itClaimsAndSupports->second.second;
     CAmount nEffectiveAmount = 0;
     UniValue supportObjs(UniValue::VARR);
     for (std::vector<CSupportValue>::const_iterator itSupports = supports.begin(); itSupports != supports.end(); ++itSupports)
@@ -262,7 +262,7 @@ UniValue claimsAndSupportsToJSON(claimSupportMapType::const_iterator itClaimsAnd
 
 UniValue supportsWithoutClaimsToJSON(supportsWithoutClaimsMapType::const_iterator itSupportsWithoutClaims, int nCurrentHeight)
 {
-    const std::vector<CSupportValue> supports = itSupportsWithoutClaims->second;
+    const std::vector<CSupportValue>& supports = itSupportsWithoutClaims->second;
     UniValue ret(UniValue::VOBJ);
     UniValue supportObjs(UniValue::VARR);
     ret.push_back(Pair("claimId (no matching claim)", itSupportsWithoutClaims->first.GetHex()));
