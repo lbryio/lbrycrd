@@ -49,7 +49,7 @@ txindex=1
 
 Run `./reproducible_build.sh -c -t`. This will build the binaries and put them into the `./src` directory.
 
-If you encounter any errors, please check `doc/build-*.md` for further instructions. If you're still stuck, [create an issue](https://github.com/lbryio/lbrycrd/issues/new) with the output of that command, your system info, and any other information you think might be helpful.
+If you have any errors while processing , please check `doc/build-*.md` for further instructions. If you're still stuck, [create an issue](https://github.com/lbryio/lbrycrd/issues/new) with the output of that command, your system info, and any other information you think might be helpful.
 
 ## Contributing
 
