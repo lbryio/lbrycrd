@@ -27,7 +27,7 @@ function HELP {
 }
 
 CLONE=false
-CLEAN=true
+CLEAN=false
 CHECK_CODE_FORMAT=false
 BUILD_DEPENDENCIES=true
 BUILD_LBRYCRD=true

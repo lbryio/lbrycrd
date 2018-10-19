@@ -2142,13 +2142,6 @@ bool DisconnectBlock(const CBlock& block, CValidationState& state, const CBlockI
 
     assert(trieCache.decrementBlock(blockUndo.insertUndo, blockUndo.expireUndo, blockUndo.insertSupportUndo, blockUndo.expireSupportUndo, blockUndo.takeoverHeightUndo));
 
-    if (pindex->nHeight == Params().GetConsensus().nNormalizedNameForkHeight) {
-        LogPrintf("Decremented past the normalization hard fork height\n");
-        const uint256 prevHash = trieCache.getBestBlock();
-        pclaimTrie = pclaimTrie->enableNormalizationFork(false, pindex->nHeight, trieCache);
-        trieCache.setBestBlock(prevHash);
-    }
-
     // undo transactions in reverse order
     for (int i = block.vtx.size() - 1; i >= 0; i--) {
         const CTransaction &tx = block.vtx[i];
@@ -2700,14 +2693,10 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         spentClaimsType::iterator itSpent;
                         for (itSpent = spentClaims.begin(); itSpent != spentClaims.end(); ++itSpent)
                         {
-                            if (pclaimTrie->shouldNormalize()) {
-                                const std::string normalizedName1 = normalizeClaimName(name);
-                                const std::string normalizedName2 = normalizeClaimName(itSpent->first);
-                                if (normalizedName1 == normalizedName2 && itSpent->second == claimId)
-                                    break;
-                            } else if (itSpent->first == name && itSpent->second == claimId) {
+                            const std::string normalizedName1 = pclaimTrie->normalizeClaimName(name);
+                            const std::string normalizedName2 = pclaimTrie->normalizeClaimName(itSpent->first);
+                            if (normalizedName1 == normalizedName2 && itSpent->second == claimId)
                                 break;
-                            }
                         }
                         if (itSpent != spentClaims.end())
                         {
@@ -2760,15 +2749,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
         vPos.push_back(std::make_pair(tx.GetHash(), pos));
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
-    }
-
-    if (pindex->nHeight == Params().GetConsensus().nNormalizedNameForkHeight) {
-        LogPrintf("Incremented past the normalization hard fork height\n");
-        pclaimTrie = pclaimTrie->enableNormalizationFork(true, pindex->nHeight, trieCache);
-        CClaimTrieCache tmpTrieCache(pclaimTrie);
-        tmpTrieCache.setBestBlock(trieCache.getBestBlock());
-        trieCache = tmpTrieCache;
-        trieCache.getMerkleHash(true);
     }
 
     assert(trieCache.incrementBlock(blockUndo.insertUndo, blockUndo.expireUndo, blockUndo.insertSupportUndo, blockUndo.expireSupportUndo, blockUndo.takeoverHeightUndo));

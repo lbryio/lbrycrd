@@ -33,34 +33,6 @@
 
 uint256 getValueHash(COutPoint outPoint, int nHeightOfLastTakeover);
 
-// lower-case and normalize any input string name
-// see: https://unicode.org/reports/tr15/#Norm_Forms
-inline std::string normalizeClaimName(const std::string& name)
-{
-    static std::locale utf8;
-    static bool initialized = false;
-    if (!initialized) {
-        static boost::locale::localization_backend_manager manager =
-            boost::locale::localization_backend_manager::global();
-        manager.select("icu");
-
-        static boost::locale::generator curLocale(manager);
-        utf8 = curLocale("en_US.UTF8");
-        initialized = true;
-    }
-
-    std::string normalized = boost::locale::normalize(name, boost::locale::norm_nfd, utf8);
-    // Non-locale aware lowercase
-    boost::algorithm::to_lower(normalized);
-
-    // Locale aware lowercase
-    /* normalized = boost::locale::to_lower(normalized, utf8); */
-
-    LogPrintf("%s: Normalized \"%s\" (%lu, %lu) to \"%s\" (%lu, %lu)\n", __func__, name, name.size(), sizeof(name), normalized, normalized.size(), sizeof(normalized));
-    // code points can be lost if we're not careful to make sure the string isn't shrinking here
-    return (normalized.size() >= name.size()) ? normalized : name;
-}
-
 class CClaimValue
 {
 public:
@@ -191,63 +163,6 @@ public:
         READWRITE(hash);
         READWRITE(claims);
         READWRITE(nHeightOfLastTakeover);
-    }
-
-    CClaimTrieNode& cloneState(const CClaimTrieNode& other)
-    {
-        hash = other.hash;
-        nHeightOfLastTakeover = other.nHeightOfLastTakeover;
-        if (!claims.empty()) {
-            claims.reserve(other.claims.size());
-            std::copy(other.claims.begin(), other.claims.end(), claims.begin());
-        }
-
-        std::string sPos;
-        for (nodeMapType::const_iterator it = other.children.begin(); it != other.children.end(); ++it) {
-            std::stringstream ss;
-            ss << it->first;
-            sPos = ss.str();
-
-            CClaimTrieNode* newNode = new CClaimTrieNode();
-            newNode->cloneState(*it->second);
-            if (!it->second->claims.empty()) {
-                newNode->claims.reserve(it->second->claims.size());
-                for (std::vector<CClaimValue>::const_iterator cit = it->second->claims.begin(); cit != it->second->claims.end(); ++cit)
-                    newNode->claims.push_back(*cit);
-            }
-            children[sPos[sPos.size() - 1]] = newNode;
-        }
-        return *this;
-    }
-
-    // NOTE: While normalization is hardcoded into this method, it's
-    // *only* used while enabling the normalization fork in order to
-    // flatten the namespace.
-    CClaimTrieNode& normalizeClone(const CClaimTrieNode& other)
-    {
-        hash = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
-        nHeightOfLastTakeover = other.nHeightOfLastTakeover;
-        if (!claims.empty()) {
-            claims.reserve(other.claims.size());
-            std::copy(other.claims.begin(), other.claims.end(), claims.begin());
-        }
-
-        std::string sPos;
-        for (nodeMapType::const_iterator it = other.children.begin(); it != other.children.end(); ++it) {
-            std::stringstream ss;
-            ss << it->first;
-            sPos = normalizeClaimName(ss.str());
-
-            CClaimTrieNode* newNode = new CClaimTrieNode();
-            newNode->normalizeClone(*it->second);
-            if (!it->second->claims.empty()) {
-                newNode->claims.reserve(it->second->claims.size());
-                for (std::vector<CClaimValue>::const_iterator cit = it->second->claims.begin(); cit != it->second->claims.end(); ++cit)
-                    newNode->claims.push_back(*cit);
-            }
-            children[sPos[sPos.size() - 1]] = newNode;
-        }
-        return *this;
     }
 
     bool operator==(const CClaimTrieNode& other) const
@@ -391,19 +306,56 @@ class CClaimTrieCache;
 class CClaimTrie
 {
 public:
-    CClaimTrie(bool fMemory = false, bool fWipe = false, bool fNormalize = false, int nProportionalDelayFactor = 32)
-        : db(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false), nCurrentHeight(0), nExpirationTime(Params().GetConsensus().nOriginalClaimExpirationTime), nProportionalDelayFactor(nProportionalDelayFactor), root(uint256S("0000000000000000000000000000000000000000000000000000000000000001")), fNormalize(fNormalize)
+    CClaimTrie(bool fMemory = false, bool fWipe = false, int nProportionalDelayFactor = 32)
+        : db(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false), nCurrentHeight(0),
+        nExpirationTime(Params().GetConsensus().nOriginalClaimExpirationTime),
+        nProportionalDelayFactor(nProportionalDelayFactor),
+        root(uint256S("0000000000000000000000000000000000000000000000000000000000000001"))
     {}
 
-    // Does not change the current trie, but returns a normalized equivalent trie
-    CClaimTrie* enableNormalizationFork(bool enable, int nHeight, CClaimTrieCache& trieCache);
+    // lower-case and normalize any input string name
+    // see: https://unicode.org/reports/tr15/#Norm_Forms
+    inline std::string normalizeClaimName(const std::string& name, bool force = false) const
+    {
+        if (!force && !shouldNormalize())
+            return name;
+
+        static std::locale utf8;
+        static bool initialized = false;
+        if (!initialized) {
+            static boost::locale::localization_backend_manager manager =
+                    boost::locale::localization_backend_manager::global();
+            manager.select("icu");
+
+            static boost::locale::generator curLocale(manager);
+            utf8 = curLocale("en_US.UTF8");
+            initialized = true;
+        }
+
+        // Check if it is a valid utf-8 string, if not, simply return the invalid string as is
+        std::string normalized;
+        try{
+            normalized = boost::locale::conv::to_utf<char>(name, "UTF-8", boost::locale::conv::stop);
+            if (normalized.empty())
+                return name;
+        }
+        catch (boost::locale::conv::conversion_error& e){
+            return name;
+        }
+
+        normalized = boost::locale::normalize(normalized, boost::locale::norm_nfd, utf8);
+
+        // Locale aware lowercase (the non-locale-aware version seemed to struggle with some international chars):
+        normalized = boost::locale::to_lower(normalized, utf8);
+        return normalized;
+    }
 
     uint256 getMerkleHash();
 
     bool empty() const;
     void clear();
 
-    bool shouldNormalize();
+    bool shouldNormalize() const;
 
     bool checkConsistency() const;
 
@@ -422,7 +374,6 @@ public:
     bool supportEmpty() const;
     bool supportQueueEmpty() const;
     bool expirationQueueEmpty() const;
-    bool supportExpirationQueueEmpty() const;
 
     void setExpirationTime(int t);
 
@@ -430,14 +381,6 @@ public:
     void removeFromClaimIndex(const CClaimValue& claim);
 
     bool getClaimById(const uint160 claimId, std::string& name, CClaimValue& claim) const;
-    bool getQueueRow(int nHeight, claimQueueRowType& row) const;
-    bool getQueueNameRow(const std::string& name, queueNameRowType& row) const;
-    bool getExpirationQueueRow(int nHeight, expirationQueueRowType& row) const;
-    bool getSupportNode(std::string name, supportMapEntryType& node) const;
-    bool getSupportQueueRow(int nHeight, supportQueueRowType& row) const;
-    bool getSupportQueueNameRow(const std::string& name, queueNameRowType& row) const;
-    bool getSupportExpirationQueueRow(int nHeight, expirationQueueRowType& row) const;
-
 
     bool haveClaim(const std::string& name, const COutPoint& outPoint) const;
     bool haveClaimInQueue(const std::string& name, const COutPoint& outPoint,
@@ -473,7 +416,6 @@ private:
                 expirationQueueType& supportExpirationQueueCache);
     bool updateName(const std::string& name, CClaimTrieNode* updatedNode);
     bool updateHash(const std::string& name, uint256& hash);
-    bool updateHashNormalized(const std::string& name, uint256& hash);
     bool updateTakeoverHeight(const std::string& name, int nTakeoverHeight);
     bool recursiveNullify(CClaimTrieNode* node, const std::string& name);
 
@@ -489,6 +431,14 @@ private:
                               const CClaimTrieNode* current,
                               std::vector<namedNodeType>& nodes) const;
 
+    bool getQueueRow(int nHeight, claimQueueRowType& row) const;
+    bool getQueueNameRow(const std::string& name, queueNameRowType& row) const;
+    bool getExpirationQueueRow(int nHeight, expirationQueueRowType& row) const;
+    bool getSupportNode(std::string name, supportMapEntryType& node) const;
+    bool getSupportQueueRow(int nHeight, supportQueueRowType& row) const;
+    bool getSupportQueueNameRow(const std::string& name, queueNameRowType& row) const;
+    bool getSupportExpirationQueueRow(int nHeight, expirationQueueRowType& row) const;
+
     void markNodeDirty(const std::string& name, CClaimTrieNode* node);
     void updateQueueRow(int nHeight, claimQueueRowType& row);
     void updateQueueNameRow(const std::string& name,
@@ -502,8 +452,6 @@ private:
 
     void BatchWriteNode(CDBBatch& batch, const std::string& name,
                         const CClaimTrieNode* pNode) const;
-    void BatchEraseNode(CDBBatch& batch, const std::string& nome) const;
-    void BatchWriteClaimIndex(CDBBatch& batch) const;
     void BatchWriteQueueRows(CDBBatch& batch);
     void BatchWriteQueueNameRows(CDBBatch& batch);
     void BatchWriteExpirationQueueRows(CDBBatch& batch);
@@ -512,9 +460,6 @@ private:
     void BatchWriteSupportQueueNameRows(CDBBatch& batch);
     void BatchWriteSupportExpirationQueueRows(CDBBatch& batch);
     template<typename K> bool keyTypeEmpty(char key, K& dummy) const;
-
-    void cloneState(const CClaimTrie&);
-    void copyAndNormalizeQueues(const CClaimTrie&);
 
     CClaimTrieNode root;
     uint256 hashBlock;
@@ -529,8 +474,6 @@ private:
 
     nodeCacheType dirtyNodes;
     supportMapType dirtySupportNodes;
-
-    bool fNormalize;
 };
 
 class CClaimTrieProofNode
@@ -622,6 +565,7 @@ public:
     bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint,
                              CClaimValue& claim,
                              bool fCheckTakeover = false) const;
+    CClaimTrieProof getProofForName(const std::string& name) const;
 
     bool getProofForName(const std::string& name, CClaimTrieProof& proof) const;
     bool getInfoForName(const std::string& name, CClaimValue& claim) const;
@@ -647,6 +591,14 @@ protected:
         const std::string& sPos,
         bool forceCompute = false) const;
     bool recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos, const std::string& sName, bool* pfNullified = NULL) const;
+    void checkNamesForTakeover(insertUndoType& insertUndo, insertUndoType& insertSupportUndo,
+                               std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
+
+    bool insertClaimIntoTrie(const std::string& name, CClaimValue claim,
+                             bool fCheckTakeover = false) const;
+    bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint,
+                             CClaimValue& claim,
+                             bool fCheckTakeover = false) const;
 
     mutable nodeCacheType cache;
 
@@ -673,8 +625,6 @@ private:
     mutable claimIndexClaimListType claimsToDelete;
 
     uint256 hashBlock;
-
-    uint256 computeHash() const;
 
     bool reorderTrieNode(const std::string& name, bool fCheckTakeover) const;
 
@@ -732,8 +682,7 @@ private:
 
     int getDelayForName(const std::string& name) const;
 
-    uint256 getLeafHashForProof(const std::string& currentPosition, unsigned char nodeChar,
-                                const CClaimTrieNode* currentNode) const;
+    uint256 getLeafHashForProof(const std::string& currentPosition, const CClaimTrieNode* currentNode) const;
 
     bool getOriginalInfoForName(const std::string& name, CClaimValue& claim) const;
 
@@ -742,6 +691,9 @@ private:
     void recursiveFlattenTrie(const std::string& name, const CClaimTrieNode* current, std::vector<namedNodeType>& nodes) const;
 
     const CClaimTrieNode* getNodeForName(const std::string& name) const;
+
+    bool normalizeAllNamesInTrieIfNecessary(insertUndoType& insertUndo, claimQueueRowType& removeUndo,
+            std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
 };
 
 #endif // BITCOIN_CLAIMTRIE_H

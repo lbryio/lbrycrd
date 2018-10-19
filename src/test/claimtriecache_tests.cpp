@@ -39,6 +39,14 @@ public:
         return cache.find(key);
     }
 
+    bool insertClaimIntoTrie(const std::string& name, CClaimValue claim,
+                             bool fCheckTakeover = false) const {
+        return CClaimTrieCache::insertClaimIntoTrie(name, claim, fCheckTakeover);
+    }
+    bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint,
+                             CClaimValue& claim, bool fCheckTakeover = false) const {
+        return CClaimTrieCache::removeClaimFromTrie(name, outPoint, claim, fCheckTakeover);
+    }
 };
 
 CMutableTransaction BuildTransaction(const uint256& prevhash)
@@ -106,7 +114,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
 
     BOOST_CHECK(pclaimTrie->empty());
 
-    CClaimTrieCache ntState(pclaimTrie, false);
+    CClaimTrieCacheTest ntState(pclaimTrie);
     ntState.insertClaimIntoTrie(std::string("test"), CClaimValue(tx1OutPoint, hash160, 50, 100, 200));
     ntState.insertClaimIntoTrie(std::string("test2"), CClaimValue(tx2OutPoint, hash160, 50, 100, 200));
 
@@ -127,7 +135,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash2);
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CClaimTrieCache ntState1(pclaimTrie, false);
+    CClaimTrieCacheTest ntState1(pclaimTrie);
     ntState1.removeClaimFromTrie(std::string("test"), tx1OutPoint, unused);
     ntState1.removeClaimFromTrie(std::string("test2"), tx2OutPoint, unused);
     ntState1.removeClaimFromTrie(std::string("test"), tx3OutPoint, unused);
@@ -135,7 +143,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
 
     BOOST_CHECK(ntState1.getMerkleHash() == hash0);
 
-    CClaimTrieCache ntState2(pclaimTrie, false);
+    CClaimTrieCacheTest ntState2(pclaimTrie);
     ntState2.insertClaimIntoTrie(std::string("abab"), CClaimValue(tx6OutPoint, hash160, 50, 100, 200));
     ntState2.removeClaimFromTrie(std::string("test"), tx1OutPoint, unused);
 
@@ -147,7 +155,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash3);
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CClaimTrieCache ntState3(pclaimTrie, false);
+    CClaimTrieCacheTest ntState3(pclaimTrie);
     ntState3.insertClaimIntoTrie(std::string("test"), CClaimValue(tx1OutPoint, hash160, 50, 100, 200));
     BOOST_CHECK(ntState3.getMerkleHash() == hash4);
     ntState3.flush();
@@ -155,7 +163,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash4);
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CClaimTrieCache ntState4(pclaimTrie, false);
+    CClaimTrieCacheTest ntState4(pclaimTrie);
     ntState4.removeClaimFromTrie(std::string("abab"), tx6OutPoint, unused);
     BOOST_CHECK(ntState4.getMerkleHash() == hash2);
     ntState4.flush();
@@ -163,7 +171,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash2);
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CClaimTrieCache ntState5(pclaimTrie, false);
+    CClaimTrieCacheTest ntState5(pclaimTrie);
     ntState5.removeClaimFromTrie(std::string("test"), tx3OutPoint, unused);
 
     BOOST_CHECK(ntState5.getMerkleHash() == hash2);
@@ -172,7 +180,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash2);
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CClaimTrieCache ntState6(pclaimTrie, false);
+    CClaimTrieCacheTest ntState6(pclaimTrie);
     ntState6.insertClaimIntoTrie(std::string("test"), CClaimValue(tx3OutPoint, hash160, 50, 101, 201));
 
     BOOST_CHECK(ntState6.getMerkleHash() == hash2);
@@ -181,7 +189,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash2);
     BOOST_CHECK(pclaimTrie->checkConsistency());
 
-    CClaimTrieCache ntState7(pclaimTrie, false);
+    CClaimTrieCacheTest ntState7(pclaimTrie);
     ntState7.removeClaimFromTrie(std::string("test"), tx3OutPoint, unused);
     ntState7.removeClaimFromTrie(std::string("test"), tx1OutPoint, unused);
     ntState7.removeClaimFromTrie(std::string("tes"), tx4OutPoint, unused);

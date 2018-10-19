@@ -753,18 +753,10 @@ if test x$use_pkgconfig = xyes; then
   m4_ifdef(
     [PKG_CHECK_MODULES],
     [
-      ICU_CPPFLAGS="-I$ICU_PREFIX/include"
-      CPPFLAGS="$ICU_CPPFLAGS $CPPFLAGS"
-      ICU_LIBS="-L$ICU_PREFIX/lib -licui18n -licuuc -licudata -dl"
-      AC_MSG_WARN([Using ICU_CPPFLAGS $ICU_CPPFLAGS])
-      AC_MSG_WARN([Using CPPFLAGS $CPPFLAGS])
-
-      AC_CHECK_HEADER([unicode/errorcode.h],,AC_MSG_ERROR(libicu headers missing))
-      AC_CHECK_LIB([icudata], [main], ICU_LIBS="-L$ICU_PREFIX/lib -licui18n -licuuc -licudata -dl",
-        AC_CHECK_LIB([icu18n], [main],ICU_LIBS=$ICU_LIBS, ICU_LIBS="-L$ICU_PREFIX/lib -lsicudt -lsicuin -lsicuio -lsicule -lsiculx -lsicutest -lsicutu -lsicuuc"))
-
-      PKG_CHECK_MODULES([SSL], [libssl],, [AC_MSG_ERROR(openssl  not found.)])
-      PKG_CHECK_MODULES([CRYPTO], [libcrypto],,[AC_MSG_ERROR(libcrypto  not found.)])
+      PKG_CHECK_MODULES([ICUI], [icu-i18n],, [AC_MSG_ERROR(icu-i18n not found.)])
+      AC_CHECK_HEADER([unicode/errorcode.h],, AC_MSG_ERROR(libicu headers missing))
+      PKG_CHECK_MODULES([SSL], [libssl],, [AC_MSG_ERROR(openssl not found.)])
+      PKG_CHECK_MODULES([CRYPTO], [libcrypto],, [AC_MSG_ERROR(libcrypto not found.)])
 
       BITCOIN_QT_CHECK([PKG_CHECK_MODULES([PROTOBUF], [protobuf], [have_protobuf=yes], [BITCOIN_QT_FAIL(libprotobuf not found)])])
       if test x$use_qr != xno; then

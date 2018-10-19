@@ -17,6 +17,7 @@
 #include "test/test_bitcoin.h"
 #include "txmempool.h"
 #include <boost/test/unit_test.hpp>
+#include <boost/scope_exit.hpp>
 #include <iostream>
 
 using namespace std;
@@ -164,13 +165,11 @@ struct ClaimTrieChainFixture{
     unsigned int num_txs_for_next_block; 
 
     // these will take on regtest parameters
-    const int normalizationForkHeight;
     const int expirationForkHeight;
     const int originalExpiration;
     const int extendedExpiration;
 
-    ClaimTrieChainFixture() : normalizationForkHeight(Params(CBaseChainParams::REGTEST).GetConsensus().nNormalizedNameForkHeight),
-                              expirationForkHeight(Params(CBaseChainParams::REGTEST).GetConsensus().nExtendedClaimExpirationForkHeight),
+    ClaimTrieChainFixture() : expirationForkHeight(Params(CBaseChainParams::REGTEST).GetConsensus().nExtendedClaimExpirationForkHeight),
                               originalExpiration(Params(CBaseChainParams::REGTEST).GetConsensus().nOriginalClaimExpirationTime),
                               extendedExpiration(Params(CBaseChainParams::REGTEST).GetConsensus().nExtendedClaimExpirationTime)
     {
@@ -1039,24 +1038,41 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_normalization)
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "normalizeTest", "one", 3);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(is_best_claim("normalizeTest", tx1));
+    fixture.DecrementBlocks(1);
+    BOOST_CHECK(pclaimTrie->getTotalNamesInTrie() == 0);
+    fixture.CommitTx(tx1);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(is_best_claim("normalizeTest", tx1));
 
     CMutableTransaction tx2a = fixture.MakeClaim(fixture.GetCoinbase(), "Normalizetest", "one_a", 2);
     CMutableTransaction tx2 = fixture.MakeUpdate(tx2a, "Normalizetest", "one", ClaimIdHash(tx2a.GetHash(), 0), 2);
     fixture.IncrementBlocks(1);
+    BOOST_CHECK(is_best_claim("normalizeTest", tx1));
     BOOST_CHECK(is_best_claim("Normalizetest", tx2));
 
     // Activate the fork (which rebuilds the existing claimtrie and
     // cache), flattening all previously existing name clashes due to
     // the normalization
-    fixture.IncrementBlocks(fixture.normalizationForkHeight - chainActive.Height());
-    BOOST_CHECK(pclaimTrie->shouldNormalize());
+    int currentHeight = chainActive.Height();
+    const Consensus::Params& consensus = Params().GetConsensus();
+    int forkOrig = consensus.nNormalizedNameForkHeight;
+    const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = currentHeight + 2;
+    BOOST_SCOPE_EXIT(&consensus, forkOrig) {
+        const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = forkOrig;
+    } BOOST_SCOPE_EXIT_END
 
-    // Disable reg-test expiration during this test
-    pclaimTrie->setExpirationTime(5000);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(!pclaimTrie->shouldNormalize());
+    BOOST_CHECK(is_best_claim("normalizeTest", tx1));
+    BOOST_CHECK(is_best_claim("Normalizetest", tx2));
+
+    fixture.IncrementBlocks(1, true);
+    BOOST_CHECK(pclaimTrie->shouldNormalize());
 
     // Post-fork, tx1 (the previous winning claim) assumes all name
     // variants of what it originally was ...
-    BOOST_CHECK(is_best_claim("normalizeTest", tx1)); // effective amount is 3
+    BOOST_CHECK(is_best_claim("normalizeTest", tx1));
+    BOOST_CHECK(is_best_claim("Normalizetest", tx1));
     BOOST_CHECK(best_claim_effective_amount_equals("normalizeTest", 3));
 
     CClaimValue val;
@@ -1119,9 +1135,8 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_normalization)
     BOOST_CHECK(is_best_claim("AñeJO", tx8));
     BOOST_CHECK(is_best_claim("AñEjO", tx8));
 
-    // Rewind to 1 block before the fork and be sure that the fork is
-    // no longer active
-    fixture.DecrementBlocks((chainActive.Height() - fixture.normalizationForkHeight) + 1);
+    // Rewind to 1 block before the fork and be sure that the fork is no longer active
+    fixture.DecrementBlocks();
     BOOST_CHECK(!pclaimTrie->shouldNormalize());
 
     // Now check that our old (non-normalized) claims are 'alive' again
@@ -1132,24 +1147,27 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_normalization)
 
     // Create new claim
     CMutableTransaction tx9 = fixture.MakeClaim(fixture.GetCoinbase(), "blah", "blah", 1);
+    std::string invalidUtf8("\xFF\xFF");
+    CMutableTransaction tx10 = fixture.MakeClaim(fixture.GetCoinbase(), invalidUtf8, "blah", 1); // invalid UTF8
 
     // Roll forward to fork height again and check again that we're normalized
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(chainActive.Height() == fixture.normalizationForkHeight);
+    BOOST_CHECK(chainActive.Height() == consensus.nNormalizedNameForkHeight);
     BOOST_CHECK(is_best_claim("NORMALIZETEST", tx1));
     BOOST_CHECK(is_best_claim("NormalizeTeST", tx1));
     BOOST_CHECK(is_best_claim("NormaLizeTeST", tx1));
     BOOST_CHECK(is_best_claim("Normalizetest", tx1)); // collapsed tx2
+    BOOST_CHECK(is_best_claim(invalidUtf8, tx10));
 
     // Rewind to 1 block before the fork and be sure that the fork is
     // no longer active
-    fixture.DecrementBlocks((chainActive.Height() - fixture.normalizationForkHeight) + 1);
+    fixture.DecrementBlocks(1);
     BOOST_CHECK(!pclaimTrie->shouldNormalize());
     BOOST_CHECK(is_best_claim("Normalizetest", tx2));
 
     // Roll forward to fork height again and check again that we're normalized
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(chainActive.Height() == fixture.normalizationForkHeight);
+    BOOST_CHECK(chainActive.Height() == consensus.nNormalizedNameForkHeight);
     BOOST_CHECK(is_best_claim("NORMALIZETEST", tx1));
     BOOST_CHECK(is_best_claim("NormalizeTeST", tx1));
     BOOST_CHECK(is_best_claim("NormaLizeTeST", tx1));

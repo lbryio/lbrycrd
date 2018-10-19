@@ -1425,27 +1425,10 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     RandAddSeedPerfmon();
 
     pclaimTrie->setExpirationTime(consensusParams.GetExpirationTime(chainActive.Height()));
-    // Possible enhancement TODO: Instead of forcing a re-init, store
-    // fork status on disk and just load at start-up (on initial
-    // load).
-    if ((chainActive.Height() >= (Params().GetConsensus().nNormalizedNameForkHeight - 1)) &&
-        !pclaimTrie->shouldNormalize()) {
-        LogPrintf("Reloading ClaimTrie with normalization enabled\n");
-
-        delete pclaimTrie;
-        pclaimTrie = new CClaimTrie(false, fReindex, true);
-        assert(pclaimTrie->shouldNormalize());
-
-        if (!pclaimTrie->ReadFromDisk(true)) {
-            LogPrintf("Error re-loading the claim trie from disk");
-            return false;
-        }
-        LogPrintf("Finished reloading ClaimTrie with normalization enabled\n");
-    }
 
     //// debug print
     LogPrintf("mapBlockIndex.size() = %u\n",   mapBlockIndex.size());
-    LogPrintf("nBestHeight = %d\n",                   chainActive.Height());
+    LogPrintf("nBestHeight = %d\n",            chainActive.Height());
 #ifdef ENABLE_WALLET
     LogPrintf("setKeyPool.size() = %u\n",      pwalletMain ? pwalletMain->setKeyPool.size() : 0);
     LogPrintf("mapWallet.size() = %u\n",       pwalletMain ? pwalletMain->mapWallet.size() : 0);
