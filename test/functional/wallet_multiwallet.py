@@ -288,6 +288,10 @@ class MultiWalletTest(BitcoinTestFramework):
         # Also ensure unload works during walletpassphrase timeout
         w2.encryptwallet('test')
         w2.walletpassphrase('test', 1)
+        self.restart_node(0, ['-wallet={}'.format(wallet) for wallet in wallets])
+        w1 = node.get_wallet_rpc(wallet_names[0])
+        w2 = node.get_wallet_rpc(wallet_names[1])
+        w2.walletpassphrase('test', 1)
         w2.unloadwallet()
         time.sleep(1.1)
         assert 'w2' not in self.nodes[0].listwallets()
