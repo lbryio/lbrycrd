@@ -294,7 +294,7 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
                         }
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         int throwaway;
-                        if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), nTxinHeight, throwaway))
+                        if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), throwaway))
                         {
                             std::pair<std::string, uint160> entry(name, claimId);
                             spentClaims.push_back(entry);
@@ -316,11 +316,11 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
                     }
                 }
             }
-            
+
             for (unsigned int i = 0; i < tx.vout.size(); ++i)
             {
                 const CTxOut& txout = tx.vout[i];
-            
+
                 std::vector<std::vector<unsigned char> > vvchParams;
                 int op;
                 if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams))
@@ -568,7 +568,7 @@ void static BitcoinMiner(const CChainParams& chainparams)
             while (true)
             {
                 unsigned int nHashesDone = 0;
-                
+
                 // Check if something found
                 while (true)
                 {
@@ -599,7 +599,7 @@ void static BitcoinMiner(const CChainParams& chainparams)
                 }
                 if (found)
                     break;
-                
+
                 // Meter hashes/sec
                 static int64_t nHashCounter;
                 if (nHPSTimerStart == 0)

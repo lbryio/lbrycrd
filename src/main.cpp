@@ -963,13 +963,13 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state)
         if (!MoneyRange(nValueOut))
             return state.DoS(100, false, REJECT_INVALID, "bad-txns-txouttotal-toolarge");
 
-        // check claimtrie transactions 
+        // check claimtrie transactions
 
         if (ClaimScriptSize(txout.scriptPubKey) > MAX_CLAIM_SCRIPT_SIZE)
             return state.DoS(100, false, REJECT_INVALID, "bad-txns-claimscriptsize-toolarge");
-        if (ClaimNameSize(txout.scriptPubKey) > MAX_CLAIM_NAME_SIZE)                 
+        if (ClaimNameSize(txout.scriptPubKey) > MAX_CLAIM_NAME_SIZE)
             return state.DoS(100, false, REJECT_INVALID, "bad-txns-claimscriptname-toolarge");
-            
+
     }
 
     // Check for duplicate inputs
@@ -2194,7 +2194,7 @@ bool DisconnectBlock(const CBlock& block, CValidationState& state, const CBlockI
                     }
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     LogPrintf("%s: (txid: %s, nOut: %d) Trying to remove %s from the claim trie due to its block being disconnected\n", __func__, hash.ToString(), i, name.c_str());
-                    if (!trieCache.undoAddClaim(name, COutPoint(hash, i), pindex->nHeight))
+                    if (!trieCache.undoAddClaim(name, COutPoint(hash, i)))
                     {
                         LogPrintf("%s: Could not find the claim in the trie or the cache\n", __func__);
                     }
@@ -2503,7 +2503,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         flags |= SCRIPT_VERIFY_CHECKSEQUENCEVERIFY;
         nLockTimeFlags |= LOCKTIME_VERIFY_SEQUENCE;
     }
- 
+
     // v 13 LBRYcrd hard fork to extend expiration time
     if (pindex->nHeight == Params().GetConsensus().nExtendedClaimExpirationForkHeight)
     {
@@ -2588,7 +2588,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
             typedef std::vector<std::pair<std::string, uint160> > spentClaimsType;
             spentClaimsType spentClaims;
-            
+
             for (unsigned int i = 0; i < tx.vin.size(); ++i)
             {
                 const CTxIn& txin = tx.vin[i];
@@ -2625,7 +2625,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         int nValidAtHeight;
                         LogPrintf("%s: Removing %s from the claim trie. Tx: %s, nOut: %d\n", __func__, name, txin.prevout.hash.GetHex(), txin.prevout.n);
-                        if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), coins->nHeight, nValidAtHeight))
+                        if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), nValidAtHeight))
                         {
                             mClaimUndoHeights[i] = nValidAtHeight;
                             std::pair<std::string, uint160> entry(name, claimId);
@@ -2649,7 +2649,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                     }
                 }
             }
-            
+
             for (unsigned int i = 0; i < tx.vout.size(); ++i)
             {
                 const CTxOut& txout = tx.vout[i];
@@ -4218,7 +4218,7 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
             return error("VerifyDB(): *** ReadBlockFromDisk failed at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
         // check level 1: verify block validity
         if (nCheckLevel >= 1 && !CheckBlock(block, state))
-            return error("%s: *** found bad block at %d, hash=%s (%s)\n", __func__, 
+            return error("%s: *** found bad block at %d, hash=%s (%s)\n", __func__,
                          pindex->nHeight, pindex->GetBlockHash().ToString(), FormatStateMessage(state));
         // check level 2: verify undo validity
         if (nCheckLevel >= 2 && pindex) {
@@ -4345,7 +4345,7 @@ bool LoadBlockIndex()
     return true;
 }
 
-bool InitBlockIndex(const CChainParams& chainparams) 
+bool InitBlockIndex(const CChainParams& chainparams)
 {
     LOCK(cs_main);
 
