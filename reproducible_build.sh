@@ -237,7 +237,7 @@ function install_apt_packages() {
 
     if [ "${CHECK_CODE_FORMAT}" = true ]; then
         $SUDO apt-get ${QUIET} install -y --no-install-recommends \
-            clang-format
+            clang-format-3.4
     fi
 
 }
