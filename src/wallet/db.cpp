@@ -77,6 +77,17 @@ bool IsWalletLoaded(const fs::path& wallet_path)
     LOCK(cs_db);
     auto env = g_dbenvs.find(env_directory.string());
     if (env == g_dbenvs.end()) return false;
+    auto db = env->second.m_databases.find(database_filename);
+    return db != env->second.m_databases.end();
+}
+
+BerkeleyEnvironment* GetWalletEnv(const fs::path& wallet_path, std::string& database_filename)
+{
+    fs::path env_directory;
+    SplitWalletPath(wallet_path, env_directory, database_filename);
+    LOCK(cs_db);
+    auto env = g_dbenvs.find(env_directory.string());
+    if (env == g_dbenvs.end()) return false;
     auto database = env->second.lock();
     return database && database->IsDatabaseLoaded(database_filename);
 }
