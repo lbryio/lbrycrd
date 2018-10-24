@@ -1,5 +1,6 @@
 #include "claimtrie.h"
 #include "main.h"
+#include "nameclaim.h"
 #include "uint256.h"
 
 #include "test/test_bitcoin.h"
@@ -22,6 +23,12 @@ public:
     {
         return CClaimTrieCache::recursivePruneName(tnCurrent,nPos,sName, pfNullified);
     }
+
+    bool insertSupportIntoMap(const std::string& name, CSupportValue support, bool fCheckTakeover) const
+    {
+        return CClaimTrieCache::insertSupportIntoMap(name, support, fCheckTakeover);
+    }
+
     int cacheSize()
     {
         return cache.size();
@@ -185,6 +192,48 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK(pclaimTrie->getMerkleHash() == hash0);
     BOOST_CHECK(pclaimTrie->checkConsistency());
+}
+
+BOOST_AUTO_TEST_CASE(basic_insertion_info_test)
+{
+    // test basic claim insertions and that get methods retreives information properly
+    BOOST_CHECK(pclaimTrie->empty());
+    CClaimTrieCacheTest ctc(pclaimTrie);
+
+    // create and insert claim
+    CClaimValue unused;
+    uint256 hash0(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
+    CMutableTransaction tx1 = BuildTransaction(hash0);
+    uint160 claimId = ClaimIdHash(tx1.GetHash(), 0);
+    COutPoint claimOutPoint(tx1.GetHash(), 0);
+    CAmount amount(10);
+    int height = 0;
+    int validHeight = 0;
+    CClaimValue claimVal(claimOutPoint, claimId, amount, height, validHeight);
+    ctc.insertClaimIntoTrie("test", claimVal);
+
+    // try getClaimsForName, getEffectiveAmountForClaim, getInfoForName
+    claimsForNameType res = ctc.getClaimsForName("test");
+    BOOST_CHECK(res.claims.size() == 1);
+    BOOST_CHECK(res.claims[0] == claimVal);
+
+    BOOST_CHECK_EQUAL(10, ctc.getEffectiveAmountForClaim("test", claimId));
+
+    CClaimValue claim;
+    BOOST_CHECK(ctc.getInfoForName("test", claim));
+    BOOST_CHECK(claim == claimVal);
+
+    // insert a support
+    CAmount supportAmount(10);
+    uint256 hash1(uint256S("0000000000000000000000000000000000000000000000000000000000000002"));
+    CMutableTransaction tx2 = BuildTransaction(hash1);
+    COutPoint supportOutPoint(tx2.GetHash(), 0);
+
+    CSupportValue support(supportOutPoint, claimId, supportAmount, height, validHeight);
+    ctc.insertSupportIntoMap("test", support, false);
+
+    // try getEffectiveAmount
+    BOOST_CHECK_EQUAL(20, ctc.getEffectiveAmountForClaim("test", claimId));
 }
 
 BOOST_AUTO_TEST_CASE(recursive_prune_test)
