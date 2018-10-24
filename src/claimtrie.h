@@ -476,6 +476,12 @@ public:
     bool flush();
     bool dirty() const { return !dirtyHashes.empty(); }
 
+    CClaimTrieNode* getRoot() const
+    {
+        nodeCacheType::iterator iter = cache.find("");
+        return iter == cache.end() ? &(base->root) : iter->second;
+    }
+
     bool addClaim(const std::string& name, const COutPoint& outPoint,
                   uint160 claimId, CAmount nAmount, int nHeight) const;
     bool undoAddClaim(const std::string& name, const COutPoint& outPoint,

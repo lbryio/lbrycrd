@@ -1229,11 +1229,8 @@ uint256 CClaimTrieCache::getMerkleHash() const
     }
     if (dirty())
     {
-        nodeCacheType::iterator cachedNode = cache.find("");
-        if (cachedNode != cache.end())
-            recursiveComputeMerkleHash(cachedNode->second, "");
-        else
-            recursiveComputeMerkleHash(&(base->root), "");
+        CClaimTrieNode* root = getRoot();
+        recursiveComputeMerkleHash(root, "");
     }
     hashMapType::iterator ithash = cacheHashes.find("");
     if (ithash != cacheHashes.end())
@@ -1285,11 +1282,8 @@ bool CClaimTrieCache::getOriginalInfoForName(const std::string& name, CClaimValu
 bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue claim, bool fCheckTakeover) const
 {
     assert(base);
-    CClaimTrieNode* currentNode = &(base->root);
+    CClaimTrieNode* currentNode = getRoot();
     nodeCacheType::iterator cachedNode;
-    cachedNode = cache.find("");
-    if (cachedNode != cache.end())
-        currentNode = cachedNode->second;
     for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
     {
         std::string sCurrentSubstring(name.begin(), itCur);
@@ -1374,11 +1368,8 @@ bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue c
 bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoint& outPoint, CClaimValue& claim, bool fCheckTakeover) const
 {
     assert(base);
-    CClaimTrieNode* currentNode = &(base->root);
+    CClaimTrieNode* currentNode = getRoot();
     nodeCacheType::iterator cachedNode;
-    cachedNode = cache.find("");
-    if (cachedNode != cache.end())
-        currentNode = cachedNode->second;
     assert(currentNode != NULL); // If there is no root in either the trie or the cache, how can there be any names to remove?
     for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
     {
@@ -1448,10 +1439,7 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoi
         if (fCheckTakeover)
             namesToCheckForTakeover.insert(name);
     }
-    CClaimTrieNode* rootNode = &(base->root);
-    cachedNode = cache.find("");
-    if (cachedNode != cache.end())
-        rootNode = cachedNode->second;
+    CClaimTrieNode* rootNode = getRoot();
     return recursivePruneName(rootNode, 0, name);
 }
 
@@ -1752,12 +1740,7 @@ bool CClaimTrieCache::reorderTrieNode(const std::string& name, bool fCheckTakeov
     cachedNode = cache.find(name);
     if (cachedNode == cache.end())
     {
-        CClaimTrieNode* currentNode;
-        cachedNode = cache.find("");
-        if(cachedNode == cache.end())
-            currentNode = &(base->root);
-        else
-            currentNode = cachedNode->second;
+        CClaimTrieNode* currentNode = getRoot();
         for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur)
         {
             std::string sCurrentSubstring(name.begin(), itCur);
@@ -2575,7 +2558,7 @@ void CClaimTrieCache::recursiveFlattenTrie(const std::string& name, const CClaim
 std::vector<namedNodeType> CClaimTrieCache::flattenTrie() const
 {
     std::vector<namedNodeType> nodes;
-    recursiveFlattenTrie("", &(base->root), nodes);
+    recursiveFlattenTrie("", getRoot(), nodes);
     return nodes;
 }
 
@@ -2652,7 +2635,7 @@ bool CClaimTrieCache::getInfoForName(const std::string& name, CClaimValue& claim
     if (dirty())
         getMerkleHash();
 
-    CClaimTrieNode* current = &(base->root);
+    CClaimTrieNode* current = getRoot();
     nodeCacheType::const_iterator cachedNode;
 
     for (std::string::const_iterator itName = name.begin(); current; ++itName) {
@@ -2678,7 +2661,7 @@ bool CClaimTrieCache::getProofForName(const std::string& name, CClaimTrieProof& 
         getMerkleHash();
 
     std::vector<CClaimTrieProofNode> nodes;
-    CClaimTrieNode* current = &(base->root);
+    CClaimTrieNode* current = getRoot();
     nodeCacheType::const_iterator cachedNode;
     bool fNameHasValue = false;
     COutPoint outPoint;
