@@ -36,7 +36,7 @@ static CBlockIndex* BlockHashIndex(const uint256& blockHash)
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Block not in main chain");
 
     if (chainActive.Tip()->nHeight > (pblockIndex->nHeight + MAX_RPC_BLOCK_DECREMENTS))
-        throw JSONRPCError(RPC_INTERNAL_ERROR, "Block too deep to regenerate it");
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Block is too deep");
 
     return pblockIndex;
 }

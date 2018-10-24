@@ -3165,6 +3165,32 @@ BOOST_AUTO_TEST_CASE(getclaimsintrie_test)
     BOOST_CHECK(results[0]["name"].get_str() == sName1);
 }
 
+BOOST_AUTO_TEST_CASE(getclaimsintrie_test2)
+{
+    ClaimTrieChainFixture fixture;
+    std::string sName1("test");
+    std::string sValue1("test");
+
+    uint256 blockHash = chainActive.Tip()->GetBlockHash();
+
+    rpcfn_type getclaimsintrie = tableRPC["getclaimsintrie"]->actor;
+    rpcfn_type getclaimtrie = tableRPC["getclaimtrie"]->actor;
+    UniValue params(UniValue::VARR);
+    params.push_back(blockHash.GetHex());
+    UniValue results = getclaimsintrie(params, false);
+    BOOST_CHECK(results.size() == 0U);
+    results = getclaimtrie(params, false);
+    BOOST_CHECK(results.size() == 1U);
+
+    fixture.IncrementBlocks(10);
+    fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue1, 42);
+    fixture.IncrementBlocks(10);
+    results = getclaimsintrie(params, false);
+    BOOST_CHECK(results.size() == 0U);
+    results = getclaimtrie(params, false);
+    BOOST_CHECK(results.size() == 1U);
+}
+
 BOOST_AUTO_TEST_CASE(getclaimtrie_test)
 {
     ClaimTrieChainFixture fixture;
