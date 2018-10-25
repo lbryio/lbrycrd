@@ -8,13 +8,10 @@
 #
 
 from __future__ import print_function, division
-import json
 import struct
 import re
 import os
 import os.path
-import base64
-import httplib
 import sys
 import hashlib
 import datetime
