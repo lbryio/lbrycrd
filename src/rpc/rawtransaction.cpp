@@ -1309,6 +1309,9 @@ UniValue finalizepsbt(const JSONRPCRequest& request)
     }
 
     bool extract = request.params[1].isNull() || (!request.params[1].isNull() && request.params[1].get_bool());
+    //   signature, but have not combined them yet (e.g. because the combiner that created this
+    //   PartiallySignedTransaction did not understand them), this will combine them into a final
+    //   script.
 
     CMutableTransaction mtx;
     bool complete = FinalizeAndExtractPSBT(psbtx, mtx);

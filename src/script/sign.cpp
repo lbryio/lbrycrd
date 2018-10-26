@@ -245,6 +245,10 @@ bool ProduceSignature(const SigningProvider& provider, const BaseSignatureCreato
 }
 
 namespace {
+{
+    return !input.final_script_sig.empty() || !input.final_script_witness.IsNull();
+}
+
 class SignatureExtractorChecker final : public BaseSignatureChecker
 {
 private:
