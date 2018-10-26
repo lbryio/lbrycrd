@@ -249,6 +249,9 @@ namespace {
     return !input.final_script_sig.empty() || !input.final_script_witness.IsNull();
 }
 
+    PSBTInput& input = psbt.inputs.at(index);
+    const CMutableTransaction& tx = *psbt.tx;
+
 class SignatureExtractorChecker final : public BaseSignatureChecker
 {
 private:
