@@ -4166,7 +4166,6 @@ UniValue walletcreatefundedpsbt(const JSONRPCRequest& request)
 
     // Make a blank psbt
     PartiallySignedTransaction psbtx(rawTx);
-
     // Fill transaction with out data but don't sign
     bool bip32derivs = request.params[4].isNull() ? false : request.params[4].get_bool();
     bool complete = true;
