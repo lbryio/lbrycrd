@@ -3988,6 +3988,16 @@ UniValue sethdseed(const JSONRPCRequest& request)
     return NullUniValue;
 }
 
+            continue;
+        }
+
+        // Verify input looks sane. This will check that we have at most one uxto, witness or non-witness.
+        if (!input.IsSane()) {
+            throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "PSBT input is not sane.");
+        }
+
+        // If we have no utxo, grab it from the wallet.
+        if (!input.non_witness_utxo && input.witness_utxo.IsNull()) {
         if (sigdata.witness) {
             // Convert the non-witness utxo to witness
             if (input.witness_utxo.IsNull() && input.non_witness_utxo) {

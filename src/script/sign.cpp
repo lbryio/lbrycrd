@@ -252,6 +252,19 @@ namespace {
     PSBTInput& input = psbt.inputs.at(index);
     const CMutableTransaction& tx = *psbt.tx;
 
+
+    // Verify input sanity, which checks that at most one of witness or non-witness utxos is provided.
+    if (!input.IsSane()) {
+        return false;
+    }
+
+
+    // If we have a witness signature, use the smaller witness UTXO.
+    if (sigdata.witness) {
+        input.witness_utxo = utxo;
+        input.non_witness_utxo = nullptr;
+    }
+
 class SignatureExtractorChecker final : public BaseSignatureChecker
 {
 private:
