@@ -1678,20 +1678,20 @@ bool CClaimTrieCache::removeClaimFromQueue(const std::string& name, const COutPo
     return false;
 }
 
-bool CClaimTrieCache::undoAddClaim(const std::string& name, const COutPoint& outPoint, int nHeight) const
+bool CClaimTrieCache::undoAddClaim(const std::string& name, const COutPoint& outPoint) const
 {
     int throwaway;
-    return removeClaim(name, outPoint, nHeight, throwaway, false);
+    return removeClaim(name, outPoint, throwaway, false);
 }
 
-bool CClaimTrieCache::spendClaim(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight) const
+bool CClaimTrieCache::spendClaim(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const
 {
-    return removeClaim(name, outPoint, nHeight, nValidAtHeight, true);
+    return removeClaim(name, outPoint, nValidAtHeight, true);
 }
 
-bool CClaimTrieCache::removeClaim(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight, bool fCheckTakeover) const
+bool CClaimTrieCache::removeClaim(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight, bool fCheckTakeover) const
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %s, nHeight: %s, nCurrentHeight: %s\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nHeight, nCurrentHeight);
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %s, nCurrentHeight: %s\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nCurrentHeight);
     bool removed = false;
     CClaimValue claim;
     if (removeClaimFromQueue(name, outPoint, claim))
@@ -1705,7 +1705,7 @@ bool CClaimTrieCache::removeClaim(const std::string& name, const COutPoint& outP
     if (removed == true)
     {
         nValidAtHeight = claim.nValidAtHeight;
-        int expirationHeight = nHeight + base->nExpirationTime;
+        int expirationHeight = base->nExpirationTime;
         removeFromExpirationQueue(name, outPoint, expirationHeight);
         claimsToDelete.insert(claim);
     }
