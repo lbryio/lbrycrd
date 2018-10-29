@@ -2068,7 +2068,6 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CClaimTr
     std::vector<std::vector<unsigned char> > vvchParams;
     if (undo.fIsClaim && DecodeClaimScript(undo.txout.scriptPubKey, op, vvchParams))
     {
-        const bool shouldNormalize = pclaimTrie->shouldNormalize();
         if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
         {
             uint160 claimId;
@@ -2087,7 +2086,7 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CClaimTr
             if (nValidHeight > 0 && nValidHeight >= coins->nHeight)
             {
                 LogPrintf("%s: (txid: %s, nOut: %d) Restoring %s to the claim trie due to a block being disconnected (normalize claim active: %s)\n",
-                    __func__, out.hash.ToString(), out.n, name.c_str(), (shouldNormalize ? "true" : "false"));
+                    __func__, out.hash.ToString(), out.n, name.c_str(), (trieCache.shouldNormalize() ? "true" : "false"));
                 if (!trieCache.undoSpendClaim(name, COutPoint(out.hash, out.n), claimId, undo.txout.nValue, coins->nHeight, nValidHeight))
                     LogPrintf("%s: Something went wrong inserting the claim\n", __func__);
             }
@@ -2171,7 +2170,6 @@ bool DisconnectBlock(const CBlock& block, CValidationState& state, const CBlockI
             std::vector<std::vector<unsigned char> > vvchParams;
             if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams))
             {
-                bool shouldNormalize = pclaimTrie->shouldNormalize();
                 if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
                 {
                     uint160 claimId;
@@ -2197,7 +2195,7 @@ bool DisconnectBlock(const CBlock& block, CValidationState& state, const CBlockI
                     }
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     LogPrintf("%s: (txid: %s, nOut: %d) Trying to remove %s from the claim trie due to its block being disconnected (normalize fork active: %s)\n",
-                        __func__, hash.ToString(), i, name.c_str(), (shouldNormalize ? "true" : "false"));
+                        __func__, hash.ToString(), i, name.c_str(), (trieCache.shouldNormalize() ? "true" : "false"));
                     if (!trieCache.undoAddClaim(name, COutPoint(hash, i), pindex->nHeight))
                     {
                         LogPrintf("%s: Could not find the claim in the trie or the cache\n", __func__);
@@ -2211,7 +2209,7 @@ bool DisconnectBlock(const CBlock& block, CValidationState& state, const CBlockI
                     LogPrintf("--- %s[%lu]: OP_SUPPORT_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n",
                               __func__, pindex->nHeight, name, supportedClaimId.GetHex(), hash.ToString(), i);
                     LogPrintf("%s: (txid: %s, nOut: %d) Removing support for claim id %s on %s due to its block being disconnected (normalize fork active: %s)\n",
-                        __func__, hash.ToString(), i, supportedClaimId.ToString(), name.c_str(), (shouldNormalize ? "true" : "false"));
+                        __func__, hash.ToString(), i, supportedClaimId.ToString(), name.c_str(), (trieCache.shouldNormalize() ? "true" : "false"));
                     if (!trieCache.undoAddSupport(name, COutPoint(hash, i), pindex->nHeight))
                         LogPrintf("%s: Something went wrong removing support for name %s in hash %s\n", __func__, name.c_str(), hash.ToString());
                 }
@@ -2693,9 +2691,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         spentClaimsType::iterator itSpent;
                         for (itSpent = spentClaims.begin(); itSpent != spentClaims.end(); ++itSpent)
                         {
-                            const std::string normalizedName1 = pclaimTrie->normalizeClaimName(name);
-                            const std::string normalizedName2 = pclaimTrie->normalizeClaimName(itSpent->first);
-                            if (normalizedName1 == normalizedName2 && itSpent->second == claimId)
+                            std::string normalized = trieCache.normalizeClaimName(name);
+                            if (normalized == itSpent->first && itSpent->second == claimId)
                                 break;
                         }
                         if (itSpent != spentClaims.end())

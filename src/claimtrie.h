@@ -313,49 +313,10 @@ public:
         root(uint256S("0000000000000000000000000000000000000000000000000000000000000001"))
     {}
 
-    // lower-case and normalize any input string name
-    // see: https://unicode.org/reports/tr15/#Norm_Forms
-    inline std::string normalizeClaimName(const std::string& name, bool force = false) const
-    {
-        if (!force && !shouldNormalize())
-            return name;
-
-        static std::locale utf8;
-        static bool initialized = false;
-        if (!initialized) {
-            static boost::locale::localization_backend_manager manager =
-                    boost::locale::localization_backend_manager::global();
-            manager.select("icu");
-
-            static boost::locale::generator curLocale(manager);
-            utf8 = curLocale("en_US.UTF8");
-            initialized = true;
-        }
-
-        // Check if it is a valid utf-8 string, if not, simply return the invalid string as is
-        std::string normalized;
-        try{
-            normalized = boost::locale::conv::to_utf<char>(name, "UTF-8", boost::locale::conv::stop);
-            if (normalized.empty())
-                return name;
-        }
-        catch (boost::locale::conv::conversion_error& e){
-            return name;
-        }
-
-        normalized = boost::locale::normalize(normalized, boost::locale::norm_nfd, utf8);
-
-        // Locale aware lowercase (the non-locale-aware version seemed to struggle with some international chars):
-        normalized = boost::locale::to_lower(normalized, utf8);
-        return normalized;
-    }
-
     uint256 getMerkleHash();
 
     bool empty() const;
     void clear();
-
-    bool shouldNormalize() const;
 
     bool checkConsistency() const;
 
@@ -527,7 +488,7 @@ public:
                   uint160 claimId, CAmount nAmount, int nHeight) const;
     bool undoAddClaim(const std::string& name, const COutPoint& outPoint,
                       int nHeight) const;
-    bool spendClaim(const std::string& name, const COutPoint& outPoint,
+    bool spendClaim(std::string& name, const COutPoint& outPoint,
                     int nHeight, int& nValidAtHeight) const;
     bool undoSpendClaim(const std::string& name, const COutPoint& outPoint,
                         uint160 claimId, CAmount nAmount, int nHeight,
@@ -560,11 +521,6 @@ public:
 
     ~CClaimTrieCache() { clear(); }
 
-    bool insertClaimIntoTrie(const std::string& name, CClaimValue claim,
-                             bool fCheckTakeover = false) const;
-    bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint,
-                             CClaimValue& claim,
-                             bool fCheckTakeover = false) const;
     CClaimTrieProof getProofForName(const std::string& name) const;
 
     bool getProofForName(const std::string& name, CClaimTrieProof& proof) const;
@@ -584,6 +540,12 @@ public:
     CAmount getEffectiveAmountForClaim(const std::string& name, const uint160& claimId, std::vector<CSupportValue>* supports = NULL) const;
     CAmount getEffectiveAmountForClaim(const claimsForNameType& claims, const uint160& claimId, std::vector<CSupportValue>* supports = NULL) const;
 
+    bool shouldNormalize() const;
+
+    // lower-case and normalize any input string name
+    // see: https://unicode.org/reports/tr15/#Norm_Forms
+    std::string normalizeClaimName(const std::string& name, bool force = false) const; // public only for validating name field on update op
+
 protected:
     // Should be private: Do not use unless you know what you're doing.
     CClaimTrieNode* addNodeToCache(const std::string& position, CClaimTrieNode* original) const;
@@ -599,6 +561,10 @@ protected:
     bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint,
                              CClaimValue& claim,
                              bool fCheckTakeover = false) const;
+
+    bool insertSupportIntoMap(const std::string& name,
+                              CSupportValue support,
+                              bool fCheckTakeover) const;
 
     mutable nodeCacheType cache;
 
@@ -652,10 +618,6 @@ private:
                        bool fCheckTakeover) const;
     bool removeSupportFromMap(const std::string& name, const COutPoint& outPoint,
                               CSupportValue& support,
-                              bool fCheckTakeover) const;
-
-    bool insertSupportIntoMap(const std::string& name,
-                              CSupportValue support,
                               bool fCheckTakeover) const;
 
     supportQueueType::iterator getSupportQueueCacheRow(int nHeight,
