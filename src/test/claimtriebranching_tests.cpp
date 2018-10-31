@@ -1200,6 +1200,153 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
     BOOST_CHECK(trieCache.spendClaim(name_upper, COutPoint(tx.GetHash(), 0), currentHeight, amelieValidHeight));
 }
 
+BOOST_AUTO_TEST_CASE(undo_normalization_does_not_kill_claim_order) {
+    ClaimTrieChainFixture fixture;
+
+    int currentHeight = chainActive.Height();
+    const Consensus::Params& consensus = Params().GetConsensus();
+    int forkOrig = consensus.nNormalizedNameForkHeight;
+    const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = currentHeight + 5;
+    BOOST_SCOPE_EXIT(&consensus, forkOrig) {
+        const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = forkOrig;
+    }
+    BOOST_SCOPE_EXIT_END
+
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "A", "1", 1);
+    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(), "a", "3", 3);
+    fixture.IncrementBlocks(1);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "A", "2", 2);
+    fixture.IncrementBlocks(2);
+    BOOST_CHECK(is_best_claim("A", tx2));
+    fixture.IncrementBlocks(3, true);
+    BOOST_CHECK(is_best_claim("a", tx3));
+    fixture.DecrementBlocks();
+    BOOST_CHECK(is_best_claim("A", tx2));
+}
+
+BOOST_AUTO_TEST_CASE(normalization_does_not_kill_supports) {
+    ClaimTrieChainFixture fixture;
+
+    int currentHeight = chainActive.Height();
+    const Consensus::Params& consensus = Params().GetConsensus();
+    int forkOrig = consensus.nNormalizedNameForkHeight;
+    const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = currentHeight + 3;
+    BOOST_SCOPE_EXIT(&consensus, forkOrig) {
+        const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = forkOrig;
+    }
+    BOOST_SCOPE_EXIT_END
+
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "A", "1", 1);
+    fixture.MakeSupport(fixture.GetCoinbase(), tx1, "A", 1);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(best_claim_effective_amount_equals("A", 2));
+    fixture.MakeSupport(fixture.GetCoinbase(), tx1, "A", 1);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(best_claim_effective_amount_equals("A", 3));
+    fixture.MakeSupport(fixture.GetCoinbase(), tx1, "A", 1);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(best_claim_effective_amount_equals("a", 4));
+    fixture.MakeSupport(fixture.GetCoinbase(), tx1, "A", 1);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(best_claim_effective_amount_equals("a", 5));
+
+    fixture.DecrementBlocks(1);
+    BOOST_CHECK(best_claim_effective_amount_equals("a", 4));
+    fixture.DecrementBlocks(1);
+    BOOST_CHECK(best_claim_effective_amount_equals("A", 3));
+    fixture.DecrementBlocks(1);
+    BOOST_CHECK(best_claim_effective_amount_equals("A", 2));
+    fixture.IncrementBlocks(5);
+    BOOST_CHECK(best_claim_effective_amount_equals("a", 3));
+}
+
+BOOST_AUTO_TEST_CASE(normalization_does_not_kill_expirations) {
+    ClaimTrieChainFixture fixture;
+
+    int currentHeight = chainActive.Height();
+    const Consensus::Params& consensus = Params().GetConsensus();
+    int forkOrig = consensus.nNormalizedNameForkHeight;
+    const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = currentHeight + 4;
+    BOOST_SCOPE_EXIT(&consensus, forkOrig) {
+            const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = forkOrig;
+        }
+    BOOST_SCOPE_EXIT_END
+
+    pclaimTrie->setExpirationTime(3);
+    // need to see that claims expiring on the frame when we normalize aren't kept
+    // need to see that supports expiring on the frame when we normalize aren't kept
+    // need to see that claims & supports carried through the normalization fork do expire
+    // and that they come back correctly when we roll backwards
+
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "A", "1", 1);
+    fixture.MakeSupport(fixture.GetCoinbase(), tx1, "A", 1);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(best_claim_effective_amount_equals("A", 2));
+    
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "B", "1", 1);
+    fixture.MakeSupport(fixture.GetCoinbase(), tx2, "B", 1);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(best_claim_effective_amount_equals("A", 2));
+    BOOST_CHECK(best_claim_effective_amount_equals("B", 2));
+
+    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(), "C", "1", 1);
+    fixture.MakeSupport(fixture.GetCoinbase(), tx3, "C", 1);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(best_claim_effective_amount_equals("A", 2));
+    BOOST_CHECK(best_claim_effective_amount_equals("B", 2));
+    BOOST_CHECK(best_claim_effective_amount_equals("C", 2));
+
+    CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(), "D", "1", 1);
+    fixture.MakeSupport(fixture.GetCoinbase(), tx4, "D", 1);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(!best_claim_effective_amount_equals("a", 2));
+    BOOST_CHECK(best_claim_effective_amount_equals("b", 2));
+    BOOST_CHECK(best_claim_effective_amount_equals("c", 2));
+    BOOST_CHECK(best_claim_effective_amount_equals("d", 2));
+
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(!best_claim_effective_amount_equals("a", 2));
+    BOOST_CHECK(!best_claim_effective_amount_equals("b", 2));
+    BOOST_CHECK(best_claim_effective_amount_equals("c", 2));
+    BOOST_CHECK(best_claim_effective_amount_equals("d", 2));
+
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(!best_claim_effective_amount_equals("a", 2));
+    BOOST_CHECK(!best_claim_effective_amount_equals("b", 2));
+    BOOST_CHECK(!best_claim_effective_amount_equals("c", 2));
+    BOOST_CHECK(best_claim_effective_amount_equals("d", 2));
+
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(!best_claim_effective_amount_equals("a", 2));
+    BOOST_CHECK(!best_claim_effective_amount_equals("b", 2));
+    BOOST_CHECK(!best_claim_effective_amount_equals("c", 2));
+    BOOST_CHECK(!best_claim_effective_amount_equals("d", 2));
+
+    fixture.DecrementBlocks(2);
+    BOOST_CHECK(!best_claim_effective_amount_equals("a", 2));
+    BOOST_CHECK(!best_claim_effective_amount_equals("b", 2));
+    BOOST_CHECK(best_claim_effective_amount_equals("c", 2));
+    BOOST_CHECK(best_claim_effective_amount_equals("d", 2));
+
+    fixture.DecrementBlocks(1);
+    BOOST_CHECK(!best_claim_effective_amount_equals("a", 2));
+    BOOST_CHECK(best_claim_effective_amount_equals("b", 2));
+    BOOST_CHECK(best_claim_effective_amount_equals("c", 2));
+    BOOST_CHECK(best_claim_effective_amount_equals("d", 2));
+
+    fixture.DecrementBlocks(1);
+    BOOST_CHECK(best_claim_effective_amount_equals("A", 2));
+    BOOST_CHECK(best_claim_effective_amount_equals("B", 2));
+    BOOST_CHECK(best_claim_effective_amount_equals("C", 2));
+    BOOST_CHECK(!best_claim_effective_amount_equals("d", 2));
+
+    fixture.IncrementBlocks(3);
+    BOOST_CHECK(!best_claim_effective_amount_equals("a", 2));
+    BOOST_CHECK(!best_claim_effective_amount_equals("b", 2));
+    BOOST_CHECK(!best_claim_effective_amount_equals("c", 2));
+    BOOST_CHECK(best_claim_effective_amount_equals("d", 2));
+}
+
 /*
     claim/support expiration for hard fork, but with checks for disk procedures
 */

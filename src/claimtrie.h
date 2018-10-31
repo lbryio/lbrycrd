@@ -655,7 +655,8 @@ private:
     const CClaimTrieNode* getNodeForName(const std::string& name) const;
 
     bool normalizeAllNamesInTrieIfNecessary(insertUndoType& insertUndo, claimQueueRowType& removeUndo,
-            std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
+                                            insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo,
+                                            std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
 };
 
 #endif // BITCOIN_CLAIMTRIE_H

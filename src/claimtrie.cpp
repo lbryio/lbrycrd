@@ -2038,7 +2038,9 @@ bool CClaimTrieCache::spendSupport(const std::string& name, const COutPoint& out
 }
 
 bool CClaimTrieCache::normalizeAllNamesInTrieIfNecessary(insertUndoType& insertUndo, claimQueueRowType& removeUndo,
+        insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo,
         std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const {
+
     if (nCurrentHeight == Params().GetConsensus().nNormalizedNameForkHeight) {
 
         // run the one-time upgrade of all names that need to change
@@ -2050,17 +2052,28 @@ bool CClaimTrieCache::normalizeAllNamesInTrieIfNecessary(insertUndoType& insertU
 
             LogPrintf("%s: Converting name on normalization fork upgrade: %s -> %s at %d\n", __func__, it->first.c_str(), normalized.c_str(), nCurrentHeight);
 
-            for(std::vector<CClaimValue>::iterator itClaim = it->second.claims.begin(); itClaim != it->second.claims.end(); ++itClaim) {
+            supportMapEntryType supports;
+            if (base->getSupportNode(it->first, supports)) {
+                BOOST_FOREACH(CSupportValue& support, supports) {
+                    bool success = removeSupportFromMap(it->first, support.outPoint, support, false);
+                    assert(success);
+                    expireSupportUndo.push_back(std::make_pair(it->first, support));
+                    success = insertSupportIntoMap(normalized, support, false);
+                    assert(success);
+                    insertSupportUndo.push_back(nameOutPointHeightType(normalized, support.outPoint, support.nValidAtHeight));
+                }
+            }
 
-                removeUndo.push_back(std::make_pair(it->first, *itClaim));
-                bool success = removeClaimFromTrie(it->first, itClaim->outPoint, *itClaim, false);
+            BOOST_FOREACH(CClaimValue& claim, it->second.claims) {
+                bool success = removeClaimFromTrie(it->first, claim.outPoint, claim, false);
                 assert(success);
-                claimsToDelete.insert(*itClaim);
+                removeUndo.push_back(std::make_pair(it->first, claim));
+                claimsToDelete.insert(claim);
 
-                insertUndo.push_back(nameOutPointHeightType(normalized, itClaim->outPoint, itClaim->nValidAtHeight));
-                success = insertClaimIntoTrie(normalized, *itClaim, true);
+                success = insertClaimIntoTrie(normalized, claim, true);
                 assert(success);
-                CClaimIndexElement element = {normalized, *itClaim};
+                insertUndo.push_back(nameOutPointHeightType(normalized, claim.outPoint, claim.nValidAtHeight));
+                CClaimIndexElement element = {normalized, claim};
                 claimsToAdd.push_back(element);
             }
 
@@ -2071,12 +2084,15 @@ bool CClaimTrieCache::normalizeAllNamesInTrieIfNecessary(insertUndoType& insertU
     return false;
 }
 
-bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo, std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const
+bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo,
+        insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo,
+        std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const
 {
     // we don't actually modify the claimTrie here; that happens in flush
     LogPrintf("%s: nCurrentHeight (before increment): %d\n", __func__, nCurrentHeight);
 
-    bool forceNormalization = normalizeAllNamesInTrieIfNecessary(insertUndo, expireUndo, takeoverHeightUndo);
+    bool forceNormalization = normalizeAllNamesInTrieIfNecessary(insertUndo, expireUndo,
+            insertSupportUndo, expireSupportUndo, takeoverHeightUndo);
 
     claimQueueType::iterator itQueueRow = getQueueCacheRow(nCurrentHeight, false);
     if (itQueueRow != claimQueueCache.end())
@@ -2129,10 +2145,12 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
         {
             CClaimValue claim;
             const std::string name = normalizeClaimName(itEntry->name, forceNormalization);
-            assert(removeClaimFromTrie(name, itEntry->outPoint, claim, true));
-            claimsToDelete.insert(claim);
-            expireUndo.push_back(std::make_pair(name, claim));
-            LogPrintf("Expiring claim %s: %s, nHeight: %d, nValidAtHeight: %d\n", claim.claimId.GetHex(), name, claim.nHeight, claim.nValidAtHeight);
+            if (removeClaimFromTrie(name, itEntry->outPoint, claim, true)) { // it can get in the list twice; one normalized and one not
+                claimsToDelete.insert(claim);
+                expireUndo.push_back(std::make_pair(name, claim));
+                LogPrintf("Expiring claim %s: %s, nHeight: %d, nValidAtHeight: %d\n",
+                          claim.claimId.GetHex(), name, claim.nHeight, claim.nValidAtHeight);
+            }
         }
         itExpirationRow->second.clear();
     }
@@ -2184,9 +2202,11 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
         {
             CSupportValue support;
             const std::string name = normalizeClaimName(itEntry->name, forceNormalization);
-            assert(removeSupportFromMap(name, itEntry->outPoint, support, true));
-            expireSupportUndo.push_back(std::make_pair(name, support));
-            LogPrintf("Expiring support %s: %s, nHeight: %d, nValidAtHeight: %d\n", support.supportedClaimId.GetHex(), name, support.nHeight, support.nValidAtHeight);
+            if (removeSupportFromMap(name, itEntry->outPoint, support, true)) {
+                expireSupportUndo.push_back(std::make_pair(name, support));
+                LogPrintf("Expiring support %s: %s, nHeight: %d, nValidAtHeight: %d\n",
+                          support.supportedClaimId.GetHex(), name, support.nHeight, support.nValidAtHeight);
+            }
         }
         itSupportExpirationRow->second.clear();
     }
@@ -2372,18 +2392,22 @@ bool CClaimTrieCache::decrementBlock(insertUndoType& insertUndo, claimQueueRowTy
         for (supportQueueRowType::reverse_iterator itSupportExpireUndo = expireSupportUndo.rbegin(); itSupportExpireUndo != expireSupportUndo.rend(); ++itSupportExpireUndo)
         {
             insertSupportIntoMap(itSupportExpireUndo->first, itSupportExpireUndo->second, false);
-            itSupportExpireRow->second.push_back(nameOutPointType(itSupportExpireUndo->first, itSupportExpireUndo->second.outPoint));
+            if (nCurrentHeight == itSupportExpireUndo->second.nHeight + base->nExpirationTime) {
+                itSupportExpireRow->second.push_back(nameOutPointType(itSupportExpireUndo->first, itSupportExpireUndo->second.outPoint));
+            }
         }
     }
 
     for (insertUndoType::reverse_iterator itSupportUndo = insertSupportUndo.rbegin(); itSupportUndo != insertSupportUndo.rend(); ++itSupportUndo)
     {
-        supportQueueType::iterator itSupportRow = getSupportQueueCacheRow(itSupportUndo->nHeight, true);
         CSupportValue support;
         assert(removeSupportFromMap(itSupportUndo->name, itSupportUndo->outPoint, support, false));
-        queueNameType::iterator itSupportNameRow = getSupportQueueCacheNameRow(itSupportUndo->name, true);
-        itSupportRow->second.push_back(std::make_pair(itSupportUndo->name, support));
-        itSupportNameRow->second.push_back(outPointHeightType(support.outPoint, support.nValidAtHeight));
+        if (nCurrentHeight == support.nValidAtHeight) {
+            supportQueueType::iterator itSupportRow = getSupportQueueCacheRow(itSupportUndo->nHeight, true);
+            queueNameType::iterator itSupportNameRow = getSupportQueueCacheNameRow(itSupportUndo->name, true);
+            itSupportRow->second.push_back(std::make_pair(itSupportUndo->name, support));
+            itSupportNameRow->second.push_back(outPointHeightType(support.outPoint, support.nValidAtHeight));
+        }
     }
 
     if (!expireUndo.empty())
@@ -2404,7 +2428,7 @@ bool CClaimTrieCache::decrementBlock(insertUndoType& insertUndo, claimQueueRowTy
     {
         CClaimValue claim;
         assert(removeClaimFromTrie(itInsertUndo->name, itInsertUndo->outPoint, claim, false));
-        if (nCurrentHeight == itInsertUndo->nHeight) { // aka it became valid at this height rather than being a rename/normalization
+        if (nCurrentHeight == claim.nValidAtHeight) { // aka it became valid at this height rather than being a rename/normalization
             claimQueueType::iterator itQueueRow = getQueueCacheRow(itInsertUndo->nHeight, true);
             itQueueRow->second.push_back(std::make_pair(itInsertUndo->name, claim));
             queueNameType::iterator itQueueNameRow = getQueueCacheNameRow(itInsertUndo->name, true);
