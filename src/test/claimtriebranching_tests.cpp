@@ -1033,11 +1033,58 @@ BOOST_AUTO_TEST_CASE(hardfork_support_test)
 
 /*
     normalization
+        test normalization function indpendent from rest of the code
+
+*/
+
+BOOST_AUTO_TEST_CASE(normalization_only)
+{
+    CClaimTrieCache ccache(pclaimTrie);
+
+    // basic ASCII casing tests
+    BOOST_CHECK_EQUAL("test", ccache.normalizeClaimName("TESt", true));
+    BOOST_CHECK_EQUAL("test", ccache.normalizeClaimName("tesT", true));
+    BOOST_CHECK_EQUAL("test", ccache.normalizeClaimName("TesT", true));
+    BOOST_CHECK_EQUAL("test", ccache.normalizeClaimName("test", true));
+    BOOST_CHECK_EQUAL("test this", ccache.normalizeClaimName("Test This", true));
+
+    // test invalid utf8 bytes are returned as is
+    BOOST_CHECK_EQUAL("\xFF", ccache.normalizeClaimName("\xFF", true));
+    BOOST_CHECK_EQUAL("\xC3\x28", ccache.normalizeClaimName("\xC3\x28", true));
+
+    // ohm sign unicode code point \x2126 should be transformed to equivalent
+    // unicode code point \x03C9 , greek small letter omega
+    BOOST_CHECK_EQUAL("\xCF\x89", ccache.normalizeClaimName("\xE2\x84\xA6", true));
+
+    // cyrillic capital ef code point \x0424 should be transformed to lower case
+    // \x0444
+    BOOST_CHECK_EQUAL("\xD1\x84", ccache.normalizeClaimName("\xD0\xA4", true));
+
+    // armenian capital ben code point \x0532 should be transformed to lower case
+    // \x0562
+    BOOST_CHECK_EQUAL("\xD5\xA2", ccache.normalizeClaimName("\xD4\xB2", true));
+
+    // japanese pbu code point \x3076 should be transformed by NFD decomposition
+    // into \x3075 and \x3099
+    BOOST_CHECK_EQUAL("\xE3\x81\xB5\xE3\x82\x99",
+                      ccache.normalizeClaimName("\xE3\x81\xB6", true));
+
+    // hangul ggwalg unicode code point \xAF51 should be transformed by NFD
+    // decomposition into unicode code points \x1101 \x116A \x11B0
+    // source: http://unicode.org/L2/L2009/09052-tr47.html
+    BOOST_CHECK_EQUAL("\xE1\x84\x81\xE1\x85\xAA\xE1\x86\xB0",
+                      ccache.normalizeClaimName("\xEA\xBD\x91", true));
+}
+
+/*
+    normalization
         check claim name normalization before the fork
         check claim name normalization after the fork
 */
 BOOST_AUTO_TEST_CASE(claimtriebranching_normalization)
 {
+
+
     ClaimTrieChainFixture fixture;
 
     // check claim names are not normalized
