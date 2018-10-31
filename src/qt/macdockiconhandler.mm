@@ -50,4 +50,3 @@ void MacDockIconHandler::cleanup()
 void ForceActivation()
 {
     [[NSApplication sharedApplication] activateIgnoringOtherApps:YES];
-}
