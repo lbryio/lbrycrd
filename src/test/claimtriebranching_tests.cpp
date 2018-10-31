@@ -3378,4 +3378,37 @@ BOOST_AUTO_TEST_CASE(claim_rpcs_rollback3_test)
     BOOST_CHECK(valueResults["amount"].get_int() == 3);
 }
 
+BOOST_AUTO_TEST_CASE(claim_rpcs_pending_effective_amount_test)
+{
+    ClaimTrieChainFixture fixture;
+    std::string sName1("test");
+    std::string sValue1("test1");
+    std::string sValue2("test2");
+
+    rpcfn_type getclaimsforname = tableRPC["getclaimsforname"]->actor;
+
+    UniValue claims;
+    UniValue params(UniValue::VARR);
+    params.push_back(UniValue(sName1));
+
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue1, 1);
+    fixture.IncrementBlocks(1);
+
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue2, 2);
+    fixture.IncrementBlocks(1);
+
+    claims = getclaimsforname(params, false)["claims"];
+    BOOST_CHECK(claims.size() == 2U);
+    BOOST_CHECK(claims[0]["nEffectiveAmount"].get_int() == 0);
+    BOOST_CHECK(claims[0].exists("nPendingEffectiveAmount"));
+    BOOST_CHECK(claims[0]["nPendingEffectiveAmount"].get_int() == 2);
+
+    fixture.IncrementBlocks(1);
+
+    claims = getclaimsforname(params, false)["claims"];
+    BOOST_CHECK(claims.size() == 2U);
+    BOOST_CHECK(claims[0]["nEffectiveAmount"].get_int() == 2);
+    BOOST_CHECK(!claims[0].exists("nPendingEffectiveAmount"));
+}
+
 BOOST_AUTO_TEST_SUITE_END()

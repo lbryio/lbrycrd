@@ -236,6 +236,7 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
             "\"n\"                (numeric) vout value\n"
             "\"amount\"           (numeric) txout amount\n"
             "\"effective amount\" (numeric) txout amount plus amount from all supports associated with the claim\n"
+            "\"pending effective amount\" (numeric) expected effective amount when claim and its support got valid\n"
             "\"height\"           (numeric) the height of the block in which this transaction is located\n");
 
     LOCK(cs_main);
@@ -267,6 +268,10 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
     ret.push_back(Pair("n", (int)claim.outPoint.n));
     ret.push_back(Pair("amount", claim.nAmount));
     ret.push_back(Pair("effective amount", nEffectiveAmount));
+
+    if (nEffectiveAmount < claim.nEffectiveAmount)
+        ret.push_back(Pair("pending effective amount", claim.nEffectiveAmount));
+
     ret.push_back(Pair("height", claim.nHeight));
     return ret;
 }
@@ -301,6 +306,10 @@ UniValue claimAndSupportsToJSON(CAmount nEffectiveAmount, claimSupportMapType::c
     ret.push_back(Pair("nValidAtHeight", claim.nValidAtHeight));
     ret.push_back(Pair("nAmount", claim.nAmount));
     ret.push_back(Pair("nEffectiveAmount", nEffectiveAmount));
+
+    if (nEffectiveAmount < claim.nEffectiveAmount)
+        ret.push_back(Pair("nPendingEffectiveAmount", claim.nEffectiveAmount));
+
     ret.push_back(Pair("supports", supportObjs));
     return ret;
 }
@@ -331,6 +340,7 @@ UniValue getclaimsforname(const UniValue& params, bool fHelp)
             "      \"nValidAtHeight\" (numeric) the height at which the claim became/becomes valid\n"
             "      \"nAmount\"    (numeric) the amount of the claim\n"
             "      \"nEffectiveAmount\" (numeric) the total effective amount of the claim, taking into effect whether the claim or support has reached its nValidAtHeight\n"
+            "      \"nPendingEffectiveAmount\" (numeric) expected effective amount when claim and its support got valid\n"
             "      \"supports\" : [ (array of object) supports for this claim\n"
             "        \"txid\"     (string) the txid of the support\n"
             "        \"n\"        (numeric) the index of the support in the transaction's list of outputs\n"
@@ -414,6 +424,7 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
             "  \"n\"                   (numeric) vout value\n"
             "  \"amount\"              (numeric) txout value\n"
             "  \"effective amount\"    (numeric) txout amount plus amount from all supports associated with the claim\n"
+            "  \"pending effective amount\" (numeric) expected effective amount when claim and its support got valid\n"
             "  \"supports\"            (array of object) supports for this claim\n"
             "  [\n"
             "    \"txid\"              (string) the txid of the support\n"
@@ -447,6 +458,10 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
         claim.push_back(Pair("n", (int) claimValue.outPoint.n));
         claim.push_back(Pair("amount", claimValue.nAmount));
         claim.push_back(Pair("effective amount", effectiveAmount));
+
+        if (effectiveAmount < claimValue.nEffectiveAmount)
+            claim.push_back(Pair("pending effective amount", claimValue.nEffectiveAmount));
+
         UniValue supportList(UniValue::VARR);
         BOOST_FOREACH(const CSupportValue& support, supports) {
             UniValue supportEntry(UniValue::VOBJ);
