@@ -1708,12 +1708,7 @@ void CClaimTrieCache::removeFromExpirationQueue(const std::string& name, const C
         if (itQueue != itQueueRow->second.end())
         {
             itQueueRow->second.erase(itQueue);
-            std::cerr << __func__ << ": Successfully remove" << name << " from Expiration Cache ." << std::endl;
-        } else {
-            std::cerr << __func__ << ": Cannot remove " << name << " from Expiration Cache ." << std::endl;
         }
-    } else {
-        std::cerr << __func__ << ": Cannot remove " << name << " Expiration Cache is empty ." << std::endl;
     }
 }
 
