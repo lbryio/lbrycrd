@@ -212,7 +212,6 @@ struct nameOutPointHeightType
 
     nameOutPointHeightType(std::string name, COutPoint outPoint, int nHeight)
     : name(name), outPoint(outPoint), nHeight(nHeight) {}
-
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
