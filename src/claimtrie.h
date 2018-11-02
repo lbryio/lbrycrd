@@ -323,9 +323,9 @@ public:
     bool getLastTakeoverForName(const std::string& name, int& lastTakeoverHeight) const;
 
     claimsForNameType getClaimsForName(const std::string& name) const;
-    CAmount getEffectiveAmountForClaim(const std::string& name, uint160 claimId) const;
-    CAmount getEffectiveAmountForClaimWithSupports(const std::string& name, uint160 claimId,
-                                                   std::vector<CSupportValue>& supports) const;
+
+    CAmount getEffectiveAmountForClaim(const std::string& name, const uint160& claimId, std::vector<CSupportValue>* supports = NULL) const;
+    CAmount getEffectiveAmountForClaim(const claimsForNameType& claims, const uint160& claimId, std::vector<CSupportValue>* supports = NULL) const;
 
     bool queueEmpty() const;
     bool supportEmpty() const;
@@ -477,6 +477,12 @@ public:
     bool flush();
     bool dirty() const { return !dirtyHashes.empty(); }
 
+    CClaimTrieNode* getRoot() const
+    {
+        nodeCacheType::iterator iter = cache.find("");
+        return iter == cache.end() ? &(base->root) : iter->second;
+    }
+
     bool addClaim(const std::string& name, const COutPoint& outPoint,
                   uint160 claimId, CAmount nAmount, int nHeight) const;
     bool undoAddClaim(const std::string& name, const COutPoint& outPoint) const;
@@ -517,7 +523,9 @@ public:
     bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint,
                              CClaimValue& claim,
                              bool fCheckTakeover = false) const;
-    CClaimTrieProof getProofForName(const std::string& name) const;
+
+    bool getProofForName(const std::string& name, CClaimTrieProof& proof) const;
+    bool getInfoForName(const std::string& name, CClaimValue& claim) const;
 
     bool finalizeDecrement() const;
 
@@ -526,6 +534,12 @@ public:
 
     bool forkForExpirationChange(bool increment) const;
 
+    std::vector<namedNodeType> flattenTrie() const;
+
+    claimsForNameType getClaimsForName(const std::string& name) const;
+
+    CAmount getEffectiveAmountForClaim(const std::string& name, const uint160& claimId, std::vector<CSupportValue>* supports = NULL) const;
+    CAmount getEffectiveAmountForClaim(const claimsForNameType& claims, const uint160& claimId, std::vector<CSupportValue>* supports = NULL) const;
 
 protected:
     CClaimTrie* base;
@@ -621,6 +635,10 @@ protected:
     bool getOriginalInfoForName(const std::string& name, CClaimValue& claim) const;
 
     int getNumBlocksOfContinuousOwnership(const std::string& name) const;
+
+    void recursiveFlattenTrie(const std::string& name, const CClaimTrieNode* current, std::vector<namedNodeType>& nodes) const;
+
+    const CClaimTrieNode* getNodeForName(const std::string& name) const;
 };
 
 #endif // BITCOIN_CLAIMTRIE_H

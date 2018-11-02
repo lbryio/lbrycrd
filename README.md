@@ -6,7 +6,7 @@ LBRYcrd uses a blockchain similar to bitcoin's to implement an index and payment
 
 ## Installation
 
-Latest binaries are available from https://github.com/lbryio/lbrycrd/releases. There is no installation procedure, the binaries run as is.
+Latest binaries are available from https://github.com/lbryio/lbrycrd/releases. There is no installation procedure, the binaries will be run as-is.
 
 ## Usage
 
@@ -18,13 +18,13 @@ the "--help" flag (e.g. `lbrycrd-cli --help`).
 
 Run `./lbrycrdd -server -daemon` to start lbrycrdd in the background.
 
-Run `./lbrycrd-cli getinfo` to check for some basic informations about your LBRYcrd node.
+Run `./lbrycrd-cli getinfo` to check for some basic information about your LBRYcrd node.
 
 Run `./lbrycrd-cli help` to get a list of all commands that you can run. To get help on specific commands run `./lbrycrd-cli [command_name] help`
 
 ### Data directory
 
-Lbrycrdd will use the below default data directories
+Lbrycrdd will use the below default data directories:
 
 Windows < Vista: C:\Documents and Settings\Username\Application Data\lbrycrd
 
@@ -34,9 +34,9 @@ Mac: ~/Library/Application Support/lbrycrd
 
 Unix: ~/.lbrycrd
 
-The data directory contains various things such as your default wallet (wallet.dat), debug logs (debug.log), and blockchain data. You can optionally
-create a configuration file lbrycrd.conf in the default data directory which will be used by default when running lbrycrdd.
-For a list of configuration parameters run `./lbrycrdd --help`. Below is a sample lbrycrd.conf to enable JSON RPC server on lbrycrdd.
+The data directory contains various things such as your default wallet (wallet.dat), debug logs (debug.log), and blockchain data. You can optionally create a configuration file lbrycrd.conf in the default data directory which will be used by default when running lbrycrdd.
+
+For a list of configuration parameters, run `./lbrycrdd --help`. Below is a sample lbrycrd.conf to enable JSON RPC server on lbrycrdd.
 
 ```rpcuser=lbry
 rpcpassword=xyz123456790
@@ -55,12 +55,10 @@ If you encounter any errors, please check `doc/build-*.md` for further instructi
 
 Contributions to this project are welcome, encouraged, and compensated. For more details, see [lbry.io/faq/contributing](https://lbry.io/faq/contributing)
 
-The codebase is in C++03, C++11 is currently not supported but we will be migrating to it in the near future. Recommended GCC version is 4.8 or greater.
+The codebase is in C++03. C++11 is currently not supported but we will be migrating to it in the near future. Recommended GCC version is 4.8 or greater.
 We follow the same coding guidelines as documented by Bitcoin Core, see [here](/doc/developer-notes.md). To run an automated code formatting check, try:
 `git diff -U0 master -- '*.h' '*.cpp' | ./contrib/devtools/clang-format-diff.py -p1`. This will check any commits not on master for proper code formatting.
-We try to avoid altering parts of the code that is inherited from Bitcoin Core unless absolutely necessary. This will make it easier to merge changes from
-Bitcoin Core. If commits are expected not to be merged upstream (i.e. we broke up a commit from Bitcoin Core in order to use a single feature in it), the commit
-message must contain the string "NOT FOR UPSTREAM MERGE".
+We try to avoid altering parts of the code that is inherited from Bitcoin Core unless absolutely necessary. This will make it easier to merge changes from Bitcoin Core. If commits are expected not to be merged upstream (i.e. we broke up a commit from Bitcoin Core in order to use a single feature in it), the commit message must contain the string "NOT FOR UPSTREAM MERGE".
 
 The `master` branch is regularly built and tested, but is not guaranteed to be
 completely stable. [Releases](https://github.com/lbryio/lbrycrd/releases) are created
@@ -77,7 +75,7 @@ The Travis CI system makes sure that every pull request is built, and that unit 
 
 ### Testnet
 
-Testnet is maintained for testing purposes and can be accessed using the command `./lbrycrdd -testnet`. If you would like testnet credits, please contact kay@lbry.io or grin@lbry.io.
+Testnet is maintained for testing purposes and can be accessed using the command `./lbrycrdd -testnet`. If you would like to obtain testnet credits, please contact kay@lbry.io or grin@lbry.io.
 
 ## License
 

@@ -225,6 +225,8 @@ FILE* OpenBlockFile(const CDiskBlockPos &pos, bool fReadOnly = false);
 FILE* OpenUndoFile(const CDiskBlockPos &pos, bool fReadOnly = false);
 /** Translation to a filesystem path */
 boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos &pos, const char *prefix);
+/** Utility method for going back to a previous state **/
+bool RollBackTo(const CBlockIndex* targetIndex, CCoinsViewCache& coinsCache, CClaimTrieCache& trieCache);
 /** Get a cryptographic proof that a name maps to a value **/
 bool GetProofForName(const CBlockIndex* pindexProof, const std::string& name, CClaimTrieProof& proof);
 /** Import blocks from an external file */
