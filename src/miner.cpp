@@ -294,8 +294,7 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
                         }
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         int throwaway;
-                        if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), throwaway))
-                        {
+                        if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), throwaway)) {
                             std::pair<std::string, uint160> entry(name, claimId);
                             spentClaims.push_back(entry);
                         }
