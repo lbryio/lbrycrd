@@ -753,7 +753,7 @@ if test x$use_pkgconfig = xyes; then
   m4_ifdef(
     [PKG_CHECK_MODULES],
     [
-      PKG_CHECK_MODULES([ICUI], [icu-i18n],, [AC_MSG_ERROR(icu-i18n not found.)])
+      PKG_CHECK_MODULES([ICU], [icu-i18n],, [AC_MSG_ERROR(icu-i18n not found.)])
       AC_CHECK_HEADER([unicode/errorcode.h],, AC_MSG_ERROR(libicu headers missing))
       PKG_CHECK_MODULES([SSL], [libssl],, [AC_MSG_ERROR(openssl not found.)])
       PKG_CHECK_MODULES([CRYPTO], [libcrypto],, [AC_MSG_ERROR(libcrypto not found.)])

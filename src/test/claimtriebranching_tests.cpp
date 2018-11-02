@@ -17,7 +17,6 @@
 #include "test/test_bitcoin.h"
 #include "txmempool.h"
 #include <boost/test/unit_test.hpp>
-#include <boost/scope_exit.hpp>
 #include <iostream>
 
 using namespace std;
@@ -36,7 +35,7 @@ is_claim_in_queue(std::string name, const CTransaction &tx)
     }
     else{
         boost::test_tools::predicate_result res(false);
-        res.message()<<"Is not a claim in queue."; 
+        res.message()<<"Is not a claim in queue.";
         return res;
     }
 }
@@ -112,50 +111,7 @@ CMutableTransaction BuildTransaction(const CMutableTransaction& prev, uint32_t p
     return tx;
 }
 
-bool CreateBlock(CBlockTemplate* pblocktemplate)
-{
-    static int unique_block_counter = 0;
-    CBlock* pblock = &pblocktemplate->block;
-    pblock->nVersion = 1;
-    pblock->nTime = chainActive.Tip()->GetBlockTime()+Params().GetConsensus().nPowTargetSpacing;
-    CMutableTransaction txCoinbase(pblock->vtx[0]);
-    txCoinbase.vin[0].scriptSig = CScript() << CScriptNum(unique_block_counter++) << CScriptNum(chainActive.Height());
-    txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
-    pblock->vtx[0] = CTransaction(txCoinbase);
-    pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
-    for (uint32_t i = 0;; ++i) {
-        pblock->nNonce = i;
-        if (CheckProofOfWork(pblock->GetPoWHash(), pblock->nBits, Params().GetConsensus()))
-        {
-            break;
-        }
-    }
-    CValidationState state;
-    bool success = (ProcessNewBlock(state, Params(), NULL, pblock, true, NULL) && state.IsValid() && pblock->GetHash() == chainActive.Tip()->GetBlockHash());
-    pblock->hashPrevBlock = pblock->GetHash();
-    return success;
-
-}
-
-bool CreateCoinbases(unsigned int num_coinbases, std::vector<CTransaction>& coinbases)
-{
-    CBlockTemplate *pblocktemplate;
-    coinbases.clear();
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(Params(), CScript()<<OP_TRUE ));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 1);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 0; i < 100 + num_coinbases; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate));
-        if (coinbases.size() < num_coinbases)
-            coinbases.push_back(CTransaction(pblocktemplate->block.vtx[0]));
-    }
-    delete pblocktemplate;
-    return true;
-}
-
-
-// Test Fixtures 
+// Test Fixtures
 struct ClaimTrieChainFixture{
     std::vector<CTransaction> coinbase_txs;
     std::vector<int> marks;
@@ -167,10 +123,13 @@ struct ClaimTrieChainFixture{
     const int expirationForkHeight;
     const int originalExpiration;
     const int extendedExpiration;
+    int unique_block_counter;
+    int normalization_original;
 
     ClaimTrieChainFixture() : expirationForkHeight(Params(CBaseChainParams::REGTEST).GetConsensus().nExtendedClaimExpirationForkHeight),
                               originalExpiration(Params(CBaseChainParams::REGTEST).GetConsensus().nOriginalClaimExpirationTime),
-                              extendedExpiration(Params(CBaseChainParams::REGTEST).GetConsensus().nExtendedClaimExpirationTime)
+                              extendedExpiration(Params(CBaseChainParams::REGTEST).GetConsensus().nExtendedClaimExpirationTime),
+                              unique_block_counter(0), normalization_original(-1)
     {
         fRequireStandard = false;
         ENTER_CRITICAL_SECTION(cs_main);
@@ -185,7 +144,59 @@ struct ClaimTrieChainFixture{
     ~ClaimTrieChainFixture()
     {
         DecrementBlocks(chainActive.Height());
+        if (normalization_original >= 0) {
+            const Consensus::Params& consensus = Params().GetConsensus();
+            const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = normalization_original;
+        }
         LEAVE_CRITICAL_SECTION(cs_main);
+    }
+
+    void setNormalizationForkHeight(int targetMinusCurrent) {
+        int target = chainActive.Height() + targetMinusCurrent;
+        const Consensus::Params& consensus = Params().GetConsensus();
+        normalization_original = consensus.nNormalizedNameForkHeight;
+        const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = target;
+    }
+
+    bool CreateBlock(CBlockTemplate* pblocktemplate)
+    {
+        CBlock* pblock = &pblocktemplate->block;
+        pblock->nVersion = 1;
+        pblock->nTime = chainActive.Tip()->GetBlockTime()+Params().GetConsensus().nPowTargetSpacing;
+        CMutableTransaction txCoinbase(pblock->vtx[0]);
+        txCoinbase.vin[0].scriptSig = CScript() << CScriptNum(unique_block_counter++) << CScriptNum(chainActive.Height());
+        txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
+        pblock->vtx[0] = CTransaction(txCoinbase);
+        pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
+        for (uint32_t i = 0;; ++i) {
+            pblock->nNonce = i;
+            if (CheckProofOfWork(pblock->GetPoWHash(), pblock->nBits, Params().GetConsensus()))
+            {
+                break;
+            }
+        }
+        CValidationState state;
+        bool success = (ProcessNewBlock(state, Params(), NULL, pblock, true, NULL) && state.IsValid() && pblock->GetHash() == chainActive.Tip()->GetBlockHash());
+        pblock->hashPrevBlock = pblock->GetHash();
+        return success;
+
+    }
+
+    bool CreateCoinbases(unsigned int num_coinbases, std::vector<CTransaction>& coinbases)
+    {
+        CBlockTemplate *pblocktemplate;
+        coinbases.clear();
+        BOOST_CHECK(pblocktemplate = CreateNewBlock(Params(), CScript()<<OP_TRUE ));
+        BOOST_CHECK(pblocktemplate->block.vtx.size() == 1);
+        pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+        for (unsigned int i = 0; i < 100 + num_coinbases; ++i)
+        {
+            BOOST_CHECK(CreateBlock(pblocktemplate));
+            if (coinbases.size() < num_coinbases)
+                coinbases.push_back(CTransaction(pblocktemplate->block.vtx[0]));
+        }
+        delete pblocktemplate;
+        return true;
     }
 
 
@@ -1048,13 +1059,7 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_normalization)
     // Activate the fork (which rebuilds the existing claimtrie and
     // cache), flattening all previously existing name clashes due to
     // the normalization
-    int currentHeight = chainActive.Height();
-    const Consensus::Params& consensus = Params().GetConsensus();
-    int forkOrig = consensus.nNormalizedNameForkHeight;
-    const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = currentHeight + 2;
-    BOOST_SCOPE_EXIT(&consensus, forkOrig) {
-        const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = forkOrig;
-    } BOOST_SCOPE_EXIT_END
+    fixture.setNormalizationForkHeight(2);
 
     fixture.IncrementBlocks(1);
     BOOST_CHECK(is_best_claim("normalizeTest", tx1));
@@ -1133,7 +1138,7 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_normalization)
 
     // Roll forward to fork height again and check again that we're normalized
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(chainActive.Height() == consensus.nNormalizedNameForkHeight);
+    BOOST_CHECK(chainActive.Height() == Params().GetConsensus().nNormalizedNameForkHeight);
     BOOST_CHECK(is_best_claim("normalizetest", tx1)); // collapsed tx2
     BOOST_CHECK(is_best_claim(invalidUtf8, tx10));
 
@@ -1144,7 +1149,7 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_normalization)
 
     // Roll forward to fork height again and check again that we're normalized
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(chainActive.Height() == consensus.nNormalizedNameForkHeight);
+    BOOST_CHECK(chainActive.Height() == Params().GetConsensus().nNormalizedNameForkHeight);
     BOOST_CHECK(is_best_claim("normalizetest", tx1)); // collapsed tx2
 }
 
@@ -1171,13 +1176,8 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
     // Activate the fork (which rebuilds the existing claimtrie and
     // cache), flattening all previously existing name clashes due to
     // the normalization
+    fixture.setNormalizationForkHeight(1);
     int currentHeight = chainActive.Height();
-    const Consensus::Params& consensus = Params().GetConsensus();
-    int forkOrig = consensus.nNormalizedNameForkHeight;
-    const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = currentHeight + 1;
-    BOOST_SCOPE_EXIT(&consensus, forkOrig) {
-        const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = forkOrig;
-    } BOOST_SCOPE_EXIT_END
 
     fixture.IncrementBlocks(1);
     // Ok normalization fix the name problem
@@ -1192,7 +1192,7 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
     CBlock block;
     int amelieValidHeight;
     BOOST_CHECK(trieCache.shouldNormalize());
-    BOOST_CHECK(ReadBlockFromDisk(block, pindex, consensus));
+    BOOST_CHECK(ReadBlockFromDisk(block, pindex, Params().GetConsensus()));
     BOOST_CHECK(DisconnectBlock(block, state, pindex, coins, trieCache, NULL));
     BOOST_CHECK(state.IsValid());
     BOOST_CHECK(!trieCache.shouldNormalize());
@@ -1202,16 +1202,7 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
 
 BOOST_AUTO_TEST_CASE(undo_normalization_does_not_kill_claim_order) {
     ClaimTrieChainFixture fixture;
-
-    int currentHeight = chainActive.Height();
-    const Consensus::Params& consensus = Params().GetConsensus();
-    int forkOrig = consensus.nNormalizedNameForkHeight;
-    const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = currentHeight + 5;
-    BOOST_SCOPE_EXIT(&consensus, forkOrig) {
-        const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = forkOrig;
-    }
-    BOOST_SCOPE_EXIT_END
-
+    fixture.setNormalizationForkHeight(5);
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "A", "1", 1);
     CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(), "a", "3", 3);
     fixture.IncrementBlocks(1);
@@ -1226,16 +1217,7 @@ BOOST_AUTO_TEST_CASE(undo_normalization_does_not_kill_claim_order) {
 
 BOOST_AUTO_TEST_CASE(normalization_does_not_kill_supports) {
     ClaimTrieChainFixture fixture;
-
-    int currentHeight = chainActive.Height();
-    const Consensus::Params& consensus = Params().GetConsensus();
-    int forkOrig = consensus.nNormalizedNameForkHeight;
-    const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = currentHeight + 3;
-    BOOST_SCOPE_EXIT(&consensus, forkOrig) {
-        const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = forkOrig;
-    }
-    BOOST_SCOPE_EXIT_END
-
+    fixture.setNormalizationForkHeight(3);
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "A", "1", 1);
     fixture.MakeSupport(fixture.GetCoinbase(), tx1, "A", 1);
     fixture.IncrementBlocks(1);
@@ -1260,19 +1242,54 @@ BOOST_AUTO_TEST_CASE(normalization_does_not_kill_supports) {
     BOOST_CHECK(best_claim_effective_amount_equals("a", 3));
 }
 
-BOOST_AUTO_TEST_CASE(normalization_does_not_kill_expirations) {
+BOOST_AUTO_TEST_CASE(normalization_does_not_fail_on_spend) {
     ClaimTrieChainFixture fixture;
+    fixture.setNormalizationForkHeight(2);
 
-    int currentHeight = chainActive.Height();
-    const Consensus::Params& consensus = Params().GetConsensus();
-    int forkOrig = consensus.nNormalizedNameForkHeight;
-    const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = currentHeight + 4;
-    BOOST_SCOPE_EXIT(&consensus, forkOrig) {
-            const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = forkOrig;
-        }
-    BOOST_SCOPE_EXIT_END
+    std::string sName1("testN");
+    std::string sName2("testn");
 
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName1, "1", 3);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(is_best_claim(sName1, tx1));
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), sName1, "2", 2);
+    CMutableTransaction tx1s = fixture.MakeSupport(fixture.GetCoinbase(), tx1, sName1, 2);
+    fixture.IncrementBlocks(2, true);
+    BOOST_CHECK(is_best_claim(sName2, tx1));
+
+    CMutableTransaction tx3 = fixture.Spend(tx1); // abandon the claim
+    CMutableTransaction tx3s = fixture.Spend(tx1s);
+    fixture.IncrementBlocks(2);
+    BOOST_CHECK(is_best_claim(sName2, tx2));
+    fixture.DecrementBlocks();
+    BOOST_CHECK(is_best_claim(sName1, tx1));
+}
+
+BOOST_AUTO_TEST_CASE(normalization_does_not_kill_sort_order) {
+    ClaimTrieChainFixture fixture;
+    fixture.setNormalizationForkHeight(2);
+
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "A", "1", 1);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "A", "2", 2);
+    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(), "a", "3", 3);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(is_best_claim("A", tx2));
+    BOOST_CHECK(is_best_claim("a", tx3));
+
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(!is_best_claim("A", tx2));
+    BOOST_CHECK(is_best_claim("a", tx3));
+    BOOST_CHECK(pclaimTrie->getClaimsForName("a").claims.size() == 3U);
+
+    fixture.DecrementBlocks(1);
+    BOOST_CHECK(is_best_claim("A", tx2));
+    BOOST_CHECK(is_best_claim("a", tx3));
+}
+
+BOOST_AUTO_TEST_CASE(normalization_does_not_kill_expirations) {
     pclaimTrie->setExpirationTime(3);
+    ClaimTrieChainFixture fixture;
+    fixture.setNormalizationForkHeight(4);
     // need to see that claims expiring on the frame when we normalize aren't kept
     // need to see that supports expiring on the frame when we normalize aren't kept
     // need to see that claims & supports carried through the normalization fork do expire
