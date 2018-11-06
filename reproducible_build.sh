@@ -15,7 +15,7 @@ function HELP {
     echo
     echo "Optional arguments:"
     echo
-    echo "-c: don't clone a fresh copy of the repo"
+    echo "-c: clone a fresh copy of the repo"
     echo "-f: check formatting of committed code relative to master"
     echo "-r: remove intermediate files."
     echo "-l: build only lbrycrd"
@@ -40,7 +40,7 @@ OUTPUT_LOG=true
 while getopts :crfldoth:w:d: FLAG; do
     case $FLAG in
 	c)
-	    CLONE=false
+	    CLONE=true
 	    ;;
 	r)
 	    CLEAN=true
@@ -133,25 +133,14 @@ function exit_at_60() {
 #  - echo message
 function wait_and_echo() {
     PID=$1
-    (set -o | grep xtrace | grep -q on)
-    TRACE_STATUS=$?
-    # disable xtrace or else this will get verbose, which is what
-    # I'm trying to avoid by going through all of this nonsense anyway
-    set +o xtrace
     TIME=0
-    SLEEP=5
+    SLEEP=3
     # loop until the process is no longer running
     # check every $SLEEP seconds, echoing a message every minute
     while (ps -p "${PID}" > /dev/null); do
 	exit_at_60 "$2"
 	sleep "${SLEEP}"
     done
-    # restore the xtrace setting
-    if [ "${TRACE_STATUS}" -eq 0 ]; then
-	set -o xtrace
-    fi
-    wait "$PID"
-    return $?
 }
 
 # run a command ($1) in the background
@@ -160,17 +149,24 @@ function wait_and_echo() {
 function background() {
     $1 >> "$2" 2>&1 &
     BACKGROUND_PID=$!
-    wait_and_echo $BACKGROUND_PID "$3"
+    (
+        set +xe # do not echo each sleep call in trace mode
+        wait_and_echo $BACKGROUND_PID "$3"
+    )
+    wait $BACKGROUND_PID
 }
 
 function cleanup() {
     rv=$?
+    if [ $rv -eq 0 ]; then
+        return $rv
+    fi
     # cat the log file if it exists
     if [ -f "$2" ] && [ "${OUTPUT_LOG}" = true ]; then
 	echo
 	echo "Output of log file $2"
 	echo
-	tail -n 1000 "$2"
+	tail -n 200 "$2"
 	echo
     fi
     # delete the build directory
@@ -220,6 +216,10 @@ function install_brew_packages() {
 }
 
 function install_apt_packages() {
+    if [ -d "${OUTPUT_DIR}" ]; then
+        return 0
+    fi
+
     if [ -z "${TRAVIS+x}" ]; then
 	# if not on travis, its nice to see progress
 	QUIET=""
@@ -309,11 +309,11 @@ function build_boost() {
     echo "int main() { return 0; }" > libs/regex/build/has_icu_test.cpp
     echo "int main() { return 0; }" > libs/locale/build/has_icu_test.cpp
 
-    export BOOST_ICU_LIBS="$(pkg-config icu-i18n --libs) -dl"
-    export BOOST_LDFLAGS="${BOOST_PREFIX}/lib ${ICU_PREFIX}/lib ${BOOST_ICU_LIBS}"
+    export BOOST_ICU_LIBS="${ICU_PREFIX}/lib -dl"
+    export BOOST_LDFLAGS="${BOOST_PREFIX}/lib ${BOOST_ICU_LIBS}"
 
     echo "BOOST_ICU_LIBS: $BOOST_ICU_LIBS"
-    echo "BOOST_LDFLAGS: $BOOST_ICU_LIBS"
+    echo "BOOST_LDFLAGS: $BOOST_LDFLAGS"
 
     echo "Building Boost.  tail -f ${BOOST_LOG} to see the details and monitor progress"
     ./bootstrap.sh --prefix="${BOOST_PREFIX}" "--with-icu=${ICU_PREFIX}" > "${BOOST_LOG}" 2>&1
@@ -324,14 +324,14 @@ function build_boost() {
 function build_icu() {
     ICU_LOG="$1"
     mkdir -p "${ICU_PREFIX}/icu"
-    wget http://download.icu-project.org/files/icu4c/55.1/icu4c-55_1-src.tgz
-    tar -xf icu4c-55_1-src.tgz
-    rm -f icu4c-55_1-src.tgz
+    wget -c http://download.icu-project.org/files/icu4c/57.1/icu4c-57_1-src.tgz
+    tar -xf icu4c-57_1-src.tgz
+    rm -f icu4c-57_1-src.tgz
     pushd icu/source > /dev/null
     echo "Building icu.  tail -f $ICU_LOG to see the details and monitor progress"
     ./configure --prefix="${ICU_PREFIX}" --enable-draft --enable-tools \
-                    --enable-shared --disable-extras --disable-icuio \
-                    --disable-layout --disable-layoutex --disable-tests --disable-samples
+                    --disable-shared --enable-static --disable-extras --disable-icuio --disable-dyload \
+                    --disable-layout --disable-layoutex --disable-tests --disable-samples > "${ICU_LOG}"
     if [ ! -z ${TARGET+x} ]; then
         TMP_TARGET="${TARGET}"
         unset TARGET
@@ -385,30 +385,19 @@ function build_lbrycrd() {
     fi
     ./autogen.sh > "${LBRYCRD_LOG}" 2>&1
     LDFLAGS="-L${OPENSSL_PREFIX}/lib/ -L${BDB_PREFIX}/lib/ -L${LIBEVENT_PREFIX}/lib/ -L${ICU_PREFIX}/lib/ -static-libstdc++"
+    OPTIONS="--enable-cxx --enable-static --disable-shared --with-pic"
     if [ "${OS_NAME}" = "osx" ]; then
-	OPTIONS="--enable-cxx --enable-static --disable-shared --with-pic"
         CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/ -I${ICU_PREFIX}/include"
     else
-	OPTIONS=""
-        CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/ -I${ICU_PREFIX}/include -Wno-unused-local-typedefs"
+        CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/ -I${ICU_PREFIX}/include -Wno-unused-local-typedefs -Wno-deprecated"
     fi
 
     CPPFLAGS="${CPPFLAGS}" LDFLAGS="${LDFLAGS}"  \
             ./configure --without-gui ${OPTIONS} \
 	    --with-boost="${BOOST_PREFIX}"   \
             --with-icu="${ICU_PREFIX}" >> "${LBRYCRD_LOG}" 2>&1
-
     
     background "make ${PARALLEL}" "${LBRYCRD_LOG}" "Waiting for lbrycrd to finish building"
-    if [ "${OS_NAME}" = "linux" ]; then
-        LD_LIBRARY_PATH="${ICU_PREFIX}/lib" src/test/test_lbrycrd
-    else
-        DYLD_LIBRARY_PATH="${ICU_PREFIX}/lib" src/test/test_lbrycrd
-    fi
-    strip src/lbrycrdd
-    strip src/lbrycrd-cli
-    strip src/lbrycrd-tx
-    strip src/test/test_lbrycrd
 }
 
 function clang_format_diff(){
@@ -446,7 +435,7 @@ if [ "${CHECK_CODE_FORMAT}" = true ]; then
 fi
 
 set +u
-export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig/:${LIBEVENT_PREFIX}/lib/pkgconfig/"
+export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig:${LIBEVENT_PREFIX}/lib/pkgconfig:${ICU_PREFIX}/lib/pkgconfig"
 set -u
 
 if [ "${BUILD_LBRYCRD}" = true ]; then
@@ -455,4 +444,12 @@ if [ "${BUILD_LBRYCRD}" = true ]; then
     trap 'cat_and_exit "${LBRYCRD_LOG}"' INT TERM EXIT
     build_lbrycrd
     trap - INT TERM EXIT
+
+    ./src/test/test_lbrycrd
+    set +u
+    if [[ ! $CXXFLAGS =~ -g ]]; then
+        strip src/lbrycrdd
+        strip src/lbrycrd-cli
+        strip src/lbrycrd-tx
+    fi
 fi

@@ -749,6 +749,11 @@ if test x$use_pkgconfig = xyes; then
     AC_MSG_ERROR(pkg-config not found.)
   fi
 
+  if test "${ICU_PREFIX}" != "auto"; then
+    PKG_CONFIG_PATH="${ICU_PREFIX}/lib/pkgconfig:$PKG_CONFIG_PATH"
+    export PKG_CONFIG_PATH
+  fi
+
   : #NOP
   m4_ifdef(
     [PKG_CHECK_MODULES],
@@ -868,7 +873,7 @@ AC_SUBST(UNIVALUE_LIBS)
 
 CXXFLAGS_TEMP="$CXXFLAGS"
 LIBS_TEMP="$LIBS"
-CXXFLAGS="$CXXFLAGS $CPPFLAGS $SSL_CFLAGS $CRYPTO_CFLAGS $ICU_PREFIX/include"
+CXXFLAGS="$CXXFLAGS $CPPFLAGS $SSL_CFLAGS $CRYPTO_CFLAGS"
 LIBS="$LIBS $SSL_LIBS $CRYPTO_LIBS"
 #AC_CHECK_HEADER([openssl/ec.h],, AC_MSG_ERROR(OpenSSL ec header missing),)
 CXXFLAGS="$CXXFLAGS_TEMP"
