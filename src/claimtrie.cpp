@@ -2856,9 +2856,11 @@ std::string CClaimTrieCache::normalizeClaimName(const std::string& name, bool fo
         initialized = true;
     }
 
-    // Check if it is a valid utf-8 string, if not, simply return the invalid string as is
     std::string normalized;
     try {
+
+        // Check if it is a valid utf-8 string. If not, it will throw a
+        // boost::locale::conv::conversion_error exception which we catch later
         normalized = boost::locale::conv::to_utf<char>(name, "UTF-8", boost::locale::conv::stop);
         if (normalized.empty())
             return name;
