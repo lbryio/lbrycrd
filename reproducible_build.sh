@@ -322,7 +322,6 @@ function build_icu() {
     mkdir -p "${ICU_PREFIX}/icu"
     wget -c http://download.icu-project.org/files/icu4c/57.1/icu4c-57_1-src.tgz
     tar -xf icu4c-57_1-src.tgz
-    rm -f icu4c-57_1-src.tgz
     pushd icu/source > /dev/null
     echo "Building icu.  tail -f $ICU_LOG to see the details and monitor progress"
     ./configure --prefix="${ICU_PREFIX}" --enable-draft --enable-tools \
@@ -361,14 +360,10 @@ function build_dependency() {
     PREFIX=$1
     LOG=$2
     BUILD=$3
-    if [ ! -d "${PREFIX}" ]; then
-	trap 'cleanup "${PREFIX}" "${LOG}"' INT TERM EXIT
-	cd "${LBRYCRD_DEPENDENCIES}"
-        rm -rf ${PREFIX}
-	mkdir -p "${PREFIX}"
-	"${BUILD}" "${LOG}"
-	trap - INT TERM EXIT
-    fi
+    trap 'cleanup "${PREFIX}" "${LOG}"' INT TERM EXIT
+    cd "${LBRYCRD_DEPENDENCIES}"
+    "${BUILD}" "${LOG}"
+    trap - INT TERM EXIT
 }
 
 function build_lbrycrd() {
