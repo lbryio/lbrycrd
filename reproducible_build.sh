@@ -326,7 +326,7 @@ function build_icu() {
     echo "Building icu.  tail -f $ICU_LOG to see the details and monitor progress"
     ./configure --prefix="${ICU_PREFIX}" --enable-draft --enable-tools \
                     --disable-shared --enable-static --disable-extras --disable-icuio --disable-dyload \
-                    --disable-layout --disable-layoutex --disable-tests --disable-samples > "${ICU_LOG}"
+                    --disable-layout --disable-layoutex --disable-tests --disable-samples CFLAGS=-fPIC CPPFLAGS=-fPIC > "${ICU_LOG}"
     if [ ! -z ${TARGET+x} ]; then
         TMP_TARGET="${TARGET}"
         unset TARGET
@@ -350,7 +350,7 @@ function build_libevent() {
     echo "Building libevent.  tail -f ${LIBEVENT_LOG} to see the details and monitor progress"
     ./autogen.sh > "${LIBEVENT_LOG}" 2>&1
     ./configure --prefix="${LIBEVENT_PREFIX}" --enable-static --disable-shared --with-pic \
-		LDFLAGS="-L${OPENSSL_PREFIX}/lib/" \
+		LDFLAGS="-L${OPENSSL_PREFIX}/lib" \
 		CPPFLAGS="-I${OPENSSL_PREFIX}/include" >> "${LIBEVENT_LOG}" 2>&1
     background "make ${PARALLEL}" "${LIBEVENT_LOG}" "Waiting for libevent to finish building"
     make install >> "${LIBEVENT_LOG}"
@@ -369,12 +369,12 @@ function build_dependency() {
 function build_lbrycrd() {
     cd "${SOURCE_DIR}"
     ./autogen.sh > "${LBRYCRD_LOG}" 2>&1
-    LDFLAGS="-L${OPENSSL_PREFIX}/lib/ -L${BDB_PREFIX}/lib/ -L${LIBEVENT_PREFIX}/lib/ -L${ICU_PREFIX}/lib/ -static-libstdc++ -licui18n -licuuc -licudata -dl"
+    LDFLAGS="-L${OPENSSL_PREFIX}/lib -L${BDB_PREFIX}/lib -L${LIBEVENT_PREFIX}/lib -L${ICU_PREFIX}/lib -static-libstdc++ -licui18n -licuuc -licudata -dl"
     OPTIONS="--enable-cxx --enable-static --disable-shared --with-pic"
     if [ "${OS_NAME}" = "osx" ]; then
-        CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/ -I${ICU_PREFIX}/include"
+        CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include -I${ICU_PREFIX}/include"
     else
-        CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/ -I${ICU_PREFIX}/include -Wno-unused-local-typedefs -Wno-deprecated -Wno-implicit-fallthrough"
+        CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include -I${ICU_PREFIX}/include -Wno-unused-local-typedefs -Wno-deprecated -Wno-implicit-fallthrough"
     fi
 
     CPPFLAGS="${CPPFLAGS}" LDFLAGS="${LDFLAGS}"  \
