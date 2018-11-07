@@ -15,7 +15,6 @@ function HELP {
     echo
     echo "Optional arguments:"
     echo
-    echo "-c: clone a fresh copy of the repo"
     echo "-f: check formatting of committed code relative to master"
     echo "-r: remove intermediate files."
     echo "-l: build only lbrycrd"
@@ -26,7 +25,6 @@ function HELP {
     exit 1
 }
 
-CLONE=false
 CLEAN=false
 CHECK_CODE_FORMAT=false
 BUILD_DEPENDENCIES=true
@@ -39,15 +37,12 @@ OUTPUT_LOG=true
 
 while getopts :crfldoth:w:d: FLAG; do
     case $FLAG in
-	c)
-	    CLONE=true
-	    ;;
 	r)
 	    CLEAN=true
 	    ;;
-    f)
-        CHECK_CODE_FORMAT=true
-        ;;
+	f)
+	    CHECK_CODE_FORMAT=true
+	    ;;
 	l)
 	    BUILD_DEPENDENCIES=false
 	    ;;
@@ -81,13 +76,11 @@ if (( EUID != 0 )); then
     SUDO='sudo'
 fi
 
-if [ "${CLONE}" = false ]; then
-    if [ "$(basename "$PWD")" != "lbrycrd" ]; then
-	echo "Not currently in the lbrycrd directory. Cowardly refusing to go forward"
-	exit 1
-    fi
-    SOURCE_DIR=$PWD
+if [ "$(basename "$PWD")" != "lbrycrd" ]; then
+    echo "Not currently in the lbrycrd directory. Cowardly refusing to go forward"
+    exit 1
 fi
+SOURCE_DIR=$PWD
 
 if [ -z "${TRAVIS_OS_NAME+x}" ]; then
     if [ "$(uname -s)" = "Darwin" ]; then
@@ -265,7 +258,7 @@ function build_dependencies() {
     build_dependency "${BDB_PREFIX}" "${LOG_DIR}/bdb_build.log" build_bdb
 
     set +u
-    export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig/"
+    export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig"
     set -u
 
     build_dependency "${BOOST_PREFIX}" "${LOG_DIR}/boost_build.log" build_boost
@@ -275,6 +268,7 @@ function build_dependencies() {
 function build_bdb() {
     BDB_LOG="$1"
     if [ "${OS_NAME}" = "osx" ]; then
+        # TODO: make this handle already patched files
 	patch db-4.8.30.NC/dbinc/atomic.h < atomic.patch
     fi
     cd db-4.8.30.NC/build_unix
@@ -309,16 +303,18 @@ function build_boost() {
     echo "int main() { return 0; }" > libs/regex/build/has_icu_test.cpp
     echo "int main() { return 0; }" > libs/locale/build/has_icu_test.cpp
 
-    export BOOST_ICU_LIBS="${ICU_PREFIX}/lib -dl"
-    export BOOST_LDFLAGS="${BOOST_PREFIX}/lib ${BOOST_ICU_LIBS}"
+    export BOOST_ICU_LIBS="-L${ICU_PREFIX}/lib -licui18n -licuuc -licudata -dl"
+    export BOOST_LDFLAGS="-L${BOOST_PREFIX}/lib ${BOOST_ICU_LIBS}"
 
-    echo "BOOST_ICU_LIBS: $BOOST_ICU_LIBS"
     echo "BOOST_LDFLAGS: $BOOST_LDFLAGS"
 
     echo "Building Boost.  tail -f ${BOOST_LOG} to see the details and monitor progress"
-    ./bootstrap.sh --prefix="${BOOST_PREFIX}" "--with-icu=${ICU_PREFIX}" > "${BOOST_LOG}" 2>&1
-    b2cmd="./b2 link=static cxxflags=-fPIC install boost.locale.iconv=off boost.locale.posix=off -sICU_PATH=${ICU_PREFIX} -sICU_LINK=${BOOST_ICU_LIBS}"
-    background "${b2cmd}" "${BOOST_LOG}" "Waiting for boost to finish building"
+    ./bootstrap.sh --prefix="${BOOST_PREFIX}" --with-icu="${ICU_PREFIX}" > "${BOOST_LOG}" 2>&1
+    ./b2 --reconfigure ${PARALLEL} link=static cxxflags=-fPIC install boost.locale.iconv=off boost.locale.posix=off -sICU_PATH="${ICU_PREFIX}" -sICU_LINK="${BOOST_ICU_LIBS}" >> "${BOOST_LOG}" 2>&1
+    if grep -q "icu[[:space:]]*:[[:space:]]*no$" "${BOOST_LOG}"; then
+        echo "Failed to find ICU dependencies. Exiting..."
+        exit 1
+    fi
 }
 
 function build_icu() {
@@ -376,20 +372,14 @@ function build_dependency() {
 }
 
 function build_lbrycrd() {
-    if [ "$CLONE" == true ]; then
-	cd "${LBRYCRD_DEPENDENCIES}"
-	git clone https://github.com/lbryio/lbrycrd
-	cd lbrycrd
-    else
-	cd "${SOURCE_DIR}"
-    fi
+    cd "${SOURCE_DIR}"
     ./autogen.sh > "${LBRYCRD_LOG}" 2>&1
-    LDFLAGS="-L${OPENSSL_PREFIX}/lib/ -L${BDB_PREFIX}/lib/ -L${LIBEVENT_PREFIX}/lib/ -L${ICU_PREFIX}/lib/ -static-libstdc++"
+    LDFLAGS="-L${OPENSSL_PREFIX}/lib/ -L${BDB_PREFIX}/lib/ -L${LIBEVENT_PREFIX}/lib/ -L${ICU_PREFIX}/lib/ -static-libstdc++ -licui18n -licuuc -licudata -dl"
     OPTIONS="--enable-cxx --enable-static --disable-shared --with-pic"
     if [ "${OS_NAME}" = "osx" ]; then
         CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/ -I${ICU_PREFIX}/include"
     else
-        CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/ -I${ICU_PREFIX}/include -Wno-unused-local-typedefs -Wno-deprecated"
+        CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/ -I${ICU_PREFIX}/include -Wno-unused-local-typedefs -Wno-deprecated -Wno-implicit-fallthrough"
     fi
 
     CPPFLAGS="${CPPFLAGS}" LDFLAGS="${LDFLAGS}"  \
