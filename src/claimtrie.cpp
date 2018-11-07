@@ -403,29 +403,6 @@ CAmount CClaimTrie::getTotalValueOfClaimsRecursive(const CClaimTrieNode* current
 }
 
 // "name" is already normalized if needed
-bool CClaimTrie::recursiveFlattenTrie(const std::string& name, const CClaimTrieNode* current, std::vector<namedNodeType>& nodes) const
-{
-    namedNodeType node(name, *current);
-    nodes.push_back(node);
-    for (nodeMapType::const_iterator it = current->children.begin(); it != current->children.end(); ++it)
-    {
-        std::stringstream ss;
-        ss << name << it->first;
-        if (!recursiveFlattenTrie(ss.str(), it->second, nodes))
-            return false;
-    }
-    return true;
-}
-
-std::vector<namedNodeType> CClaimTrie::flattenTrie() const
-{
-    std::vector<namedNodeType> nodes;
-    if (!recursiveFlattenTrie(rootClaimName, &root, nodes))
-        LogPrintf("%s: Something went wrong flattening the trie", __func__);
-    return nodes;
-}
-
-// "name" is already normalized if needed
 const CClaimTrieNode* CClaimTrie::getNodeForName(const std::string& name) const
 {
     const CClaimTrieNode* current = &root;
@@ -2042,7 +2019,7 @@ bool CClaimTrieCache::normalizeAllNamesInTrieIfNecessary(insertUndoType& insertU
     if (nCurrentHeight == Params().GetConsensus().nNormalizedNameForkHeight) {
 
         // run the one-time upgrade of all names that need to change
-        std::vector<namedNodeType> nodes = base->flattenTrie(); // TODO: replace all these calls with a real iterator (coded in #106)
+        std::vector<namedNodeType> nodes = flattenTrie(); // TODO: replace all these calls with a real iterator (coded in #106)
         for (std::vector<namedNodeType>::iterator it = nodes.begin(); it != nodes.end(); ++it) {
             if (it->second.claims.empty()) continue;
             const std::string normalized = normalizeClaimName(it->first, true);
@@ -2051,7 +2028,7 @@ bool CClaimTrieCache::normalizeAllNamesInTrieIfNecessary(insertUndoType& insertU
             LogPrintf("%s: Converting name on normalization fork upgrade: %s -> %s at %d\n", __func__, it->first.c_str(), normalized.c_str(), nCurrentHeight);
 
             supportMapEntryType supports;
-            if (base->getSupportNode(it->first, supports)) {
+            if (getSupportsForName(it->first, supports)) {
                 BOOST_FOREACH(CSupportValue& support, supports) {
                     // if it's already going to expire just skip it
                     if (support.nHeight + base->nExpirationTime <= nCurrentHeight)

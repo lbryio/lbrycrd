@@ -1157,17 +1157,22 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
 {
     ClaimTrieChainFixture fixture;
 
+    std::string name = "Ame\u0301lie";
+
     std::string name_upper = "Amélie";
     std::string name_normd = "amélie"; // this accented e is not actually the same as the one above; this has been "normalized"
 
+    BOOST_CHECK(name != name_upper);
+
     // Add another set of unicode claims that will collapse after the fork
-    CMutableTransaction tx = fixture.MakeClaim(fixture.GetCoinbase(), name_upper, "amelie", 2);
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), name, "amilie", 2);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), name_upper, "amelie", 2);
     fixture.MakeClaim(fixture.GetCoinbase(), "amelie1", "amelie", 2);
     fixture.IncrementBlocks(1);
 
     CClaimValue lookupClaim;
     std::string lookupName;
-    BOOST_CHECK(pclaimTrie->getClaimById(ClaimIdHash(tx.GetHash(), 0), lookupName, lookupClaim));
+    BOOST_CHECK(pclaimTrie->getClaimById(ClaimIdHash(tx2.GetHash(), 0), lookupName, lookupClaim));
     CClaimValue nval1;
     BOOST_CHECK(pclaimTrie->getInfoForName("amelie1", nval1));
     // amélie is not found cause normalization still not appear
@@ -1196,8 +1201,25 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
     BOOST_CHECK(DisconnectBlock(block, state, pindex, coins, trieCache, NULL));
     BOOST_CHECK(state.IsValid());
     BOOST_CHECK(!trieCache.shouldNormalize());
-    BOOST_CHECK(!trieCache.spendClaim(name_normd, COutPoint(tx.GetHash(), 0), currentHeight, amelieValidHeight));
-    BOOST_CHECK(trieCache.spendClaim(name_upper, COutPoint(tx.GetHash(), 0), currentHeight, amelieValidHeight));
+    BOOST_CHECK(!trieCache.spendClaim(name_normd, COutPoint(tx2.GetHash(), 0), currentHeight, amelieValidHeight));
+    BOOST_CHECK(trieCache.spendClaim(name_upper, COutPoint(tx2.GetHash(), 0), currentHeight, amelieValidHeight));
+
+    BOOST_CHECK(!pclaimTrie->getInfoForName(name, nval1));
+    BOOST_CHECK(trieCache.getInfoForName(name, nval1));
+    BOOST_CHECK(trieCache.addClaim(name, COutPoint(tx1.GetHash(), 0), ClaimIdHash(tx1.GetHash(), 0), CAmount(2), currentHeight + 1));
+    BOOST_CHECK(trieCache.getInfoForName(name, nval1));
+    insertUndoType insertUndo;
+    claimQueueRowType expireUndo;
+    insertUndoType insertSupportUndo;
+    supportQueueRowType expireSupportUndo;
+    std::vector<std::pair<std::string, int> > takeoverHeightUndo;
+    BOOST_CHECK(trieCache.incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverHeightUndo));
+    BOOST_CHECK(trieCache.shouldNormalize());
+    // we cannot use getXXXForName cause they will normalized name
+    std::vector<namedNodeType> flatTrie = trieCache.flattenTrie();
+    for (std::vector<namedNodeType>::const_iterator it = flatTrie.begin(); it != flatTrie.end(); ++it) {
+        BOOST_CHECK(it->first != name);
+    }
 }
 
 BOOST_AUTO_TEST_CASE(undo_normalization_does_not_kill_claim_order) {

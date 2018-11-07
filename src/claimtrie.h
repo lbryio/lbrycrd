@@ -323,7 +323,6 @@ public:
     bool WriteToDisk();
     bool ReadFromDisk(bool check = false);
 
-    std::vector<namedNodeType> flattenTrie() const;
     bool getInfoForName(const std::string& name, CClaimValue& claim) const;
     bool getLastTakeoverForName(const std::string& name, int& lastTakeoverHeight) const;
 
@@ -388,9 +387,6 @@ private:
     unsigned int getTotalClaimsRecursive(const CClaimTrieNode* current) const;
     CAmount getTotalValueOfClaimsRecursive(const CClaimTrieNode* current,
                                            bool fControllingOnly) const;
-    bool recursiveFlattenTrie(const std::string& name,
-                              const CClaimTrieNode* current,
-                              std::vector<namedNodeType>& nodes) const;
 
     bool getQueueRow(int nHeight, claimQueueRowType& row) const;
     bool getQueueNameRow(const std::string& name, queueNameRowType& row) const;
