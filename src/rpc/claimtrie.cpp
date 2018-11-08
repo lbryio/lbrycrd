@@ -795,6 +795,30 @@ UniValue getnameproof(const UniValue& params, bool fHelp)
     return proofToJSON(proof);
 }
 
+UniValue checknormalization(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw std::runtime_error(
+            "checknormalization\n"
+            "Given an unnormalized name of a claim, return normalized version of it\n"
+            "Arguments:\n"
+            "1. \"name\"           (string) the name to normalize\n"
+            "Result: \n"
+            "\"normalized\"        (string) fully normalized name\n"
+            );
+
+
+    std::string name = params[0].get_str();
+
+    CClaimTrieCache triecache(pclaimTrie);
+    bool force = true;
+    std::string out = triecache.normalizeClaimName(name, force);
+    return out;
+}
+
+
+
+
 static const CRPCCommand commands[] =
 { //  category              name                           actor (function)        okSafeMode
   //  --------------------- ------------------------     -----------------------  ----------
@@ -808,6 +832,7 @@ static const CRPCCommand commands[] =
     { "Claimtrie",             "getclaimsfortx",          &getclaimsfortx,          true  },
     { "Claimtrie",             "getnameproof",            &getnameproof,            true  },
     { "Claimtrie",             "getclaimbyid",            &getclaimbyid,            true  },
+    { "Claimtrie",             "checknormalization",      &checknormalization,      true  },
 };
 
 void RegisterClaimTrieRPCCommands(CRPCTable &tableRPC)
