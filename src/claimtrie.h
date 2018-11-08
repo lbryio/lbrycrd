@@ -212,7 +212,6 @@ struct nameOutPointHeightType
 
     nameOutPointHeightType(std::string name, COutPoint outPoint, int nHeight)
     : name(name), outPoint(outPoint), nHeight(nHeight) {}
-   
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
@@ -323,6 +322,7 @@ public:
     bool getLastTakeoverForName(const std::string& name, int& lastTakeoverHeight) const;
 
     claimsForNameType getClaimsForName(const std::string& name) const;
+
     CAmount getEffectiveAmountForClaim(const std::string& name, const uint160& claimId, std::vector<CSupportValue>* supports = NULL) const;
     CAmount getEffectiveAmountForClaim(const claimsForNameType& claims, const uint160& claimId, std::vector<CSupportValue>* supports = NULL) const;
 
@@ -484,10 +484,8 @@ public:
 
     bool addClaim(const std::string& name, const COutPoint& outPoint,
                   uint160 claimId, CAmount nAmount, int nHeight) const;
-    bool undoAddClaim(const std::string& name, const COutPoint& outPoint,
-                      int nHeight) const;
-    bool spendClaim(const std::string& name, const COutPoint& outPoint,
-                    int nHeight, int& nValidAtHeight) const;
+    bool undoAddClaim(const std::string& name, const COutPoint& outPoint) const;
+    bool spendClaim(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const;
     bool undoSpendClaim(const std::string& name, const COutPoint& outPoint,
                         uint160 claimId, CAmount nAmount, int nHeight,
                         int nValidAtHeight) const;
@@ -559,7 +557,7 @@ protected:
     mutable queueNameType supportQueueNameCache;
     mutable expirationQueueType supportExpirationQueueCache;
     mutable std::set<std::string> namesToCheckForTakeover;
-    mutable std::map<std::string, int> cacheTakeoverHeights; 
+    mutable std::map<std::string, int> cacheTakeoverHeights;
     mutable int nCurrentHeight; // Height of the block that is being worked on, which is
                                 // one greater than the height of the chain's tip
     mutable claimIndexElementListType claimsToAdd;
@@ -578,9 +576,7 @@ protected:
 
     bool clear() const;
 
-    bool removeClaim(const std::string& name, const COutPoint& outPoint,
-                     int nHeight, int& nValidAtHeight, bool fCheckTakeover) const;
-
+    bool removeClaim(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight, bool fCheckTakeover) const;
     bool addClaimToQueues(const std::string& name, CClaimValue& claim) const;
     bool removeClaimFromQueue(const std::string& name, const COutPoint& outPoint,
                               CClaimValue& claim) const;

@@ -144,7 +144,8 @@ def main():
     command.extend(lines)
     command.extend(['-style=file', '-fallback-style=none'])
     p = subprocess.Popen(command, stdout=subprocess.PIPE,
-                         stderr=None, stdin=subprocess.PIPE)
+                         stderr=None,
+                         stdin=subprocess.PIPE)
     stdout, stderr = p.communicate()
     if p.returncode != 0:
       sys.exit(p.returncode);
