@@ -104,7 +104,7 @@ class InvalidBlockRequestTest(BitcoinTestFramework):
         block2_orig.hashMerkleRoot = block2_orig.calc_merkle_root()
         block2_orig.rehash()
         block2_orig.solve()
-        node.p2p.send_blocks_and_test([block2_orig], node, success=False, request_block=False, reject_reason=b'bad-txns-inputs-duplicate')
+        node.p2p.send_blocks_and_test([block2_orig], node, success=False, reject_reason=b'bad-txns-inputs-duplicate')
 
         self.log.info("Test very broken block.")
 
