@@ -2606,13 +2606,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                 std::vector<std::vector<unsigned char> > vvchParams;
                 if (DecodeClaimScript(coins->vout[txin.prevout.n].scriptPubKey, op, vvchParams))
                 {
+                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
                     {
                         uint160 claimId;
                         if (op == OP_CLAIM_NAME)
                         {
-                            assert(vvchParams.size() == 2);
-                            std::string name(vvchParams[0].begin(), vvchParams[0].end());
                             std::string value(vvchParams[1].begin(), vvchParams[1].end());
                             claimId = ClaimIdHash(txin.prevout.hash, txin.prevout.n);
                             LogPrintf("+++ %s[%lu]: OP_CLAIM_NAME \"%s\" = \"%s\" with claimId %s and tx prevout %s at index %d\n",
@@ -2621,15 +2620,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         }
                         else if (op == OP_UPDATE_CLAIM)
                         {
-                            assert(vvchParams.size() == 3);
-                            std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                            std::string value(vvchParams[1].begin(), vvchParams[1].end());
                             claimId = uint160(vvchParams[1]);
+                            std::string value(vvchParams[2].begin(), vvchParams[2].end());
                             LogPrintf("+++ %s[%lu]: OP_UPDATE_CLAIM \"%s\" = \"%s\" with claimId %s and tx prevout %s at index %d\n",
                                       __func__, pindex->nHeight, name, SanitizeString(value),
                                       claimId.GetHex(), txin.prevout.hash.GetHex(), txin.prevout.n);
                         }
-                        std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         int nValidAtHeight;
                         LogPrintf("%s: Removing %s from the claim trie. Tx: %s, nOut: %d\n",
                             __func__, name, txin.prevout.hash.GetHex(), txin.prevout.n);
@@ -2644,8 +2640,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                     }
                     else if (op == OP_SUPPORT_CLAIM)
                     {
-                        assert(vvchParams.size() == 2);
-                        std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         uint160 supportedClaimId(vvchParams[1]);
                         LogPrintf("+++ %s[%lu]: OP_SUPPORT_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n",
                                   __func__, pindex->nHeight, name,
@@ -2691,9 +2685,10 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         spentClaimsType::iterator itSpent;
                         for (itSpent = spentClaims.begin(); itSpent != spentClaims.end(); ++itSpent)
                         {
-                            std::string normalized = trieCache.normalizeClaimName(name);
-                            if (normalized == itSpent->first && itSpent->second == claimId)
-                                break;
+                            if (itSpent->second == claimId) {
+                                if (trieCache.normalizeClaimName(name) == trieCache.normalizeClaimName(itSpent->first))
+                                    break;
+                            }
                         }
                         if (itSpent != spentClaims.end())
                         {

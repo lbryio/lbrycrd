@@ -1430,7 +1430,7 @@ BOOST_AUTO_TEST_CASE(normalization_does_not_kill_expirations) {
     BOOST_CHECK(!best_claim_effective_amount_equals("a", 2));
     BOOST_CHECK(!best_claim_effective_amount_equals("b", 2));
     BOOST_CHECK(!best_claim_effective_amount_equals("c", 2));
-    BOOST_CHECK(best_claim_effective_amount_equals("d", 2));
+    BOOST_CHECK(!best_claim_effective_amount_equals("d", 2)); // (not re-added)
 }
 
 /*

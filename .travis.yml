@@ -30,7 +30,7 @@ before_install:
 install: true
 script:
 - mkdir -p "dist/${TRAVIS_BRANCH}"
-- if [[ "${TARGET}" == "osx" ]];     then ./reproducible_build.sh -t -o; fi
+- if [[ "${TARGET}" == "osx" ]];     then ./reproducible_build.sh -t -o -r; fi
 - if [[ "${TARGET}" == "linux" ]];   then ./reproducible_build.sh -t -o; fi
 - if [[ "${TARGET}" == "windows" ]]; then ./packaging/build_windows.sh; fi
 - if [[ "${TARGET}" == "osx" ]];     then zip -j "dist/${TRAVIS_BRANCH}/lbrycrd-${TARGET}.zip" src/lbrycrdd src/lbrycrd-cli src/lbrycrd-tx; fi

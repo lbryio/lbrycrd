@@ -484,7 +484,7 @@ public:
                   uint160 claimId, CAmount nAmount, int nHeight) const;
     bool undoAddClaim(const std::string& name, const COutPoint& outPoint,
                       int nHeight) const;
-    bool spendClaim(std::string& name, const COutPoint& outPoint,
+    bool spendClaim(const std::string& name, const COutPoint& outPoint,
                     int nHeight, int& nValidAtHeight) const;
     bool undoSpendClaim(const std::string& name, const COutPoint& outPoint,
                         uint160 claimId, CAmount nAmount, int nHeight,
@@ -595,7 +595,7 @@ private:
     bool removeClaim(const std::string& name, const COutPoint& outPoint,
                      int nHeight, int& nValidAtHeight, bool fCheckTakeover) const;
 
-    bool addClaimToQueues(const std::string& name, CClaimValue& claim) const;
+    void addClaimToQueues(const std::string& name, CClaimValue& claim) const;
     bool removeClaimFromQueue(const std::string& name, const COutPoint& outPoint,
                               CClaimValue& claim) const;
     void addToExpirationQueue(int nExpirationHeight, nameOutPointType& entry) const;

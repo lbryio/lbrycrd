@@ -342,9 +342,9 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
                         spentClaimsType::iterator itSpent;
                         for (itSpent = spentClaims.begin(); itSpent != spentClaims.end(); ++itSpent)
                         {
-                            std::string normalized = trieCache.normalizeClaimName(name);
-                            if (normalized == itSpent->first && itSpent->second == claimId) {
-                                break;
+                            if (itSpent->second == claimId) {
+                                if (trieCache.normalizeClaimName(name) == trieCache.normalizeClaimName(itSpent->first))
+                                    break;
                             }
                         }
                         if (itSpent != spentClaims.end())
