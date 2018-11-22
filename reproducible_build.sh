@@ -198,7 +198,7 @@ function install_brew_packages() {
     brew_if_not_installed automake
     # something weird happened where glibtoolize was failing to find
     # sed, and reinstalling fixes it.
-    brew reinstall -s libtool
+    brew reinstall libtool
     brew_if_not_installed pkg-config
     brew_if_not_installed protobuf
     brew_if_not_installed gmp
