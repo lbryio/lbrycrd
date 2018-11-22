@@ -435,90 +435,10 @@ bool CClaimTrie::getLastTakeoverForName(const std::string& name, int& lastTakeov
     return false;
 }
 
-claimsForNameType CClaimTrie::getClaimsForName(const std::string& name) const
+std::vector<CClaimValue> CClaimTrie::getClaimsForName(const std::string& name) const
 {
-    std::vector<CClaimValue> claims;
-    std::vector<CSupportValue> supports;
-    int nLastTakeoverHeight = 0;
     const CClaimTrieNode* current = getNodeForName(name);
-    if (current)
-    {
-        if (!current->claims.empty())
-        {
-            nLastTakeoverHeight = current->nHeightOfLastTakeover;
-        }
-        for (std::vector<CClaimValue>::const_iterator itClaims = current->claims.begin(); itClaims != current->claims.end(); ++itClaims)
-        {
-            claims.push_back(*itClaims);
-        }
-    }
-    supportMapEntryType supportNode;
-    if (getSupportNode(name, supportNode)) {
-        for (std::vector<CSupportValue>::const_iterator itSupports = supportNode.begin(); itSupports != supportNode.end(); ++itSupports)
-        {
-            supports.push_back(*itSupports);
-        }
-    }
-    queueNameRowType namedClaimRow;
-    if (getQueueNameRow(name, namedClaimRow)) {
-        for (queueNameRowType::const_iterator itClaimsForName = namedClaimRow.begin(); itClaimsForName != namedClaimRow.end(); ++itClaimsForName)
-        {
-            claimQueueRowType claimRow;
-            if (getQueueRow(itClaimsForName->nHeight, claimRow))
-            {
-                for (claimQueueRowType::const_iterator itClaimRow = claimRow.begin(); itClaimRow != claimRow.end(); ++itClaimRow)
-                 {
-                    if (itClaimRow->first == name && itClaimRow->second.outPoint == itClaimsForName->outPoint) {
-                        claims.push_back(itClaimRow->second);
-                        break;
-                     }
-                 }
-            }
-        }
-    }
-    queueNameRowType namedSupportRow;
-    if (getSupportQueueNameRow(name, namedSupportRow)) {
-        for (queueNameRowType::const_iterator itSupportsForName = namedSupportRow.begin(); itSupportsForName != namedSupportRow.end(); ++itSupportsForName)
-        {
-            supportQueueRowType supportRow;
-            if (getSupportQueueRow(itSupportsForName->nHeight, supportRow))
-            {
-                for (supportQueueRowType::const_iterator itSupportRow = supportRow.begin(); itSupportRow != supportRow.end(); ++itSupportRow)
-                {
-                    if (itSupportRow->first == name && itSupportRow->second.outPoint == itSupportsForName->outPoint) {
-                        supports.push_back(itSupportRow->second);
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    claimsForNameType allClaims(claims, supports, nLastTakeoverHeight);
-    return allClaims;
-}
-
-//return effective amount from claim, retuns 0 if claim is not found
-CAmount CClaimTrie::getEffectiveAmountForClaim(const std::string& name, const uint160& claimId, std::vector<CSupportValue>* supports) const
-{
-    return getEffectiveAmountForClaim(getClaimsForName(name), claimId, supports);
-}
-
-CAmount CClaimTrie::getEffectiveAmountForClaim(const claimsForNameType& claims, const uint160& claimId, std::vector<CSupportValue>* supports) const
-{
-    CAmount effectiveAmount = 0;
-    for (std::vector<CClaimValue>::const_iterator it = claims.claims.begin(); it != claims.claims.end(); ++it) {
-        if (it->claimId == claimId && it->nValidAtHeight < nCurrentHeight) {
-            effectiveAmount += it->nAmount;
-            for (std::vector<CSupportValue>::const_iterator it = claims.supports.begin(); it != claims.supports.end(); ++it) {
-                if (it->supportedClaimId == claimId && it->nValidAtHeight < nCurrentHeight) {
-                    effectiveAmount += it->nAmount;
-                    if (supports) supports->push_back(*it);
-                }
-            }
-            break;
-        }
-    }
-    return effectiveAmount;
+    return current != NULL ? current->claims : std::vector<CClaimValue>();
 }
 
 bool CClaimTrie::checkConsistency() const
@@ -1518,6 +1438,7 @@ bool CClaimTrieCache::undoSpendClaim(const std::string& name, const COutPoint& o
         return insertClaimIntoTrie(name, claim, false);
     }
     addClaimToQueues(name, claim);
+    return true;
 }
 
 void CClaimTrieCache::addClaimToQueues(const std::string& name, CClaimValue& claim) const
@@ -1837,7 +1758,6 @@ queueNameType::iterator CClaimTrieCache::getSupportQueueCacheNameRow(const std::
     return itQueueNameRow;
 }
 
-// "name" is already normalized if needed
 bool CClaimTrieCache::addSupportToQueues(const std::string& name, CSupportValue& support) const
 {
     LogPrintf("%s: nValidAtHeight: %d\n", __func__, support.nValidAtHeight);
@@ -1851,7 +1771,6 @@ bool CClaimTrieCache::addSupportToQueues(const std::string& name, CSupportValue&
     return true;
 }
 
-// "name" is already normalized if needed
 bool CClaimTrieCache::removeSupportFromQueue(const std::string& name, const COutPoint& outPoint, CSupportValue& support) const
 {
     queueNameType::iterator itQueueNameRow = getSupportQueueCacheNameRow(name, false);
@@ -2587,39 +2506,7 @@ claimsForNameType CClaimTrieCache::getClaimsForName(const std::string& name) con
     }
     supportMapEntryType supports;
     getSupportsForName(newName, supports);
-    queueNameType::const_iterator itQueueNameCache = getQueueCacheNameRow(newName, false);
-    if (itQueueNameCache != claimQueueNameCache.end()) {
-        const queueNameRowType& namedClaimRow = itQueueNameCache->second;
-        for (queueNameRowType::const_iterator itClaimsForName = namedClaimRow.begin(); itClaimsForName != namedClaimRow.end(); ++itClaimsForName) {
-            claimQueueType::const_iterator itQueueCache = getQueueCacheRow(itClaimsForName->nHeight, false);
-            if (itQueueCache != claimQueueCache.end()) {
-                const claimQueueRowType& claimRow = itQueueCache->second;
-                for (claimQueueRowType::const_iterator itClaimRow = claimRow.begin(); itClaimRow != claimRow.end(); ++itClaimRow) {
-                    if (itClaimRow->first == newName && itClaimRow->second.outPoint == itClaimsForName->outPoint) {
-                        claims.push_back(itClaimRow->second);
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    queueNameType::const_iterator itSupportQueueNameCache = getSupportQueueCacheNameRow(newName, false);
-    if (itSupportQueueNameCache != supportQueueNameCache.end()) {
-        const queueNameRowType& namedSupportRow = itSupportQueueNameCache->second;
-        for (queueNameRowType::const_iterator itSupportsForName = namedSupportRow.begin(); itSupportsForName != namedSupportRow.end(); ++itSupportsForName) {
-            supportQueueType::const_iterator itSupportQueueCache = getSupportQueueCacheRow(itSupportsForName->nHeight, false);
-            if (itSupportQueueCache != supportQueueCache.end()) {
-                const supportQueueRowType& supportRow = itSupportQueueCache->second;
-                for (supportQueueRowType::const_iterator itSupportRow = supportRow.begin(); itSupportRow != supportRow.end(); ++itSupportRow) {
-                    if (itSupportRow->first == name && itSupportRow->second.outPoint == itSupportsForName->outPoint) {
-                        supports.push_back(itSupportRow->second);
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    return claimsForNameType(claims, supports, nLastTakeoverHeight);
+    return claimsForNameType(claims, supports, nLastTakeoverHeight, newName);
 }
 
 CAmount CClaimTrieCache::getEffectiveAmountForClaim(const std::string& name, const uint160& claimId, std::vector<CSupportValue>* supports) const

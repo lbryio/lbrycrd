@@ -140,7 +140,7 @@ function wait_and_echo() {
 # logging its stdout and stderr to $2
 # and wait until it completed
 function background() {
-    $1 >> "$2" 2>&1 &
+    eval $1 >> "$2" 2>&1 &
     BACKGROUND_PID=$!
     (
         set +xe # do not echo each sleep call in trace mode
@@ -310,7 +310,8 @@ function build_boost() {
 
     echo "Building Boost.  tail -f ${BOOST_LOG} to see the details and monitor progress"
     ./bootstrap.sh --prefix="${BOOST_PREFIX}" --with-icu="${ICU_PREFIX}" > "${BOOST_LOG}" 2>&1
-    ./b2 --reconfigure ${PARALLEL} link=static cxxflags=-fPIC install boost.locale.iconv=off boost.locale.posix=off -sICU_PATH="${ICU_PREFIX}" -sICU_LINK="${BOOST_ICU_LIBS}" >> "${BOOST_LOG}" 2>&1
+    b2cmd="./b2 --reconfigure ${PARALLEL} link=static cxxflags=-fPIC install boost.locale.iconv=off boost.locale.posix=off -sICU_PATH=\"${ICU_PREFIX}\" -sICU_LINK=\"${BOOST_ICU_LIBS}\""
+    background "${b2cmd}" "${BOOST_LOG}" "Waiting for boost to finish building"
     if grep -q "icu[[:space:]]*:[[:space:]]*no$" "${BOOST_LOG}"; then
         echo "Failed to find ICU dependencies. Exiting..."
         exit 1

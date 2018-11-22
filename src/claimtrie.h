@@ -293,12 +293,14 @@ typedef std::vector<CClaimIndexElement> claimIndexElementListType;
 
 struct claimsForNameType
 {
-    std::vector<CClaimValue> claims;
-    std::vector<CSupportValue> supports;
-    int nLastTakeoverHeight;
+    const std::vector<CClaimValue> claims;
+    const std::vector<CSupportValue> supports;
+    const int nLastTakeoverHeight;
+    const std::string name;
 
-    claimsForNameType(std::vector<CClaimValue> claims, std::vector<CSupportValue> supports, int nLastTakeoverHeight)
-    : claims(claims), supports(supports), nLastTakeoverHeight(nLastTakeoverHeight) {}
+    claimsForNameType(std::vector<CClaimValue> claims, std::vector<CSupportValue> supports, int nLastTakeoverHeight,
+            const std::string& name)
+    : claims(claims), supports(supports), nLastTakeoverHeight(nLastTakeoverHeight), name(name) {}
 };
 
 class CClaimTrieCache;
@@ -326,9 +328,7 @@ public:
     bool getInfoForName(const std::string& name, CClaimValue& claim) const;
     bool getLastTakeoverForName(const std::string& name, int& lastTakeoverHeight) const;
 
-    claimsForNameType getClaimsForName(const std::string& name) const;
-    CAmount getEffectiveAmountForClaim(const std::string& name, const uint160& claimId, std::vector<CSupportValue>* supports = NULL) const;
-    CAmount getEffectiveAmountForClaim(const claimsForNameType& claims, const uint160& claimId, std::vector<CSupportValue>* supports = NULL) const;
+    std::vector<CClaimValue> getClaimsForName(const std::string& name) const;
 
     bool queueEmpty() const;
     bool supportEmpty() const;

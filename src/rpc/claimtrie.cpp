@@ -57,8 +57,8 @@ UniValue getclaimsintrie(const UniValue& params, bool fHelp)
             "Result: \n"
             "[\n"
             "  {\n"
-            "    \"name\"         (string) the name claimed\n"
-            "    \"claims\": [    (array of object) the claims for this name\n"
+            "    \"normalizedName\"     (string) the name of these claims (after normalization)\n"
+            "    \"claims\": [          (array of object) the claims for this name\n"
             "      {\n"
             "        \"claimId\"        (string) the claimId of the claim\n"
             "        \"txid\"           (string) the txid of the claim\n"
@@ -66,7 +66,7 @@ UniValue getclaimsintrie(const UniValue& params, bool fHelp)
             "        \"amount\"         (numeric) txout amount\n"
             "        \"height\"         (numeric) the height of the block in which this transaction is located\n"
             "        \"value\"          (string) the value of this claim\n"
-            "        \"original_name\"  (string) the original name of this claim (before normalization)\n"
+            "        \"name\"           (string) the original name of this claim (before normalization)\n"
             "      }\n"
             "    ]\n"
             "  }\n"
@@ -116,12 +116,12 @@ UniValue getclaimsintrie(const UniValue& params, bool fHelp)
             std::string targetName;
             CClaimValue targetClaim;
             if (pclaimTrie->getClaimById(itClaims->claimId, targetName, targetClaim))
-                claim.push_back(Pair("original_name", targetName));
+                claim.push_back(Pair("name", targetName));
             claims.push_back(claim);
         }
 
         UniValue node(UniValue::VOBJ);
-        node.push_back(Pair("name", it->first));
+        node.push_back(Pair("normalizedName", it->first));
         node.push_back(Pair("claims", claims));
         ret.push_back(node);
     }
@@ -224,7 +224,7 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
     if (fHelp || params.size() > 2)
         throw std::runtime_error(
             "getvalueforname \"name\"\n"
-            "Return the value associated with a name, if one exists\n"
+            "Return the winning value associated with a name, if one exists\n"
             "Arguments:\n"
             "1. \"name\"          (string) the name to look up\n"
             "2. \"blockhash\"     (string, optional) get the value\n"
@@ -242,7 +242,7 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
             "\"amount\"           (numeric) txout amount\n"
             "\"effective amount\" (numeric) txout amount plus amount from all supports associated with the claim\n"
             "\"height\"           (numeric) the height of the block in which this transaction is located\n"
-            "\"original_name\"    (string) the original name of this claim (before normalization)\n");
+            "\"name\"             (string) the original name of this claim (before normalization)\n");
 
     LOCK(cs_main);
 
@@ -278,7 +278,7 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
     std::string targetName;
     CClaimValue targetClaim;
     if (pclaimTrie->getClaimById(claim.claimId, targetName, targetClaim))
-        ret.push_back(Pair("original_name", targetName));
+        ret.push_back(Pair("name", targetName));
 
     return ret;
 }
@@ -318,7 +318,7 @@ UniValue claimAndSupportsToJSON(CAmount nEffectiveAmount, claimSupportMapType::c
     std::string targetName;
     CClaimValue targetClaim;
     if (pclaimTrie->getClaimById(claim.claimId, targetName, targetClaim))
-        ret.push_back(Pair("original_name", targetName));
+        ret.push_back(Pair("name", targetName));
 
     return ret;
 }
@@ -340,6 +340,7 @@ UniValue getclaimsforname(const UniValue& params, bool fHelp)
             "Result:\n"
             "{\n"
             "  \"nLastTakeoverHeight\" (numeric) the last height at which ownership of the name changed\n"
+            "  \"normalizedName\"      (string) the name of these claims after normalization\n"
             "  \"claims\": [      (array of object) claims for this name\n"
             "    {\n"
             "      \"claimId\"    (string) the claimId of this claim\n"
@@ -356,7 +357,7 @@ UniValue getclaimsforname(const UniValue& params, bool fHelp)
             "        \"nValidAtHeight\" (numeric) the height at which the support became/becomes valid\n"
             "        \"nAmount\"  (numeric) the amount of the support\n"
             "      ]\n"
-            "      \"original_name\"    (string) the original name of this claim (before normalization)\n"
+            "      \"name\"       (string) the original name of this claim before normalization\n"
             "    }\n"
             "  ],\n"
             "  \"unmatched supports\": [ (array of object) supports that did not match a claim for this name\n"
@@ -404,6 +405,7 @@ UniValue getclaimsforname(const UniValue& params, bool fHelp)
 
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("nLastTakeoverHeight", claimsForName.nLastTakeoverHeight));
+    ret.push_back(Pair("normalizedName", claimsForName.name));
 
     for (claimSupportMapType::const_iterator itClaimsAndSupports = claimSupportMap.begin(); itClaimsAndSupports != claimSupportMap.end(); ++itClaimsAndSupports) {
         CAmount nEffectiveAmount = trieCache.getEffectiveAmountForClaim(claimsForName, itClaimsAndSupports->first);
@@ -426,7 +428,8 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
             "1.  \"claimId\"           (string) the claimId of this claim\n"
             "Result:\n"
             "{\n"
-            "  \"name\"                (string) the name of the claim\n"
+            "  \"name\"                (string) the original name of the claim (before normalization)\n"
+            "  \"normalizedName\"      (string) the name of this claim (after normalization)\n"
             "  \"value\"               (string) claim metadata\n"
             "  \"claimId\"             (string) the claimId of this claim\n"
             "  \"txid\"                (string) the hash of the transaction which has successfully claimed this name\n"
@@ -443,7 +446,6 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
             "  ]\n"
             "  \"height\"              (numeric) the height of the block in which this claim transaction is located\n"
             "  \"valid at height\"     (numeric) the height at which the claim is valid\n"
-            "  \"original_name\"       (string) the original name of this claim (before normalization)\n"
             "}\n");
 
     LOCK(cs_main);
@@ -454,13 +456,16 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
     pclaimTrie->getClaimById(claimId, name, claimValue);
     if (claimValue.claimId == claimId)
     {
+        CClaimTrieCache cache(pclaimTrie);
         std::vector<CSupportValue> supports;
-        CAmount effectiveAmount = pclaimTrie->getEffectiveAmountForClaim(name, claimValue.claimId, &supports);
+        CAmount effectiveAmount = cache.getEffectiveAmountForClaim(name, claimValue.claimId, &supports);
 
         std::string sValue;
         CCoinsViewCache coins(pcoinsTip);
         getValueForClaim(coins, claimValue.outPoint, sValue);
         claim.push_back(Pair("name", name));
+        if (cache.shouldNormalize())
+            claim.push_back(Pair("normalizedName", cache.normalizeClaimName(name)));
         claim.push_back(Pair("value", sValue));
         claim.push_back(Pair("claimId", claimValue.claimId.GetHex()));
         claim.push_back(Pair("txid", claimValue.outPoint.hash.GetHex()));
