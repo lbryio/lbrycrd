@@ -1,13 +1,15 @@
 #include "boost/scope_exit.hpp"
 #include "consensus/validation.h"
+#include "init.h"
 #include "main.h"
 #include "nameclaim.h"
 #include "rpc/server.h"
 #include "txmempool.h"
 #include "univalue.h"
 
-// Maximum block decrement that is allowed from rpc calls
-const int MAX_RPC_BLOCK_DECREMENTS = 50;
+#include <boost/thread.hpp>
+
+#include <cmath>
 
 uint160 ParseClaimtrieId(const UniValue& v, const std::string& strName)
 {
@@ -35,10 +37,39 @@ static CBlockIndex* BlockHashIndex(const uint256& blockHash)
     if (!chainActive.Contains(pblockIndex))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Block not in main chain");
 
-    if (chainActive.Tip()->nHeight > (pblockIndex->nHeight + MAX_RPC_BLOCK_DECREMENTS))
+    return pblockIndex;
+}
+
+#define MAX_RPC_BLOCK_DECREMENTS 500
+
+void RollBackTo(const CBlockIndex* targetIndex, CCoinsViewCache& coinsCache, CClaimTrieCache& trieCache)
+{
+    AssertLockHeld(cs_main);
+
+    const CBlockIndex* activeIndex = chainActive.Tip();
+
+    if (activeIndex->nHeight > (targetIndex->nHeight + MAX_RPC_BLOCK_DECREMENTS))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Block is too deep");
 
-    return pblockIndex;
+    const size_t currentMemoryUsage = pcoinsTip->DynamicMemoryUsage();
+
+    for (; activeIndex && activeIndex != targetIndex; activeIndex = activeIndex->pprev) {
+        boost::this_thread::interruption_point();
+
+        CBlock block;
+        if (!ReadBlockFromDisk(block, activeIndex, Params().GetConsensus()))
+            throw JSONRPCError(RPC_INTERNAL_ERROR, strprintf("Failed to read %s", activeIndex->ToString()));
+
+        if (coinsCache.DynamicMemoryUsage() + currentMemoryUsage > nCoinCacheUsage)
+            throw JSONRPCError(RPC_INTERNAL_ERROR, "Out of memory, you may want to increase dbcache size");
+
+        if (ShutdownRequested())
+            throw JSONRPCError(RPC_INTERNAL_ERROR, "Shutdown requested");
+
+        CValidationState state;
+        if (!DisconnectBlock(block, state, activeIndex, coinsCache, trieCache))
+            throw JSONRPCError(RPC_INTERNAL_ERROR, strprintf("Failed to disconnect %s", block.ToString()));
+    }
 }
 
 UniValue getclaimsintrie(const UniValue& params, bool fHelp)
@@ -78,8 +109,7 @@ UniValue getclaimsintrie(const UniValue& params, bool fHelp)
 
     if (!params.empty()) {
         CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(params[0], "blockhash (optional parameter 1)"));
-        if (!RollBackTo(blockIndex, coinsCache, trieCache))
-            throw JSONRPCError(RPC_INTERNAL_ERROR, "Rollback failure");
+        RollBackTo(blockIndex, coinsCache, trieCache);
     }
 
     UniValue ret(UniValue::VARR);
@@ -155,8 +185,7 @@ UniValue getclaimtrie(const UniValue& params, bool fHelp)
 
     if (!params.empty()) {
         CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(params[0], "blockhash (optional parameter 1)"));
-        if (!RollBackTo(blockIndex, coinsCache, trieCache))
-            throw JSONRPCError(RPC_INTERNAL_ERROR, "Rollback failure");
+        RollBackTo(blockIndex, coinsCache, trieCache);
     }
 
     UniValue ret(UniValue::VARR);
@@ -245,8 +274,7 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
 
     if (params.size() > 1) {
         CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(params[1], "blockhash (optional parameter 2)"));
-        if (!RollBackTo(blockIndex, coinsCache, trieCache))
-            throw JSONRPCError(RPC_INTERNAL_ERROR, "Rollback failure");
+        RollBackTo(blockIndex, coinsCache, trieCache);
     }
 
     CClaimValue claim;
@@ -362,8 +390,7 @@ UniValue getclaimsforname(const UniValue& params, bool fHelp)
 
     if (params.size() > 1) {
         CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(params[1], "blockhash (optional parameter 2)"));
-        if (!RollBackTo(blockIndex, coinsCache, trieCache))
-            throw JSONRPCError(RPC_INTERNAL_ERROR, "Rollback failure");
+        RollBackTo(blockIndex, coinsCache, trieCache);
     }
 
     std::string name = params[0].get_str();
@@ -784,16 +811,18 @@ UniValue getnameproof(const UniValue& params, bool fHelp)
             "}\n");
 
     LOCK(cs_main);
-    std::string strName = params[0].get_str();
-    CBlockIndex* pblockIndex;
+
+    CCoinsViewCache coinsCache(pcoinsTip);
+    CClaimTrieCache trieCache(pclaimTrie);
+
     if (params.size() == 2) {
-        pblockIndex = BlockHashIndex(ParseHashV(params[1], "blockhash (optional parameter 2)"));
-    } else {
-        pblockIndex = mapBlockIndex[chainActive.Tip()->GetBlockHash()];
+        CBlockIndex* pblockIndex = BlockHashIndex(ParseHashV(params[1], "blockhash (optional parameter 2)"));
+        RollBackTo(pblockIndex, coinsCache, trieCache);
     }
 
     CClaimTrieProof proof;
-    if (!GetProofForName(pblockIndex, strName, proof))
+    std::string name = params[0].get_str();
+    if (!trieCache.getProofForName(name, proof))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Failed to generate proof");
 
     return proofToJSON(proof);
