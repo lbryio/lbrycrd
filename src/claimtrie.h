@@ -13,11 +13,6 @@
 #include <vector>
 #include <map>
 
-#include <boost/algorithm/string.hpp>
-#include <boost/locale/conversion.hpp>
-#include <boost/locale/localization_backend.hpp>
-#include <boost/locale.hpp>
-
 // leveldb keys
 #define HASH_BLOCK 'h'
 #define CURRENT_HEIGHT 't'
@@ -303,7 +298,8 @@ struct claimsForNameType
     : claims(claims), supports(supports), nLastTakeoverHeight(nLastTakeoverHeight), name(name) {}
 };
 
-class CClaimTrieCache;
+class CClaimTrieCacheBase;
+class CClaimTrieCacheExpirationFork;
 
 class CClaimTrie
 {
@@ -354,7 +350,8 @@ public:
     unsigned int getTotalClaimsInTrie() const;
     CAmount getTotalValueOfClaimsInTrie(bool fControllingOnly) const;
 
-    friend class CClaimTrieCache;
+    friend class CClaimTrieCacheBase;
+    friend class CClaimTrieCacheExpirationFork;
 
     CDBWrapper db;
     int nCurrentHeight;
@@ -457,10 +454,10 @@ public:
     int nHeightOfLastTakeover;
 };
 
-class CClaimTrieCache
+class CClaimTrieCacheBase
 {
 public:
-    CClaimTrieCache(CClaimTrie* base, bool fRequireTakeoverHeights = true)
+    CClaimTrieCacheBase(CClaimTrie* base, bool fRequireTakeoverHeights = true)
                     : base(base),
                       fRequireTakeoverHeights(fRequireTakeoverHeights)
     {
@@ -504,43 +501,32 @@ public:
     uint256 getBestBlock();
     void setBestBlock(const uint256& hashBlock);
 
-    bool incrementBlock(insertUndoType& insertUndo,
+    virtual bool incrementBlock(insertUndoType& insertUndo,
                         claimQueueRowType& expireUndo,
                         insertUndoType& insertSupportUndo,
                         supportQueueRowType& expireSupportUndo,
-                        std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
-    bool decrementBlock(insertUndoType& insertUndo,
+                        std::vector<std::pair<std::string, int> >& takeoverHeightUndo);
+    virtual bool decrementBlock(insertUndoType& insertUndo,
                         claimQueueRowType& expireUndo,
                         insertUndoType& insertSupportUndo,
                         supportQueueRowType& expireSupportUndo,
-                        std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
+                        std::vector<std::pair<std::string, int> >& takeoverHeightUndo);
 
-    ~CClaimTrieCache() { clear(); }
+    ~CClaimTrieCacheBase() { clear(); }
 
     CClaimTrieProof getProofForName(const std::string& name) const;
 
-    bool getProofForName(const std::string& name, CClaimTrieProof& proof) const;
-    bool getInfoForName(const std::string& name, CClaimValue& claim) const;
+    virtual bool getProofForName(const std::string& name, CClaimTrieProof& proof) const;
+    virtual bool getInfoForName(const std::string& name, CClaimValue& claim) const;
 
     bool finalizeDecrement() const;
 
-    void removeAndAddSupportToExpirationQueue(expirationQueueRowType &row, int height, bool increment) const;
-    void removeAndAddToExpirationQueue(expirationQueueRowType &row, int height, bool increment) const;
-
-    bool forkForExpirationChange(bool increment) const;
-
     std::vector<namedNodeType> flattenTrie() const;
 
-    claimsForNameType getClaimsForName(const std::string& name) const;
+    virtual claimsForNameType getClaimsForName(const std::string& name) const;
 
     CAmount getEffectiveAmountForClaim(const std::string& name, const uint160& claimId, std::vector<CSupportValue>* supports = NULL) const;
     CAmount getEffectiveAmountForClaim(const claimsForNameType& claims, const uint160& claimId, std::vector<CSupportValue>* supports = NULL) const;
-
-    bool shouldNormalize() const;
-
-    // lower-case and normalize any input string name
-    // see: https://unicode.org/reports/tr15/#Norm_Forms
-    std::string normalizeClaimName(const std::string& name, bool force = false) const; // public only for validating name field on update op
 
 protected:
     // Should be private: Do not use unless you know what you're doing.
@@ -552,20 +538,42 @@ protected:
     void checkNamesForTakeover(insertUndoType& insertUndo, insertUndoType& insertSupportUndo,
                                std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
 
-    bool insertClaimIntoTrie(const std::string& name, CClaimValue claim,
+    virtual bool insertClaimIntoTrie(const std::string& name, CClaimValue claim,
                              bool fCheckTakeover = false) const;
-    bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint,
+    virtual bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint,
                              CClaimValue& claim,
                              bool fCheckTakeover = false) const;
 
-    bool insertSupportIntoMap(const std::string& name,
+    virtual bool insertSupportIntoMap(const std::string& name,
                               CSupportValue support,
                               bool fCheckTakeover) const;
+    virtual bool removeSupportFromMap(const std::string& name, const COutPoint& outPoint,
+                              CSupportValue& support,
+                              bool fCheckTakeover) const;
+
+    void addToExpirationQueue(int nExpirationHeight, nameOutPointType& entry) const;
+    void removeFromExpirationQueue(const std::string& name, const COutPoint& outPoint,
+                                   int nHeight) const;
+
+    void addSupportToExpirationQueue(int nExpirationHeight,
+                                     nameOutPointType& entry) const;
+    void removeSupportFromExpirationQueue(const std::string& name,
+                                          const COutPoint& outPoint,
+                                          int nHeight) const;
+
+    bool getSupportsForName(const std::string& name,
+                            supportMapEntryType& node) const;
+
+    virtual int getDelayForName(const std::string& name, const uint160& claimId) const;
+
+    virtual bool namesMatchForRemoval(const std::string& a, const std::string& b) const;
 
     mutable nodeCacheType cache;
+    CClaimTrie* base;
+    mutable int nCurrentHeight; // Height of the block that is being worked on, which is
+    // one greater than the height of the chain's tip
 
 private:
-    CClaimTrie* base;
 
     bool fRequireTakeoverHeights;
 
@@ -581,8 +589,6 @@ private:
     mutable expirationQueueType supportExpirationQueueCache;
     mutable std::set<std::string> namesToCheckForTakeover;
     mutable std::map<std::string, int> cacheTakeoverHeights; 
-    mutable int nCurrentHeight; // Height of the block that is being worked on, which is
-                                // one greater than the height of the chain's tip
     mutable claimIndexElementListType claimsToAdd;
     mutable claimIndexClaimListType claimsToDelete;
 
@@ -598,9 +604,6 @@ private:
     void addClaimToQueues(const std::string& name, CClaimValue& claim) const;
     bool removeClaimFromQueue(const std::string& name, const COutPoint& outPoint,
                               CClaimValue& claim) const;
-    void addToExpirationQueue(int nExpirationHeight, nameOutPointType& entry) const;
-    void removeFromExpirationQueue(const std::string& name, const COutPoint& outPoint,
-                                   int nHeight) const;
 
     claimQueueType::iterator getQueueCacheRow(int nHeight,
                                               bool createIfNotExists) const;
@@ -612,9 +615,6 @@ private:
     bool removeSupport(const std::string& name, const COutPoint& outPoint,
                        int nHeight, int& nValidAtHeight,
                        bool fCheckTakeover) const;
-    bool removeSupportFromMap(const std::string& name, const COutPoint& outPoint,
-                              CSupportValue& support,
-                              bool fCheckTakeover) const;
 
     supportQueueType::iterator getSupportQueueCacheRow(int nHeight,
                                                        bool createIfNotExists) const;
@@ -626,15 +626,6 @@ private:
     bool addSupportToQueues(const std::string& name, CSupportValue& support) const;
     bool removeSupportFromQueue(const std::string& name, const COutPoint& outPoint,
                                 CSupportValue& support) const;
-
-    void addSupportToExpirationQueue(int nExpirationHeight,
-                                     nameOutPointType& entry) const;
-    void removeSupportFromExpirationQueue(const std::string& name,
-                                          const COutPoint& outPoint,
-                                          int nHeight) const;
-
-    bool getSupportsForName(const std::string& name,
-                            supportMapEntryType& node) const;
 
     bool getLastTakeoverForName(const std::string& name, int& lastTakeoverHeight) const;
 
@@ -649,10 +640,69 @@ private:
     void recursiveFlattenTrie(const std::string& name, const CClaimTrieNode* current, std::vector<namedNodeType>& nodes) const;
 
     const CClaimTrieNode* getNodeForName(const std::string& name) const;
+};
 
+
+class CClaimTrieCacheExpirationFork: public CClaimTrieCacheBase {
+public:
+    CClaimTrieCacheExpirationFork(CClaimTrie* base, bool fRequireTakeoverHeights = true)
+    : CClaimTrieCacheBase(base, fRequireTakeoverHeights) {}
+
+    bool forkForExpirationChange(bool increment) const;
+
+    // TODO: move the expiration fork code from main.cpp to overrides of increment/decrement block
+
+private:
+    void removeAndAddSupportToExpirationQueue(expirationQueueRowType &row, int height, bool increment) const;
+    void removeAndAddToExpirationQueue(expirationQueueRowType &row, int height, bool increment) const;
+};
+
+class CClaimTrieCacheNormalizationFork: public CClaimTrieCacheExpirationFork {
+public:
+    CClaimTrieCacheNormalizationFork(CClaimTrie* base, bool fRequireTakeoverHeights = true)
+        : CClaimTrieCacheExpirationFork(base, fRequireTakeoverHeights),
+        overrideInsertNormalization(false), overrideRemoveNormalization(false) {}
+
+    bool shouldNormalize() const;
+
+    // lower-case and normalize any input string name
+    // see: https://unicode.org/reports/tr15/#Norm_Forms
+    std::string normalizeClaimName(const std::string& name, bool force = false) const; // public only for validating name field on update op
+
+    virtual bool incrementBlock(insertUndoType& insertUndo,
+                                claimQueueRowType& expireUndo,
+                                insertUndoType& insertSupportUndo,
+                                supportQueueRowType& expireSupportUndo,
+                                std::vector<std::pair<std::string, int> >& takeoverHeightUndo);
+    virtual bool decrementBlock(insertUndoType& insertUndo,
+                                claimQueueRowType& expireUndo,
+                                insertUndoType& insertSupportUndo,
+                                supportQueueRowType& expireSupportUndo,
+                                std::vector<std::pair<std::string, int> >& takeoverHeightUndo);
+
+    virtual bool getProofForName(const std::string& name, CClaimTrieProof& proof) const;
+    virtual bool getInfoForName(const std::string& name, CClaimValue& claim) const;
+    virtual claimsForNameType getClaimsForName(const std::string& name) const;
+
+protected:
+    virtual bool insertClaimIntoTrie(const std::string& name, CClaimValue claim, bool fCheckTakeover = false) const;
+    virtual bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint,
+                                     CClaimValue& claim, bool fCheckTakeover = false) const;
+
+    virtual bool insertSupportIntoMap(const std::string& name, CSupportValue support, bool fCheckTakeover) const;
+    virtual bool removeSupportFromMap(const std::string& name, const COutPoint& outPoint,
+                                      CSupportValue& support, bool fCheckTakeover) const;
+    virtual int getDelayForName(const std::string& name, const uint160& claimId) const;
+    virtual bool namesMatchForRemoval(const std::string& a, const std::string& b) const;
+
+private:
+    bool overrideInsertNormalization, overrideRemoveNormalization;
     bool normalizeAllNamesInTrieIfNecessary(insertUndoType& insertUndo, claimQueueRowType& removeUndo,
                                             insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo,
                                             std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
 };
+
+typedef CClaimTrieCacheNormalizationFork CClaimTrieCache;
+
 
 #endif // BITCOIN_CLAIMTRIE_H

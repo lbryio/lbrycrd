@@ -1309,7 +1309,7 @@ BOOST_AUTO_TEST_CASE(normalization_does_not_kill_supports) {
     fixture.DecrementBlocks(1);
     BOOST_CHECK(best_claim_effective_amount_equals("A", 2));
     fixture.IncrementBlocks(5);
-    BOOST_CHECK(best_claim_effective_amount_equals("a", 3));
+    BOOST_CHECK(best_claim_effective_amount_equals("a", 2));
 }
 
 BOOST_AUTO_TEST_CASE(normalization_does_not_fail_on_spend) {
