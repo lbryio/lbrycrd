@@ -136,7 +136,7 @@ public:
         consensus.nExtendedClaimExpirationForkHeight = 400155;
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
-        consensus.nNormalizedNameForkHeight = 1000000;   // FIXME: pick a real fork height
+        consensus.nNormalizedNameForkHeight = 475788;   // FIXME: pick a real fork height
         consensus.nRuleChangeActivationThreshold = 1916; // 95% of 2016
         consensus.nMinerConfirmationWindow = 2016; // nPowTargetTimespan / nPowTargetSpacing
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].bit = 28;

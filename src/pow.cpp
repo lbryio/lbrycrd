@@ -31,6 +31,11 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
         }
     }
 
+    if (pindexLast->nHeight == params.nNormalizedNameForkHeight -1)
+    {
+        return nProofOfWorkLimit;
+    }
+
     // Go back the full period unless it's the first retarget after genesis.
     int blockstogoback = params.DifficultyAdjustmentInterval()-1;
     if ((pindexLast->nHeight+1) != params.DifficultyAdjustmentInterval())
