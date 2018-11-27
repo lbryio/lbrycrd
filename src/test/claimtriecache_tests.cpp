@@ -212,12 +212,13 @@ BOOST_AUTO_TEST_CASE(basic_insertion_info_test)
     CClaimValue claimVal(claimOutPoint, claimId, amount, height, validHeight);
     ctc.insertClaimIntoTrie("test", claimVal);
 
-    // try getClaimsForName, getEffectiveAmountForClaim, getInfoForName
-    claimsForNameType res = ctc.getClaimsForName("test");
+    // try getClaimsForName, getInfoForName
+    CClaimSupportToName res = ctc.getClaimsForName("test");
     BOOST_CHECK(res.claims.size() == 1);
-    BOOST_CHECK(res.claims[0] == claimVal);
+    BOOST_CHECK(res.claims[0].claim == claimVal);
+    BOOST_CHECK(res.claims[0].claimId == claimId);
 
-    BOOST_CHECK_EQUAL(10, ctc.getEffectiveAmountForClaim("test", claimId));
+    BOOST_CHECK_EQUAL(10, res.claims[0].effectiveAmount);
 
     CClaimValue claim;
     BOOST_CHECK(ctc.getInfoForName("test", claim));
@@ -232,8 +233,10 @@ BOOST_AUTO_TEST_CASE(basic_insertion_info_test)
     CSupportValue support(supportOutPoint, claimId, supportAmount, height, validHeight);
     ctc.insertSupportIntoMap("test", support, false);
 
-    // try getEffectiveAmount
-    BOOST_CHECK_EQUAL(20, ctc.getEffectiveAmountForClaim("test", claimId));
+    // try effectiveAmount again
+    CClaimSupportToName res1 = ctc.getClaimsForName("test");
+    BOOST_CHECK(res1.claims.size() == 1);
+    BOOST_CHECK_EQUAL(20, res1.claims[0].effectiveAmount);
 }
 
 BOOST_AUTO_TEST_CASE(recursive_prune_test)

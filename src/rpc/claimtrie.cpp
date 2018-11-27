@@ -325,7 +325,7 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
     if (!getValueForClaim(coinsCache, claim.outPoint, sValue))
         return ret;
 
-    CAmount nEffectiveAmount = trieCache.getEffectiveAmountForClaim(name, claim.claimId);
+    CAmount nEffectiveAmount = trieCache.getClaimsForName(name).find(claim.claimId).effectiveAmount;
 
     ret.push_back(Pair("value", sValue));
     ret.push_back(Pair("claimId", claim.claimId.GetHex()));
@@ -336,9 +336,6 @@ UniValue getvalueforname(const UniValue& params, bool fHelp)
     ret.push_back(Pair("height", claim.nHeight));
     return ret;
 }
-
-typedef std::pair<CClaimValue, std::vector<CSupportValue> > claimAndSupportsType;
-typedef std::map<uint160, claimAndSupportsType> claimSupportMapType;
 
 UniValue supportToJSON(const CSupportValue& support)
 {
@@ -351,16 +348,16 @@ UniValue supportToJSON(const CSupportValue& support)
     return ret;
 }
 
-UniValue claimAndSupportsToJSON(const CCoinsViewCache& coinsCache, CAmount nEffectiveAmount, claimSupportMapType::const_iterator itClaimsAndSupports)
+UniValue claimAndSupportsToJSON(const CCoinsViewCache& coinsCache, const CClaimSupport& claimSupport)
 {
     UniValue ret(UniValue::VOBJ);
-    const CClaimValue& claim = itClaimsAndSupports->second.first;
-    const std::vector<CSupportValue>& supports = itClaimsAndSupports->second.second;
-    UniValue supportObjs(UniValue::VARR);
+    UniValue supportObjs(UniValue::VOBJ);
+    const CClaimValue& claim = claimSupport.claim;
+    const std::vector<CSupportValue>& supports = claimSupport.support;
     for (std::vector<CSupportValue>::const_iterator itSupports = supports.begin(); itSupports != supports.end(); ++itSupports) {
         supportObjs.push_back(supportToJSON(*itSupports));
     }
-    ret.push_back(Pair("claimId", itClaimsAndSupports->first.GetHex()));
+    ret.push_back(Pair("claimId", claimSupport.claimId.GetHex()));
     ret.push_back(Pair("txid", claim.outPoint.hash.GetHex()));
     ret.push_back(Pair("n", (int)claim.outPoint.n));
     ret.push_back(Pair("nHeight", claim.nHeight));
@@ -369,7 +366,7 @@ UniValue claimAndSupportsToJSON(const CCoinsViewCache& coinsCache, CAmount nEffe
     std::string sValue;
     if (getValueForClaim(coinsCache, claim.outPoint, sValue))
         ret.push_back(Pair("value", sValue));
-    ret.push_back(Pair("nEffectiveAmount", nEffectiveAmount));
+    ret.push_back(Pair("nEffectiveAmount", claimSupport.effectiveAmount));
     ret.push_back(Pair("supports", supportObjs));
     return ret;
 }
@@ -432,36 +429,26 @@ UniValue getclaimsforname(const UniValue& params, bool fHelp)
     }
 
     std::string name = params[0].get_str();
-    claimsForNameType claimsForName = trieCache.getClaimsForName(name);
+    CClaimSupportToName claimsForName = trieCache.getClaimsForName(name);
 
-    UniValue claimObjs(UniValue::VARR);
-    claimSupportMapType claimSupportMap;
+    UniValue claimsObj(UniValue::VARR);
     UniValue unmatchedSupports(UniValue::VARR);
 
-    for (std::vector<CClaimValue>::const_iterator itClaims = claimsForName.claims.begin(); itClaims != claimsForName.claims.end(); ++itClaims) {
-        claimAndSupportsType claimAndSupports = std::make_pair(*itClaims, std::vector<CSupportValue>());
-        claimSupportMap.insert(std::pair<uint160, claimAndSupportsType>(itClaims->claimId, claimAndSupports));
-    }
-
-    for (std::vector<CSupportValue>::const_iterator itSupports = claimsForName.supports.begin(); itSupports != claimsForName.supports.end(); ++itSupports) {
-        claimSupportMapType::iterator itClaimAndSupports = claimSupportMap.find(itSupports->supportedClaimId);
-        if (itClaimAndSupports == claimSupportMap.end()) {
-            unmatchedSupports.push_back(supportToJSON(*itSupports));
+    const std::vector<CClaimSupport>& claims = claimsForName.claims;
+    for (std::vector<CClaimSupport>::const_iterator it = claims.begin(); it != claims.end(); ++it) {
+        if (!it->claim.claimId.IsNull()) {
+            claimsObj.push_back(claimAndSupportsToJSON(coinsCache, *it));
         } else {
-            itClaimAndSupports->second.second.push_back(*itSupports);
+            const std::vector<CSupportValue>& support = it->support;
+            for (std::vector<CSupportValue>::const_iterator it = support.begin(); it != support.end(); ++it) {
+                unmatchedSupports.push_back(supportToJSON(*it));
+            }
         }
     }
 
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("nLastTakeoverHeight", claimsForName.nLastTakeoverHeight));
-
-    for (claimSupportMapType::const_iterator itClaimsAndSupports = claimSupportMap.begin(); itClaimsAndSupports != claimSupportMap.end(); ++itClaimsAndSupports) {
-        CAmount nEffectiveAmount = trieCache.getEffectiveAmountForClaim(claimsForName, itClaimsAndSupports->first);
-        UniValue claimObj = claimAndSupportsToJSON(coinsCache, nEffectiveAmount, itClaimsAndSupports);
-        claimObjs.push_back(claimObj);
-    }
-
-    ret.push_back(Pair("claims", claimObjs));
+    ret.push_back(Pair("claims", claimsObj));
     ret.push_back(Pair("supports without claims", unmatchedSupports));
     return ret;
 }
@@ -500,36 +487,37 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
     UniValue claim(UniValue::VOBJ);
     std::string name;
     CClaimValue claimValue;
-    pclaimTrie->getClaimById(claimId, name, claimValue);
-    if (claimValue.claimId == claimId)
-    {
-        std::vector<CSupportValue> supports;
-        CAmount effectiveAmount = pclaimTrie->getEffectiveAmountForClaim(name, claimValue.claimId, &supports);
+    if (!pclaimTrie->getClaimById(claimId, name, claimValue))
+        return claim;
 
-        std::string sValue;
-        CCoinsViewCache coins(pcoinsTip);
-        getValueForClaim(coins, claimValue.outPoint, sValue);
-        claim.push_back(Pair("name", name));
-        claim.push_back(Pair("value", sValue));
-        claim.push_back(Pair("claimId", claimValue.claimId.GetHex()));
-        claim.push_back(Pair("txid", claimValue.outPoint.hash.GetHex()));
-        claim.push_back(Pair("n", (int) claimValue.outPoint.n));
-        claim.push_back(Pair("amount", claimValue.nAmount));
-        claim.push_back(Pair("effective amount", effectiveAmount));
-        UniValue supportList(UniValue::VARR);
-        BOOST_FOREACH(const CSupportValue& support, supports) {
-            UniValue supportEntry(UniValue::VOBJ);
-            supportEntry.push_back(Pair("txid", support.outPoint.hash.GetHex()));
-            supportEntry.push_back(Pair("n", (int)support.outPoint.n));
-            supportEntry.push_back(Pair("height", support.nHeight));
-            supportEntry.push_back(Pair("valid at height", support.nValidAtHeight));
-            supportEntry.push_back(Pair("amount", support.nAmount));
-            supportList.push_back(supportEntry);
-        }
-        claim.push_back(Pair("supports", supportList));
-        claim.push_back(Pair("height", claimValue.nHeight));
-        claim.push_back(Pair("valid at height", claimValue.nValidAtHeight));
+    CClaimTrieCache trieCache(pclaimTrie);
+    const CClaimSupport claimSupport = trieCache.getClaimsForName(name).find(claimId);
+    if (!claimSupport)
+        return claim;
+
+    std::string sValue;
+    CCoinsViewCache coins(pcoinsTip);
+    getValueForClaim(coins, claimValue.outPoint, sValue);
+    claim.push_back(Pair("name", name));
+    claim.push_back(Pair("value", sValue));
+    claim.push_back(Pair("claimId", claimValue.claimId.GetHex()));
+    claim.push_back(Pair("txid", claimValue.outPoint.hash.GetHex()));
+    claim.push_back(Pair("n", (int) claimValue.outPoint.n));
+    claim.push_back(Pair("amount", claimValue.nAmount));
+    claim.push_back(Pair("effective amount", claimSupport.effectiveAmount));
+    UniValue supportList(UniValue::VARR);
+    BOOST_FOREACH(const CSupportValue& support, claimSupport.support) {
+        UniValue supportEntry(UniValue::VOBJ);
+        supportEntry.push_back(Pair("txid", support.outPoint.hash.GetHex()));
+        supportEntry.push_back(Pair("n", (int)support.outPoint.n));
+        supportEntry.push_back(Pair("height", support.nHeight));
+        supportEntry.push_back(Pair("valid at height", support.nValidAtHeight));
+        supportEntry.push_back(Pair("amount", support.nAmount));
+        supportList.push_back(supportEntry);
     }
+    claim.push_back(Pair("supports", supportList));
+    claim.push_back(Pair("height", claimValue.nHeight));
+    claim.push_back(Pair("valid at height", claimValue.nValidAtHeight));
     return claim;
 }
 
