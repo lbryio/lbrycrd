@@ -285,7 +285,7 @@ UniValue supportToJSON(const CSupportValue& support)
     return ret;
 }
 
-UniValue claimAndSupportsToJSON(CAmount nEffectiveAmount, claimSupportMapType::const_iterator itClaimsAndSupports)
+UniValue claimAndSupportsToJSON(const CCoinsViewCache& coinsCache, CAmount nEffectiveAmount, claimSupportMapType::const_iterator itClaimsAndSupports)
 {
     UniValue ret(UniValue::VOBJ);
     const CClaimValue& claim = itClaimsAndSupports->second.first;
@@ -300,6 +300,9 @@ UniValue claimAndSupportsToJSON(CAmount nEffectiveAmount, claimSupportMapType::c
     ret.push_back(Pair("nHeight", claim.nHeight));
     ret.push_back(Pair("nValidAtHeight", claim.nValidAtHeight));
     ret.push_back(Pair("nAmount", claim.nAmount));
+    std::string sValue;
+    if (getValueForClaim(coinsCache, claim.outPoint, sValue))
+        ret.push_back(Pair("value", sValue));
     ret.push_back(Pair("nEffectiveAmount", nEffectiveAmount));
     ret.push_back(Pair("supports", supportObjs));
     return ret;
@@ -330,6 +333,7 @@ UniValue getclaimsforname(const UniValue& params, bool fHelp)
             "      \"nHeight\"    (numeric) the height at which the claim was included in the blockchain\n"
             "      \"nValidAtHeight\" (numeric) the height at which the claim became/becomes valid\n"
             "      \"nAmount\"    (numeric) the amount of the claim\n"
+            "      \"value\"      (string) the value of the name, if it exists\n"
             "      \"nEffectiveAmount\" (numeric) the total effective amount of the claim, taking into effect whether the claim or support has reached its nValidAtHeight\n"
             "      \"supports\" : [ (array of object) supports for this claim\n"
             "        \"txid\"     (string) the txid of the support\n"
@@ -388,7 +392,7 @@ UniValue getclaimsforname(const UniValue& params, bool fHelp)
 
     for (claimSupportMapType::const_iterator itClaimsAndSupports = claimSupportMap.begin(); itClaimsAndSupports != claimSupportMap.end(); ++itClaimsAndSupports) {
         CAmount nEffectiveAmount = trieCache.getEffectiveAmountForClaim(claimsForName, itClaimsAndSupports->first);
-        UniValue claimObj = claimAndSupportsToJSON(nEffectiveAmount, itClaimsAndSupports);
+        UniValue claimObj = claimAndSupportsToJSON(coinsCache, nEffectiveAmount, itClaimsAndSupports);
         claimObjs.push_back(claimObj);
     }
 
