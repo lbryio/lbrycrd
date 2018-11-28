@@ -190,8 +190,6 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(insert
             const std::string normalized = normalizeClaimName(it->first, true);
             if (normalized == it->first) continue;
 
-            LogPrintf("%s: Converting name on normalization fork upgrade: %s -> %s at %d\n", __func__, it->first.c_str(), normalized.c_str(), nCurrentHeight);
-
             supportMapEntryType supports;
             if (getSupportsForName(it->first, supports)) {
                 BOOST_FOREACH(CSupportValue& support, supports) {

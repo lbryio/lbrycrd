@@ -59,14 +59,12 @@ uint256 getValueHash(COutPoint outPoint, int nHeightOfLastTakeover)
 
 bool CClaimTrieNode::insertClaim(CClaimValue claim)
 {
-    LogPrintf("%s: Inserting %s:%d (amount: %d)  into the claim trie\n", __func__, claim.outPoint.hash.ToString(), claim.outPoint.n, claim.nAmount);
     claims.push_back(claim);
     return true;
 }
 
 bool CClaimTrieNode::removeClaim(const COutPoint& outPoint, CClaimValue& claim)
 {
-    LogPrintf("%s: Removing txid: %s, nOut: %d from the claim trie\n", __func__, outPoint.hash.ToString(), outPoint.n);
 
     std::vector<CClaimValue>::iterator itClaims;
     for (itClaims = claims.begin(); itClaims != claims.end(); ++itClaims)
