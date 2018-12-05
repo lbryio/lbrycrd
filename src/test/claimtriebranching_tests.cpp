@@ -176,6 +176,7 @@ struct ClaimTrieChainFixture{
         fRequireStandard = false;
         ENTER_CRITICAL_SECTION(cs_main);
         BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
+        pclaimTrie->setExpirationTime(originalExpiration); // in case it was changed during the test
         num_txs_for_next_block = 0;
         num_txs = 0;
         coinbase_txs_used = 0;
@@ -1018,6 +1019,65 @@ BOOST_AUTO_TEST_CASE(hardfork_support_test)
     BOOST_CHECK(is_best_claim("test",u1));
     BOOST_CHECK(best_claim_effective_amount_equals("test",3));
 
+}
+
+/*
+    activation_fall_through and supports_fall_through
+        Tests for where claims/supports in queues would be undone properly in a decrement.
+        See https://github.com/lbryio/lbrycrd/issues/243 for more details
+*/
+
+BOOST_AUTO_TEST_CASE(activations_fall_through)
+{
+    ClaimTrieChainFixture fixture;
+
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "A", "1", 1);
+    fixture.IncrementBlocks(3);
+    BOOST_CHECK(pclaimTrie->nProportionalDelayFactor == 1);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "A", "2", 3);
+    fixture.IncrementBlocks(1);
+
+    BOOST_CHECK(is_best_claim("A", tx1));
+    fixture.IncrementBlocks(3);
+    BOOST_CHECK(is_best_claim("A", tx2));
+    fixture.DecrementBlocks(3);
+    fixture.Spend(tx1); // this will trigger early activation on tx2 claim
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(is_best_claim("A", tx2));
+    fixture.DecrementBlocks(1); //reorg the early activation
+    BOOST_CHECK(is_best_claim("A", tx1));
+    fixture.Spend(tx1);
+    fixture.IncrementBlocks(1); // this should not cause tx2 to activate again and crash
+    BOOST_CHECK(is_best_claim("A", tx2));
+}
+
+BOOST_AUTO_TEST_CASE(supports_fall_through)
+{
+    ClaimTrieChainFixture fixture;
+
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "A", "1", 3);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "A", "2", 1);
+    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(), "A", "3", 2);
+    fixture.IncrementBlocks(3);
+    BOOST_CHECK(pclaimTrie->nProportionalDelayFactor == 1);
+    CMutableTransaction sx2 = fixture.MakeSupport(fixture.GetCoinbase(), tx2, "A", 3);
+    fixture.IncrementBlocks(1);
+
+    BOOST_CHECK(is_best_claim("A", tx1));
+    fixture.IncrementBlocks(3);
+    BOOST_CHECK(is_best_claim("A", tx2));
+    fixture.DecrementBlocks(3);
+    fixture.Spend(tx1); // this will trigger early activation
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(is_best_claim("A", tx2));
+    fixture.DecrementBlocks(1); // reorg the early activation
+    BOOST_CHECK(is_best_claim("A", tx1));
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(is_best_claim("A", tx1)); //tx2 support should not be active
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(is_best_claim("A", tx1)); //tx2 support should not be active
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(is_best_claim("A", tx2)); //tx2 support should be active now
 }
 
 /*
