@@ -2235,7 +2235,7 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
         }
         if (takeoverHappened)
         {
-            // Get all claims in the queue for that name
+            // Get all pending claims for that name and activate them all in the case that our winner is defunct.
             queueNameType::iterator itQueueNameRow = getQueueCacheNameRow(*itNamesToCheck, false);
             if (itQueueNameRow != claimQueueNameCache.end())
             {
@@ -2366,6 +2366,9 @@ bool CClaimTrieCache::decrementBlock(insertUndoType& insertUndo, claimQueueRowTy
         supportQueueType::iterator itSupportRow = getSupportQueueCacheRow(itSupportUndo->nHeight, true);
         CSupportValue support;
         assert(removeSupportFromMap(itSupportUndo->name, itSupportUndo->outPoint, support, false));
+        // support.nValidHeight may have been changed if this was inserted before activation height
+        // due to a triggered takeover, change it back to original nValidAtHeight
+        support.nValidAtHeight = itSupportUndo->nHeight;
         queueNameType::iterator itSupportNameRow = getSupportQueueCacheNameRow(itSupportUndo->name, true);
         itSupportRow->second.push_back(std::make_pair(itSupportUndo->name, support));
         itSupportNameRow->second.push_back(outPointHeightType(support.outPoint, support.nValidAtHeight));
@@ -2386,11 +2389,15 @@ bool CClaimTrieCache::decrementBlock(insertUndoType& insertUndo, claimQueueRowTy
     for (insertUndoType::iterator itInsertUndo = insertUndo.begin(); itInsertUndo != insertUndo.end(); ++itInsertUndo)
     {
         claimQueueType::iterator itQueueRow = getQueueCacheRow(itInsertUndo->nHeight, true);
+
         CClaimValue claim;
         assert(removeClaimFromTrie(itInsertUndo->name, itInsertUndo->outPoint, claim, false));
+        // claim.nValidHeight may have been changed if this was inserted before activation height
+        // due to a triggered takeover, change it back to original nValidAtHeight
+        claim.nValidAtHeight = itInsertUndo->nHeight;
         queueNameType::iterator itQueueNameRow = getQueueCacheNameRow(itInsertUndo->name, true);
         itQueueRow->second.push_back(std::make_pair(itInsertUndo->name, claim));
-        itQueueNameRow->second.push_back(outPointHeightType(itInsertUndo->outPoint, itInsertUndo->nHeight));
+        itQueueNameRow->second.push_back(outPointHeightType(itInsertUndo->outPoint, claim.nValidAtHeight));
     }
 
     for (std::vector<std::pair<std::string, int> >::iterator itTakeoverHeightUndo = takeoverHeightUndo.begin(); itTakeoverHeightUndo != takeoverHeightUndo.end(); ++itTakeoverHeightUndo)
