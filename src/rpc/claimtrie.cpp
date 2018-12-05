@@ -158,7 +158,7 @@ UniValue getclaimtrie(const UniValue& params, bool fHelp)
     if (fHelp || params.size() > 1)
         throw std::runtime_error(
             "getclaimtrie\n"
-            "Return the entire name trie.\n"
+            "DEPRECATED. Return the entire name trie.\n"
             "Arguments:\n"
             "1. \"blockhash\"     (string, optional) get claim in the trie\n"
             "                                        at the block specified\n"
