@@ -348,6 +348,15 @@ static UniValue verifytxoutproof(const JSONRPCRequest& request)
     return res;
 }
 
+
+    // Duplicate checking
+    std::set<CTxDestination> destinations;
+    bool has_data{false};
+
+            if (has_data) {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, duplicate key: data");
+            }
+            has_data = true;
 static UniValue createrawtransaction(const JSONRPCRequest& request)
 {
             RPCHelpMan{"createrawtransaction",
