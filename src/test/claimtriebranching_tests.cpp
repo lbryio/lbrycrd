@@ -111,54 +111,13 @@ CMutableTransaction BuildTransaction(const CMutableTransaction& prev, uint32_t p
 
     return tx;
 }
-bool CreateBlock(CBlockTemplate* pblocktemplate)
-{
-    static int unique_block_counter = 0;
-    CBlock* pblock = &pblocktemplate->block;
-    pblock->nVersion = 1;
-    pblock->nTime = chainActive.Tip()->GetBlockTime()+Params().GetConsensus().nPowTargetSpacing;
-    CMutableTransaction txCoinbase(pblock->vtx[0]);
-    txCoinbase.vin[0].scriptSig = CScript() << CScriptNum(unique_block_counter++) << CScriptNum(chainActive.Height());
-    txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
-    pblock->vtx[0] = CTransaction(txCoinbase);
-    pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
-    for (uint32_t i = 0;; ++i) {
-        pblock->nNonce = i;
-        if (CheckProofOfWork(pblock->GetPoWHash(), pblock->nBits, Params().GetConsensus()))
-        {
-            break;
-        }
-    }
-    CValidationState state;
-    bool success = (ProcessNewBlock(state, Params(), NULL, pblock, true, NULL) && state.IsValid() && pblock->GetHash() == chainActive.Tip()->GetBlockHash());
-    pblock->hashPrevBlock = pblock->GetHash();
-    return success;
-
-}
-
-bool CreateCoinbases(unsigned int num_coinbases, std::vector<CTransaction>& coinbases)
-{
-    CBlockTemplate *pblocktemplate;
-    coinbases.clear();
-    BOOST_CHECK(pblocktemplate = CreateNewBlock(Params(), CScript()<<OP_TRUE ));
-    BOOST_CHECK(pblocktemplate->block.vtx.size() == 1);
-    pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
-    for (unsigned int i = 0; i < 100 + num_coinbases; ++i)
-    {
-        BOOST_CHECK(CreateBlock(pblocktemplate));
-        if (coinbases.size() < num_coinbases)
-            coinbases.push_back(CTransaction(pblocktemplate->block.vtx[0]));
-    }
-    delete pblocktemplate;
-    return true;
-}
-
 
 // Test Fixtures
 struct ClaimTrieChainFixture{
     std::vector<CTransaction> coinbase_txs;
     std::vector<int> marks;
     int coinbase_txs_used;
+    int unique_block_counter;
     unsigned int num_txs;
     unsigned int num_txs_for_next_block;
 
@@ -180,6 +139,7 @@ struct ClaimTrieChainFixture{
         num_txs_for_next_block = 0;
         num_txs = 0;
         coinbase_txs_used = 0;
+        unique_block_counter = 0;
         // generate coinbases to spend
         CreateCoinbases(40, coinbase_txs);
     }
@@ -190,6 +150,43 @@ struct ClaimTrieChainFixture{
         LEAVE_CRITICAL_SECTION(cs_main);
     }
 
+    bool CreateBlock(CBlockTemplate* pblocktemplate)
+    {
+        CBlock* pblock = &pblocktemplate->block;
+        pblock->nVersion = 1;
+        pblock->nTime = chainActive.Tip()->GetBlockTime() + Params().GetConsensus().nPowTargetSpacing;
+        CMutableTransaction txCoinbase(pblock->vtx[0]);
+        txCoinbase.vin[0].scriptSig = CScript() << CScriptNum(unique_block_counter++) << CScriptNum(chainActive.Height());
+        txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
+        pblock->vtx[0] = CTransaction(txCoinbase);
+        pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
+        for (uint32_t i = 0;; ++i) {
+            pblock->nNonce = i;
+            if (CheckProofOfWork(pblock->GetPoWHash(), pblock->nBits, Params().GetConsensus())) {
+                break;
+            }
+        }
+        CValidationState state;
+        bool success = (ProcessNewBlock(state, Params(), NULL, pblock, true, NULL) && state.IsValid() && pblock->GetHash() == chainActive.Tip()->GetBlockHash());
+        pblock->hashPrevBlock = pblock->GetHash();
+        return success;
+    }
+
+    bool CreateCoinbases(unsigned int num_coinbases, std::vector<CTransaction>& coinbases)
+    {
+        CBlockTemplate* pblocktemplate;
+        coinbases.clear();
+        BOOST_CHECK(pblocktemplate = CreateNewBlock(Params(), CScript() << OP_TRUE));
+        BOOST_CHECK(pblocktemplate->block.vtx.size() == 1);
+        pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+        for (unsigned int i = 0; i < 100 + num_coinbases; ++i) {
+            BOOST_CHECK(CreateBlock(pblocktemplate));
+            if (coinbases.size() < num_coinbases)
+                coinbases.push_back(CTransaction(pblocktemplate->block.vtx[0]));
+        }
+        delete pblocktemplate;
+        return true;
+    }
 
     void CommitTx(CMutableTransaction &tx){
         num_txs_for_next_block++;
