@@ -372,7 +372,7 @@ UniValue getclaimsforname(const UniValue& params, bool fHelp)
             "      ]\n"
             "    }\n"
             "  ],\n"
-            "  \"unmatched supports\": [ (array of object) supports that did not match a claim for this name\n"
+            "  \"supports without claims\": [ (array of object) supports that did not match a claim for this name\n"
             "    {\n"
             "      \"txid\"     (string) the txid of the support\n"
             "      \"n\"        (numeric) the index of the support in the transaction's list of outputs\n"
@@ -424,7 +424,7 @@ UniValue getclaimsforname(const UniValue& params, bool fHelp)
     }
 
     ret.push_back(Pair("claims", claimObjs));
-    ret.push_back(Pair("unmatched supports", unmatchedSupports));
+    ret.push_back(Pair("supports without claims", unmatchedSupports));
     return ret;
 }
 
