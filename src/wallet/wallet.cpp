@@ -128,6 +128,29 @@ static void ReleaseWallet(CWallet* wallet)
 void UnloadWallet(std::shared_ptr<CWallet>&& wallet)
 {
     // Mark wallet for unloading.
+    CWallet* pwallet = wallet.get();
+    {
+        std::lock_guard<std::mutex> lock(g_wallet_release_mutex);
+        auto it = g_unloading_wallet_set.insert(pwallet);
+        assert(it.second);
+    }
+    // The wallet can be in use so it's not possible to explicitly unload here.
+    // Notify the unload intent so that all remaining shared pointers are
+    // released.
+    pwallet->NotifyUnload();
+    // Time to ditch our shared_ptr and wait for ReleaseWallet call.
+    wallet.reset();
+    {
+        std::unique_lock<std::mutex> lock(g_wallet_release_mutex);
+        while (g_unloading_wallet_set.count(pwallet) == 1) {
+            g_wallet_release_cv.wait(lock);
+        }
+    }
+}
+
+void UnloadWallet(std::shared_ptr<CWallet>&& wallet)
+{
+    // Mark wallet for unloading.
     const std::string name = wallet->GetName();
     {
         LOCK(g_wallet_release_mutex);

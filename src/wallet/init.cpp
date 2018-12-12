@@ -135,4 +135,10 @@ void WalletInit::Construct(InitInterfaces& interfaces) const
     }
     gArgs.SoftSetArg("-wallet", "");
     interfaces.chain_clients.emplace_back(interfaces::MakeWalletClient(*interfaces.chain, gArgs.GetArgs("-wallet")));
+    auto wallets = GetWallets();
+    while (!wallets.empty()) {
+        auto wallet = wallets.back();
+        wallets.pop_back();
+        RemoveWallet(wallet);
+        UnloadWallet(std::move(wallet));
 }
