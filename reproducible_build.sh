@@ -237,7 +237,7 @@ function install_apt_packages() {
 
     if [ "${CHECK_CODE_FORMAT}" = true ]; then
         $SUDO apt-get ${QUIET} install -y --no-install-recommends \
-            clang-format-3.4
+            clang-format-3.9
     fi
 
 }
@@ -327,6 +327,7 @@ function build_libevent() {
 }
 
 function build_dependency() {
+    pushd .
     PREFIX=$1
     LOG=$2
     BUILD=$3
@@ -337,6 +338,7 @@ function build_dependency() {
 	"${BUILD}" "${LOG}"
 	trap - INT TERM EXIT
     fi
+    popd
 }
 
 function build_lbrycrd() {
@@ -370,11 +372,7 @@ function build_lbrycrd() {
 function clang_format_diff(){
     # run a code formatting check on any commits not in master
     # requires clang-format
-    if ! git config remote.origin2.url > /dev/null; then
-        git remote add origin2 https://github.com/lbryio/lbrycrd.git
-    fi
-    git fetch origin2
-    git diff -U0 origin2/master -- '*.h' '*.cpp' | ./contrib/devtools/clang-format-diff.py -p1
+    git diff -U0 master -- '*.h' '*.cpp' | ./contrib/devtools/clang-format-diff.py -p1
 }
 
 # these variables are needed in both functions
