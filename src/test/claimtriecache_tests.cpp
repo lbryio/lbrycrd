@@ -274,5 +274,58 @@ BOOST_AUTO_TEST_CASE(recursive_prune_test)
     BOOST_CHECK_EQUAL(0, it->second->children.size());
 }
 
+BOOST_AUTO_TEST_CASE(iteratetrie_test)
+{
+    BOOST_CHECK(pclaimTrie->empty());
+    CClaimTrieCacheTest ctc(pclaimTrie);
+
+    uint256 hash0(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
+    CMutableTransaction tx1 = BuildTransaction(hash0);
+
+    const uint256 txhash = tx1.GetHash();
+    CClaimValue claimVal(COutPoint(txhash, 0), ClaimIdHash(txhash, 0), CAmount(10), 0, 0);
+    ctc.insertClaimIntoTrie("test", claimVal);
+
+
+    int count = 0;
+
+    struct TestCallBack : public CNodeCallback {
+        TestCallBack(int& count) : count(count)
+        {
+        }
+
+        void visit(const std::string& name, const CClaimTrieNode* node)
+        {
+            count++;
+            if (name == "test") {
+                BOOST_CHECK(node->claims.size() == 1);
+            }
+        }
+
+        int& count;
+    } testCallback(count);
+
+    BOOST_CHECK(ctc.iterateTrie(testCallback));
+    BOOST_CHECK(count == 5);
+
+    count = 3;
+
+    struct TestCallBack2 : public CNodeCallback {
+        TestCallBack2(int& count) : count(count)
+        {
+        }
+
+        void visit(const std::string& name, const CClaimTrieNode* node)
+        {
+            if (--count <= 0)
+                throw CRecursionInterruptionException(false);
+        }
+
+        int& count;
+    } testCallback2(count);
+
+    BOOST_CHECK(!ctc.iterateTrie(testCallback2));
+    BOOST_CHECK(count == 0);
+}
 
 BOOST_AUTO_TEST_SUITE_END()
