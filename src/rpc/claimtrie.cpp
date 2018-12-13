@@ -112,44 +112,65 @@ UniValue getclaimsintrie(const UniValue& params, bool fHelp)
         RollBackTo(blockIndex, coinsCache, trieCache);
     }
 
-    UniValue ret(UniValue::VARR);
-    std::vector<namedNodeType> nodes = trieCache.flattenTrie();
-    for (std::vector<namedNodeType>::iterator it = nodes.begin(); it != nodes.end(); ++it) {
-        if (it->second.claims.empty()) continue;
-
-        UniValue claims(UniValue::VARR);
-        for (std::vector<CClaimValue>::iterator itClaims = it->second.claims.begin(); itClaims != it->second.claims.end(); ++itClaims) {
-            UniValue claim(UniValue::VOBJ);
-            claim.push_back(Pair("claimId", itClaims->claimId.GetHex()));
-            claim.push_back(Pair("txid", itClaims->outPoint.hash.GetHex()));
-            claim.push_back(Pair("n", (int)itClaims->outPoint.n));
-            claim.push_back(Pair("amount", ValueFromAmount(itClaims->nAmount)));
-            claim.push_back(Pair("height", itClaims->nHeight));
-            const CCoins* coin = coinsCache.AccessCoins(itClaims->outPoint.hash);
-            if (!coin) {
-                LogPrintf("%s: %s does not exist in the coins view, despite being associated with a name\n",
-                    __func__, itClaims->outPoint.hash.GetHex());
-                claim.push_back(Pair("error", "No value found for claim"));
-            } else if (!coin->IsAvailable(itClaims->outPoint.n)) {
-                LogPrintf("%s: the specified txout of %s appears to have been spent\n", __func__, itClaims->outPoint.hash.GetHex());
-                claim.push_back(Pair("error", "Txout spent"));
-            } else {
-                int op;
-                std::vector<std::vector<unsigned char> > vvchParams;
-                if (!DecodeClaimScript(coin->vout[itClaims->outPoint.n].scriptPubKey, op, vvchParams)) {
-                    LogPrintf("%s: the specified txout of %s does not have an claim command\n", __func__, itClaims->outPoint.hash.GetHex());
-                }
-                std::string sValue(vvchParams[1].begin(), vvchParams[1].end());
-                claim.push_back(Pair("value", sValue));
-            }
-            claims.push_back(claim);
+    class CClaimsCallback : public CNodeCallback
+    {
+    public:
+        CClaimsCallback(UniValue& ret, const CCoinsViewCache& coinsCache) : nodes(ret), coinsCache(coinsCache)
+        {
         }
 
-        UniValue node(UniValue::VOBJ);
-        node.push_back(Pair("name", it->first));
-        node.push_back(Pair("claims", claims));
-        ret.push_back(node);
-    }
+        void visit(const std::string& name, const CClaimTrieNode* node)
+        {
+            if (ShutdownRequested())
+                throw JSONRPCError(RPC_INTERNAL_ERROR, "Shutdown requested");
+
+            boost::this_thread::interruption_point();
+
+            if (node->claims.empty())
+                return;
+
+            UniValue claims(UniValue::VARR);
+            for (std::vector<CClaimValue>::const_iterator itClaims = node->claims.begin(); itClaims != node->claims.end(); ++itClaims) {
+                UniValue claim(UniValue::VOBJ);
+                claim.push_back(Pair("claimId", itClaims->claimId.GetHex()));
+                claim.push_back(Pair("txid", itClaims->outPoint.hash.GetHex()));
+                claim.push_back(Pair("n", (int)itClaims->outPoint.n));
+                claim.push_back(Pair("amount", ::ValueFromAmount(itClaims->nAmount)));
+                claim.push_back(Pair("height", itClaims->nHeight));
+                const CCoins* coin = coinsCache.AccessCoins(itClaims->outPoint.hash);
+                if (!coin) {
+                    LogPrintf("%s: %s does not exist in the coins view, despite being associated with a name\n",
+                        __func__, itClaims->outPoint.hash.GetHex());
+                    claim.push_back(Pair("error", "No value found for claim"));
+                } else if (!coin->IsAvailable(itClaims->outPoint.n)) {
+                    LogPrintf("%s: the specified txout of %s appears to have been spent\n", __func__, itClaims->outPoint.hash.GetHex());
+                    claim.push_back(Pair("error", "Txout spent"));
+                } else {
+                    int op;
+                    std::vector<std::vector<unsigned char> > vvchParams;
+                    if (!DecodeClaimScript(coin->vout[itClaims->outPoint.n].scriptPubKey, op, vvchParams)) {
+                        LogPrintf("%s: the specified txout of %s does not have an claim command\n", __func__, itClaims->outPoint.hash.GetHex());
+                    }
+                    std::string sValue(vvchParams[1].begin(), vvchParams[1].end());
+                    claim.push_back(Pair("value", sValue));
+                }
+                claims.push_back(claim);
+            }
+
+            UniValue nodeObj(UniValue::VOBJ);
+            nodeObj.push_back(Pair("name", name));
+            nodeObj.push_back(Pair("claims", claims));
+            nodes.push_back(nodeObj);
+        }
+
+    private:
+        UniValue& nodes;
+        const CCoinsViewCache& coinsCache;
+    };
+
+    UniValue ret(UniValue::VARR);
+    CClaimsCallback claimsCallback(ret, coinsCache);
+    trieCache.iterateTrie(claimsCallback);
     return ret;
 }
 
@@ -188,23 +209,40 @@ UniValue getclaimtrie(const UniValue& params, bool fHelp)
         RollBackTo(blockIndex, coinsCache, trieCache);
     }
 
-    UniValue ret(UniValue::VARR);
-    std::vector<namedNodeType> nodes = trieCache.flattenTrie();
-    for (std::vector<namedNodeType>::iterator it = nodes.begin(); it != nodes.end(); ++it)
+    class CClaimCallback : public CNodeCallback
     {
-        UniValue node(UniValue::VOBJ);
-        node.push_back(Pair("name", it->first));
-        node.push_back(Pair("hash", it->second.hash.GetHex()));
-        CClaimValue claim;
-        if (it->second.getBestClaim(claim))
+    public:
+        CClaimCallback(UniValue& ret) : nodes(ret)
         {
-            node.push_back(Pair("txid", claim.outPoint.hash.GetHex()));
-            node.push_back(Pair("n", (int)claim.outPoint.n));
-            node.push_back(Pair("value", ValueFromAmount(claim.nAmount)));
-            node.push_back(Pair("height", claim.nHeight));
         }
-        ret.push_back(node);
-    }
+
+        void visit(const std::string& name, const CClaimTrieNode* node)
+        {
+            if (ShutdownRequested())
+                throw JSONRPCError(RPC_INTERNAL_ERROR, "Shutdown requested");
+
+            boost::this_thread::interruption_point();
+
+            UniValue nodeObj(UniValue::VOBJ);
+            nodeObj.push_back(Pair("name", name));
+            nodeObj.push_back(Pair("hash", node->hash.GetHex()));
+            CClaimValue claim;
+            if (node->getBestClaim(claim)) {
+                nodeObj.push_back(Pair("txid", claim.outPoint.hash.GetHex()));
+                nodeObj.push_back(Pair("n", (int)claim.outPoint.n));
+                nodeObj.push_back(Pair("value", ::ValueFromAmount(claim.nAmount)));
+                nodeObj.push_back(Pair("height", claim.nHeight));
+            }
+            nodes.push_back(nodeObj);
+        }
+
+    private:
+        UniValue& nodes;
+    };
+
+    UniValue ret(UniValue::VARR);
+    CClaimCallback claimCallback(ret);
+    trieCache.iterateTrie(claimCallback);
     return ret;
 }
 
