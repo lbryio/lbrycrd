@@ -191,6 +191,7 @@ libbitcoin_server_a_SOURCES = \
   merkleblock.cpp \
   miner.cpp \
   claimtrie.cpp \
+  claimtrieForks.cpp \
   net.cpp \
   noui.cpp \
   policy/fees.cpp \
@@ -354,7 +355,7 @@ nodist_libbitcoin_util_a_SOURCES = $(srcdir)/obj/build.h
 lbrycrdd_SOURCES = bitcoind.cpp
 lbrycrdd_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 lbrycrdd_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-lbrycrdd_LDFLAGS = -L$(ICU_PREFIX)/lib $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
+lbrycrdd_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
 if TARGET_WINDOWS
 lbrycrdd_SOURCES += bitcoin-cli-res.rc
