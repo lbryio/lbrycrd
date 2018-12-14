@@ -15,7 +15,6 @@ function HELP {
     echo
     echo "Optional arguments:"
     echo
-    echo "-c: don't clone a fresh copy of the repo"
     echo "-f: check formatting of committed code relative to master"
     echo "-r: remove intermediate files."
     echo "-l: build only lbrycrd"
@@ -26,8 +25,7 @@ function HELP {
     exit 1
 }
 
-CLONE=false
-CLEAN=true
+CLEAN=false
 CHECK_CODE_FORMAT=false
 BUILD_DEPENDENCIES=true
 BUILD_LBRYCRD=true
@@ -39,15 +37,12 @@ OUTPUT_LOG=true
 
 while getopts :crfldoth:w:d: FLAG; do
     case $FLAG in
-	c)
-	    CLONE=false
-	    ;;
 	r)
 	    CLEAN=true
 	    ;;
-    f)
-        CHECK_CODE_FORMAT=true
-        ;;
+	f)
+	    CHECK_CODE_FORMAT=true
+	    ;;
 	l)
 	    BUILD_DEPENDENCIES=false
 	    ;;
@@ -81,13 +76,11 @@ if (( EUID != 0 )); then
     SUDO='sudo'
 fi
 
-if [ "${CLONE}" = false ]; then
-    if [ "$(basename "$PWD")" != "lbrycrd" ]; then
-	echo "Not currently in the lbrycrd directory. Cowardly refusing to go forward"
-	exit 1
-    fi
-    SOURCE_DIR=$PWD
+if [ "$(basename "$PWD")" != "lbrycrd" ]; then
+    echo "Not currently in the lbrycrd directory. Cowardly refusing to go forward"
+    exit 1
 fi
+SOURCE_DIR=$PWD
 
 if [ -z "${TRAVIS_OS_NAME+x}" ]; then
     if [ "$(uname -s)" = "Darwin" ]; then
@@ -133,44 +126,40 @@ function exit_at_60() {
 #  - echo message
 function wait_and_echo() {
     PID=$1
-    (set -o | grep xtrace | grep -q on)
-    TRACE_STATUS=$?
-    # disable xtrace or else this will get verbose, which is what
-    # I'm trying to avoid by going through all of this nonsense anyway
-    set +o xtrace
     TIME=0
-    SLEEP=5
+    SLEEP=3
     # loop until the process is no longer running
     # check every $SLEEP seconds, echoing a message every minute
     while (ps -p "${PID}" > /dev/null); do
 	exit_at_60 "$2"
 	sleep "${SLEEP}"
     done
-    # restore the xtrace setting
-    if [ "${TRACE_STATUS}" -eq 0 ]; then
-	set -o xtrace
-    fi
-    wait "$PID"
-    return $?
 }
 
 # run a command ($1) in the background
 # logging its stdout and stderr to $2
 # and wait until it completed
 function background() {
-    $1 >> "$2" 2>&1 &
+    eval $1 >> "$2" 2>&1 &
     BACKGROUND_PID=$!
-    wait_and_echo $BACKGROUND_PID "$3"
+    (
+        set +xe # do not echo each sleep call in trace mode
+        wait_and_echo $BACKGROUND_PID "$3"
+    )
+    wait $BACKGROUND_PID
 }
 
 function cleanup() {
     rv=$?
+    if [ $rv -eq 0 ]; then
+        return $rv
+    fi
     # cat the log file if it exists
     if [ -f "$2" ] && [ "${OUTPUT_LOG}" = true ]; then
 	echo
 	echo "Output of log file $2"
 	echo
-	tail -n 1000 "$2"
+	tail -n 200 "$2"
 	echo
     fi
     # delete the build directory
@@ -209,7 +198,7 @@ function install_brew_packages() {
     brew_if_not_installed automake
     # something weird happened where glibtoolize was failing to find
     # sed, and reinstalling fixes it.
-    brew reinstall -s libtool
+    brew reinstall libtool
     brew_if_not_installed pkg-config
     brew_if_not_installed protobuf
     brew_if_not_installed gmp
@@ -220,6 +209,10 @@ function install_brew_packages() {
 }
 
 function install_apt_packages() {
+    if [ -d "${OUTPUT_DIR}" ]; then
+        return 0
+    fi
+
     if [ -z "${TRAVIS+x}" ]; then
 	# if not on travis, its nice to see progress
 	QUIET=""
@@ -265,7 +258,7 @@ function build_dependencies() {
     build_dependency "${BDB_PREFIX}" "${LOG_DIR}/bdb_build.log" build_bdb
 
     set +u
-    export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig/"
+    export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig"
     set -u
 
     build_dependency "${BOOST_PREFIX}" "${LOG_DIR}/boost_build.log" build_boost
@@ -275,6 +268,7 @@ function build_dependencies() {
 function build_bdb() {
     BDB_LOG="$1"
     if [ "${OS_NAME}" = "osx" ]; then
+        # TODO: make this handle already patched files
 	patch db-4.8.30.NC/dbinc/atomic.h < atomic.patch
     fi
     cd db-4.8.30.NC/build_unix
@@ -309,29 +303,31 @@ function build_boost() {
     echo "int main() { return 0; }" > libs/regex/build/has_icu_test.cpp
     echo "int main() { return 0; }" > libs/locale/build/has_icu_test.cpp
 
-    export BOOST_ICU_LIBS="$(pkg-config icu-i18n --libs) -dl"
-    export BOOST_LDFLAGS="${BOOST_PREFIX}/lib ${ICU_PREFIX}/lib ${BOOST_ICU_LIBS}"
+    export BOOST_ICU_LIBS="-L${ICU_PREFIX}/lib -licui18n -licuuc -licudata -dl"
+    export BOOST_LDFLAGS="-L${BOOST_PREFIX}/lib ${BOOST_ICU_LIBS}"
 
-    echo "BOOST_ICU_LIBS: $BOOST_ICU_LIBS"
-    echo "BOOST_LDFLAGS: $BOOST_ICU_LIBS"
+    echo "BOOST_LDFLAGS: $BOOST_LDFLAGS"
 
     echo "Building Boost.  tail -f ${BOOST_LOG} to see the details and monitor progress"
-    ./bootstrap.sh --prefix="${BOOST_PREFIX}" "--with-icu=${ICU_PREFIX}" > "${BOOST_LOG}" 2>&1
-    b2cmd="./b2 link=static cxxflags=-fPIC install boost.locale.iconv=off boost.locale.posix=off -sICU_PATH=${ICU_PREFIX} -sICU_LINK=${BOOST_ICU_LIBS}"
+    ./bootstrap.sh --prefix="${BOOST_PREFIX}" --with-icu="${ICU_PREFIX}" > "${BOOST_LOG}" 2>&1
+    b2cmd="./b2 --reconfigure ${PARALLEL} link=static cxxflags=-fPIC install boost.locale.iconv=off boost.locale.posix=off -sICU_PATH=\"${ICU_PREFIX}\" -sICU_LINK=\"${BOOST_ICU_LIBS}\""
     background "${b2cmd}" "${BOOST_LOG}" "Waiting for boost to finish building"
+    if grep -q "icu[[:space:]]*:[[:space:]]*no$" "${BOOST_LOG}"; then
+        echo "Failed to find ICU dependencies. Exiting..."
+        exit 1
+    fi
 }
 
 function build_icu() {
     ICU_LOG="$1"
     mkdir -p "${ICU_PREFIX}/icu"
-    wget http://download.icu-project.org/files/icu4c/55.1/icu4c-55_1-src.tgz
-    tar -xf icu4c-55_1-src.tgz
-    rm -f icu4c-55_1-src.tgz
+    wget -c http://download.icu-project.org/files/icu4c/57.1/icu4c-57_1-src.tgz
+    tar -xf icu4c-57_1-src.tgz
     pushd icu/source > /dev/null
     echo "Building icu.  tail -f $ICU_LOG to see the details and monitor progress"
     ./configure --prefix="${ICU_PREFIX}" --enable-draft --enable-tools \
-                    --enable-shared --disable-extras --disable-icuio \
-                    --disable-layout --disable-layoutex --disable-tests --disable-samples
+                    --disable-shared --enable-static --disable-extras --disable-icuio --disable-dyload \
+                    --disable-layout --disable-layoutex --disable-tests --disable-samples CFLAGS=-fPIC CPPFLAGS=-fPIC > "${ICU_LOG}"
     if [ ! -z ${TARGET+x} ]; then
         TMP_TARGET="${TARGET}"
         unset TARGET
@@ -355,7 +351,7 @@ function build_libevent() {
     echo "Building libevent.  tail -f ${LIBEVENT_LOG} to see the details and monitor progress"
     ./autogen.sh > "${LIBEVENT_LOG}" 2>&1
     ./configure --prefix="${LIBEVENT_PREFIX}" --enable-static --disable-shared --with-pic \
-		LDFLAGS="-L${OPENSSL_PREFIX}/lib/" \
+		LDFLAGS="-L${OPENSSL_PREFIX}/lib" \
 		CPPFLAGS="-I${OPENSSL_PREFIX}/include" >> "${LIBEVENT_LOG}" 2>&1
     background "make ${PARALLEL}" "${LIBEVENT_LOG}" "Waiting for libevent to finish building"
     make install >> "${LIBEVENT_LOG}"
@@ -378,39 +374,22 @@ function build_dependency() {
 }
 
 function build_lbrycrd() {
-    if [ "$CLONE" == true ]; then
-	cd "${LBRYCRD_DEPENDENCIES}"
-	git clone https://github.com/lbryio/lbrycrd
-	cd lbrycrd
-    else
-	cd "${SOURCE_DIR}"
-    fi
+    cd "${SOURCE_DIR}"
     ./autogen.sh > "${LBRYCRD_LOG}" 2>&1
-    LDFLAGS="-L${OPENSSL_PREFIX}/lib/ -L${BDB_PREFIX}/lib/ -L${LIBEVENT_PREFIX}/lib/ -L${ICU_PREFIX}/lib/ -static-libstdc++"
+    LDFLAGS="-L${OPENSSL_PREFIX}/lib -L${BDB_PREFIX}/lib -L${LIBEVENT_PREFIX}/lib -L${ICU_PREFIX}/lib -static-libstdc++ -licui18n -licuuc -licudata -dl"
+    OPTIONS="--enable-cxx --enable-static --disable-shared --with-pic"
     if [ "${OS_NAME}" = "osx" ]; then
-	OPTIONS="--enable-cxx --enable-static --disable-shared --with-pic"
-        CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/ -I${ICU_PREFIX}/include"
+        CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include -I${ICU_PREFIX}/include"
     else
-	OPTIONS=""
-        CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/ -I${ICU_PREFIX}/include -Wno-unused-local-typedefs"
+        CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include -I${ICU_PREFIX}/include -Wno-unused-local-typedefs -Wno-deprecated -Wno-implicit-fallthrough"
     fi
 
     CPPFLAGS="${CPPFLAGS}" LDFLAGS="${LDFLAGS}"  \
             ./configure --without-gui ${OPTIONS} \
 	    --with-boost="${BOOST_PREFIX}"   \
             --with-icu="${ICU_PREFIX}" >> "${LBRYCRD_LOG}" 2>&1
-
     
     background "make ${PARALLEL}" "${LBRYCRD_LOG}" "Waiting for lbrycrd to finish building"
-    if [ "${OS_NAME}" = "linux" ]; then
-        LD_LIBRARY_PATH="${ICU_PREFIX}/lib" src/test/test_lbrycrd
-    else
-        DYLD_LIBRARY_PATH="${ICU_PREFIX}/lib" src/test/test_lbrycrd
-    fi
-    strip src/lbrycrdd
-    strip src/lbrycrd-cli
-    strip src/lbrycrd-tx
-    strip src/test/test_lbrycrd
 }
 
 function clang_format_diff(){
@@ -443,7 +422,7 @@ if [ "${CHECK_CODE_FORMAT}" = true ]; then
 fi
 
 set +u
-export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig/:${LIBEVENT_PREFIX}/lib/pkgconfig/"
+export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig:${LIBEVENT_PREFIX}/lib/pkgconfig:${ICU_PREFIX}/lib/pkgconfig"
 set -u
 
 if [ "${BUILD_LBRYCRD}" = true ]; then
@@ -452,4 +431,12 @@ if [ "${BUILD_LBRYCRD}" = true ]; then
     trap 'cat_and_exit "${LBRYCRD_LOG}"' INT TERM EXIT
     build_lbrycrd
     trap - INT TERM EXIT
+
+    ./src/test/test_lbrycrd
+    set +u
+    if [[ ! $CXXFLAGS =~ -g ]]; then
+        strip src/lbrycrdd
+        strip src/lbrycrd-cli
+        strip src/lbrycrd-tx
+    fi
 fi

@@ -749,22 +749,19 @@ if test x$use_pkgconfig = xyes; then
     AC_MSG_ERROR(pkg-config not found.)
   fi
 
+  if test "${ICU_PREFIX}" != "auto"; then
+    PKG_CONFIG_PATH="${ICU_PREFIX}/lib/pkgconfig:$PKG_CONFIG_PATH"
+    export PKG_CONFIG_PATH
+  fi
+
   : #NOP
   m4_ifdef(
     [PKG_CHECK_MODULES],
     [
-      ICU_CPPFLAGS="-I$ICU_PREFIX/include"
-      CPPFLAGS="$ICU_CPPFLAGS $CPPFLAGS"
-      ICU_LIBS="-L$ICU_PREFIX/lib -licui18n -licuuc -licudata -dl"
-      AC_MSG_WARN([Using ICU_CPPFLAGS $ICU_CPPFLAGS])
-      AC_MSG_WARN([Using CPPFLAGS $CPPFLAGS])
-
-      AC_CHECK_HEADER([unicode/errorcode.h],,AC_MSG_ERROR(libicu headers missing))
-      AC_CHECK_LIB([icudata], [main], ICU_LIBS="-L$ICU_PREFIX/lib -licui18n -licuuc -licudata -dl",
-        AC_CHECK_LIB([icu18n], [main],ICU_LIBS=$ICU_LIBS, ICU_LIBS="-L$ICU_PREFIX/lib -lsicudt -lsicuin -lsicuio -lsicule -lsiculx -lsicutest -lsicutu -lsicuuc"))
-
-      PKG_CHECK_MODULES([SSL], [libssl],, [AC_MSG_ERROR(openssl  not found.)])
-      PKG_CHECK_MODULES([CRYPTO], [libcrypto],,[AC_MSG_ERROR(libcrypto  not found.)])
+      PKG_CHECK_MODULES([ICU], [icu-i18n],, [AC_MSG_ERROR(icu-i18n not found.)])
+      AC_CHECK_HEADER([unicode/errorcode.h],, AC_MSG_ERROR(libicu headers missing))
+      PKG_CHECK_MODULES([SSL], [libssl],, [AC_MSG_ERROR(openssl not found.)])
+      PKG_CHECK_MODULES([CRYPTO], [libcrypto],, [AC_MSG_ERROR(libcrypto not found.)])
 
       BITCOIN_QT_CHECK([PKG_CHECK_MODULES([PROTOBUF], [protobuf], [have_protobuf=yes], [BITCOIN_QT_FAIL(libprotobuf not found)])])
       if test x$use_qr != xno; then
@@ -876,8 +873,8 @@ AC_SUBST(UNIVALUE_LIBS)
 
 CXXFLAGS_TEMP="$CXXFLAGS"
 LIBS_TEMP="$LIBS"
-CXXFLAGS="$CXXFLAGS $CPPFLAGS $SSL_CFLAGS $CRYPTO_CFLAGS $ICU_PREFIX/include"
-LIBS="$LIBS $SSL_LIBS $CRYPTO_LIBS"
+CXXFLAGS="$CXXFLAGS $CPPFLAGS $SSL_CFLAGS $CRYPTO_CFLAGS"
+LIBS="$LIBS $SSL_LIBS $CRYPTO_LIBS $ICU_LIBS"
 #AC_CHECK_HEADER([openssl/ec.h],, AC_MSG_ERROR(OpenSSL ec header missing),)
 CXXFLAGS="$CXXFLAGS_TEMP"
 LIBS="$LIBS_TEMP"
@@ -1069,7 +1066,6 @@ AC_SUBST(LIBTOOL_APP_LDFLAGS)
 AC_SUBST(USE_UPNP)
 AC_SUBST(USE_QRCODE)
 AC_SUBST(BOOST_LIBS)
-AC_SUBST(ICU_PREFIX)
 AC_SUBST(ICU_CPPFLAGS)
 AC_SUBST(ICU_LIBS)
 AC_SUBST(TESTDEFS)

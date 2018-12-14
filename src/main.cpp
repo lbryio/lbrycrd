@@ -2067,7 +2067,6 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CClaimTr
     std::vector<std::vector<unsigned char> > vvchParams;
     if (undo.fIsClaim && DecodeClaimScript(undo.txout.scriptPubKey, op, vvchParams))
     {
-        const bool shouldNormalize = pclaimTrie->shouldNormalize();
         if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
         {
             uint160 claimId;
@@ -2086,7 +2085,7 @@ static bool ApplyTxInUndo(const CTxInUndo& undo, CCoinsViewCache& view, CClaimTr
             if (nValidHeight > 0 && nValidHeight >= coins->nHeight)
             {
                 LogPrintf("%s: (txid: %s, nOut: %d) Restoring %s to the claim trie due to a block being disconnected (normalize claim active: %s)\n",
-                    __func__, out.hash.ToString(), out.n, name.c_str(), (shouldNormalize ? "true" : "false"));
+                    __func__, out.hash.ToString(), out.n, name.c_str(), (trieCache.shouldNormalize() ? "true" : "false"));
                 if (!trieCache.undoSpendClaim(name, COutPoint(out.hash, out.n), claimId, undo.txout.nValue, coins->nHeight, nValidHeight))
                     LogPrintf("%s: Something went wrong inserting the claim\n", __func__);
             }
@@ -2141,13 +2140,6 @@ bool DisconnectBlock(const CBlock& block, CValidationState& state, const CBlockI
 
     assert(trieCache.decrementBlock(blockUndo.insertUndo, blockUndo.expireUndo, blockUndo.insertSupportUndo, blockUndo.expireSupportUndo, blockUndo.takeoverHeightUndo));
 
-    if (pindex->nHeight == Params().GetConsensus().nNormalizedNameForkHeight) {
-        LogPrintf("Decremented past the normalization hard fork height\n");
-        const uint256 prevHash = trieCache.getBestBlock();
-        pclaimTrie = pclaimTrie->enableNormalizationFork(false, pindex->nHeight, trieCache);
-        trieCache.setBestBlock(prevHash);
-    }
-
     // undo transactions in reverse order
     for (int i = block.vtx.size() - 1; i >= 0; i--) {
         const CTransaction &tx = block.vtx[i];
@@ -2177,7 +2169,6 @@ bool DisconnectBlock(const CBlock& block, CValidationState& state, const CBlockI
             std::vector<std::vector<unsigned char> > vvchParams;
             if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams))
             {
-                bool shouldNormalize = pclaimTrie->shouldNormalize();
                 if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
                 {
                     uint160 claimId;
@@ -2203,7 +2194,7 @@ bool DisconnectBlock(const CBlock& block, CValidationState& state, const CBlockI
                     }
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     LogPrintf("%s: (txid: %s, nOut: %d) Trying to remove %s from the claim trie due to its block being disconnected\n", __func__, hash.ToString(), i, name.c_str());
-                    if (!trieCache.undoAddClaim(name, COutPoint(hash, i))) {
+                    if (!trieCache.undoAddClaim(name, COutPoint(hash, i), pindex->nHeight)) {
                         LogPrintf("%s: Could not find the claim in the trie or the cache\n", __func__);
                     }
                 }
@@ -2215,7 +2206,7 @@ bool DisconnectBlock(const CBlock& block, CValidationState& state, const CBlockI
                     LogPrintf("--- %s[%lu]: OP_SUPPORT_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n",
                               __func__, pindex->nHeight, name, supportedClaimId.GetHex(), hash.ToString(), i);
                     LogPrintf("%s: (txid: %s, nOut: %d) Removing support for claim id %s on %s due to its block being disconnected (normalize fork active: %s)\n",
-                        __func__, hash.ToString(), i, supportedClaimId.ToString(), name.c_str(), (shouldNormalize ? "true" : "false"));
+                        __func__, hash.ToString(), i, supportedClaimId.ToString(), name.c_str(), (trieCache.shouldNormalize() ? "true" : "false"));
                     if (!trieCache.undoAddSupport(name, COutPoint(hash, i), pindex->nHeight))
                         LogPrintf("%s: Something went wrong removing support for name %s in hash %s\n", __func__, name.c_str(), hash.ToString());
                 }
@@ -2612,13 +2603,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                 std::vector<std::vector<unsigned char> > vvchParams;
                 if (DecodeClaimScript(coins->vout[txin.prevout.n].scriptPubKey, op, vvchParams))
                 {
+                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
                     {
                         uint160 claimId;
                         if (op == OP_CLAIM_NAME)
                         {
-                            assert(vvchParams.size() == 2);
-                            std::string name(vvchParams[0].begin(), vvchParams[0].end());
                             std::string value(vvchParams[1].begin(), vvchParams[1].end());
                             claimId = ClaimIdHash(txin.prevout.hash, txin.prevout.n);
                             LogPrintf("+++ %s[%lu]: OP_CLAIM_NAME \"%s\" = \"%s\" with claimId %s and tx prevout %s at index %d\n",
@@ -2627,18 +2617,15 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         }
                         else if (op == OP_UPDATE_CLAIM)
                         {
-                            assert(vvchParams.size() == 3);
-                            std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                            std::string value(vvchParams[1].begin(), vvchParams[1].end());
                             claimId = uint160(vvchParams[1]);
+                            std::string value(vvchParams[2].begin(), vvchParams[2].end());
                             LogPrintf("+++ %s[%lu]: OP_UPDATE_CLAIM \"%s\" = \"%s\" with claimId %s and tx prevout %s at index %d\n",
                                       __func__, pindex->nHeight, name, SanitizeString(value),
                                       claimId.GetHex(), txin.prevout.hash.GetHex(), txin.prevout.n);
                         }
-                        std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         int nValidAtHeight;
                         LogPrintf("%s: Removing %s from the claim trie. Tx: %s, nOut: %d\n", __func__, name, txin.prevout.hash.GetHex(), txin.prevout.n);
-                        if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), nValidAtHeight)) {
+                        if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), coins->nHeight, nValidAtHeight)) {
                             mClaimUndoHeights[i] = nValidAtHeight;
                             std::pair<std::string, uint160> entry(name, claimId);
                             spentClaims.push_back(entry);
@@ -2648,8 +2635,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                     }
                     else if (op == OP_SUPPORT_CLAIM)
                     {
-                        assert(vvchParams.size() == 2);
-                        std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         uint160 supportedClaimId(vvchParams[1]);
                         LogPrintf("+++ %s[%lu]: OP_SUPPORT_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n",
                                   __func__, pindex->nHeight, name,
@@ -2695,13 +2680,9 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         spentClaimsType::iterator itSpent;
                         for (itSpent = spentClaims.begin(); itSpent != spentClaims.end(); ++itSpent)
                         {
-                            if (pclaimTrie->shouldNormalize()) {
-                                const std::string normalizedName1 = normalizeClaimName(name);
-                                const std::string normalizedName2 = normalizeClaimName(itSpent->first);
-                                if (normalizedName1 == normalizedName2 && itSpent->second == claimId)
+                            if (itSpent->second == claimId) {
+                                if (trieCache.normalizeClaimName(name) == trieCache.normalizeClaimName(itSpent->first))
                                     break;
-                            } else if (itSpent->first == name && itSpent->second == claimId) {
-                                break;
                             }
                         }
                         if (itSpent != spentClaims.end())
@@ -2755,15 +2736,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
         vPos.push_back(std::make_pair(tx.GetHash(), pos));
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
-    }
-
-    if (pindex->nHeight == Params().GetConsensus().nNormalizedNameForkHeight) {
-        LogPrintf("Incremented past the normalization hard fork height\n");
-        pclaimTrie = pclaimTrie->enableNormalizationFork(true, pindex->nHeight, trieCache);
-        CClaimTrieCache tmpTrieCache(pclaimTrie);
-        tmpTrieCache.setBestBlock(trieCache.getBestBlock());
-        trieCache = tmpTrieCache;
-        trieCache.getMerkleHash(true);
     }
 
     assert(trieCache.incrementBlock(blockUndo.insertUndo, blockUndo.expireUndo, blockUndo.insertSupportUndo, blockUndo.expireSupportUndo, blockUndo.takeoverHeightUndo));
