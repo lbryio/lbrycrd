@@ -285,14 +285,16 @@ typedef std::vector<CClaimIndexElement> claimIndexElementListType;
 
 struct claimsForNameType
 {
-    const std::vector<CClaimValue> claims;
-    const std::vector<CSupportValue> supports;
-    const int nLastTakeoverHeight;
-    const std::string name;
+    std::vector<CClaimValue> claims;
+    std::vector<CSupportValue> supports;
+    int nLastTakeoverHeight;
+    std::string name;
 
-    claimsForNameType(std::vector<CClaimValue> claims, std::vector<CSupportValue> supports,
+    claimsForNameType(const std::vector<CClaimValue>& claims, const std::vector<CSupportValue>& supports,
             int nLastTakeoverHeight, const std::string& name)
             : claims(claims), supports(supports), nLastTakeoverHeight(nLastTakeoverHeight), name(name) {}
+
+    virtual ~claimsForNameType() {}
 };
 
 class CClaimTrieCacheBase;
@@ -528,7 +530,7 @@ public:
                         supportQueueRowType& expireSupportUndo,
                         std::vector<std::pair<std::string, int> >& takeoverHeightUndo);
 
-    ~CClaimTrieCacheBase() { clear(); }
+    virtual ~CClaimTrieCacheBase() { clear(); }
 
     virtual bool getProofForName(const std::string& name, CClaimTrieProof& proof) const;
     virtual bool getInfoForName(const std::string& name, CClaimValue& claim) const;
@@ -662,6 +664,8 @@ public:
     CClaimTrieCacheExpirationFork(CClaimTrie* base, bool fRequireTakeoverHeights = true)
     : CClaimTrieCacheBase(base, fRequireTakeoverHeights) {}
 
+    virtual ~CClaimTrieCacheExpirationFork() {}
+
     bool forkForExpirationChange(bool increment) const;
 
     // TODO: move the expiration fork code from main.cpp to overrides of increment/decrement block
@@ -676,6 +680,8 @@ public:
     CClaimTrieCacheNormalizationFork(CClaimTrie* base, bool fRequireTakeoverHeights = true)
         : CClaimTrieCacheExpirationFork(base, fRequireTakeoverHeights),
         overrideInsertNormalization(false), overrideRemoveNormalization(false) {}
+
+    virtual ~CClaimTrieCacheNormalizationFork() {}
 
     bool shouldNormalize() const;
 

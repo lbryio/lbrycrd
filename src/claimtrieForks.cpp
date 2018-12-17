@@ -178,8 +178,8 @@ bool CClaimTrieCacheNormalizationFork::removeSupportFromMap(const std::string& n
 }
 
 struct claimsForNormalization: public claimsForNameType {
-    const std::string normalized;
-    claimsForNormalization(std::vector<CClaimValue> claims, std::vector<CSupportValue> supports,
+    std::string normalized;
+    claimsForNormalization(const std::vector<CClaimValue>& claims, const std::vector<CSupportValue>& supports,
         int nLastTakeoverHeight, const std::string& name, const std::string& normalized)
     : claimsForNameType(claims, supports, nLastTakeoverHeight, name), normalized(normalized) {}
 };
@@ -199,7 +199,8 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(insert
 
             supportMapEntryType supports;
             owner->getSupportsForName(name, supports);
-            hits.push_back(claimsForNormalization(node->claims, supports, node->nHeightOfLastTakeover, name, normalized));
+            const claimsForNormalization cfn(node->claims, supports, node->nHeightOfLastTakeover, name, normalized);
+            hits.push_back(cfn);
         }
     };
 
