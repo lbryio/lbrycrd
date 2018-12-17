@@ -21,7 +21,7 @@ std::vector<unsigned char> heightToVch(int n)
     return vchHeight;
 }
 
-uint256 getValueHash(COutPoint outPoint, int nHeightOfLastTakeover)
+uint256 getValueHash(const COutPoint& outPoint, int nHeightOfLastTakeover)
 {
     CHash256 txHasher;
     txHasher.Write(outPoint.hash.begin(), outPoint.hash.size());
@@ -53,7 +53,7 @@ uint256 getValueHash(COutPoint outPoint, int nHeightOfLastTakeover)
     return valueHash;
 }
 
-bool CClaimTrieNode::insertClaim(CClaimValue claim)
+bool CClaimTrieNode::insertClaim(const CClaimValue& claim)
 {
     LogPrintf("%s: Inserting %s:%d (amount: %d)  into the claim trie\n", __func__, claim.outPoint.hash.ToString(), claim.outPoint.n, claim.nAmount);
     claims.push_back(claim);
@@ -113,23 +113,13 @@ bool CClaimTrieNode::haveClaim(const COutPoint& outPoint) const
     return false;
 }
 
-void CClaimTrieNode::reorderClaims(supportMapEntryType& supports)
+void CClaimTrieNode::reorderClaims(const supportMapEntryType& supports)
 {
-    std::vector<CClaimValue>::iterator itclaim;
-
-    for (itclaim = claims.begin(); itclaim != claims.end(); ++itclaim)
-    {
+    for (std::vector<CClaimValue>::iterator itclaim = claims.begin(); itclaim != claims.end(); ++itclaim) {
         itclaim->nEffectiveAmount = itclaim->nAmount;
-    }
-
-    for (supportMapEntryType::iterator itsupport = supports.begin(); itsupport != supports.end(); ++itsupport)
-    {
-        for (itclaim = claims.begin(); itclaim != claims.end(); ++itclaim)
-        {
-            if (itsupport->supportedClaimId == itclaim->claimId)
-            {
+        for (supportMapEntryType::const_iterator itsupport = supports.begin(); itsupport != supports.end(); ++itsupport) {
+            if (itsupport->supportedClaimId == itclaim->claimId) {
                 itclaim->nEffectiveAmount += itsupport->nAmount;
-                break;
             }
         }
     }
@@ -233,6 +223,7 @@ void CClaimTrie::clear(CClaimTrieNode* current)
         clear(itchildren->second);
         delete itchildren->second;
     }
+    current->children.clear();
 }
 
 bool CClaimTrie::haveClaim(const std::string& name, const COutPoint& outPoint) const
@@ -489,7 +480,7 @@ void CClaimTrie::removeFromClaimIndex(const CClaimValue& claim)
     db.Erase(std::make_pair(CLAIM_BY_ID, claim.claimId));
 }
 
-bool CClaimTrie::getClaimById(const uint160 claimId, std::string& name, CClaimValue& claim) const
+bool CClaimTrie::getClaimById(const uint160& claimId, std::string& name, CClaimValue& claim) const
 {
     CClaimIndexElement element;
     if (db.Read(std::make_pair(CLAIM_BY_ID, claimId), element))
@@ -637,7 +628,7 @@ void CClaimTrie::updateSupportExpirationQueue(int nHeight, expirationQueueRowTyp
     itQueueRow->second.swap(row);
 }
 
-bool CClaimTrie::getSupportNode(std::string name, supportMapEntryType& node) const
+bool CClaimTrie::getSupportNode(const std::string& name, supportMapEntryType& node) const
 {
     supportMapType::const_iterator itNode = dirtySupportNodes.find(name);
     if (itNode != dirtySupportNodes.end())
@@ -780,11 +771,10 @@ bool CClaimTrie::updateName(const std::string &name, CClaimTrieNode* updatedNode
         {
             // This character has apparently been deleted, so delete
             // all descendents from this child.
-            std::stringstream ss;
-            ss << name << itchild->first;
-            std::string newName = ss.str();
-            if (!recursiveNullify(itchild->second, newName))
-                return false;
+            std::string newName(name);
+            newName.push_back(itchild->first);
+            recursiveNullify(itchild->second, newName);
+            assert(newName == name + char(itchild->first));
             current->children.erase(itchild++);
         }
         else
@@ -793,21 +783,18 @@ bool CClaimTrie::updateName(const std::string &name, CClaimTrieNode* updatedNode
     return true;
 }
 
-bool CClaimTrie::recursiveNullify(CClaimTrieNode* node, std::string& name)
+void CClaimTrie::recursiveNullify(CClaimTrieNode* node, std::string& name)
 {
     assert(node != NULL);
     for (nodeMapType::iterator itchild = node->children.begin(); itchild != node->children.end(); ++itchild)
     {
-        std::stringstream ss;
-        ss << name << itchild->first;
-        std::string newName = ss.str();
-        if (!recursiveNullify(itchild->second, newName))
-            return false;
+        name.push_back(itchild->first);
+        recursiveNullify(itchild->second, name);
+        name.erase(name.end() - 1);
     }
     node->children.clear();
     markNodeDirty(name, NULL);
     delete node;
-    return true;
 }
 
 bool CClaimTrie::updateHash(const std::string& name, uint256& hash)
@@ -980,13 +967,13 @@ bool CClaimTrie::WriteToDisk()
     return db.WriteBatch(batch);
 }
 
-bool CClaimTrie::InsertFromDisk(const std::string& name, CClaimTrieNode* node)
+bool CClaimTrie::InsertNode(const std::string& name, const CClaimTrieNode& node)
 {
-    if (name.size() == 0)
-    {
-        root = *node;
+    if (name.empty()) {
+        root = node;
         return true;
     }
+
     CClaimTrieNode* current = &root;
     for (std::string::const_iterator itname = name.begin(); itname + 1 != name.end(); ++itname)
     {
@@ -995,7 +982,12 @@ bool CClaimTrie::InsertFromDisk(const std::string& name, CClaimTrieNode* node)
             return false;
         current = itchild->second;
     }
-    current->children[name[name.size()-1]] = node;
+
+    CClaimTrieNode* child = new CClaimTrieNode(node);
+    current->children[*(name.end() - 1)] = child;
+    supportMapEntryType support;
+    getSupportNode(name, support);
+    child->reorderClaims(support);
     return true;
 }
 
@@ -1017,16 +1009,12 @@ bool CClaimTrie::ReadFromDisk(bool check)
         {
             if (key.first == TRIE_NODE)
             {
-                CClaimTrieNode* node = new CClaimTrieNode();
-                if (pcursor->GetValue(*node))
-                {
-                    if (!InsertFromDisk(key.second, node))
-                    {
+                CClaimTrieNode node;
+                if (pcursor->GetValue(node)) {
+                    if (!InsertNode(key.second, node)) {
                         return error("%s(): error restoring claim trie from disk", __func__);
                     }
-                }
-                else
-                {
+                } else {
                     return error("%s(): error reading claim trie from disk", __func__);
                 }
             }
@@ -1048,33 +1036,28 @@ bool CClaimTrie::ReadFromDisk(bool check)
     return true;
 }
 
-bool CClaimTrieCache::recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent, std::string sPos) const
+bool CClaimTrieCache::recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent, std::string& name) const
 {
-    if (sPos == "" && tnCurrent->empty())
-    {
+    if (name.empty() && tnCurrent->empty()) {
         cacheHashes[""] = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
         return true;
     }
     std::vector<unsigned char> vchToHash;
     nodeCacheType::iterator cachedNode;
 
-
     for (nodeMapType::iterator it = tnCurrent->children.begin(); it != tnCurrent->children.end(); ++it)
     {
-        std::stringstream ss;
-        ss << it->first;
-        std::string sNextPos = sPos + ss.str();
-        if (dirtyHashes.count(sNextPos) != 0)
-        {
+        name.push_back(it->first);
+        if (dirtyHashes.find(name) != dirtyHashes.end()) {
             // the child might be in the cache, so look for it there
-            cachedNode = cache.find(sNextPos);
+            cachedNode = cache.find(name);
             if (cachedNode != cache.end())
-                recursiveComputeMerkleHash(cachedNode->second, sNextPos);
+                recursiveComputeMerkleHash(cachedNode->second, name);
             else
-                recursiveComputeMerkleHash(it->second, sNextPos);
+                recursiveComputeMerkleHash(it->second, name);
         }
         vchToHash.push_back(it->first);
-        hashMapType::iterator ithash = cacheHashes.find(sNextPos);
+        hashMapType::iterator ithash = cacheHashes.find(name);
         if (ithash != cacheHashes.end())
         {
             vchToHash.insert(vchToHash.end(), ithash->second.begin(), ithash->second.end());
@@ -1083,6 +1066,7 @@ bool CClaimTrieCache::recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent, std:
         {
             vchToHash.insert(vchToHash.end(), it->second->hash.begin(), it->second->hash.end());
         }
+        name.erase(name.end() - 1);
     }
 
     CClaimValue claim;
@@ -1091,7 +1075,7 @@ bool CClaimTrieCache::recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent, std:
     if (hasClaim)
     {
         int nHeightOfLastTakeover;
-        assert(getLastTakeoverForName(sPos, nHeightOfLastTakeover));
+        assert(getLastTakeoverForName(name, nHeightOfLastTakeover));
         uint256 valueHash = getValueHash(claim.outPoint, nHeightOfLastTakeover);
         vchToHash.insert(vchToHash.end(), valueHash.begin(), valueHash.end());
     }
@@ -1100,10 +1084,8 @@ bool CClaimTrieCache::recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent, std:
     std::vector<unsigned char> vchHash(hasher.OUTPUT_SIZE);
     hasher.Write(vchToHash.data(), vchToHash.size());
     hasher.Finalize(&(vchHash[0]));
-    cacheHashes[sPos] = uint256(vchHash);
-    std::set<std::string>::iterator itDirty = dirtyHashes.find(sPos);
-    if (itDirty != dirtyHashes.end())
-        dirtyHashes.erase(itDirty);
+    cacheHashes[name] = uint256(vchHash);
+    dirtyHashes.erase(name);
     return true;
 }
 
@@ -1116,8 +1098,10 @@ uint256 CClaimTrieCache::getMerkleHash() const
     }
     if (dirty())
     {
+        std::string name;
         CClaimTrieNode* root = getRoot();
-        recursiveComputeMerkleHash(root, "");
+        recursiveComputeMerkleHash(root, name);
+        assert(name.empty());
     }
     hashMapType::iterator ithash = cacheHashes.find("");
     if (ithash != cacheHashes.end())
@@ -1166,7 +1150,7 @@ bool CClaimTrieCache::getOriginalInfoForName(const std::string& name, CClaimValu
     return itOriginalCache->second->getBestClaim(claim);
 }
 
-bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue claim, bool fCheckTakeover) const
+bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, const CClaimValue& claim, bool fCheckTakeover) const
 {
     assert(base);
     CClaimTrieNode* currentNode = getRoot();
@@ -1330,7 +1314,7 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoi
     return recursivePruneName(rootNode, 0, name);
 }
 
-bool CClaimTrieCache::recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos, std::string sName, bool* pfNullified) const
+bool CClaimTrieCache::recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos, const std::string& sName, bool* pfNullified) const
 {
     // Recursively prune leaf node(s) without any claims in it and store
     // the modified nodes in the cache
@@ -1446,7 +1430,7 @@ queueNameType::iterator CClaimTrieCache::getQueueCacheNameRow(const std::string&
     return itQueueNameRow;
 }
 
-bool CClaimTrieCache::addClaim(const std::string& name, const COutPoint& outPoint, uint160 claimId, CAmount nAmount, int nHeight) const
+bool CClaimTrieCache::addClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId, CAmount nAmount, int nHeight) const
 {
     LogPrintf("%s: name: %s, txhash: %s, nOut: %d, claimId: %s, nAmount: %d, nHeight: %d, nCurrentHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, claimId.GetHex(), nAmount, nHeight, nCurrentHeight);
     assert(nHeight == nCurrentHeight);
@@ -1465,7 +1449,7 @@ bool CClaimTrieCache::addClaim(const std::string& name, const COutPoint& outPoin
     return addClaimToQueues(name, newClaim);
 }
 
-bool CClaimTrieCache::undoSpendClaim(const std::string& name, const COutPoint& outPoint, uint160 claimId, CAmount nAmount, int nHeight, int nValidAtHeight) const
+bool CClaimTrieCache::undoSpendClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId, CAmount nAmount, int nHeight, int nValidAtHeight) const
 {
     LogPrintf("%s: name: %s, txhash: %s, nOut: %d, claimId: %s, nAmount: %d, nHeight: %d, nValidAtHeight: %d, nCurrentHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, claimId.GetHex(), nAmount, nHeight, nValidAtHeight, nCurrentHeight);
     CClaimValue claim(outPoint, claimId, nAmount, nHeight, nValidAtHeight);
@@ -1850,7 +1834,7 @@ bool CClaimTrieCache::removeSupportFromQueue(const std::string& name, const COut
     return false;
 }
 
-bool CClaimTrieCache::addSupport(const std::string& name, const COutPoint& outPoint, CAmount nAmount, uint160 supportedClaimId, int nHeight) const
+bool CClaimTrieCache::addSupport(const std::string& name, const COutPoint& outPoint, CAmount nAmount, const uint160& supportedClaimId, int nHeight) const
 {
     LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedClaimId: %s, nHeight: %d, nCurrentHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nAmount, supportedClaimId.GetHex(), nHeight, nCurrentHeight);
     assert(nHeight == nCurrentHeight);
@@ -1869,7 +1853,7 @@ bool CClaimTrieCache::addSupport(const std::string& name, const COutPoint& outPo
     return addSupportToQueues(name, support);
 }
 
-bool CClaimTrieCache::undoSpendSupport(const std::string& name, const COutPoint& outPoint, uint160 supportedClaimId, CAmount nAmount, int nHeight, int nValidAtHeight) const
+bool CClaimTrieCache::undoSpendSupport(const std::string& name, const COutPoint& outPoint, const uint160& supportedClaimId, CAmount nAmount, int nHeight, int nValidAtHeight) const
 {
     LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedClaimId: %s, nHeight: %d, nCurrentHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nAmount, supportedClaimId.GetHex(), nHeight, nCurrentHeight);
     CSupportValue support(outPoint, supportedClaimId, nAmount, nHeight, nValidAtHeight);
@@ -2511,7 +2495,7 @@ CClaimSupportToName CClaimTrieCache::getClaimsForName(const std::string& name) c
         CAmount nAmount = it->nValidAtHeight < nCurrentHeight ? it->nAmount : 0;
         std::vector<CClaimSupport>::iterator itClaimSupport = claimSupport.insert(claimSupport.end(), CClaimSupport(it->claimId, *it, nAmount, std::vector<CSupportValue>()));
         for (std::vector<CSupportValue>::const_iterator itSupport = supports.begin(), itSupportEnd = supports.end();
-            (itSupport = std::find_if(itSupport, itSupportEnd, CClaimIdMatcher(it->claimId))) != itSupportEnd; ++itSupport) {
+             (itSupport = std::find_if(itSupport, itSupportEnd, CClaimIdMatcher(it->claimId))) != itSupportEnd; ++itSupport) {
             itClaimSupport->support.push_back(*itSupport);
             if (itSupport->nValidAtHeight < nCurrentHeight)
                 itClaimSupport->effectiveAmount += itSupport->nAmount;
@@ -2526,10 +2510,9 @@ CClaimSupportToName CClaimTrieCache::getClaimsForName(const std::string& name) c
             itSupport = claimSupport.insert(itSupport, CClaimSupport());
             itSupport->claimId = it->supportedClaimId;
         }
-        if (it->nValidAtHeight < nCurrentHeight)
-            itSupport->effectiveAmount += it->nAmount;
         itSupport->support.push_back(*it);
     }
+    std::make_heap(claimSupport.begin(), claimSupport.end());
     return CClaimSupportToName(nLastTakeoverHeight, claimSupport);
 }
 

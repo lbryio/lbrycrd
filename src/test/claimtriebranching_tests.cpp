@@ -319,9 +319,10 @@ struct ClaimTrieChainFixture{
         // this will simulate restart of lbrycrdd by writing the claimtrie to disk,
         // clearing the-in memory claimtrie, and then reading the saved claimtrie
         // from disk
-        pclaimTrie->WriteToDisk();
+        BOOST_CHECK(pclaimTrie->WriteToDisk());
         pclaimTrie->clear();
-        pclaimTrie->ReadFromDisk(true);
+        BOOST_CHECK(pclaimTrie->empty());
+        BOOST_CHECK(pclaimTrie->ReadFromDisk(true));
     }
 };
 
@@ -3455,6 +3456,74 @@ BOOST_AUTO_TEST_CASE(claim_rpcs_rollback3_test)
     UniValue valueResults = getvalueforname(params, false);
     BOOST_CHECK(valueResults["value"].get_str() == sValue1);
     BOOST_CHECK(valueResults["amount"].get_int() == 3);
+}
+
+BOOST_AUTO_TEST_CASE(getclaimsforname_test2)
+{
+    std::vector<CClaimSupport> claims;
+    ClaimTrieChainFixture fixture;
+    std::string sName1("testN");
+    std::string sValue1("test1");
+    std::string sValue2("test2");
+    std::string sValue3("test3");
+
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue1, 2);
+    CMutableTransaction tx2 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, sName1, 3);
+    CMutableTransaction tx3 = fixture.MakeSupport(fixture.GetCoinbase(), tx2, sName1, 1);
+    CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue2, 3);
+    CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue3, 6);
+    fixture.IncrementBlocks(1);
+
+    const uint256 tx1Hash = tx1.GetHash();
+    const uint256 tx2Hash = tx2.GetHash();
+    const uint256 tx4Hash = tx4.GetHash();
+    const uint256 tx5Hash = tx5.GetHash();
+
+    claims = CClaimTrieCache(pclaimTrie).getClaimsForName(sName1).claims;
+
+    BOOST_CHECK(claims.size() == 4U);
+    BOOST_CHECK(claims[0].claimId == ClaimIdHash(tx5Hash, 0));
+    BOOST_CHECK(claims[1].claimId == ClaimIdHash(tx1Hash, 0));
+    BOOST_CHECK(claims[2].claimId == ClaimIdHash(tx4Hash, 0));
+    BOOST_CHECK(claims[3].claimId == ClaimIdHash(tx2Hash, 0));
+    BOOST_CHECK(claims[0].effectiveAmount == 6);
+    BOOST_CHECK(claims[1].effectiveAmount == 5);
+    BOOST_CHECK(claims[2].effectiveAmount == 3);
+    BOOST_CHECK(claims[3].effectiveAmount == 0);
+    BOOST_CHECK(claims[0].support.size() == 0);
+    BOOST_CHECK(claims[1].support.size() == 1);
+    BOOST_CHECK(claims[1].support[0].supportedClaimId == ClaimIdHash(tx1Hash, 0));
+    BOOST_CHECK(claims[2].support.size() == 0);
+    BOOST_CHECK(claims[3].support.size() == 1);
+    BOOST_CHECK(claims[3].support[0].supportedClaimId == ClaimIdHash(tx2Hash, 0));
+    BOOST_CHECK(claims[0].claim.nEffectiveAmount == 6);
+    BOOST_CHECK(claims[1].claim.nEffectiveAmount == 5);
+    BOOST_CHECK(claims[2].claim.nEffectiveAmount == 3);
+    BOOST_CHECK(!claims[3].claim.IsValid());
+
+    fixture.WriteClearReadClaimTrie();
+
+    claims = CClaimTrieCache(pclaimTrie).getClaimsForName(sName1).claims;
+
+    BOOST_CHECK(claims.size() == 4U);
+    BOOST_CHECK(claims[0].claimId == ClaimIdHash(tx5Hash, 0));
+    BOOST_CHECK(claims[1].claimId == ClaimIdHash(tx1Hash, 0));
+    BOOST_CHECK(claims[2].claimId == ClaimIdHash(tx4Hash, 0));
+    BOOST_CHECK(claims[3].claimId == ClaimIdHash(tx2Hash, 0));
+    BOOST_CHECK(claims[0].effectiveAmount == 6);
+    BOOST_CHECK(claims[1].effectiveAmount == 5);
+    BOOST_CHECK(claims[2].effectiveAmount == 3);
+    BOOST_CHECK(claims[3].effectiveAmount == 0);
+    BOOST_CHECK(claims[0].support.size() == 0);
+    BOOST_CHECK(claims[1].support.size() == 1);
+    BOOST_CHECK(claims[1].support[0].supportedClaimId == ClaimIdHash(tx1Hash, 0));
+    BOOST_CHECK(claims[2].support.size() == 0);
+    BOOST_CHECK(claims[3].support.size() == 1);
+    BOOST_CHECK(claims[3].support[0].supportedClaimId == ClaimIdHash(tx2Hash, 0));
+    BOOST_CHECK(claims[0].claim.nEffectiveAmount == 6);
+    BOOST_CHECK(claims[1].claim.nEffectiveAmount == 5);
+    BOOST_CHECK(claims[2].claim.nEffectiveAmount == 3);
+    BOOST_CHECK(!claims[3].claim.IsValid());
 }
 
 BOOST_AUTO_TEST_SUITE_END()

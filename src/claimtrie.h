@@ -27,7 +27,7 @@
 #define SUPPORT_QUEUE_NAME_ROW 'p'
 #define SUPPORT_EXP_QUEUE_ROW 'x'
 
-uint256 getValueHash(COutPoint outPoint, int nHeightOfLastTakeover);
+uint256 getValueHash(const COutPoint& outPoint, int nHeightOfLastTakeover);
 
 class CClaimValue
 {
@@ -39,14 +39,14 @@ public:
     int nHeight;
     int nValidAtHeight;
 
-    CClaimValue() {};
+    CClaimValue() : nAmount(0), nEffectiveAmount(0), nHeight(0), nValidAtHeight(0)
+    {
+    }
 
-    CClaimValue(COutPoint outPoint, uint160 claimId, CAmount nAmount, int nHeight,
-                int nValidAtHeight)
-                : outPoint(outPoint), claimId(claimId)
-                , nAmount(nAmount), nEffectiveAmount(nAmount)
-                , nHeight(nHeight), nValidAtHeight(nValidAtHeight)
-    {}
+    CClaimValue(const COutPoint& outPoint, const uint160& claimId, CAmount nAmount, int nHeight, int nValidAtHeight)
+        : outPoint(outPoint), claimId(claimId), nAmount(nAmount), nEffectiveAmount(nAmount), nHeight(nHeight), nValidAtHeight(nValidAtHeight)
+    {
+    }
 
     ADD_SERIALIZE_METHODS;
 
@@ -85,6 +85,11 @@ public:
     {
         return !(*this == other);
     }
+
+    bool IsValid() const
+    {
+        return !outPoint.IsNull() && !claimId.IsNull();
+    }
 };
 
 class CSupportValue
@@ -96,13 +101,14 @@ public:
     int nHeight;
     int nValidAtHeight;
 
-    CSupportValue() {};
-    CSupportValue(COutPoint outPoint, uint160 supportedClaimId,
-                  CAmount nAmount, int nHeight, int nValidAtHeight)
-                  : outPoint(outPoint), supportedClaimId(supportedClaimId)
-                  , nAmount(nAmount), nHeight(nHeight)
-                  , nValidAtHeight(nValidAtHeight)
-    {}
+    CSupportValue() : nAmount(0), nHeight(0), nValidAtHeight(0)
+    {
+    }
+
+    CSupportValue(const COutPoint& outPoint, const uint160& supportedClaimId, CAmount nAmount, int nHeight, int nValidAtHeight)
+        : outPoint(outPoint), supportedClaimId(supportedClaimId), nAmount(nAmount), nHeight(nHeight), nValidAtHeight(nValidAtHeight)
+    {
+    }
 
     ADD_SERIALIZE_METHODS;
 
@@ -124,6 +130,11 @@ public:
     {
         return !(*this == other);
     }
+
+    bool IsValid() const
+    {
+        return !outPoint.IsNull() && !supportedClaimId.IsNull();
+    }
 };
 
 class CClaimTrieNode;
@@ -137,18 +148,18 @@ class CClaimTrieNode
 {
 public:
     CClaimTrieNode() : nHeightOfLastTakeover(0) {}
-    CClaimTrieNode(uint256 hash) : hash(hash), nHeightOfLastTakeover(0) {}
+    CClaimTrieNode(const uint256& hash) : hash(hash), nHeightOfLastTakeover(0) {}
     uint256 hash;
     nodeMapType children;
     int nHeightOfLastTakeover;
     std::vector<CClaimValue> claims;
 
-    bool insertClaim(CClaimValue claim);
+    bool insertClaim(const CClaimValue& claim);
     bool removeClaim(const COutPoint& outPoint, CClaimValue& claim);
     bool getBestClaim(CClaimValue& claim) const;
     bool empty() const {return children.empty() && claims.empty();}
     bool haveClaim(const COutPoint& outPoint) const;
-    void reorderClaims(supportMapEntryType& supports);
+    void reorderClaims(const supportMapEntryType& supports);
 
     ADD_SERIALIZE_METHODS;
 
@@ -185,10 +196,13 @@ struct outPointHeightType
     COutPoint outPoint;
     int nHeight;
 
-    outPointHeightType() {}
+    outPointHeightType()
+    {
+    }
 
-    outPointHeightType(COutPoint outPoint, int nHeight)
-    : outPoint(outPoint), nHeight(nHeight) {}
+    outPointHeightType(const COutPoint& outPoint, int nHeight) : outPoint(outPoint), nHeight(nHeight)
+    {
+    }
 
     ADD_SERIALIZE_METHODS;
 
@@ -207,10 +221,15 @@ struct nameOutPointHeightType
     COutPoint outPoint;
     int nHeight;
 
-    nameOutPointHeightType() {}
+    nameOutPointHeightType()
+    {
+    }
 
-    nameOutPointHeightType(std::string name, COutPoint outPoint, int nHeight)
-    : name(name), outPoint(outPoint), nHeight(nHeight) {}
+    nameOutPointHeightType(const std::string& name, const COutPoint& outPoint, int nHeight)
+        : name(name), outPoint(outPoint), nHeight(nHeight)
+    {
+    }
+
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
@@ -227,10 +246,13 @@ struct nameOutPointType
     std::string name;
     COutPoint outPoint;
 
-    nameOutPointType() {}
+    nameOutPointType()
+    {
+    }
 
-    nameOutPointType(std::string name, COutPoint outPoint)
-    : name(name), outPoint(outPoint) {}
+    nameOutPointType(const std::string& name, const COutPoint& outPoint) : name(name), outPoint(outPoint)
+    {
+    }
 
     ADD_SERIALIZE_METHODS;
 
@@ -300,6 +322,20 @@ public:
     operator bool() const
     {
         return !claimId.IsNull();
+    }
+
+    bool operator<(const CClaimSupport& other) const
+    {
+        if (!claim.IsValid())
+            return other.claim.IsValid();
+
+        if (!other.claim.IsValid())
+            return false;
+
+        if (effectiveAmount == other.effectiveAmount)
+            return claim < other.claim;
+
+        return effectiveAmount < other.effectiveAmount;
     }
 
     uint160 claimId;
@@ -393,15 +429,14 @@ public:
     void addToClaimIndex(const std::string& name, const CClaimValue& claim);
     void removeFromClaimIndex(const CClaimValue& claim);
 
-    bool getClaimById(const uint160 claimId, std::string& name, CClaimValue& claim) const;
+    bool getClaimById(const uint160& claimId, std::string& name, CClaimValue& claim) const;
     bool getQueueRow(int nHeight, claimQueueRowType& row) const;
     bool getQueueNameRow(const std::string& name, queueNameRowType& row) const;
     bool getExpirationQueueRow(int nHeight, expirationQueueRowType& row) const;
-    bool getSupportNode(std::string name, supportMapEntryType& node) const;
+    bool getSupportNode(const std::string& name, supportMapEntryType& node) const;
     bool getSupportQueueRow(int nHeight, supportQueueRowType& row) const;
     bool getSupportQueueNameRow(const std::string& name, queueNameRowType& row) const;
     bool getSupportExpirationQueueRow(int nHeight, expirationQueueRowType& row) const;
-
 
     bool haveClaim(const std::string& name, const COutPoint& outPoint) const;
     bool haveClaimInQueue(const std::string& name, const COutPoint& outPoint,
@@ -438,11 +473,10 @@ private:
     bool updateName(const std::string& name, CClaimTrieNode* updatedNode);
     bool updateHash(const std::string& name, uint256& hash);
     bool updateTakeoverHeight(const std::string& name, int nTakeoverHeight);
-    bool recursiveNullify(CClaimTrieNode* node, std::string& name);
+    void recursiveNullify(CClaimTrieNode* node, std::string& name);
 
     bool recursiveCheckConsistency(const CClaimTrieNode* node) const;
-
-    bool InsertFromDisk(const std::string& name, CClaimTrieNode* node);
+    bool InsertNode(const std::string& name, const CClaimTrieNode& node);
 
     unsigned int getTotalNamesRecursive(const CClaimTrieNode* current) const;
     unsigned int getTotalClaimsRecursive(const CClaimTrieNode* current) const;
@@ -451,13 +485,11 @@ private:
 
     void markNodeDirty(const std::string& name, CClaimTrieNode* node);
     void updateQueueRow(int nHeight, claimQueueRowType& row);
-    void updateQueueNameRow(const std::string& name,
-                            queueNameRowType& row);
+    void updateQueueNameRow(const std::string& name, queueNameRowType& row);
     void updateExpirationRow(int nHeight, expirationQueueRowType& row);
     void updateSupportMap(const std::string& name, supportMapEntryType& node);
     void updateSupportQueue(int nHeight, supportQueueRowType& row);
-    void updateSupportNameQueue(const std::string& name,
-                                queueNameRowType& row);
+    void updateSupportNameQueue(const std::string& name, queueNameRowType& row);
     void updateSupportExpirationQueue(int nHeight, expirationQueueRowType& row);
 
     void BatchWriteNode(CDBBatch& batch, const std::string& name,
@@ -491,11 +523,15 @@ private:
 class CClaimTrieProofNode
 {
 public:
-    CClaimTrieProofNode() {};
-    CClaimTrieProofNode(std::vector<std::pair<unsigned char, uint256> > children,
-                        bool hasValue, uint256 valHash)
+    CClaimTrieProofNode()
+    {
+    }
+
+    CClaimTrieProofNode(const std::vector<std::pair<unsigned char, uint256> >& children, bool hasValue, uint256 valHash)
         : children(children), hasValue(hasValue), valHash(valHash)
-        {};
+    {
+    }
+
     std::vector<std::pair<unsigned char, uint256> > children;
     bool hasValue;
     uint256 valHash;
@@ -504,8 +540,15 @@ public:
 class CClaimTrieProof
 {
 public:
-    CClaimTrieProof() {};
-    CClaimTrieProof(std::vector<CClaimTrieProofNode> nodes, bool hasValue, COutPoint outPoint, int nHeightOfLastTakeover) : nodes(nodes), hasValue(hasValue), outPoint(outPoint), nHeightOfLastTakeover(nHeightOfLastTakeover) {}
+    CClaimTrieProof()
+    {
+    }
+
+    CClaimTrieProof(const std::vector<CClaimTrieProofNode>& nodes, bool hasValue, const COutPoint& outPoint, int nHeightOfLastTakeover)
+        : nodes(nodes), hasValue(hasValue), outPoint(outPoint), nHeightOfLastTakeover(nHeightOfLastTakeover)
+    {
+    }
+
     std::vector<CClaimTrieProofNode> nodes;
     bool hasValue;
     COutPoint outPoint;
@@ -556,24 +599,15 @@ public:
         return iter == cache.end() ? &(base->root) : iter->second;
     }
 
-    bool addClaim(const std::string& name, const COutPoint& outPoint,
-                  uint160 claimId, CAmount nAmount, int nHeight) const;
+    bool addClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId, CAmount nAmount, int nHeight) const;
     bool undoAddClaim(const std::string& name, const COutPoint& outPoint) const;
     bool spendClaim(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const;
-    bool undoSpendClaim(const std::string& name, const COutPoint& outPoint,
-                        uint160 claimId, CAmount nAmount, int nHeight,
-                        int nValidAtHeight) const;
+    bool undoSpendClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId, CAmount nAmount, int nHeight, int nValidAtHeight) const;
 
-    bool addSupport(const std::string& name, const COutPoint& outPoint,
-                    CAmount nAmount, uint160 supportedClaimId,
-                    int nHeight) const;
-    bool undoAddSupport(const std::string& name, const COutPoint& outPoint,
-                        int nHeight) const;
-    bool spendSupport(const std::string& name, const COutPoint& outPoint,
-                      int nHeight, int& nValidAtHeight) const;
-    bool undoSpendSupport(const std::string& name, const COutPoint& outPoint,
-                          uint160 supportedClaimId, CAmount nAmount,
-                          int nHeight, int nValidAtHeight) const;
+    bool addSupport(const std::string& name, const COutPoint& outPoint, CAmount nAmount, const uint160& supportedClaimId, int nHeight) const;
+    bool undoAddSupport(const std::string& name, const COutPoint& outPoint, int nHeight) const;
+    bool spendSupport(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight) const;
+    bool undoSpendSupport(const std::string& name, const COutPoint& outPoint, const uint160& supportedClaimId, CAmount nAmount, int nHeight, int nValidAtHeight) const;
 
     uint256 getBestBlock();
     void setBestBlock(const uint256& hashBlock);
@@ -591,11 +625,8 @@ public:
 
     ~CClaimTrieCache() { clear(); }
 
-    bool insertClaimIntoTrie(const std::string& name, CClaimValue claim,
-                             bool fCheckTakeover = false) const;
-    bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint,
-                             CClaimValue& claim,
-                             bool fCheckTakeover = false) const;
+    bool insertClaimIntoTrie(const std::string& name, const CClaimValue& claim, bool fCheckTakeover = false) const;
+    bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint, CClaimValue& claim, bool fCheckTakeover = false) const;
 
     bool getProofForName(const std::string& name, CClaimTrieProof& proof) const;
     bool getInfoForName(const std::string& name, CClaimValue& claim) const;
@@ -639,11 +670,8 @@ protected:
     uint256 computeHash() const;
 
     bool reorderTrieNode(const std::string& name, bool fCheckTakeover) const;
-    bool recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent,
-                                    std::string sPos) const;
-    bool recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos,
-                            std::string sName,
-                            bool* pfNullified = NULL) const;
+    bool recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent, std::string& name) const;
+    bool recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos, const std::string& sName, bool* pfNullified = NULL) const;
 
     bool clear() const;
 

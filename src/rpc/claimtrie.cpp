@@ -436,7 +436,7 @@ UniValue getclaimsforname(const UniValue& params, bool fHelp)
 
     const std::vector<CClaimSupport>& claims = claimsForName.claims;
     for (std::vector<CClaimSupport>::const_iterator it = claims.begin(); it != claims.end(); ++it) {
-        if (!it->claim.claimId.IsNull()) {
+        if (it->claim.IsValid()) {
             claimsObj.push_back(claimAndSupportsToJSON(coinsCache, *it));
         } else {
             const std::vector<CSupportValue>& support = it->support;
@@ -502,11 +502,11 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
     claim.push_back(Pair("value", sValue));
     claim.push_back(Pair("claimId", claimValue.claimId.GetHex()));
     claim.push_back(Pair("txid", claimValue.outPoint.hash.GetHex()));
-    claim.push_back(Pair("n", (int) claimValue.outPoint.n));
+    claim.push_back(Pair("n", (int)claimValue.outPoint.n));
     claim.push_back(Pair("amount", claimValue.nAmount));
     claim.push_back(Pair("effective amount", claimSupport.effectiveAmount));
     UniValue supportList(UniValue::VARR);
-    BOOST_FOREACH(const CSupportValue& support, claimSupport.support) {
+    BOOST_FOREACH (const CSupportValue& support, claimSupport.support) {
         UniValue supportEntry(UniValue::VOBJ);
         supportEntry.push_back(Pair("txid", support.outPoint.hash.GetHex()));
         supportEntry.push_back(Pair("n", (int)support.outPoint.n));
