@@ -255,10 +255,6 @@ bool CheckDiskSpace(uint64_t nAdditionalBytes = 0, bool blocks_dir = false);
 FILE* OpenBlockFile(const CDiskBlockPos &pos, bool fReadOnly = false);
 /** Translation to a filesystem path */
 fs::path GetBlockPosFilename(const CDiskBlockPos &pos, const char *prefix);
-/** Utility method for going back to a previous state **/
-bool RollBackTo(const CBlockIndex* targetIndex, CCoinsViewCache& coinsCache, CClaimTrieCache& trieCache);
-/** Get a cryptographic proof that a name maps to a value **/
-bool GetProofForName(const CBlockIndex* pindexProof, const std::string& name, CClaimTrieProof& proof);
 /** Import blocks from an external file */
 bool LoadExternalBlockFile(const CChainParams& chainparams, FILE* fileIn, CDiskBlockPos *dbp = nullptr);
 /** Ensures we have a genesis block in the block tree, possibly writing one to disk. */
@@ -360,7 +356,7 @@ bool TestLockPointValidity(const LockPoints* lp);
 bool CheckSequenceLocks(const CTransaction &tx, int flags, LockPoints* lp = nullptr, bool useExistingLockPoints = false);
 
 /************************************************************
- * LBRY moved these from validation.cpp, for testcase usage
+ * LBRY moved these from validation.cpp, for testcase & RPC usage
  * BEGIN
  ************************************************************/
 
@@ -521,7 +517,7 @@ private:
 };
 
 /************************************************************
- * LBRY moved these from validation.cpp, for testcase usage
+ * LBRY moved these from validation.cpp, for testcase & RPC usage
  * END
  ************************************************************/
 

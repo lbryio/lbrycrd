@@ -419,44 +419,38 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         *pfMissingInputs = false;
     }
 
-    std::cout << "About to check Transaction" << std::endl;
     if (!CheckTransaction(tx, state))
         return false; // state filled in by CheckTransaction
 
     // Coinbase is only valid in a block, not as a loose transaction
-    std::cout << "About to check IsCoinbase" << std::endl;
     if (tx.IsCoinBase())
         return state.DoS(100, false, REJECT_INVALID, "coinbase");
 
     // Rather not work on nonstandard transactions (unless -testnet/-regtest)
     std::string reason;
-    std::cout << "About to check reason" << std::endl;
     if (fRequireStandard && !IsStandardTx(tx, reason))
         return state.DoS(0, false, REJECT_NONSTANDARD, reason);
 
     // Do not work on transactions that are too small.
     // A transaction with 1 segwit input and 1 P2WPHK output has non-witness size of 82 bytes.
     // Transactions smaller than this are not relayed to reduce unnecessary malloc overhead.
-    std::cout << "About to check serialize size" << std::endl;
-    std::cout << "SIZE: " << ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) << " , comparing to " << MIN_STANDARD_TX_NONWITNESS_SIZE << std::endl;
-    /* if (::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) < MIN_STANDARD_TX_NONWITNESS_SIZE) */
-    /*     return state.DoS(0, false, REJECT_NONSTANDARD, "tx-size-small"); */
+
+    // TODO: do we need this?
+    // if (::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) < MIN_STANDARD_TX_NONWITNESS_SIZE)
+    //     return state.DoS(0, false, REJECT_NONSTANDARD, "tx-size-small");
 
     // Only accept nLockTime-using transactions that can be mined in the next
     // block; we don't want our mempool filled up with transactions that can't
     // be mined yet.
-    std::cout << "About to check if final" << std::endl;
     if (!CheckFinalTx(tx, STANDARD_LOCKTIME_VERIFY_FLAGS))
         return state.DoS(0, false, REJECT_NONSTANDARD, "non-final");
 
     // is it already in the memory pool?
-    std::cout << "About to check if already in mempool" << std::endl;
     if (pool.exists(hash)) {
         return state.Invalid(false, REJECT_DUPLICATE, "txn-already-in-mempool");
     }
 
     // Check for conflicts with in-memory transactions
-    std::cout << "About to check for conflicts" << std::endl;
     std::set<uint256> setConflicts;
     for (const CTxIn &txin : tx.vin)
     {
@@ -500,7 +494,6 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
     }
 
     
-    std::cout << "About to check that all inputs exist" << std::endl;
     {
         CCoinsView dummy;
         CCoinsViewCache view(&dummy);
@@ -758,7 +751,6 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
 
         // Check against previous transactions
         // This is done last to help prevent CPU exhaustion denial-of-service attacks.
-        std::cout << "About to check inputs" << std::endl;
         PrecomputedTransactionData txdata(tx);
         if (!CheckInputs(tx, state, view, true, scriptVerifyFlags, true, false, txdata)) {
             // SCRIPT_VERIFY_CLEANSTACK requires SCRIPT_VERIFY_WITNESS, so we
@@ -954,7 +946,6 @@ bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus:
     // Check the header
     if (!CheckProofOfWork(block.GetPoWHash(), block.nBits, consensusParams))
         return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
-    LogPrintf("Block hash is OK! %s\n", block.GetHash().GetHex());
 
     return true;
 }
@@ -1427,8 +1418,9 @@ static bool AbortNode(const std::string& strMessage, const std::string& userMess
 {
     SetMiscWarning(strMessage);
     LogPrintf("*** %s\n", strMessage);
+    throw "nasty";
     uiInterface.ThreadSafeMessageBox(
-        userMessage.empty() ? _("Error: A fatal internal error occurred, see debug.log for details") : userMessage,
+        userMessage.empty() ? "Error: A fatal internal error occurred, see debug.log for details. System message: " + strMessage : userMessage,
         "", CClientUIInterface::MSG_ERROR);
     StartShutdown();
     return false;
@@ -4299,42 +4291,6 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
     return true;
 }
 
-bool RollBackTo(const CBlockIndex* targetIndex, CCoinsViewCache& coinsCache, CClaimTrieCache& trieCache)
-{
-    AssertLockHeld(cs_main);
-    for (CBlockIndex* index = chainActive.Tip(); index && index != targetIndex; index = index->pprev) {
-        boost::this_thread::interruption_point();
-        CBlock block;
-
-        if (!ReadBlockFromDisk(block, index, Params().GetConsensus()))
-            return false; // return error() instead?
-
-        if ((coinsCache.DynamicMemoryUsage() + pcoinsTip->DynamicMemoryUsage()) <= nCoinCacheUsage)
-            return false; // don't allow a single query to chew up all our memory?
-
-        if (ShutdownRequested())
-            return false;
-
-        DisconnectResult res = g_chainstate.DisconnectBlock(block, index, coinsCache, trieCache);
-        if (res == DISCONNECT_FAILED)
-            return false;
-    }
-    return true;
-}
-
-bool GetProofForName(const CBlockIndex* pindexProof, const std::string& name, CClaimTrieProof& proof)
-{
-    AssertLockHeld(cs_main);
-    if (!chainActive.Contains(pindexProof))
-        return false;
-
-    CClaimTrieCache trieCache(pclaimTrie);
-    CCoinsViewCache coinsCache(pcoinsTip.get());
-    if (RollBackTo(pindexProof, coinsCache, trieCache))
-        return trieCache.getProofForName(name, proof);
-    return false;
-}
-
 /** Apply the effects of a block on the utxo cache, ignoring that it may already have been applied. */
 bool CChainState::RollforwardBlock(const CBlockIndex* pindex, CCoinsViewCache& inputs, const CChainParams& params)
 {
@@ -4617,7 +4573,6 @@ bool CChainState::LoadGenesisBlock(const CChainParams& chainparams)
         return error("%s: failed to write genesis block: %s", __func__, e.what());
     }
 
-    LogPrintf("Loaded Genesis Block\n");
     return true;
 }
 

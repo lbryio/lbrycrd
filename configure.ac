@@ -146,12 +146,6 @@ AC_ARG_WITH([qrencode],
   [use_qr=$withval],
   [use_qr=auto])
 
-AC_ARG_WITH([icu],
-  [AS_HELP_STRING([--with-icu],
-  [Required ICU root path])],
-  [ICU_PREFIX=$withval],
-  [ICU_PREFIX=auto])
-
 AC_ARG_ENABLE([hardening],
   [AS_HELP_STRING([--disable-hardening],
   [do not attempt to harden the resulting executables (default is to harden when possible)])],
@@ -902,7 +896,6 @@ AX_BOOST_SYSTEM
 AX_BOOST_FILESYSTEM
 AX_BOOST_THREAD
 AX_BOOST_CHRONO
-AX_BOOST_LOCALE
 
 dnl Boost 1.56 through 1.62 allow using std::atomic instead of its own atomic
 dnl counter implementations. In 1.63 and later the std::atomic approach is default.
@@ -969,7 +962,7 @@ fi
 
 if test x$use_boost = xyes; then
 
-BOOST_LIBS="$BOOST_LDFLAGS $BOOST_SYSTEM_LIB $BOOST_FILESYSTEM_LIB $BOOST_PROGRAM_OPTIONS_LIB $BOOST_THREAD_LIB $BOOST_CHRONO_LIB $BOOST_LOCALE_LIB"
+BOOST_LIBS="$BOOST_LDFLAGS $BOOST_SYSTEM_LIB $BOOST_FILESYSTEM_LIB $BOOST_PROGRAM_OPTIONS_LIB $BOOST_THREAD_LIB $BOOST_CHRONO_LIB"
 
 
 dnl If boost (prior to 1.57) was built without c++11, it emulated scoped enums
@@ -1065,16 +1058,6 @@ if test x$use_pkgconfig = xyes; then
   m4_ifdef(
     [PKG_CHECK_MODULES],
     [
-      ICU_CPPFLAGS="-I$ICU_PREFIX/include"
-      CPPFLAGS="$ICU_CPPFLAGS $CPPFLAGS"
-      ICU_LIBS="-L$ICU_PREFIX/lib -licui18n -licuuc -licudata -ldl"
-      AC_MSG_WARN([Using ICU_CPPFLAGS $ICU_CPPFLAGS])
-      AC_MSG_WARN([Using CPPFLAGS $CPPFLAGS])
-
-      AC_CHECK_HEADER([unicode/errorcode.h],,AC_MSG_ERROR(libicu headers missing))
-      AC_CHECK_LIB([icudata], [main], ICU_LIBS="-L$ICU_PREFIX/lib -licui18n -licuuc -licudata -ldl",
-        AC_CHECK_LIB([icu18n], [main],ICU_LIBS=$ICU_LIBS, ICU_LIBS="-L$ICU_PREFIX/lib -lsicudt -lsicuin -lsicuio -lsicule -lsiculx -lsicutest -lsicutu -lsicuuc"))
-
       PKG_CHECK_MODULES([SSL], [libssl],, [AC_MSG_ERROR(openssl not found.)])
       PKG_CHECK_MODULES([CRYPTO], [libcrypto],,[AC_MSG_ERROR(libcrypto not found.)])
       BITCOIN_QT_CHECK([PKG_CHECK_MODULES([PROTOBUF], [protobuf], [have_protobuf=yes], [BITCOIN_QT_FAIL(libprotobuf not found)])])
@@ -1100,18 +1083,6 @@ if test x$use_pkgconfig = xyes; then
     ]
   )
 else
-  ICU_CPPFLAGS="-I$ICU_PREFIX/include"
-  CPPFLAGS="$ICU_CPPFLAGS $CPPFLAGS"
-  ICU_LIBS="-L$ICU_PREFIX/lib -licui18n -licuuc -licudata -ldl"
-
-  AC_MSG_WARN([Using ICU_CPPFLAGS $ICU_CPPFLAGS])
-  AC_MSG_WARN([Using ICU_LIBS $ICU_LIBS])
-  AC_MSG_WARN([Using CPPFLAGS $CPPFLAGS])
-
-  AC_CHECK_HEADER([unicode/errorcode.h],,AC_MSG_ERROR(libicu headers missing))
-  AC_CHECK_LIB([icudata], [main], ICU_LIBS="-L$ICU_PREFIX/lib -licui18n -licuuc -licudata -ldl",
-    AC_CHECK_LIB([icu18n], [main],ICU_LIBS=$ICU_LIBS, ICU_LIBS="-L$ICU_PREFIX/lib -lsicudt -lsicuin -lsicuio -lsicule -lsiculx -lsicutest -lsicutu -lsicuuc"))
-
   AC_CHECK_HEADER([openssl/crypto.h],,AC_MSG_ERROR(libcrypto headers missing))
   AC_CHECK_LIB([crypto],      [main],CRYPTO_LIBS=-lcrypto, AC_MSG_ERROR(libcrypto missing))
 
@@ -1415,9 +1386,6 @@ AC_SUBST(LIBTOOL_APP_LDFLAGS)
 AC_SUBST(USE_UPNP)
 AC_SUBST(USE_QRCODE)
 AC_SUBST(BOOST_LIBS)
-AC_SUBST(ICU_PREFIX)
-AC_SUBST(ICU_CPPFLAGS)
-AC_SUBST(ICU_LIBS)
 AC_SUBST(TESTDEFS)
 AC_SUBST(LEVELDB_TARGET_FLAGS)
 AC_SUBST(MINIUPNPC_CPPFLAGS)
