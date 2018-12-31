@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -xeuo pipefail
+set -euo pipefail
 
 function HELP {
     echo "Build lbrycrd"
@@ -106,22 +106,24 @@ else
     # this file is created when the build starts
     START_TIME_FILE="$TRAVIS_BUILD_DIR/start_time"
 fi
-rm -f ${START_TIME_FILE}
-date +%s > ${START_TIME_FILE}
+if [ ! -f "${START_TIME_FILE}" ]; then
+    date +%s > "${START_TIME_FILE}"
+fi
+
 
 NEXT_TIME=60
-function exit_at_60() {
+function exit_at_40() {
     if [ -f "${START_TIME_FILE}" ]; then
 	NOW=$(date +%s)
 	START=$(cat "${START_TIME_FILE}")
-	TIMEOUT_SECS=3600 # 60 * 60
+	TIMEOUT_SECS=2400 # 40 * 60
 	TIME=$((NOW - START))
 	if (( TIME > NEXT_TIME )); then
 	    echo "Build has taken $((TIME / 60)) minutes: $1"
 	    NEXT_TIME=$((TIME + 60))
 	fi
 	if [ "$TIMEOUT" = true ] && (( TIME > TIMEOUT_SECS )); then
-	    echo 'Exiting at 60 minutes to allow the cache to populate'
+	    echo 'Exiting at 40 minutes to allow the cache to populate'
 	    OUTPUT_LOG=false
 	    exit 1
 	fi
@@ -143,7 +145,7 @@ function wait_and_echo() {
     # loop until the process is no longer running
     # check every $SLEEP seconds, echoing a message every minute
     while (ps -p "${PID}" > /dev/null); do
-	exit_at_60 "$2"
+	exit_at_40 "$2"
 	sleep "${SLEEP}"
     done
     # restore the xtrace setting
@@ -235,17 +237,15 @@ function install_apt_packages() {
 
     if [ "${CHECK_CODE_FORMAT}" = true ]; then
         $SUDO apt-get ${QUIET} install -y --no-install-recommends \
-            clang-format-3.4
+            clang-format-3.9
     fi
 
 }
 
 function build_dependencies() {
     if [ "${OS_NAME}" = "osx" ]; then
-        PARALLEL="-j $(sysctl -n hw.ncpu)"
 	install_brew_packages
     else
-        PARALLEL="-j $(grep -c processor /proc/cpuinfo)"
 	install_apt_packages
     fi
 
@@ -255,14 +255,13 @@ function build_dependencies() {
     fi
 
     if [ ! -d "${LBRYCRD_DEPENDENCIES}" ]; then
-       git clone https://github.com/lbrynaut/lbrycrd-dependencies.git "${LBRYCRD_DEPENDENCIES}"
+       git clone https://github.com/lbryio/lbrycrd-dependencies.git "${LBRYCRD_DEPENDENCIES}"
     fi
     # TODO: if the repo exists, make sure its clean: revert to head.
     mkdir -p "${LOG_DIR}"
 
-    build_dependency "${OPENSSL_PREFIX}" "${LOG_DIR}/openssl_build.log" build_openssl
-    build_dependency "${ICU_PREFIX}" "${LOG_DIR}/icu_build.log" build_icu
     build_dependency "${BDB_PREFIX}" "${LOG_DIR}/bdb_build.log" build_bdb
+    build_dependency "${OPENSSL_PREFIX}" "${LOG_DIR}/openssl_build.log" build_openssl
 
     set +u
     export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${OPENSSL_PREFIX}/lib/pkgconfig/"
@@ -280,7 +279,7 @@ function build_bdb() {
     cd db-4.8.30.NC/build_unix
     echo "Building bdb.  tail -f $BDB_LOG to see the details and monitor progress"
     ../dist/configure --prefix="${BDB_PREFIX}" --enable-cxx --disable-shared --with-pic > "${BDB_LOG}"
-    background "make ${PARALLEL}" "${BDB_LOG}" "Waiting for bdb to finish building"
+    background make "${BDB_LOG}" "Waiting for bdb to finish building"
     make install >> "${BDB_LOG}" 2>&1
 }
 
@@ -298,52 +297,18 @@ function build_openssl() {
 	./Configure --prefix="${OPENSSL_PREFIX}" --openssldir="${OPENSSL_PREFIX}/ssl" \
 		    ${OS_ARCH} -fPIC -static no-shared no-dso > "${OPENSSL_LOG}"
     fi
-    background "make ${PARALLEL}" "${OPENSSL_LOG}" "Waiting for openssl to finish building"
+    background make "${OPENSSL_LOG}" "Waiting for openssl to finish building"
     make install >> "${OPENSSL_LOG}" 2>&1
 }
 
 function build_boost() {
     BOOST_LOG="$1"
-    cd boost_1_67_0
-
-    echo "int main() { return 0; }" > libs/regex/build/has_icu_test.cpp
-    echo "int main() { return 0; }" > libs/locale/build/has_icu_test.cpp
-
-    export BOOST_ICU_LIBS="$(pkg-config icu-i18n --libs) -dl"
-    export BOOST_LDFLAGS="${BOOST_PREFIX}/lib ${ICU_PREFIX}/lib ${BOOST_ICU_LIBS}"
-
-    echo "BOOST_ICU_LIBS: $BOOST_ICU_LIBS"
-    echo "BOOST_LDFLAGS: $BOOST_ICU_LIBS"
-
+    cd boost_1_59_0
     echo "Building Boost.  tail -f ${BOOST_LOG} to see the details and monitor progress"
-    ./bootstrap.sh --prefix="${BOOST_PREFIX}" "--with-icu=${ICU_PREFIX}" > "${BOOST_LOG}" 2>&1
-    b2cmd="./b2 link=static cxxflags=-fPIC install boost.locale.iconv=off boost.locale.posix=off -sICU_PATH=${ICU_PREFIX} -sICU_LINK=${BOOST_ICU_LIBS}"
-    background "${b2cmd}" "${BOOST_LOG}" "Waiting for boost to finish building"
-}
-
-function build_icu() {
-    ICU_LOG="$1"
-    mkdir -p "${ICU_PREFIX}/icu"
-    wget http://download.icu-project.org/files/icu4c/55.1/icu4c-55_1-src.tgz
-    tar -xf icu4c-55_1-src.tgz
-    rm -f icu4c-55_1-src.tgz
-    pushd icu/source > /dev/null
-    echo "Building icu.  tail -f $ICU_LOG to see the details and monitor progress"
-    ./configure --prefix="${ICU_PREFIX}" --enable-draft --enable-tools \
-                    --enable-static --enable-shared --disable-extras --disable-icuio \
-                    --disable-layout --disable-layoutex --disable-tests --disable-samples
-    if [ ! -z ${TARGET+x} ]; then
-        TMP_TARGET="${TARGET}"
-        unset TARGET
-    fi
-    set +e
-    background "make ${PARALLEL} VERBOSE=1" "${ICU_LOG}" "Waiting for icu to finish building"
-    make install >> "${ICU_LOG}" 2>&1
-    if [ ! -z ${TARGET+x} ]; then
-        TARGET="${TMP_TARGET}"
-    fi
-    set -e
-    popd > /dev/null
+    ./bootstrap.sh --prefix="${BOOST_PREFIX}" > "${BOOST_LOG}" 2>&1
+    background "./b2 link=static cxxflags=-fPIC install" \
+	       "${BOOST_LOG}" \
+	       "Waiting for boost to finish building"
 }
 
 function build_libevent() {
@@ -357,22 +322,23 @@ function build_libevent() {
     ./configure --prefix="${LIBEVENT_PREFIX}" --enable-static --disable-shared --with-pic \
 		LDFLAGS="-L${OPENSSL_PREFIX}/lib/" \
 		CPPFLAGS="-I${OPENSSL_PREFIX}/include" >> "${LIBEVENT_LOG}" 2>&1
-    background "make ${PARALLEL}" "${LIBEVENT_LOG}" "Waiting for libevent to finish building"
+    background make "${LIBEVENT_LOG}" "Waiting for libevent to finish building"
     make install >> "${LIBEVENT_LOG}"
 }
 
 function build_dependency() {
+    pushd .
     PREFIX=$1
     LOG=$2
     BUILD=$3
     if [ ! -d "${PREFIX}" ]; then
 	trap 'cleanup "${PREFIX}" "${LOG}"' INT TERM EXIT
 	cd "${LBRYCRD_DEPENDENCIES}"
-        rm -rf ${PREFIX}
 	mkdir -p "${PREFIX}"
 	"${BUILD}" "${LOG}"
 	trap - INT TERM EXIT
     fi
+    popd
 }
 
 function build_lbrycrd() {
@@ -384,27 +350,19 @@ function build_lbrycrd() {
 	cd "${SOURCE_DIR}"
     fi
     ./autogen.sh > "${LBRYCRD_LOG}" 2>&1
-    LDFLAGS="-L${OPENSSL_PREFIX}/lib/ -L${BDB_PREFIX}/lib/ -L${LIBEVENT_PREFIX}/lib/ -L${ICU_PREFIX}/lib/ -static-libstdc++"
+    LDFLAGS="-L${OPENSSL_PREFIX}/lib/ -L${BDB_PREFIX}/lib/ -L${LIBEVENT_PREFIX}/lib/ -static-libstdc++"
+    CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/"
     if [ "${OS_NAME}" = "osx" ]; then
 	OPTIONS="--enable-cxx --enable-static --disable-shared --with-pic"
-        CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/ -I${ICU_PREFIX}/include"
     else
 	OPTIONS=""
-        CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BDB_PREFIX}/include -I${LIBEVENT_PREFIX}/include/ -I${ICU_PREFIX}/include -Wno-unused-local-typedefs"
     fi
-
-    CPPFLAGS="${CPPFLAGS}" LDFLAGS="${LDFLAGS}"  \
-            ./configure --without-gui ${OPTIONS} \
-	    --with-boost="${BOOST_PREFIX}"   \
-            --with-icu="${ICU_PREFIX}" >> "${LBRYCRD_LOG}" 2>&1
-
-    
-    background "make ${PARALLEL}" "${LBRYCRD_LOG}" "Waiting for lbrycrd to finish building"
-    if [ "${OS_NAME}" = "linux" ]; then
-        LD_LIBRARY_PATH="${ICU_PREFIX}/lib" src/test/test_lbrycrd
-    else
-        DYLD_LIBRARY_PATH="${ICU_PREFIX}/lib" src/test/test_lbrycrd
-    fi
+    ./configure --without-gui ${OPTIONS} \
+		--with-boost="${BOOST_PREFIX}" \
+		LDFLAGS="${LDFLAGS}" \
+		CPPFLAGS="${CPPFLAGS}" >> "${LBRYCRD_LOG}" 2>&1
+    background make "${LBRYCRD_LOG}" "Waiting for lbrycrd to finish building"
+    src/test/test_lbrycrd
     strip src/lbrycrdd
     strip src/lbrycrd-cli
     strip src/lbrycrd-tx
@@ -414,18 +372,13 @@ function build_lbrycrd() {
 function clang_format_diff(){
     # run a code formatting check on any commits not in master
     # requires clang-format
-    if ! git config remote.origin2.url > /dev/null; then
-        git remote add origin2 https://github.com/lbryio/lbrycrd.git
-    fi
-    git fetch origin2
-    git diff -U0 origin2/master -- '*.h' '*.cpp' | ./contrib/devtools/clang-format-diff.py -p1
+    git diff -U0 origin/master -- '*.h' '*.cpp' | ./contrib/devtools/clang-format-diff.py -p1
 }
 
 # these variables are needed in both functions
 LBRYCRD_DEPENDENCIES="$(pwd)/lbrycrd-dependencies"
 OUTPUT_DIR="$(pwd)/build"
 LOG_DIR="$(pwd)/logs"
-ICU_PREFIX="${OUTPUT_DIR}/icu"
 BDB_PREFIX="${OUTPUT_DIR}/bdb"
 OPENSSL_PREFIX="${OUTPUT_DIR}/openssl"
 BOOST_PREFIX="${OUTPUT_DIR}/boost"

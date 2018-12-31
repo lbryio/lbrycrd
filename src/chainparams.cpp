@@ -131,8 +131,8 @@ public:
         consensus.BIP16Exception = uint256S("0x00000000000002dc756eebf4f49723ed8d30cc28a5f108eb94b1ba88ac4f9c22");
         consensus.BIP34Height = 1;
         consensus.BIP34Hash = uint256S("0xdecb9e2cca03a419fd9cca0cb2b1d5ad11b088f22f8f38556d93ac4358b86c24");
-        consensus.BIP65Height = 1;
-        consensus.BIP66Height = 1;
+        consensus.BIP65Height = 600000;
+        consensus.BIP66Height = 600000;
         consensus.powLimit = uint256S("0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 150; //retarget every block
         consensus.nPowTargetSpacing = 150;
@@ -156,8 +156,8 @@ public:
         // Deployment of SegWit (BIP141, BIP143, and BIP147)
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].bit = 1;
         // FIXME: Update times
-        consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].nStartTime = 1634352575; //1479168000; // November 15th, 2016.
-        consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].nTimeout = 1634352575; //1510704000; // November 15th, 2017.
+        consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].nStartTime = 1547942400; // Jan 20, 2019
+        consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].nTimeout = 1548288000; // Jan 24, 2019
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x000000000000000000000000000000000000000000000000607ca7e806c4c1e9"); //400000

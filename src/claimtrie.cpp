@@ -403,28 +403,6 @@ CAmount CClaimTrie::getTotalValueOfClaimsRecursive(const CClaimTrieNode* current
      return value_in_subtrie;
 }
 
-bool CClaimTrie::recursiveFlattenTrie(const std::string& name, const CClaimTrieNode* current, std::vector<namedNodeType>& nodes) const
-{
-    namedNodeType node(name, *current);
-    nodes.push_back(node);
-    for (nodeMapType::const_iterator it = current->children.begin(); it != current->children.end(); ++it)
-    {
-        std::stringstream ss;
-        ss << name << it->first;
-        if (!recursiveFlattenTrie(ss.str(), it->second, nodes))
-            return false;
-    }
-    return true;
-}
-
-std::vector<namedNodeType> CClaimTrie::flattenTrie() const
-{
-    std::vector<namedNodeType> nodes;
-    if (!recursiveFlattenTrie("", &root, nodes))
-        LogPrintf("%s: Something went wrong flattening the trie", __func__);
-    return nodes;
-}
-
 const CClaimTrieNode* CClaimTrie::getNodeForName(const std::string& name) const
 {
     const CClaimTrieNode* current = &root;
@@ -1300,7 +1278,7 @@ bool CClaimTrieCache::insertClaimIntoTrie(const std::string& name, CClaimValue c
             currentNode = childNode->second;
             continue;
         }
-        
+
         // This next substring doesn't exist in the cache and the next
         // character doesn't exist in current node's children, so check
         // if the current node is in the cache, and if it's not, copy
@@ -1401,7 +1379,7 @@ bool CClaimTrieCache::removeClaimFromTrie(const std::string& name, const COutPoi
     bool fChanged = false;
     assert(currentNode != NULL);
     bool success = false;
-    
+
     if (currentNode->claims.empty())
     {
         LogPrintf("%s: Asked to remove claim from node without claims\n", __func__);
@@ -1476,7 +1454,7 @@ bool CClaimTrieCache::recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int
             // tnCurrent isn't necessarily in the cache. If it's not, it
             // has to be added to the cache, so nothing is changed in the
             // trie. If the current node is added to the cache, however,
-            // that does not imply that the parent node must be altered to 
+            // that does not imply that the parent node must be altered to
             // reflect that its child is now in the cache, since it
             // already has a character in its child map which will be used
             // when calculating the merkle root.
@@ -2182,7 +2160,7 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
         itSupportExpirationRow->second.clear();
     }
     // check each potentially taken over name to see if a takeover occurred.
-    // if it did, then check the claim and support insertion queues for 
+    // if it did, then check the claim and support insertion queues for
     // the names that have been taken over, immediately insert all claim and
     // supports for those names, and stick them in the insertUndo or
     // insertSupportUndo vectors, with the nValidAtHeight they had prior to
@@ -2224,13 +2202,16 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
         {
             takeoverHappened = true;
         }
-        else if ((claimInCache != claimInTrie) && (claimInCache.claimId != claimInTrie.claimId))
+        else if (claimInCache != claimInTrie)
         {
-            takeoverHappened = true;
+            if (claimInCache.claimId != claimInTrie.claimId)
+            {
+                takeoverHappened = true;
+            }
         }
         if (takeoverHappened)
         {
-            // Get all claims in the queue for that name
+            // Get all pending claims for that name and activate them all in the case that our winner is defunct.
             queueNameType::iterator itQueueNameRow = getQueueCacheNameRow(*itNamesToCheck, false);
             if (itQueueNameRow != claimQueueNameCache.end())
             {
@@ -2270,7 +2251,7 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
                 // remove all claims from the queue for that name
                 itQueueNameRow->second.clear();
             }
-            // 
+            //
             // Then, get all supports in the queue for that name
             queueNameType::iterator itSupportQueueNameRow = getSupportQueueCacheNameRow(*itNamesToCheck, false);
             if (itSupportQueueNameRow != supportQueueNameCache.end())
@@ -2361,6 +2342,9 @@ bool CClaimTrieCache::decrementBlock(insertUndoType& insertUndo, claimQueueRowTy
         supportQueueType::iterator itSupportRow = getSupportQueueCacheRow(itSupportUndo->nHeight, true);
         CSupportValue support;
         assert(removeSupportFromMap(itSupportUndo->name, itSupportUndo->outPoint, support, false));
+        // support.nValidHeight may have been changed if this was inserted before activation height
+        // due to a triggered takeover, change it back to original nValidAtHeight
+        support.nValidAtHeight = itSupportUndo->nHeight;
         queueNameType::iterator itSupportNameRow = getSupportQueueCacheNameRow(itSupportUndo->name, true);
         itSupportRow->second.push_back(std::make_pair(itSupportUndo->name, support));
         itSupportNameRow->second.push_back(outPointHeightType(support.outPoint, support.nValidAtHeight));
@@ -2383,9 +2367,12 @@ bool CClaimTrieCache::decrementBlock(insertUndoType& insertUndo, claimQueueRowTy
         claimQueueType::iterator itQueueRow = getQueueCacheRow(itInsertUndo->nHeight, true);
         CClaimValue claim;
         assert(removeClaimFromTrie(itInsertUndo->name, itInsertUndo->outPoint, claim, false));
+        // claim.nValidHeight may have been changed if this was inserted before activation height
+        // due to a triggered takeover, change it back to original nValidAtHeight
+        claim.nValidAtHeight = itInsertUndo->nHeight;
         queueNameType::iterator itQueueNameRow = getQueueCacheNameRow(itInsertUndo->name, true);
         itQueueRow->second.push_back(std::make_pair(itInsertUndo->name, claim));
-        itQueueNameRow->second.push_back(outPointHeightType(itInsertUndo->outPoint, itInsertUndo->nHeight)); 
+        itQueueNameRow->second.push_back(outPointHeightType(itInsertUndo->outPoint, claim.nValidAtHeight));
     }
 
     for (std::vector<std::pair<std::string, int> >::iterator itTakeoverHeightUndo = takeoverHeightUndo.begin(); itTakeoverHeightUndo != takeoverHeightUndo.end(); ++itTakeoverHeightUndo)
@@ -2524,25 +2511,32 @@ uint256 CClaimTrieCache::getLeafHashForProof(const std::string& currentPosition,
     return (cachedHash != cacheHashes.end()) ? cachedHash->second : currentNode->hash;
 }
 
-void CClaimTrieCache::recursiveFlattenTrie(const std::string& name, const CClaimTrieNode* current, std::vector<namedNodeType>& nodes) const
+void CClaimTrieCache::recursiveIterateTrie(std::string& name, const CClaimTrieNode* current, CNodeCallback& callback) const
 {
-    nodes.push_back(std::make_pair(name, *current));
+    callback.visit(name, current);
+
     nodeCacheType::const_iterator cachedNode;
     for (nodeMapType::const_iterator it = current->children.begin(); it != current->children.end(); ++it) {
-        const std::string str = name + char(it->first);
-        cachedNode = cache.find(str);
+        name.push_back(it->first);
+        cachedNode = cache.find(name);
         if (cachedNode != cache.end())
-            recursiveFlattenTrie(str, cachedNode->second, nodes);
+            recursiveIterateTrie(name, cachedNode->second, callback);
         else
-            recursiveFlattenTrie(str, it->second, nodes);
+            recursiveIterateTrie(name, it->second, callback);
+        name.erase(name.end() - 1);
     }
 }
 
-std::vector<namedNodeType> CClaimTrieCache::flattenTrie() const
+bool CClaimTrieCache::iterateTrie(CNodeCallback& callback) const
 {
-    std::vector<namedNodeType> nodes;
-    recursiveFlattenTrie("", getRoot(), nodes);
-    return nodes;
+    try {
+        std::string name;
+        recursiveIterateTrie(name, getRoot(), callback);
+        assert(name.empty());
+    } catch (const CNodeCallback::CRecursionInterruptionException& ex) {
+        return ex.success;
+    }
+    return true;
 }
 
 claimsForNameType CClaimTrieCache::getClaimsForName(const std::string& name) const
