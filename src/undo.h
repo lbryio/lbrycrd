@@ -63,9 +63,9 @@ public:
     void Unserialize(Stream &s) {
         unsigned int nCode = 0;
         ::Unserialize(s, VARINT(nCode));
-        txout->nHeight = nCode / 4;
-        txout->fCoinBase = nCode & 2;
-        fLastUnspent = nCode & 1;
+        txout->nHeight = nCode / 4; // >> 2?
+        txout->fCoinBase = (nCode & 2) ? 1: 0;
+        fLastUnspent = (nCode & 1) > 0;
         if (fLastUnspent)
             ::Unserialize(s, VARINT(this->nVersion));
         ::Unserialize(s, CTxOutCompressor(REF(txout->out)));

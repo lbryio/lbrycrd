@@ -14,6 +14,8 @@
 #include <util.h>
 #include <utilstrencodings.h>
 
+#include "nameclaim.h"
+
 
 CAmount GetDustThreshold(const CTxOut& txout, const CFeeRate& dustRelayFeeIn)
 {

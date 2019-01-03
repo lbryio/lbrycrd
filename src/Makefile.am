@@ -394,6 +394,7 @@ libbitcoin_common_a_SOURCES = \
   key.cpp \
   key_io.cpp \
   keystore.cpp \
+  nameclaim.cpp \
   netaddress.cpp \
   netbase.cpp \
   policy/feerate.cpp \
