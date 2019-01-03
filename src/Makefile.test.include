@@ -9,6 +9,7 @@ TEST_BINARY=test/test_bitcoin$(EXEEXT)
 
 JSON_TEST_FILES = \
   test/data/base58_encode_decode.json \
+  test/data/base58_keys_valid.json \
   test/data/key_io_valid.json \
   test/data/key_io_invalid.json \
   test/data/script_tests.json \
@@ -40,6 +41,7 @@ BITCOIN_TESTS =\
   test/blockchain_tests.cpp \
   test/blockencodings_tests.cpp \
   test/bloom_tests.cpp \
+  test/Checkpoints_tests.cpp \
   test/bswap_tests.cpp \
   test/checkqueue_tests.cpp \
   test/coins_tests.cpp \
@@ -187,3 +189,12 @@ endif
 	 echo "};};"; \
 	} > "$@.new" && mv -f "$@.new" "$@"
 	@echo "Generated $@"
+
+%.raw.h: %.raw
+	@$(MKDIR_P) $(@D)
+	@echo "namespace alert_tests{" > $@
+	@echo "static unsigned const char $(*F)[] = {" >> $@
+	@$(HEXDUMP) -v -e '8/1 "0x%02x, "' -e '"\n"' $< | $(SED) -e 's/0x  ,//g' >> $@
+	@echo "};};" >> $@
+	@echo "Generated $@"
+
