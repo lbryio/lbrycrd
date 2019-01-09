@@ -191,7 +191,7 @@ libbitcoin_server_a_SOURCES = \
   merkleblock.cpp \
   miner.cpp \
   claimtrie.cpp \
-  claimtrieForks.cpp \
+  claimtrieforks.cpp \
   net.cpp \
   noui.cpp \
   policy/fees.cpp \

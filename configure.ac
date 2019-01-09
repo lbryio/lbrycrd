@@ -743,6 +743,10 @@ fi
 
 fi
 
+ICU_CPPFLAGS="-I$ICU_PREFIX/include"
+CPPFLAGS="$ICU_CPPFLAGS $CPPFLAGS"
+ICU_LIBS="-L$ICU_PREFIX/lib -licui18n -licuuc -licudata -dl"
+
 if test x$use_pkgconfig = xyes; then
 
   if test x"$PKG_CONFIG" = "x"; then
@@ -786,10 +790,6 @@ if test x$use_pkgconfig = xyes; then
     ]
   )
 else
-  ICU_CPPFLAGS="-I$ICU_PREFIX/include"
-  CPPFLAGS="$ICU_CPPFLAGS $CPPFLAGS"
-  ICU_LIBS="-L$ICU_PREFIX/lib -licui18n -licuuc -licudata -dl"
-
   AC_MSG_WARN([Using ICU_CPPFLAGS $ICU_CPPFLAGS])
   AC_MSG_WARN([Using ICU_LIBS $ICU_LIBS])
   AC_MSG_WARN([Using CPPFLAGS $CPPFLAGS])
