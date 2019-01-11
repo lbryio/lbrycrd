@@ -743,9 +743,13 @@ fi
 
 fi
 
-ICU_CPPFLAGS="-I$ICU_PREFIX/include"
-CPPFLAGS="$ICU_CPPFLAGS $CPPFLAGS"
-ICU_LIBS="-L$ICU_PREFIX/lib -licui18n -licuuc -licudata -dl"
+AS_IF([test "x$ICU_PREFIX" != xauto], [
+  ICU_CPPFLAGS="-I$ICU_PREFIX/include",
+  ICU_LIBS="-L$ICU_PREFIX/lib -licui18n -licuuc -licudata -dl"
+])
+
+AC_MSG_WARN([Using ICU_CPPFLAGS $ICU_CPPFLAGS])
+AC_MSG_WARN([Using ICU_LIBS $ICU_LIBS])
 
 if test x$use_pkgconfig = xyes; then
 
@@ -753,17 +757,10 @@ if test x$use_pkgconfig = xyes; then
     AC_MSG_ERROR(pkg-config not found.)
   fi
 
-  if test "${ICU_PREFIX}" != "auto"; then
-    PKG_CONFIG_PATH="${ICU_PREFIX}/lib/pkgconfig:$PKG_CONFIG_PATH"
-    export PKG_CONFIG_PATH
-  fi
-
   : #NOP
   m4_ifdef(
     [PKG_CHECK_MODULES],
     [
-      PKG_CHECK_MODULES([ICU], [icu-i18n],, [AC_MSG_ERROR(icu-i18n not found.)])
-      AC_CHECK_HEADER([unicode/errorcode.h],, AC_MSG_ERROR(libicu headers missing))
       PKG_CHECK_MODULES([SSL], [libssl],, [AC_MSG_ERROR(openssl not found.)])
       PKG_CHECK_MODULES([CRYPTO], [libcrypto],, [AC_MSG_ERROR(libcrypto not found.)])
 
@@ -789,11 +786,7 @@ if test x$use_pkgconfig = xyes; then
       fi
     ]
   )
-else
-  AC_MSG_WARN([Using ICU_CPPFLAGS $ICU_CPPFLAGS])
-  AC_MSG_WARN([Using ICU_LIBS $ICU_LIBS])
-  AC_MSG_WARN([Using CPPFLAGS $CPPFLAGS])
-
+else # compiling on Windows:
   AC_CHECK_HEADER([unicode/errorcode.h],,AC_MSG_ERROR(libicu headers missing))
   AC_CHECK_LIB([icudata], [main], ICU_LIBS="-L$ICU_PREFIX/lib -licui18n -licuuc -licudata -dl",
     AC_CHECK_LIB([icu18n], [main],ICU_LIBS=$ICU_LIBS, ICU_LIBS="-L$ICU_PREFIX/lib -lsicudt -lsicuin -lsicuio -lsicule -lsiculx -lsicutest -lsicutu -lsicuuc"))
@@ -874,7 +867,7 @@ AC_SUBST(UNIVALUE_LIBS)
 CXXFLAGS_TEMP="$CXXFLAGS"
 LIBS_TEMP="$LIBS"
 CXXFLAGS="$CXXFLAGS $CPPFLAGS $SSL_CFLAGS $CRYPTO_CFLAGS"
-LIBS="$LIBS $SSL_LIBS $CRYPTO_LIBS $ICU_LIBS"
+LIBS="$LIBS $SSL_LIBS $CRYPTO_LIBS"
 #AC_CHECK_HEADER([openssl/ec.h],, AC_MSG_ERROR(OpenSSL ec header missing),)
 CXXFLAGS="$CXXFLAGS_TEMP"
 LIBS="$LIBS_TEMP"
