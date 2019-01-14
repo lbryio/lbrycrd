@@ -1,4 +1,4 @@
-packages:=icu boost openssl libevent
+packages:=boost openssl libevent
 darwin_packages:=zeromq
 linux_packages:=zeromq
 native_packages := native_ccache native_comparisontool

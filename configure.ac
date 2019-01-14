@@ -744,12 +744,18 @@ fi
 fi
 
 AS_IF([test "x$ICU_PREFIX" != xauto], [
-  ICU_CPPFLAGS="-I$ICU_PREFIX/include",
-  ICU_LIBS="-L$ICU_PREFIX/lib -licui18n -licuuc -licudata -dl"
+  ICU_CPPFLAGS="-I$ICU_PREFIX/include"
+  ICU_LIBS="-L$ICU_PREFIX/lib -licui18n -licuuc -licudata -ldl"
+  PKG_CONFIG_PATH="${ICU_PREFIX}/lib/pkgconfig:$PKG_CONFIG_PATH"
+  export PKG_CONFIG_PATH
 ])
 
-AC_MSG_WARN([Using ICU_CPPFLAGS $ICU_CPPFLAGS])
-AC_MSG_WARN([Using ICU_LIBS $ICU_LIBS])
+AC_MSG_NOTICE([Using ICU_CPPFLAGS $ICU_CPPFLAGS])
+AC_MSG_NOTICE([Using ICU_LIBS $ICU_LIBS])
+
+CPPFLAGS="$CPPFLAGS $ICU_CPPFLAGS"
+ORIG_LDFLAGS=$LDFLAGS
+LDFLAGS="$LDFLAGS $ICU_LIBS"
 
 if test x$use_pkgconfig = xyes; then
 
@@ -787,9 +793,17 @@ if test x$use_pkgconfig = xyes; then
     ]
   )
 else # compiling on Windows:
+  AC_MSG_NOTICE([Configuring for Windows])
+
+  CPPFLAGS="$CPPFLAGS -Ii686-w64-mingw32/include"
+  LDFLAGS="$LDFLAGS -Li686-w64-mingw32/lib"
+
   AC_CHECK_HEADER([unicode/errorcode.h],,AC_MSG_ERROR(libicu headers missing))
-  AC_CHECK_LIB([icudata], [main], ICU_LIBS="-L$ICU_PREFIX/lib -licui18n -licuuc -licudata -dl",
-    AC_CHECK_LIB([icu18n], [main],ICU_LIBS=$ICU_LIBS, ICU_LIBS="-L$ICU_PREFIX/lib -lsicudt -lsicuin -lsicuio -lsicule -lsiculx -lsicutest -lsicutu -lsicuuc"))
+  AC_CHECK_LIB([icudata], [main], ICU_LIBS=$ICU_LIBS,
+    AC_CHECK_LIB([icu18n], [main],ICU_LIBS=$ICU_LIBS, ICU_LIBS="-L$ICU_PREFIX/lib -lsicuio -lsicuin -lsiculx -lsicule -lsicuuc -lsicudt"))
+  AC_MSG_NOTICE([Using ICU_LIBS=$ICU_LIBS])
+  LDFLAGS="$ORIG_LDFLAGS $ICU_LIBS"
+  AC_CHECK_LIB([sicudt], [main], ICU_LIBS=$ICU_LIBS, AC_MSG_ERROR(icu libraries missing))
 
   AC_CHECK_HEADER([openssl/crypto.h],,AC_MSG_ERROR(libcrypto headers missing))
   AC_CHECK_LIB([crypto], [main],CRYPTO_LIBS=-lcrypto, AC_MSG_ERROR(libcrypto missing))
@@ -868,7 +882,7 @@ CXXFLAGS_TEMP="$CXXFLAGS"
 LIBS_TEMP="$LIBS"
 CXXFLAGS="$CXXFLAGS $CPPFLAGS $SSL_CFLAGS $CRYPTO_CFLAGS"
 LIBS="$LIBS $SSL_LIBS $CRYPTO_LIBS"
-#AC_CHECK_HEADER([openssl/ec.h],, AC_MSG_ERROR(OpenSSL ec header missing),)
+AC_CHECK_HEADER([openssl/ec.h],, AC_MSG_ERROR(OpenSSL ec header missing),)
 CXXFLAGS="$CXXFLAGS_TEMP"
 LIBS="$LIBS_TEMP"
 

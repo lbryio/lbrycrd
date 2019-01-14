@@ -20,6 +20,7 @@ cache:
   directories:
   - build
   - depends/built
+  - /tmp/icu_install
 git:
   depth: false
 before_install:
