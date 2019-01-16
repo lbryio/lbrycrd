@@ -1442,9 +1442,9 @@ static bool AbortNode(CValidationState& state, const std::string& strMessage, co
  * @param out The out point that corresponds to the tx input.
  * @return A DisconnectResult as an int
  */
-int ApplyTxInUndo(unsigned int index, const CTxUndo& txUndo, CCoinsViewCache& view, CClaimTrieCache& trieCache, const COutPoint& out)
+int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CClaimTrieCache& trieCache, const COutPoint& out)
 {
-    Coin& undo = const_cast<Coin&>(txUndo.vprevout[index]);
+    Coin& undo = txUndo.vprevout[index];
     unsigned int nClaimValidHeight = 0;
     bool fIsClaim = false;
     const auto claimIt = txUndo.claimInfo.find(index);

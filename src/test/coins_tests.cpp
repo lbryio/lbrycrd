@@ -16,7 +16,7 @@
 
 #include <boost/test/unit_test.hpp>
 
-int ApplyTxInUndo(unsigned int index, const CTxUndo& txUndo, CCoinsViewCache& view, CClaimTrieCache& trieCache, const COutPoint& out);
+int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CClaimTrieCache& trieCache, const COutPoint& out);
 void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txundo, int nHeight);
 
 namespace
@@ -95,7 +95,7 @@ public:
 
 } // namespace
 
-BOOST_FIXTURE_TEST_SUITE(coins_tests, BasicTestingSetup)
+BOOST_FIXTURE_TEST_SUITE(coins_tests, TestingSetup)
 
 static const unsigned int NUM_SIMULATION_ITERATIONS = 40000;
 
@@ -409,6 +409,8 @@ BOOST_AUTO_TEST_CASE(updatecoins_simulation_test)
                 Coin coin = undo.vprevout[0];
                 CClaimTrieCache trieCache(pclaimTrie);
                 ApplyTxInUndo(0, undo, *(stack.back()), trieCache, out);
+                // return coin
+                undo.vprevout[0] = coin;
             }
             // Store as a candidate for reconnection
             disconnected_coins.insert(utxod->first);

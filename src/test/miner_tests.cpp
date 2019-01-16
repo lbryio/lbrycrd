@@ -11,6 +11,7 @@
 #include <validation.h>
 #include <miner.h>
 #include <policy/policy.h>
+#include <pow.h>
 #include <pubkey.h>
 #include <script/standard.h>
 #include <txmempool.h>
@@ -47,7 +48,7 @@ static BlockAssembler AssemblerForTest(const CChainParams& params) {
     return BlockAssembler(params, options);
 }
 
-static
+/*static
 struct {
     unsigned char extranonce;
     unsigned int nonce;
@@ -81,6 +82,20 @@ struct {
     {2, 0xd351e722}, {1, 0xf4ca48c9}, {1, 0x5b19c670}, {1, 0xa164bf0e},
     {2, 0xbbbeb305}, {2, 0xfe1c810a},
 };
+
+const unsigned int nonces[] = {
+9875, 95807, 31359, 234335, 145717, 80791, 112145, 24413, 180722, 9910,
+43622, 8531, 6247, 21164, 31399, 115014, 6240, 11855, 15380, 16059,
+151773, 42247, 258112, 33467, 66678, 118631, 31485, 53636, 74882, 4123,
+86392, 11386, 58121, 27870, 76602, 17616, 80966, 37064, 84547, 58182,
+169550, 11965, 63424, 245620, 4710, 6134, 77310, 100050, 134882, 44029,
+3970, 175316, 56994, 23523, 12055, 15866, 25422, 71227, 105999, 107878,
+75188, 17820, 54863, 74022, 81834, 121376, 67397, 10857, 22081, 33061,
+65027, 46272, 56681, 1209, 151028, 82788, 7817, 92273, 55392, 15714,
+94174, 21541, 33833, 30596, 93204, 53265, 51495, 59980, 91955, 57202,
+40559, 23761, 75982, 4582, 3207, 109694, 12944, 93689, 47593, 20997,
+194095, 112324, 146676, 66180, 33360, 140817, 731, 19918, 31681, 19541,
+};*/
 
 static CBlockIndex CreateBlockIndex(int nHeight)
 {
@@ -216,6 +231,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     entry.nFee = 11;
     entry.nHeight = 11;
 
+    LOCK(cs_main);
     fCheckpointsEnabled = false;
 
     // Simple block creation, nothing special yet:
@@ -225,34 +241,37 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     // Therefore, load 100 blocks :)
     int baseheight = 0;
     std::vector<CTransactionRef> txFirst;
-    for (unsigned int i = 0; i < sizeof(blockinfo)/sizeof(*blockinfo); ++i)
+    for (unsigned int i = 0; i < 110; ++i)
     {
+        BOOST_CHECK(pblocktemplate = AssemblerForTest(chainparams).CreateNewBlock(scriptPubKey));
         CBlock *pblock = &pblocktemplate->block; // pointer for convenience
-        {
-            LOCK(cs_main);
-            pblock->nVersion = 1;
-            pblock->nTime = chainActive.Tip()->GetMedianTimePast()+1;
-            CMutableTransaction txCoinbase(*pblock->vtx[0]);
-            txCoinbase.nVersion = 1;
-            txCoinbase.vin[0].scriptSig = CScript();
-            txCoinbase.vin[0].scriptSig.push_back(blockinfo[i].extranonce);
-            txCoinbase.vin[0].scriptSig.push_back(chainActive.Height());
-            txCoinbase.vout.resize(1); // Ignore the (optional) segwit commitment added by CreateNewBlock (as the hardcoded nonces don't account for this)
-            txCoinbase.vout[0].scriptPubKey = CScript();
-            pblock->vtx[0] = MakeTransactionRef(std::move(txCoinbase));
-            if (txFirst.size() == 0)
-                baseheight = chainActive.Height();
-            if (txFirst.size() < 4)
-                txFirst.push_back(pblock->vtx[0]);
-            pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
-            pblock->nNonce = blockinfo[i].nonce;
+        pblock->hashPrevBlock = chainActive.Tip()->GetBlockHash();
+        pblock->nVersion = 5;
+        pblock->nTime = chainActive.Tip()->GetBlockTime() + chainparams.GetConsensus().nPowTargetSpacing;
+        CMutableTransaction txCoinbase(*pblock->vtx[0]);
+        txCoinbase.vin[0].scriptSig = CScript() << int(chainActive.Height() + 1) << i;
+        txCoinbase.vout.resize(1); // Ignore the (optional) segwit commitment added by CreateNewBlock (as the hardcoded nonces don't account for this)
+        txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height() + 1, chainparams.GetConsensus());
+        pblock->vtx[0] = MakeTransactionRef(std::move(txCoinbase));
+        if (txFirst.size() == 0)
+            baseheight = chainActive.Height();
+        if (txFirst.size() < 4)
+            txFirst.push_back(pblock->vtx[0]);
+        pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
+
+        for (uint32_t i = 0;; ++i) {
+            pblock->nNonce = i;
+            if (CheckProofOfWork(pblock->GetPoWHash(), pblock->nBits, chainparams.GetConsensus())) {
+                break;
+            }
         }
+
         std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(*pblock);
-        BOOST_CHECK(ProcessNewBlock(chainparams, shared_pblock, true, nullptr));
-        pblock->hashPrevBlock = pblock->GetHash();
+        if (!ProcessNewBlock(chainparams, shared_pblock, true, nullptr)) {
+            std::cout << pblock->ToString() << '\n';
+        }
     }
 
-    LOCK(cs_main);
     LOCK(::mempool.cs);
 
     // Just to make sure we can still make simple blocks

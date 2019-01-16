@@ -194,16 +194,15 @@ public:
         vSeeds.emplace_back("dnsseed2.lbry.io"); // lbry.io
         vSeeds.emplace_back("dnsseed3.lbry.io"); // lbry.io
 
-        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,0x55);
-        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,0x7a);
-        base58Prefixes[SECRET_KEY] =     std::vector<unsigned char>(1,0x1c);
-        base58Prefixes[EXT_PUBLIC_KEY] = {0x01, 0x9c, 0x35, 0x4F};
-        base58Prefixes[EXT_SECRET_KEY] = {0x01, 0x9c, 0x31, 0x18};
+        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,0);
+        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,5);
+        base58Prefixes[SECRET_KEY] =     std::vector<unsigned char>(1,128);
+        base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x88, 0xB2, 0x1E};
+        base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x88, 0xAD, 0xE4};
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_main, pnSeed6_main + ARRAYLEN(pnSeed6_main));
 
-        /* bech32_hrp = "bc"; */
-        bech32_hrp = "lb"; // FIXME: change this?
+        bech32_hrp = "bc";
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_main, pnSeed6_main + ARRAYLEN(pnSeed6_main));
 
@@ -309,8 +308,7 @@ public:
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
 
-        /* bech32_hrp = "tb"; */
-        bech32_hrp = "lt"; // FIXME: change?
+        bech32_hrp = "tb";
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_test, pnSeed6_test + ARRAYLEN(pnSeed6_test));
 
