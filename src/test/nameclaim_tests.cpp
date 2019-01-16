@@ -3,7 +3,7 @@
 #include <boost/test/unit_test.hpp>
 #include "test/test_bitcoin.h"
 
-//BOOST_FIXTURE_TEST_SUITE(nameclaim_tests, BasicTestingSetup)
+BOOST_FIXTURE_TEST_SUITE(nameclaim_tests, BasicTestingSetup)
 
 BOOST_AUTO_TEST_CASE(calc_min_claimtrie_fee)
 {
@@ -33,6 +33,4 @@ BOOST_AUTO_TEST_CASE(calc_min_claimtrie_fee)
 
 }
 
-
-
-//BOOST_AUTO_TEST_SUITE_END()
+BOOST_AUTO_TEST_SUITE_END()
