@@ -88,6 +88,6 @@ Our PGP key is [here](https://keybase.io/lbry/key.asc) if you need it.
 
 ## Contact
 
-The primary contact for this project is [@kaykurokawa](https://github.com/kaykurokawa) (kay@lbry.io)
+The primary contact for this project is [@BrannonKing](https://github.com/BrannonKing) (brannon@lbry.io)
 
 
