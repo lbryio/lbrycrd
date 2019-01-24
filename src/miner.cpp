@@ -338,6 +338,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
     // mempool has a lot of entries.
     const int64_t MAX_CONSECUTIVE_FAILURES = 1000;
     int64_t nConsecutiveFailed = 0;
+    std::vector<CTransactionRef> txs;
 
     while (mi != mempool.mapTx.get<ancestor_score>().end() || !mapModifiedTx.empty())
     {
@@ -436,8 +437,17 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
         {
             CCoinsViewCache view(pcoinsTip.get());
             const Coin& coin = view.AccessCoin(txin.prevout);
-            int nTxinHeight = coin.nHeight;
-            CScript scriptPubKey = coin.out.scriptPubKey;
+            CScript scriptPubKey;
+            if (coin.out.IsNull()) {
+                auto it = std::find_if(txs.begin(), txs.end(), [&txin](const CTransactionRef& tx) {
+                    return tx->GetHash() == txin.prevout.hash;
+                });
+                if (it == txs.end() || txin.prevout.n >= (*it)->vout.size())
+                    continue;
+                scriptPubKey = (*it)->vout[txin.prevout.n].scriptPubKey;
+            } else {
+                scriptPubKey = coin.out.scriptPubKey;
+            }
 
             std::vector<std::vector<unsigned char> > vvchParams;
             int op;
@@ -474,7 +484,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
                     assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     int throwaway;
-                    if (!trieCache.spendSupport(name, COutPoint(txin.prevout.hash, txin.prevout.n), nTxinHeight, throwaway))
+                    if (!trieCache.spendSupport(name, COutPoint(txin.prevout.hash, txin.prevout.n), throwaway))
                     {
                         LogPrintf("%s(): The support was not found in the trie or queue\n", __func__);
                     }
@@ -535,6 +545,8 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
                 }
             }
         }
+
+        txs.emplace_back(MakeTransactionRef(tx));
 
         // This transaction will make it in; reset the failed counter.
         nConsecutiveFailed = 0;
