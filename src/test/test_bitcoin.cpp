@@ -11,6 +11,7 @@
 #include <validation.h>
 #include <miner.h>
 #include <net_processing.h>
+#include <policy/policy.h>
 #include <pow.h>
 #include <ui_interface.h>
 #include <streams.h>
@@ -181,7 +182,10 @@ CBlock
 TestChain100Setup::CreateAndProcessBlock(const std::vector<CMutableTransaction>& txns, const CScript& scriptPubKey)
 {
     const CChainParams& chainparams = Params();
-    std::unique_ptr<CBlockTemplate> pblocktemplate = BlockAssembler(chainparams).CreateNewBlock(scriptPubKey);
+    BlockAssembler::Options options;
+    options.nBlockMaxWeight = DEFAULT_BLOCK_MAX_WEIGHT;
+    options.blockMinFeeRate = CFeeRate(0);
+    std::unique_ptr<CBlockTemplate> pblocktemplate = BlockAssembler(chainparams, options).CreateNewBlock(scriptPubKey);
     CBlock& block = pblocktemplate->block;
 
     // Replace mempool-selected txns with just coinbase plus passed-in txns:

@@ -38,7 +38,7 @@ private:
     const std::string m_reason;
 };
 
-static CFeeRate blockMinFeeRate = CFeeRate(DEFAULT_BLOCK_MIN_TX_FEE);
+static CFeeRate blockMinFeeRate = CFeeRate(0);
 
 static BlockAssembler AssemblerForTest(const CChainParams& params) {
     BlockAssembler::Options options;
@@ -267,9 +267,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         }
 
         std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(*pblock);
-        if (!ProcessNewBlock(chainparams, shared_pblock, true, nullptr)) {
-            std::cout << pblock->ToString() << '\n';
-        }
+        BOOST_CHECK(ProcessNewBlock(chainparams, shared_pblock, true, nullptr));
     }
 
     LOCK(::mempool.cs);

@@ -114,6 +114,13 @@ CMutableTransaction BuildTransaction(const CTransaction& prev, uint32_t prevout=
     return tx;
 }
 
+static BlockAssembler AssemblerForTest() {
+    BlockAssembler::Options options;
+    options.nBlockMaxWeight = DEFAULT_BLOCK_MAX_WEIGHT;
+    options.blockMinFeeRate = CFeeRate(0);
+    return BlockAssembler(Params(), options);
+}
+
 // Test Fixtures
 struct ClaimTrieChainFixture{
     std::vector<CTransaction> coinbase_txs;
@@ -155,8 +162,8 @@ struct ClaimTrieChainFixture{
     bool CreateBlock(const std::unique_ptr<CBlockTemplate>& pblocktemplate)
     {
         CBlock* pblock = &pblocktemplate->block;
-        pblock->hashPrevBlock = chainActive.Tip()->GetBlockHash();
         pblock->nVersion = 5;
+        pblock->hashPrevBlock = chainActive.Tip()->GetBlockHash();
         pblock->nTime = chainActive.Tip()->GetBlockTime() + Params().GetConsensus().nPowTargetSpacing;
         CMutableTransaction txCoinbase(*pblock->vtx[0]);
         txCoinbase.vin[0].scriptSig = CScript() << int(chainActive.Height() + 1) << int(++unique_block_counter);
@@ -176,9 +183,8 @@ struct ClaimTrieChainFixture{
     {
         std::unique_ptr<CBlockTemplate> pblocktemplate;
         coinbases.clear();
-        BOOST_CHECK(pblocktemplate = BlockAssembler(Params()).CreateNewBlock(CScript() << OP_TRUE));
+        BOOST_CHECK(pblocktemplate = AssemblerForTest().CreateNewBlock(CScript() << OP_TRUE));
         BOOST_CHECK_EQUAL(pblocktemplate->block.vtx.size(), 1);
-        pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
         for (unsigned int i = 0; i < 100 + num_coinbases; ++i) {
             BOOST_CHECK(CreateBlock(pblocktemplate));
             if (coinbases.size() < num_coinbases)
@@ -277,9 +283,8 @@ struct ClaimTrieChainFixture{
             std::unique_ptr<CBlockTemplate> pblocktemplate;
             CScript coinbase_scriptpubkey;
             coinbase_scriptpubkey << CScriptNum(chainActive.Height());
-            BOOST_CHECK(pblocktemplate = BlockAssembler(Params()).CreateNewBlock(coinbase_scriptpubkey));
-            BOOST_CHECK(pblocktemplate->block.vtx.size() == num_txs_for_next_block+1);
-            pblocktemplate->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+            BOOST_CHECK(pblocktemplate = AssemblerForTest().CreateNewBlock(coinbase_scriptpubkey));
+            BOOST_CHECK_EQUAL(pblocktemplate->block.vtx.size(), num_txs_for_next_block + 1);
             BOOST_CHECK(CreateBlock(pblocktemplate));
             num_txs_for_next_block = 0 ;
         }
@@ -3067,7 +3072,7 @@ BOOST_AUTO_TEST_CASE(bogus_claimtrie_hash_test)
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue1, 1);
 
     std::unique_ptr<CBlockTemplate> pblockTemp;
-    BOOST_CHECK(pblockTemp = BlockAssembler(Params()).CreateNewBlock(tx1.vout[0].scriptPubKey));
+    BOOST_CHECK(pblockTemp = AssemblerForTest().CreateNewBlock(tx1.vout[0].scriptPubKey));
     pblockTemp->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     pblockTemp->block.nVersion = 5;
     pblockTemp->block.nTime = chainActive.Tip()->GetBlockTime() + Params().GetConsensus().nPowTargetSpacing;
