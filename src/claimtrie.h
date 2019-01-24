@@ -28,20 +28,6 @@
 
 uint256 getValueHash(COutPoint outPoint, int nHeightOfLastTakeover);
 
-// Provides pre-C++11 copy semantics of std::swap, rather than move
-// semantics (available in C++11).
-namespace claimtrie
-{
-
-template<typename T>
-    static inline void swap(T& x, T& y) {
-    const auto tmp = x;
-    y = x;
-    x = tmp;
-}
-
-} // namespace claimtrie
-
 class CClaimValue
 {
 public:
@@ -60,6 +46,11 @@ public:
                 , nAmount(nAmount), nEffectiveAmount(nAmount)
                 , nHeight(nHeight), nValidAtHeight(nValidAtHeight)
     {}
+
+    CClaimValue(CClaimValue&&) = default;
+    CClaimValue(const CClaimValue&) = default;
+    CClaimValue& operator=(CClaimValue&&) = default;
+    CClaimValue& operator=(const CClaimValue&) = default;
 
     ADD_SERIALIZE_METHODS;
 
@@ -117,6 +108,11 @@ public:
                   , nValidAtHeight(nValidAtHeight)
     {}
 
+    CSupportValue(CSupportValue&&) = default;
+    CSupportValue(const CSupportValue&) = default;
+    CSupportValue& operator=(CSupportValue&&) = default;
+    CSupportValue& operator=(const CSupportValue&) = default;
+
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
@@ -153,6 +149,26 @@ class CClaimTrieNode
 public:
     CClaimTrieNode() : nHeightOfLastTakeover(0) {}
     CClaimTrieNode(uint256 hash) : hash(hash), nHeightOfLastTakeover(0) {}
+    CClaimTrieNode(const CClaimTrieNode&) = default;
+    CClaimTrieNode(CClaimTrieNode&& other)
+    {
+        hash = other.hash;
+        claims = std::move(other.claims);
+        children = std::move(other.children);
+        nHeightOfLastTakeover = other.nHeightOfLastTakeover;
+    }
+    CClaimTrieNode& operator=(const CClaimTrieNode&) = default;
+    CClaimTrieNode& operator=(CClaimTrieNode&& other)
+    {
+        if (this != &other) {
+            hash = other.hash;
+            claims = std::move(other.claims);
+            children = std::move(other.children);
+            nHeightOfLastTakeover = other.nHeightOfLastTakeover;
+        }
+        return *this;
+    }
+
     uint256 hash;
     nodeMapType children;
     int nHeightOfLastTakeover;
@@ -225,8 +241,8 @@ struct nameOutPointHeightType
     nameOutPointHeightType() {}
 
     nameOutPointHeightType(std::string name, COutPoint outPoint, int nHeight)
-    : name(name), outPoint(outPoint), nHeight(nHeight) {}
-   
+    : name(std::move(name)), outPoint(outPoint), nHeight(nHeight) {}
+
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
@@ -246,7 +262,7 @@ struct nameOutPointType
     nameOutPointType() {}
 
     nameOutPointType(std::string name, COutPoint outPoint)
-    : name(name), outPoint(outPoint) {}
+    : name(std::move(name)), outPoint(outPoint) {}
 
     ADD_SERIALIZE_METHODS;
 
@@ -307,7 +323,25 @@ struct claimsForNameType
     int nLastTakeoverHeight;
 
     claimsForNameType(std::vector<CClaimValue> claims, std::vector<CSupportValue> supports, int nLastTakeoverHeight)
-    : claims(claims), supports(supports), nLastTakeoverHeight(nLastTakeoverHeight) {}
+    : claims(std::move(claims)), supports(std::move(supports)), nLastTakeoverHeight(nLastTakeoverHeight) {}
+
+    claimsForNameType(const claimsForNameType&) = default;
+    claimsForNameType(claimsForNameType&& other)
+    {
+        claims = std::move(other.claims);
+        supports = std::move(other.supports);
+        nLastTakeoverHeight = other.nLastTakeoverHeight;
+    }
+    claimsForNameType& operator=(const claimsForNameType&) = default;
+    claimsForNameType& operator=(claimsForNameType&& other)
+    {
+        if (this != &other) {
+            claims = std::move(other.claims);
+            supports = std::move(other.supports);
+            nLastTakeoverHeight = other.nLastTakeoverHeight;
+        }
+        return *this;
+    }
 };
 
 class CClaimTrieCache;
@@ -452,8 +486,25 @@ public:
     CClaimTrieProofNode() {};
     CClaimTrieProofNode(std::vector<std::pair<unsigned char, uint256> > children,
                         bool hasValue, uint256 valHash)
-        : children(children), hasValue(hasValue), valHash(valHash)
+        : children(std::move(children)), hasValue(hasValue), valHash(valHash)
         {};
+    CClaimTrieProofNode(const CClaimTrieProofNode&) = default;
+    CClaimTrieProofNode(CClaimTrieProofNode&& other)
+    {
+        hasValue = other.hasValue;
+        valHash = other.valHash;
+        children = std::move(other.children);
+    }
+    CClaimTrieProofNode& operator=(const CClaimTrieProofNode&) = default;
+    CClaimTrieProofNode& operator=(CClaimTrieProofNode&& other)
+    {
+        if (this != &other) {
+            hasValue = other.hasValue;
+            valHash = other.valHash;
+            children = std::move(other.children);
+        }
+        return *this;
+    }
     std::vector<std::pair<unsigned char, uint256> > children;
     bool hasValue;
     uint256 valHash;
@@ -463,7 +514,26 @@ class CClaimTrieProof
 {
 public:
     CClaimTrieProof() {};
-    CClaimTrieProof(std::vector<CClaimTrieProofNode> nodes, bool hasValue, COutPoint outPoint, int nHeightOfLastTakeover) : nodes(nodes), hasValue(hasValue), outPoint(outPoint), nHeightOfLastTakeover(nHeightOfLastTakeover) {}
+    CClaimTrieProof(std::vector<CClaimTrieProofNode> nodes, bool hasValue, COutPoint outPoint, int nHeightOfLastTakeover) : nodes(std::move(nodes)), hasValue(hasValue), outPoint(outPoint), nHeightOfLastTakeover(nHeightOfLastTakeover) {}
+    CClaimTrieProof(const CClaimTrieProof&) = default;
+    CClaimTrieProof(CClaimTrieProof&& other)
+    {
+        hasValue = other.hasValue;
+        outPoint = other.outPoint;
+        nodes = std::move(other.nodes);
+        nHeightOfLastTakeover = other.nHeightOfLastTakeover;
+    }
+    CClaimTrieProof& operator=(const CClaimTrieProof&) = default;
+    CClaimTrieProof& operator=(CClaimTrieProof&& other)
+    {
+        if (this != &other) {
+            hasValue = other.hasValue;
+            outPoint = other.outPoint;
+            nodes = std::move(other.nodes);
+            nHeightOfLastTakeover = other.nHeightOfLastTakeover;
+        }
+        return *this;
+    }
     std::vector<CClaimTrieProofNode> nodes;
     bool hasValue;
     COutPoint outPoint;
@@ -525,10 +595,8 @@ public:
     bool addSupport(const std::string& name, const COutPoint& outPoint,
                     CAmount nAmount, uint160 supportedClaimId,
                     int nHeight) const;
-    bool undoAddSupport(const std::string& name, const COutPoint& outPoint,
-                        int nHeight) const;
-    bool spendSupport(const std::string& name, const COutPoint& outPoint,
-                      int nHeight, int& nValidAtHeight) const;
+    bool undoAddSupport(const std::string& name, const COutPoint& outPoint) const;
+    bool spendSupport(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const;
     bool undoSpendSupport(const std::string& name, const COutPoint& outPoint,
                           uint160 supportedClaimId, CAmount nAmount,
                           int nHeight, int nValidAtHeight) const;
@@ -623,9 +691,7 @@ protected:
     expirationQueueType::iterator getExpirationQueueCacheRow(int nHeight,
                                                              bool createIfNotExists) const;
 
-    bool removeSupport(const std::string& name, const COutPoint& outPoint,
-                       int nHeight, int& nValidAtHeight,
-                       bool fCheckTakeover) const;
+    bool removeSupport(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight, bool fCheckTakeover) const;
     bool removeSupportFromMap(const std::string& name, const COutPoint& outPoint,
                               CSupportValue& support,
                               bool fCheckTakeover) const;

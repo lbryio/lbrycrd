@@ -1217,7 +1217,6 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txund
             bool is_spent = inputs.SpendCoin(txin.prevout, &coin);
             assert(is_spent);
             txundo.vprevout.push_back(coin);
-            txundo.claimInfo[i] = { coin.nHeight, true };
         }
     }
     // add outputs
@@ -1618,7 +1617,7 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
                               __func__, pindex->nHeight, name, supportedClaimId.GetHex(), hash.ToString(), j);
                     LogPrintf("%s: (txid: %s, nOut: %d) Removing support for claim id %s on %s due to its block being disconnected\n",
                               __func__, hash.ToString(), j, supportedClaimId.ToString(), name);
-                    if (!trieCache.undoAddSupport(name, COutPoint(hash, j), pindex->nHeight))
+                    if (!trieCache.undoAddSupport(name, COutPoint(hash, j)))
                         LogPrintf("%s: Something went wrong removing support for name %s in hash %s\n", __func__, name.c_str(), hash.ToString());
                 }
             }
@@ -2155,7 +2154,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                         LogPrintf("%s: Removing support for %s in %s. Tx: %s, nOut: %d, removed txid: %s\n",
                                   __func__, supportedClaimId.ToString(), name, txin.prevout.hash.ToString(),
                                   txin.prevout.n, tx.GetHash().ToString());
-                        if (trieCache.spendSupport(name, COutPoint(txin.prevout.hash, txin.prevout.n), coin.nHeight, nValidAtHeight))
+                        if (trieCache.spendSupport(name, COutPoint(txin.prevout.hash, txin.prevout.n), nValidAtHeight))
                         {
                             mClaimUndoHeights[j] = nValidAtHeight;
                         }
