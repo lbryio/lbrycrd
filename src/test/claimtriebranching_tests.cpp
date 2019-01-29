@@ -142,7 +142,6 @@ struct ClaimTrieChainFixture{
         extendedExpiration(Params().GetConsensus().nExtendedClaimExpirationTime)
     {
         fRequireStandard = false;
-        ENTER_CRITICAL_SECTION(cs_main);
         BOOST_CHECK_EQUAL(pclaimTrie->nCurrentHeight, chainActive.Height() + 1);
         pclaimTrie->setExpirationTime(originalExpiration); // in case it was changed during the test
         num_txs_for_next_block = 0;
@@ -156,24 +155,26 @@ struct ClaimTrieChainFixture{
     ~ClaimTrieChainFixture()
     {
         DecrementBlocks(chainActive.Height());
-        LEAVE_CRITICAL_SECTION(cs_main);
     }
 
     bool CreateBlock(const std::unique_ptr<CBlockTemplate>& pblocktemplate)
     {
         CBlock* pblock = &pblocktemplate->block;
-        pblock->nVersion = 5;
-        pblock->hashPrevBlock = chainActive.Tip()->GetBlockHash();
-        pblock->nTime = chainActive.Tip()->GetBlockTime() + Params().GetConsensus().nPowTargetSpacing;
-        CMutableTransaction txCoinbase(*pblock->vtx[0]);
-        txCoinbase.vin[0].scriptSig = CScript() << int(chainActive.Height() + 1) << int(++unique_block_counter);
-        txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
-        pblock->vtx[0] = MakeTransactionRef(std::move(txCoinbase));
-        pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
-        for (uint32_t i = 0;; ++i) {
-            pblock->nNonce = i;
-            if (CheckProofOfWork(pblock->GetPoWHash(), pblock->nBits, Params().GetConsensus())) {
-                break;
+        {
+            LOCK(cs_main);
+            pblock->nVersion = 5;
+            pblock->hashPrevBlock = chainActive.Tip()->GetBlockHash();
+            pblock->nTime = chainActive.Tip()->GetBlockTime() + Params().GetConsensus().nPowTargetSpacing;
+            CMutableTransaction txCoinbase(*pblock->vtx[0]);
+            txCoinbase.vin[0].scriptSig = CScript() << int(chainActive.Height() + 1) << int(++unique_block_counter);
+            txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
+            pblock->vtx[0] = MakeTransactionRef(std::move(txCoinbase));
+            pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
+            for (uint32_t i = 0;; ++i) {
+                pblock->nNonce = i;
+                if (CheckProofOfWork(pblock->GetPoWHash(), pblock->nBits, Params().GetConsensus())) {
+                    break;
+                }
             }
         }
         return ProcessNewBlock(Params(), std::make_shared<const CBlock>(*pblock), true, nullptr) && pblock->GetHash() == chainActive.Tip()->GetBlockHash();
@@ -202,6 +203,7 @@ struct ClaimTrieChainFixture{
             assert(0);
         }
 
+        LOCK(cs_main);
         CValidationState state;
         CAmount txFeeRate = CAmount(0);
         BOOST_CHECK(AcceptToMemoryPool(mempool, state, MakeTransactionRef(tx), nullptr, nullptr, false, txFeeRate, false));
@@ -296,7 +298,10 @@ struct ClaimTrieChainFixture{
         for (int i = 0; i < num_blocks; i++) {
             CValidationState state;
             CBlockIndex* pblockindex = chainActive.Tip();
-            InvalidateBlock(state, Params(), pblockindex);
+            {
+                LOCK(cs_main);
+                InvalidateBlock(state, Params(), pblockindex);
+            }
             if (state.IsValid())
             {
                 ActivateBestChain(state, Params());
