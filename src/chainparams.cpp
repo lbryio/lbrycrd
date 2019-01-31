@@ -347,7 +347,7 @@ public:
         consensus.nSubsidyLevelInterval = 1 << 5;
         consensus.BIP16Exception = uint256();
         // FIXME: heights
-        consensus.BIP34Height = -1; // BIP34 has not necessarily activated on regtest
+        consensus.BIP34Height = 1000; // BIP34 is needed for validation_block_tests
         consensus.BIP34Hash = uint256();
         consensus.BIP65Height = 1351; // BIP65 activated on regtest (Used in rpc activation tests)
         consensus.BIP66Height = 1251; // BIP66 activated on regtest (Used in rpc activation tests)
