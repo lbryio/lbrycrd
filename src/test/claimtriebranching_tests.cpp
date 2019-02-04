@@ -203,9 +203,9 @@ struct ClaimTrieChainFixture{
             assert(0);
         }
 
-        LOCK(cs_main);
         CValidationState state;
         CAmount txFeeRate = CAmount(0);
+        LOCK(cs_main);
         BOOST_CHECK(AcceptToMemoryPool(mempool, state, MakeTransactionRef(tx), nullptr, nullptr, false, txFeeRate, false));
     }
 
@@ -297,9 +297,9 @@ struct ClaimTrieChainFixture{
     {
         for (int i = 0; i < num_blocks; i++) {
             CValidationState state;
-            CBlockIndex* pblockindex = chainActive.Tip();
             {
                 LOCK(cs_main);
+                CBlockIndex* pblockindex = chainActive.Tip();
                 InvalidateBlock(state, Params(), pblockindex);
             }
             if (state.IsValid())
