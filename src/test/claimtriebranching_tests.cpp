@@ -136,6 +136,7 @@ struct ClaimTrieChainFixture{
         ENTER_CRITICAL_SECTION(cs_main);
         BOOST_CHECK(pclaimTrie->nCurrentHeight == chainActive.Height() + 1);
         pclaimTrie->setExpirationTime(originalExpiration); // in case it was changed during the test
+        setNormalizationForkHeight(1000000);
         num_txs_for_next_block = 0;
         num_txs = 0;
         coinbase_txs_used = 0;
@@ -157,7 +158,8 @@ struct ClaimTrieChainFixture{
     void setNormalizationForkHeight(int targetMinusCurrent) {
         int target = chainActive.Height() + targetMinusCurrent;
         const Consensus::Params& consensus = Params().GetConsensus();
-        normalization_original = consensus.nNormalizedNameForkHeight;
+        if (normalization_original < 0)
+            normalization_original = consensus.nNormalizedNameForkHeight;
         const_cast<Consensus::Params&>(consensus).nNormalizedNameForkHeight = target;
     }
 
