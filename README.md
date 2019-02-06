@@ -75,7 +75,7 @@ The Travis CI system makes sure that every pull request is built, and that unit 
 
 ### Testnet
 
-Testnet is maintained for testing purposes and can be accessed using the command `./lbrycrdd -testnet`. If you would like to obtain testnet credits, please contact kay@lbry.io or grin@lbry.io.
+Testnet is maintained for testing purposes and can be accessed using the command `./lbrycrdd -testnet`. If you would like to obtain testnet credits, please contact brannon@lbry.io or grin@lbry.io.
 
 ## License
 
