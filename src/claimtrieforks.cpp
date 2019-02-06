@@ -138,10 +138,9 @@ std::string CClaimTrieCacheNormalizationFork::normalizeClaimName(const std::stri
         if (normalized.empty())
             return name;
 
+        // these methods supposedly only use the "UTF8" portion of the locale object:
         normalized = boost::locale::normalize(normalized, boost::locale::norm_nfd, utf8);
-
-        // Locale aware lowercase (the non-locale-aware version seemed to struggle with some international chars):
-        normalized = boost::locale::to_lower(normalized, utf8);
+        normalized = boost::locale::fold_case(normalized, utf8);
     }
     catch (const boost::locale::conv::conversion_error& e){
         return name;

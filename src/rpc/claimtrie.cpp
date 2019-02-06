@@ -532,7 +532,9 @@ UniValue getclaimbyid(const UniValue& params, bool fHelp)
         CCoinsViewCache coins(pcoinsTip);
         getValueForClaim(coins, claimValue.outPoint, sValue);
         claim.push_back(Pair("name", name));
-        claim.push_back(Pair("normalized_name", cache.normalizeClaimName(name, true)));
+        if (cache.shouldNormalize())
+            claim.push_back(Pair("normalized_name", cache.normalizeClaimName(name, true)));
+
         claim.push_back(Pair("value", sValue));
         claim.push_back(Pair("claimId", claimValue.claimId.GetHex()));
         claim.push_back(Pair("txid", claimValue.outPoint.hash.GetHex()));
@@ -636,6 +638,7 @@ UniValue getclaimsfortx(const UniValue& params, bool fHelp)
             "    \"nOut\"                   (numeric) the index of the claim or support in the transaction's list out outputs\n"
             "    \"claim type\"             (string) 'claim' or 'support'\n"
             "    \"name\"                   (string) the name claimed or supported\n"
+            "    \"claimId\"                (string) if a claim, its ID\n"
             "    \"value\"                  (string) if a name claim, the value of the claim\n"
             "    \"supported txid\"         (string) if a support, the txid of the supported claim\n"
             "    \"supported nout\"         (numeric) if a support, the index of the supported claim in its transaction\n"
