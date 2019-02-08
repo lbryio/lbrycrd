@@ -18,7 +18,7 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
     if (pindexLast == NULL)
         return nProofOfWorkLimit;
 
-    if (params.fPowAllowMinDifficultyBlocks && pindexLast->nHeight >= 277299)
+    if (params.fPowAllowMinDifficultyBlocks && pindexLast->nHeight >= 277299 && pindexLast->nHeight < 1100000)
     {
         // Special difficulty rule for testnet:
         // If the new block's timestamp is twice the target block time
@@ -29,12 +29,15 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
         if (pblock->GetBlockTime() > pindexLast->GetBlockTime() + params.nPowTargetSpacing*2){
             return nProofOfWorkLimit;
         }
+        // Well, actually, it wasn't ever implemented properly in LBRYcrd.
+        // It doesn't work without the missing "else" statement found in upstream bitcoin.
+        // And that statement doesn't work correctly with our DifficultyAdjustmentInterval == 1.
+        // Hence, we are killing it at block 1100000.
     }
 
     // Go back the full period unless it's the first retarget after genesis.
-    int blockstogoback = params.DifficultyAdjustmentInterval()-1;
-    if ((pindexLast->nHeight+1) != params.DifficultyAdjustmentInterval())
-        blockstogoback = params.DifficultyAdjustmentInterval();
+    int blockstogoback = params.DifficultyAdjustmentInterval();
+    blockstogoback = std::min(blockstogoback, pindexLast->nHeight);
 
     int nHeightFirst = pindexLast->nHeight - blockstogoback;
     assert(nHeightFirst >= 0);
