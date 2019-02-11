@@ -18,7 +18,8 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
     if (pindexLast == NULL)
         return nProofOfWorkLimit;
 
-    if (params.fPowAllowMinDifficultyBlocks && pindexLast->nHeight >= 277299 && pindexLast->nHeight < 1100000)
+    if (params.fPowAllowMinDifficultyBlocks && pindexLast->nHeight >= params.nAllowMinDiffMinHeight
+                                            && pindexLast->nHeight < params.nAllowMinDiffMaxHeight)
     {
         // Special difficulty rule for testnet:
         // If the new block's timestamp is twice the target block time
