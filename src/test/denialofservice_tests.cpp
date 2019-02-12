@@ -151,7 +151,7 @@ BOOST_AUTO_TEST_CASE(stale_tip_peer_management)
     // we use maximum value of STALE_CHECK_INTERVAL and nPowTargetSpacing
     // NOTE: STALE_CHECK_INTERVAL is static that why we use raw value 10 * 60, sync may need in future
 
-    auto time = std::max(long(10) * 60, 3 * consensusParams.nPowTargetSpacing);
+    auto time = std::max({static_cast<int64_t>(10 * 60), 3 * consensusParams.nPowTargetSpacing});
 
     SetMockTime(GetTime() + time + 1);
 

@@ -437,6 +437,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
         {
             CCoinsViewCache view(pcoinsTip.get());
             const Coin& coin = view.AccessCoin(txin.prevout);
+            int nTxinHeight = coin.nHeight;
             CScript scriptPubKey;
             if (coin.out.IsNull()) {
                 auto it = std::find_if(txs.begin(), txs.end(), [&txin](const CTransactionRef& tx) {
@@ -469,7 +470,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
                     }
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     int throwaway;
-                    if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), throwaway))
+                    if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), nTxinHeight, throwaway))
                     {
                         std::pair<std::string, uint160> entry(name, claimId);
                         spentClaims.push_back(entry);
@@ -484,7 +485,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
                     assert(vvchParams.size() == 2);
                     std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     int throwaway;
-                    if (!trieCache.spendSupport(name, COutPoint(txin.prevout.hash, txin.prevout.n), throwaway))
+                    if (!trieCache.spendSupport(name, COutPoint(txin.prevout.hash, txin.prevout.n), nTxinHeight, throwaway))
                     {
                         LogPrintf("%s(): The support was not found in the trie or queue\n", __func__);
                     }

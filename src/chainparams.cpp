@@ -131,6 +131,7 @@ public:
         consensus.BIP16Exception = uint256S("0x00000000000002dc756eebf4f49723ed8d30cc28a5f108eb94b1ba88ac4f9c22");
         consensus.BIP34Height = 1;
         consensus.BIP34Hash = uint256S("0xdecb9e2cca03a419fd9cca0cb2b1d5ad11b088f22f8f38556d93ac4358b86c24");
+        // FIXME: adjust heights
         consensus.BIP65Height = 600000;
         consensus.BIP66Height = 600000;
         consensus.powLimit = uint256S("0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
@@ -139,7 +140,9 @@ public:
         consensus.nOriginalClaimExpirationTime = 262974;
         consensus.nExtendedClaimExpirationTime = 2102400;
         consensus.nExtendedClaimExpirationForkHeight = 400155;
-        consensus.nNormalizedNameForkHeight = 1000000; // FIXME: pick a real fork height
+        consensus.nAllowMinDiffMinHeight = -1;
+        consensus.nAllowMinDiffMaxHeight = -1;
+        consensus.nNormalizedNameForkHeight = 539940; // targeting 21 March 2019
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1916; // 95% of 2016
@@ -155,7 +158,6 @@ public:
 
         // Deployment of SegWit (BIP141, BIP143, and BIP147)
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].bit = 1;
-        // FIXME: Update times
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].nStartTime = 1547942400; // Jan 20, 2019
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].nTimeout = 1548288000; // Jan 24, 2019
 
@@ -211,14 +213,12 @@ public:
         fRequireStandard = true;
         fMineBlocksOnDemand = false;
 
-        // FIXME: update checkpoints?
         checkpointData = {
             {
                 { 4000, uint256S("0xa6bbb48f5343eb9b0287c22f3ea8b29f36cf10794a37f8a925a894d6f4519913") },
             }
         };
 
-        // FIXME:
         chainTxData = ChainTxData{
             1467272478, 4146, 600.0
             /* // Data from rpc: getchaintxstats 4096 0000000000000000002e63058c023a9a1de233554f28c7b21380b6c9003f36a8 */
@@ -244,20 +244,22 @@ public:
         consensus.nMajorityRejectBlockOutdated = 75;
         consensus.nMajorityWindow = 100;
         consensus.BIP16Exception = uint256S("0x00000000dd30457c001f4095d208cc1296b0eed002427aa599874af7a432b105");
-        // FIXME: adjust heights
         consensus.BIP34Height = 21111;
         consensus.BIP34Hash = uint256S("0x0000000023b3a96d3484e5abb3755c413e7d41500f8e2a5c3f0dd01299cd8ef8");
-        consensus.BIP65Height = 581885; // 00000000007f6655f22f98e72ed80d8b06dc761d5da09df0fa1dc4be4f861eb6
-        consensus.BIP66Height = 330776; // 000000002104c8c45e99a8853285a3b592602a3ccde2b832481da85e9e4ba182
+        // FIXME: adjust heights
+        consensus.BIP65Height = 1000000;
+        consensus.BIP66Height = 1000000;
         consensus.powLimit = uint256S("0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 150;
         consensus.nPowTargetSpacing = 150;
         consensus.nOriginalClaimExpirationTime = 262974;
         consensus.nExtendedClaimExpirationTime = 2102400;
         consensus.nExtendedClaimExpirationForkHeight = 278160;
+        consensus.nAllowMinDiffMinHeight = 277299;
+        consensus.nAllowMinDiffMaxHeight = 1100000;
+        consensus.nNormalizedNameForkHeight = 993380;   // targeting, 21 Feb 2019
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = false;
-        consensus.nNormalizedNameForkHeight = 1000000; // FIXME: pick a real fork height
         consensus.nRuleChangeActivationThreshold = 1512; // 75% for testchains
         consensus.nMinerConfirmationWindow = 2016; // nPowTargetTimespan / nPowTargetSpacing
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].bit = 28;
@@ -278,7 +280,7 @@ public:
         consensus.nMinimumChainWork = uint256S("0x000000000000000000000000000000000000000000000000000a0c3931735170");
 
         // By default assume that the signatures in ancestors of this block are valid.
-        consensus.defaultAssumeValid = uint256S("0x0000000000000037a8cd3e06cd5edbfe9dd1dbcc5dacab279376ef7cfc2b4c75"); //1354312
+        consensus.defaultAssumeValid = uint256S("9812b0bcb7e889e58d999c897e9eaddb2dab98122ff1cfb238ebeef5351bd48c"); // 1
 
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xe4;
@@ -324,7 +326,6 @@ public:
             }
         };
 
-        // FIXME:
         chainTxData = ChainTxData{
             // Data from rpc: getchaintxstats 4096 0000000000000037a8cd3e06cd5edbfe9dd1dbcc5dacab279376ef7cfc2b4c75
             /* nTime    */ 1531929919,
@@ -346,9 +347,9 @@ public:
         strNetworkID = "lbrycrdreg";
         consensus.nSubsidyLevelInterval = 1 << 5;
         consensus.BIP16Exception = uint256();
-        // FIXME: heights
         consensus.BIP34Height = 1000; // BIP34 is needed for validation_block_tests
         consensus.BIP34Hash = uint256();
+        // FIXME: update heights and add activation tests
         consensus.BIP65Height = 1351; // BIP65 activated on regtest (Used in rpc activation tests)
         consensus.BIP66Height = 1251; // BIP66 activated on regtest (Used in rpc activation tests)
         consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
@@ -357,9 +358,11 @@ public:
         consensus.nOriginalClaimExpirationTime = 500;
         consensus.nExtendedClaimExpirationTime = 600;
         consensus.nExtendedClaimExpirationForkHeight = 800;
+        consensus.nAllowMinDiffMinHeight = -1;
+        consensus.nAllowMinDiffMaxHeight = -1;
+        consensus.nNormalizedNameForkHeight = 250; // SDK depends upon this number
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
-        consensus.nNormalizedNameForkHeight = 2000; // FIXME: pick a real fork height
         consensus.nRuleChangeActivationThreshold = 108; // 75% for testchains
         consensus.nMinerConfirmationWindow = 144; // Faster than normal for regtest (144 instead of 2016)
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].bit = 28;

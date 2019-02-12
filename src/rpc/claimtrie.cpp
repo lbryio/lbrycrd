@@ -504,7 +504,8 @@ UniValue getclaimbyid(const JSONRPCRequest& request)
     if (claimValue.claimId == claimId)
     {
         std::vector<CSupportValue> supports;
-        CAmount effectiveAmount = pclaimTrie->getEffectiveAmountForClaim(name, claimValue.claimId, &supports);
+        CClaimTrieCache trieCache(pclaimTrie);
+        CAmount effectiveAmount = trieCache.getEffectiveAmountForClaim(name, claimValue.claimId, &supports);
 
         std::string sValue;
         claim.pushKV("name", name);

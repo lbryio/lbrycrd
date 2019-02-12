@@ -7,17 +7,17 @@ define(_CLIENT_VERSION_BUILD, 0)
 define(_CLIENT_VERSION_IS_RELEASE, true)
 define(_COPYRIGHT_YEAR, 2018)
 define(_COPYRIGHT_HOLDERS,[The %s developers])
-define(_COPYRIGHT_HOLDERS_SUBSTITUTION,[[Bitcoin Core]])
-AC_INIT([Bitcoin Core],[_CLIENT_VERSION_MAJOR._CLIENT_VERSION_MINOR._CLIENT_VERSION_REVISION],[https://github.com/bitcoin/bitcoin/issues],[bitcoin],[https://bitcoincore.org/])
+define(_COPYRIGHT_HOLDERS_SUBSTITUTION,[[LBRYcrd Core]])
+AC_INIT([LBRYcrd Core],[_CLIENT_VERSION_MAJOR._CLIENT_VERSION_MINOR._CLIENT_VERSION_REVISION],[https://github.com/bitcoin/bitcoin/issues],[bitcoin],[https://bitcoincore.org/])
 AC_CONFIG_SRCDIR([src/validation.cpp])
 AC_CONFIG_HEADERS([src/config/bitcoin-config.h])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([build-aux/m4])
 
-BITCOIN_DAEMON_NAME=bitcoind
-BITCOIN_GUI_NAME=bitcoin-qt
-BITCOIN_CLI_NAME=bitcoin-cli
-BITCOIN_TX_NAME=bitcoin-tx
+BITCOIN_DAEMON_NAME=lbrycrd
+BITCOIN_GUI_NAME=lbrycrd-qt
+BITCOIN_CLI_NAME=lbrycrd-cli
+BITCOIN_TX_NAME=lbrycrd-tx
 
 dnl Unless the user specified ARFLAGS, force it to be cr
 AC_ARG_VAR(ARFLAGS, [Flags for the archiver, defaults to <cr> if not set])
@@ -145,6 +145,12 @@ AC_ARG_WITH([qrencode],
   [enable QR code support (default is yes if qt is enabled and libqrencode is found)])],
   [use_qr=$withval],
   [use_qr=auto])
+
+AC_ARG_WITH([icu],
+  [AS_HELP_STRING([--with-icu],
+  [Required ICU root path])],
+  [ICU_PREFIX=$withval],
+  [ICU_PREFIX=auto])
 
 AC_ARG_ENABLE([hardening],
   [AS_HELP_STRING([--disable-hardening],
@@ -395,7 +401,7 @@ CPPFLAGS="$CPPFLAGS -DHAVE_BUILD_INFO -D__STDC_FORMAT_MACROS"
 
 AC_ARG_WITH([utils],
   [AS_HELP_STRING([--with-utils],
-  [build bitcoin-cli bitcoin-tx (default=yes)])],
+  [build lbrycrd-cli lbrycrd-tx (default=yes)])],
   [build_bitcoin_utils=$withval],
   [build_bitcoin_utils=yes])
 
@@ -780,7 +786,7 @@ AC_LINK_IFELSE([AC_LANG_SOURCE([
 )
 
 TEMP_LDFLAGS="$LDFLAGS"
-LDFLAGS="$TEMP_LDFLAGS $PTHREAD_CFLAGS"
+LDFLAGS="$TEMP_LDFLAGS $PTHREAD_LIBS"
 AC_MSG_CHECKING([for thread_local support])
 AC_LINK_IFELSE([AC_LANG_SOURCE([
   #include <thread>
@@ -896,6 +902,7 @@ AX_BOOST_SYSTEM
 AX_BOOST_FILESYSTEM
 AX_BOOST_THREAD
 AX_BOOST_CHRONO
+AX_BOOST_LOCALE
 
 dnl Boost 1.56 through 1.62 allow using std::atomic instead of its own atomic
 dnl counter implementations. In 1.63 and later the std::atomic approach is default.
@@ -962,7 +969,7 @@ fi
 
 if test x$use_boost = xyes; then
 
-BOOST_LIBS="$BOOST_LDFLAGS $BOOST_SYSTEM_LIB $BOOST_FILESYSTEM_LIB $BOOST_PROGRAM_OPTIONS_LIB $BOOST_THREAD_LIB $BOOST_CHRONO_LIB"
+BOOST_LIBS="$BOOST_LDFLAGS $BOOST_SYSTEM_LIB $BOOST_FILESYSTEM_LIB $BOOST_THREAD_LIB $BOOST_CHRONO_LIB $BOOST_LOCALE_LIB"
 
 
 dnl If boost (prior to 1.57) was built without c++11, it emulated scoped enums
@@ -1053,6 +1060,20 @@ fi
 
 fi
 
+AS_IF([test "x$ICU_PREFIX" != xauto], [
+  ICU_CPPFLAGS="-I$ICU_PREFIX/include"
+  ICU_LIBS="-L$ICU_PREFIX/lib -licui18n -licuuc -licudata -ldl"
+#  PKG_CONFIG_PATH="${ICU_PREFIX}/lib/pkgconfig:$PKG_CONFIG_PATH"
+#  export PKG_CONFIG_PATH
+])
+
+AC_MSG_NOTICE([Using ICU_CPPFLAGS $ICU_CPPFLAGS])
+AC_MSG_NOTICE([Using ICU_LIBS $ICU_LIBS])
+
+CPPFLAGS="$CPPFLAGS $ICU_CPPFLAGS"
+ORIG_LDFLAGS=$LDFLAGS
+LDFLAGS="$LDFLAGS $ICU_LIBS"
+
 if test x$use_pkgconfig = xyes; then
   : dnl
   m4_ifdef(
@@ -1082,7 +1103,19 @@ if test x$use_pkgconfig = xyes; then
       fi
     ]
   )
-else
+else # compiling on Window:
+  AC_MSG_NOTICE([Configuring for Windows])
+
+  CPPFLAGS="$CPPFLAGS -Ix86_64-w64-mingw32/include"
+  LDFLAGS="$LDFLAGS -Lx86_64-w64-mingw32/lib"
+
+  AC_CHECK_HEADER([unicode/errorcode.h],,AC_MSG_ERROR(libicu headers missing))
+  AC_CHECK_LIB([icudata], [main], ICU_LIBS=$ICU_LIBS,
+    AC_CHECK_LIB([icu18n], [main],ICU_LIBS=$ICU_LIBS, ICU_LIBS="-L$ICU_PREFIX/lib -lsicuio -lsicuin -lsiculx -lsicule -lsicuuc -lsicudt"))
+  AC_MSG_NOTICE([Using ICU_LIBS=$ICU_LIBS])
+  LDFLAGS="$ORIG_LDFLAGS $ICU_LIBS"
+  AC_CHECK_LIB([sicudt], [main], ICU_LIBS=$ICU_LIBS, AC_MSG_ERROR(icu libraries missing))
+
   AC_CHECK_HEADER([openssl/crypto.h],,AC_MSG_ERROR(libcrypto headers missing))
   AC_CHECK_LIB([crypto],      [main],CRYPTO_LIBS=-lcrypto, AC_MSG_ERROR(libcrypto missing))
 
@@ -1188,7 +1221,7 @@ AC_MSG_CHECKING([whether to build bitcoind])
 AM_CONDITIONAL([BUILD_BITCOIND], [test x$build_bitcoind = xyes])
 AC_MSG_RESULT($build_bitcoind)
 
-AC_MSG_CHECKING([whether to build utils (bitcoin-cli bitcoin-tx)])
+AC_MSG_CHECKING([whether to build utils (lbrycrd-cli lbrycrd-tx)])
 AM_CONDITIONAL([BUILD_BITCOIN_UTILS], [test x$build_bitcoin_utils = xyes])
 AC_MSG_RESULT($build_bitcoin_utils)
 
@@ -1289,7 +1322,7 @@ if test x$bitcoin_enable_qt != xno; then
     AC_MSG_WARN("xgettext is required to update qt translations")
   fi
 
-  AC_MSG_CHECKING([whether to build test_bitcoin-qt])
+  AC_MSG_CHECKING([whether to build test_lbrycrd-qt])
   if test x$use_gui_tests$bitcoin_enable_qt_test = xyesyes; then
     AC_MSG_RESULT([yes])
     BUILD_TEST_QT="yes"
@@ -1386,11 +1419,14 @@ AC_SUBST(LIBTOOL_APP_LDFLAGS)
 AC_SUBST(USE_UPNP)
 AC_SUBST(USE_QRCODE)
 AC_SUBST(BOOST_LIBS)
+AC_SUBST(ICU_CPPFLAGS)
+AC_SUBST(ICU_LIBS)
 AC_SUBST(TESTDEFS)
 AC_SUBST(LEVELDB_TARGET_FLAGS)
 AC_SUBST(MINIUPNPC_CPPFLAGS)
 AC_SUBST(MINIUPNPC_LIBS)
 AC_SUBST(CRYPTO_LIBS)
+AC_SUBST(SSL_CFLAGS)
 AC_SUBST(SSL_LIBS)
 AC_SUBST(EVENT_LIBS)
 AC_SUBST(EVENT_PTHREADS_LIBS)

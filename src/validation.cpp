@@ -49,7 +49,7 @@
 #include <boost/thread.hpp>
 
 #if defined(NDEBUG)
-# error "Bitcoin cannot be compiled without assertions."
+# error "LBRYcrd cannot be compiled without assertions."
 #endif
 
 #define MICRO 0.000001
@@ -429,15 +429,15 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
     // Rather not work on nonstandard transactions (unless -testnet/-regtest)
     std::string reason;
     if (fRequireStandard && !IsStandardTx(tx, reason))
-        return state.DoS(0, false, REJECT_NONSTANDARD, reason);
+        return state.DoS(0, false, (reason == "dust" ? REJECT_DUST : REJECT_NONSTANDARD), reason);
 
     // Do not work on transactions that are too small.
     // A transaction with 1 segwit input and 1 P2WPHK output has non-witness size of 82 bytes.
     // Transactions smaller than this are not relayed to reduce unnecessary malloc overhead.
-
-    // TODO: do we need this?
-    // if (::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) < MIN_STANDARD_TX_NONWITNESS_SIZE)
-    //     return state.DoS(0, false, REJECT_NONSTANDARD, "tx-size-small");
+    //
+    // NOTE: LBRY does not honor this node rule.
+    /* if (::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) < MIN_STANDARD_TX_NONWITNESS_SIZE) */
+    /*     return state.DoS(0, false, REJECT_NONSTANDARD, "tx-size-small"); */
 
     // Only accept nLockTime-using transactions that can be mined in the next
     // block; we don't want our mempool filled up with transactions that can't
@@ -794,7 +794,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         // Remove conflicting transactions from the mempool
         for (CTxMemPool::txiter it : allConflicting)
         {
-            LogPrint(BCLog::MEMPOOL, "replacing tx %s with %s for %s BTC additional fees, %d delta bytes\n",
+            LogPrint(BCLog::MEMPOOL, "replacing tx %s with %s for %s LBC additional fees, %d delta bytes\n",
                     it->GetTx().GetHash().ToString(),
                     hash.ToString(),
                     FormatMoney(nModifiedFees - nConflictingFees),
@@ -1589,21 +1589,19 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
                     {
                         assert(vvchParams.size() == 2);
                         claimId = ClaimIdHash(hash, j);
-                        LogPrintf("--- %s[%lu]: OP_CLAIM_NAME \"%s\" = \"%s\" with claimId %s and tx prevout %s at index %d\n",
-                                  __func__, pindex->nHeight, name, SanitizeString(value),
-                                  claimId.GetHex(), hash.ToString(), j);
+                        LogPrintf("--- %s[%lu]: OP_CLAIM_NAME \"%s\" with claimId %s and tx prevout %s at index %d\n",
+                                  __func__, pindex->nHeight, name, claimId.GetHex(), hash.ToString(), j);
                     }
                     else if (op == OP_UPDATE_CLAIM)
                     {
                         assert(vvchParams.size() == 3);
                         claimId = uint160(vvchParams[1]);
-                        LogPrintf("--- %s[%lu]: OP_UPDATE_CLAIM \"%s\" = \"%s\" with claimId %s and tx prevout %s at index %d\n",
-                                  __func__, pindex->nHeight, name, SanitizeString(value),
-                                  claimId.GetHex(), hash.ToString(), j);
+                        LogPrintf("--- %s[%lu]: OP_UPDATE_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n",
+                                  __func__, pindex->nHeight, name, claimId.GetHex(), hash.ToString(), j);
                     }
                     LogPrintf("%s: (txid: %s, nOut: %d) Trying to remove %s from the claim trie due to its block being disconnected\n",
                               __func__, hash.ToString(), j, name);
-                    if (!trieCache.undoAddClaim(name, COutPoint(hash, j)))
+                    if (!trieCache.undoAddClaim(name, COutPoint(hash, j), pindex->nHeight))
                     {
                         LogPrintf("%s: Could not find the claim in the trie or the cache\n", __func__);
                     }
@@ -1617,7 +1615,7 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
                               __func__, pindex->nHeight, name, supportedClaimId.GetHex(), hash.ToString(), j);
                     LogPrintf("%s: (txid: %s, nOut: %d) Removing support for claim id %s on %s due to its block being disconnected\n",
                               __func__, hash.ToString(), j, supportedClaimId.ToString(), name);
-                    if (!trieCache.undoAddSupport(name, COutPoint(hash, j)))
+                    if (!trieCache.undoAddSupport(name, COutPoint(hash, j), pindex->nHeight))
                         LogPrintf("%s: Something went wrong removing support for name %s in hash %s\n", __func__, name.c_str(), hash.ToString());
                 }
             }
@@ -1712,7 +1710,7 @@ static bool WriteUndoDataForBlock(const CBlockUndo& blockundo, CValidationState&
 static CCheckQueue<CScriptCheck> scriptcheckqueue(128);
 
 void ThreadScriptCheck() {
-    RenameThread("bitcoin-scriptch");
+    RenameThread("lbrycrd-scriptch");
     scriptcheckqueue.Thread();
 }
 
@@ -2116,22 +2114,20 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                         {
                             assert(vvchParams.size() == 2);
                             claimId = ClaimIdHash(txin.prevout.hash, txin.prevout.n);
-                            LogPrintf("+++ %s[%lu]: OP_CLAIM_NAME \"%s\" = \"%s\" with claimId %s and tx prevout %s at index %d\n",
-                                      __func__, pindex->nHeight, name, SanitizeString(value),
-                                      claimId.GetHex(), txin.prevout.hash.GetHex(), txin.prevout.n);
+                            LogPrintf("+++ %s[%lu]: OP_CLAIM_NAME \"%s\"with claimId %s and tx prevout %s at index %d\n",
+                                      __func__, pindex->nHeight, name, claimId.GetHex(), txin.prevout.hash.GetHex(), txin.prevout.n);
                         }
                         else if (op == OP_UPDATE_CLAIM)
                         {
                             assert(vvchParams.size() == 3);
                             claimId = uint160(vvchParams[1]);
-                            LogPrintf("+++ %s[%lu]: OP_UPDATE_CLAIM \"%s\" = \"%s\" with claimId %s and tx prevout %s at index %d\n",
-                                      __func__, pindex->nHeight, name, SanitizeString(value),
-                                      claimId.GetHex(), txin.prevout.hash.GetHex(), txin.prevout.n);
+                            LogPrintf("+++ %s[%lu]: OP_UPDATE_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n",
+                                      __func__, pindex->nHeight, name, claimId.GetHex(), txin.prevout.hash.GetHex(), txin.prevout.n);
                         }
                         int nValidAtHeight;
                         LogPrintf("%s: Removing %s (%s) from the claim trie. Tx: %s, nOut: %d\n",
                                   __func__, name, claimId.GetHex(), txin.prevout.hash.GetHex(), txin.prevout.n);
-                        if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), nValidAtHeight))
+                        if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), coin.nHeight, nValidAtHeight))
                         {
                             mClaimUndoHeights[j] = nValidAtHeight;
                             std::pair<std::string, uint160> entry(name, claimId);
@@ -2154,7 +2150,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                         LogPrintf("%s: Removing support for %s in %s. Tx: %s, nOut: %d, removed txid: %s\n",
                                   __func__, supportedClaimId.ToString(), name, txin.prevout.hash.ToString(),
                                   txin.prevout.n, tx.GetHash().ToString());
-                        if (trieCache.spendSupport(name, COutPoint(txin.prevout.hash, txin.prevout.n), nValidAtHeight))
+                        if (trieCache.spendSupport(name, COutPoint(txin.prevout.hash, txin.prevout.n), coin.nHeight, nValidAtHeight))
                         {
                             mClaimUndoHeights[j] = nValidAtHeight;
                         }

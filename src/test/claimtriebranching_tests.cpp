@@ -2,21 +2,21 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://opensource.org/licenses/mit-license.php
 
-#include "chainparams.h"
-#include "claimtrie.h"
-#include "coins.h"
-#include "consensus/merkle.h"
-#include "consensus/validation.h"
-#include "miner.h"
-#include "nameclaim.h"
-#include "policy/policy.h"
-#include "pow.h"
-#include "primitives/transaction.h"
-#include "rpc/server.h"
-#include "streams.h"
-#include "test/test_bitcoin.h"
-#include "txmempool.h"
-#include "validation.h"
+#include <chainparams.h>
+#include <claimtrie.h>
+#include <coins.h>
+#include <consensus/merkle.h>
+#include <consensus/validation.h>
+#include <miner.h>
+#include <nameclaim.h>
+#include <policy/policy.h>
+#include <pow.h>
+#include <primitives/transaction.h>
+#include <rpc/server.h>
+#include <streams.h>
+#include <test/test_bitcoin.h>
+#include <txmempool.h>
+#include <validation.h>
 
 #include <boost/test/unit_test.hpp>
 #include <iostream>
@@ -65,8 +65,8 @@ boost::test_tools::predicate_result
 best_claim_effective_amount_equals(std::string name, CAmount amount)
 {
     CClaimValue val;
-    bool have_info = pclaimTrie->getInfoForName(name, val);
-    if (!have_info)
+    CClaimTrieCache trieCache(pclaimTrie);
+    if (!trieCache.getInfoForName(name, val))
     {
         boost::test_tools::predicate_result res(false);
         res.message()<<"No claim found";
@@ -74,7 +74,7 @@ best_claim_effective_amount_equals(std::string name, CAmount amount)
     }
     else
     {
-        CAmount effective_amount = pclaimTrie->getEffectiveAmountForClaim(name, val.claimId);
+        CAmount effective_amount = trieCache.getEffectiveAmountForClaim(name, val.claimId);
         if (effective_amount != amount)
         {
             boost::test_tools::predicate_result res(false);
@@ -91,8 +91,8 @@ best_claim_effective_amount_equals(std::string name, CAmount amount)
 CMutableTransaction BuildTransaction(const CTransaction& prev, uint32_t prevout=0, unsigned int numOutputs=1)
 {
     CMutableTransaction tx;
-    tx.nVersion = 1;
-    tx.nLockTime = 0;
+    tx.nVersion = CTransaction::CURRENT_VERSION;
+    tx.nLockTime = 1 << 31; // Disable BIP68
     tx.vin.resize(1);
     tx.vout.resize(numOutputs);
     tx.vin[0].prevout.hash = prev.GetHash();
@@ -203,6 +203,9 @@ struct ClaimTrieChainFixture{
             assert(0);
         }
 
+        /* TestMemPoolEntryHelper entry; */
+        /* LOCK(mempool.cs); */
+        /* mempool.addUnchecked(tx.GetHash(), entry.Fee(0).Time(GetTime()).SpendsCoinbase(true).FromTx(tx)); */
         CValidationState state;
         CAmount txFeeRate = CAmount(0);
         LOCK(cs_main);
@@ -363,12 +366,12 @@ BOOST_AUTO_TEST_CASE(claim_test)
     CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(is_best_claim("test",tx3));
-    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").claims.size());
+    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").size());
 
     fixture.DecrementBlocks(1);
     BOOST_CHECK(!is_best_claim("test",tx2));
     BOOST_CHECK(!is_best_claim("test",tx3));
-    BOOST_CHECK_EQUAL(0U, pclaimTrie->getClaimsForName("test").claims.size());
+    BOOST_CHECK_EQUAL(0U, pclaimTrie->getClaimsForName("test").size());
 
     // make two claims , one older
     CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
@@ -380,7 +383,7 @@ BOOST_AUTO_TEST_CASE(claim_test)
     BOOST_CHECK(is_best_claim("test", tx4));
     fixture.IncrementBlocks(1);
     BOOST_CHECK(is_best_claim("test",tx4));
-    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").claims.size());
+    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").size());
 
     fixture.DecrementBlocks(1);
     BOOST_CHECK(is_best_claim("test", tx4));
@@ -400,7 +403,7 @@ BOOST_AUTO_TEST_CASE(claim_test)
     BOOST_CHECK(is_best_claim("test", tx6));
     fixture.IncrementBlocks(10);
     BOOST_CHECK(is_best_claim("test",tx7));
-    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").claims.size());
+    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").size());
 
     fixture.DecrementBlocks(10);
     BOOST_CHECK(is_claim_in_queue("test",tx7));
@@ -595,20 +598,19 @@ BOOST_AUTO_TEST_CASE(support_spend_test)
     fixture.DecrementBlocks(1);
 
     // spend a support on txin[i] where i is not 0
-
     CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"x","one",3);
     CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(),"test","two",2);
     CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(),"test","three",1);
     CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(),tx5,"test",2);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(is_best_claim("test",tx5));
-    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").claims.size());
+    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").size());
 
     // build the spend where s2 is sppent on txin[1] and tx3 is  spent on txin[0]
     uint32_t prevout = 0;
     CMutableTransaction tx;
-    tx.nVersion = 1;
-    tx.nLockTime = 0;
+    tx.nVersion = CTransaction::CURRENT_VERSION;
+    tx.nLockTime = 1 << 31; // Disable BIP68
     tx.vin.resize(2);
     tx.vout.resize(1);
     tx.vin[0].prevout.hash = tx3.GetHash();
@@ -667,7 +669,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     CMutableTransaction u3 = fixture.MakeUpdate(tx3, "test", "one", ClaimIdHash(tx3.GetHash(), 0), 2);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(is_best_claim("test",u3));
-    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").claims.size());
+    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").size());
     fixture.DecrementBlocks(11);
 
     // losing update on winning claim happens without delay
@@ -675,7 +677,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     CMutableTransaction tx6 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     fixture.IncrementBlocks(10);
     BOOST_CHECK(is_best_claim("test", tx5));
-    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").claims.size());
+    BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").size());
     CMutableTransaction u4 = fixture.MakeUpdate(tx5, "test", "one", ClaimIdHash(tx5.GetHash(), 0), 1);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(is_best_claim("test",tx6));
@@ -691,8 +693,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     BOOST_CHECK(is_best_claim("test", tx7));
 
     CMutableTransaction tx;
-    tx.nVersion = 1;
-    tx.nLockTime = 0;
+    tx.nVersion = CTransaction::CURRENT_VERSION;
+    tx.nLockTime = 1 << 31; // Disable BIP68
     tx.vin.resize(2);
     tx.vout.resize(1);
     tx.vin[0].prevout.hash = tx8.GetHash();
@@ -794,38 +796,38 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_get_effective_amount_for_claim)
     uint160 claimId = ClaimIdHash(claimtx.GetHash(), 0);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK_EQUAL(pclaimTrie->getEffectiveAmountForClaim("test", claimId), 2);
-    BOOST_CHECK_EQUAL(pclaimTrie->getEffectiveAmountForClaim("inexistent", claimId), 0); //not found returns 0
+    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId) == 2);
+    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("inexistent", claimId) == 0); //not found returns 0
 
     // one claim, one support
     fixture.MakeSupport(fixture.GetCoinbase(), claimtx, "test", 40);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK_EQUAL(pclaimTrie->getEffectiveAmountForClaim("test", claimId), 42);
+    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId) == 42);
 
     // Two claims, first one with supports
     CMutableTransaction claimtx2 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "two", 1);
     uint160 claimId2 = ClaimIdHash(claimtx2.GetHash(), 0);
     fixture.IncrementBlocks(10);
 
-    BOOST_CHECK_EQUAL(pclaimTrie->getEffectiveAmountForClaim("test", claimId), 42);
-    BOOST_CHECK_EQUAL(pclaimTrie->getEffectiveAmountForClaim("test", claimId2), 1);
-    BOOST_CHECK_EQUAL(pclaimTrie->getEffectiveAmountForClaim("inexistent", claimId), 0);
-    BOOST_CHECK_EQUAL(pclaimTrie->getEffectiveAmountForClaim("inexistent", claimId2), 0);
+    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId) == 42);
+    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId2) == 1);
+    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("inexistent", claimId) == 0);
+    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("inexistent", claimId2) == 0);
 
     // Two claims, both with supports, second claim effective amount being less than first claim
     fixture.MakeSupport(fixture.GetCoinbase(), claimtx2, "test", 6);
     fixture.IncrementBlocks(13); //delay
 
-    BOOST_CHECK_EQUAL(pclaimTrie->getEffectiveAmountForClaim("test", claimId), 42);
-    BOOST_CHECK_EQUAL(pclaimTrie->getEffectiveAmountForClaim("test", claimId2), 7);
+    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId) == 42);
+    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId2) == 7);
 
     // Two claims, both with supports, second one taking over
     fixture.MakeSupport(fixture.GetCoinbase(), claimtx2, "test", 1330);
     fixture.IncrementBlocks(26); //delay
 
-    BOOST_CHECK_EQUAL(pclaimTrie->getEffectiveAmountForClaim("test", claimId), 42);
-    BOOST_CHECK_EQUAL(pclaimTrie->getEffectiveAmountForClaim("test", claimId2), 1337);
+    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId) == 42);
+    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId2) == 1337);
 }
 
 /*
@@ -3344,12 +3346,10 @@ BOOST_AUTO_TEST_CASE(getclaimsforname_test)
 
     UniValue results = getclaimsforname(req);
     UniValue claims = results["claims"];
-    BOOST_CHECK_EQUAL(claims.size(), 2U);
+    BOOST_CHECK_EQUAL(claims.size(), 1U);
     BOOST_CHECK_EQUAL(results["nLastTakeoverHeight"].get_int(), height + 1);
-    BOOST_CHECK_EQUAL(claims[0]["nEffectiveAmount"].get_int(), 0);
-    BOOST_CHECK_EQUAL(claims[1]["nEffectiveAmount"].get_int(), 2);
+    BOOST_CHECK_EQUAL(claims[0]["nEffectiveAmount"].get_int(), 2);
     BOOST_CHECK_EQUAL(claims[0]["supports"].size(), 0U);
-    BOOST_CHECK_EQUAL(claims[1]["supports"].size(), 0U);
 
     fixture.IncrementBlocks(1);
 
