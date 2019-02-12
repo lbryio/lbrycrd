@@ -74,6 +74,8 @@ struct Params {
     uint256 powLimit;
     bool fPowAllowMinDifficultyBlocks;
     bool fPowNoRetargeting;
+    int nAllowMinDiffMinHeight;
+    int nAllowMinDiffMaxHeight;
     int nNormalizedNameForkHeight;
     int64_t nPowTargetSpacing;
     int64_t nPowTargetTimespan;
