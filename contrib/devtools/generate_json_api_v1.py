@@ -50,6 +50,29 @@ def parse_params(args):
     return arguments
 
 
+def process_examples(examples: str):
+    if not examples:
+        return []
+    examples = examples.strip()
+    splits = examples.split('\n')
+    result = []
+    inner = {}
+    for s in splits:
+        if not s:
+            continue
+        if '> curl' in s:
+            inner['curl'] = s.strip()
+        elif '> lbrycrd' in s:
+            inner['cli'] = s.strip()
+        else:
+            if 'title' in inner:
+                result.append(inner)
+                inner = {}
+            inner['title'] = s.strip()
+    result.append(inner)
+    return result
+
+
 def get_api(section_name, command, command_help):
 
     parsed = re_full.fullmatch(command_help)
@@ -61,8 +84,7 @@ def get_api(section_name, command, command_help):
     arguments = parse_params(args)
 
     cmd_desc = re.sub('\s+', ' ', desc.strip()) if desc else ''
-    if exmp and '--skip_examples' not in sys.argv:
-        cmd_desc += '\nExamples:\n' + exmp.strip()
+    examp_desc = process_examples(exmp)
     cmd_resl = resl.strip() if resl else None
 
     ret = {
@@ -70,6 +92,7 @@ def get_api(section_name, command, command_help):
         'namespace': section_name,
         'description': cmd_desc,
         'arguments': arguments,
+        'examples': examp_desc
     }
     if cmd_resl is not None:
         ret['returns'] = cmd_resl
