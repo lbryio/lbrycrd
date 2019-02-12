@@ -38,7 +38,8 @@ The data directory contains various things such as your default wallet (wallet.d
 
 For a list of configuration parameters, run `./lbrycrdd --help`. Below is a sample lbrycrd.conf to enable JSON RPC server on lbrycrdd.
 
-```rpcuser=lbry
+```
+rpcuser=lbry
 rpcpassword=xyz123456790
 daemon=1
 server=1
