@@ -3520,9 +3520,7 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
         std::vector<CInv> vInv;
         {
             LOCK(pto->cs_inventory);
-            /* vInv.reserve(std::max<size_t>(pto->vInventoryBlockToSend.size(), INVENTORY_BROADCAST_MAX)); */
-            // FIXME: Bitcoin bug?!
-            vInv.reserve(std::min<size_t>(pto->vInventoryBlockToSend.size(), INVENTORY_BROADCAST_MAX));
+            vInv.reserve(std::max<size_t>(pto->vInventoryBlockToSend.size(), INVENTORY_BROADCAST_MAX));
 
             // Add blocks
             size_t count = 0;

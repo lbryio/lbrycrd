@@ -1,13 +1,13 @@
 #ifndef BITCOIN_CLAIMTRIE_H
 #define BITCOIN_CLAIMTRIE_H
 
-#include "amount.h"
-#include "serialize.h"
-#include "uint256.h"
-#include "util.h"
-#include "dbwrapper.h"
-#include "chainparams.h"
-#include "primitives/transaction.h"
+#include <amount.h>
+#include <serialize.h>
+#include <uint256.h>
+#include <util.h>
+#include <dbwrapper.h>
+#include <chainparams.h>
+#include <primitives/transaction.h>
 
 #include <string>
 #include <vector>

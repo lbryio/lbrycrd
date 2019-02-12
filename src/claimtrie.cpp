@@ -1,6 +1,6 @@
-#include "claimtrie.h"
-#include "coins.h"
-#include "hash.h"
+#include <claimtrie.h>
+#include <coins.h>
+#include <hash.h>
 
 #include <boost/scoped_ptr.hpp>
 #include <iostream>
@@ -2190,12 +2190,9 @@ bool CClaimTrieCache::incrementBlock(insertUndoType& insertUndo, claimQueueRowTy
         {
             takeoverHappened = true;
         }
-        else if (claimInCache != claimInTrie)
+        else if ((claimInCache != claimInTrie) && (claimInCache.claimId != claimInTrie.claimId))
         {
-            if (claimInCache.claimId != claimInTrie.claimId)
-            {
-                takeoverHappened = true;
-            }
+            takeoverHappened = true;
         }
         if (takeoverHappened)
         {

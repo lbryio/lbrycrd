@@ -2,21 +2,21 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://opensource.org/licenses/mit-license.php
 
-#include "chainparams.h"
-#include "claimtrie.h"
-#include "coins.h"
-#include "consensus/merkle.h"
-#include "consensus/validation.h"
-#include "miner.h"
-#include "nameclaim.h"
-#include "policy/policy.h"
-#include "pow.h"
-#include "primitives/transaction.h"
-#include "rpc/server.h"
-#include "streams.h"
-#include "test/test_bitcoin.h"
-#include "txmempool.h"
-#include "validation.h"
+#include <chainparams.h>
+#include <claimtrie.h>
+#include <coins.h>
+#include <consensus/merkle.h>
+#include <consensus/validation.h>
+#include <miner.h>
+#include <nameclaim.h>
+#include <policy/policy.h>
+#include <pow.h>
+#include <primitives/transaction.h>
+#include <rpc/server.h>
+#include <streams.h>
+#include <test/test_bitcoin.h>
+#include <txmempool.h>
+#include <validation.h>
 
 #include <boost/test/unit_test.hpp>
 #include <iostream>
@@ -91,8 +91,8 @@ best_claim_effective_amount_equals(std::string name, CAmount amount)
 CMutableTransaction BuildTransaction(const CTransaction& prev, uint32_t prevout=0, unsigned int numOutputs=1)
 {
     CMutableTransaction tx;
-    tx.nVersion = 1;
-    tx.nLockTime = 0;
+    tx.nVersion = CTransaction::CURRENT_VERSION;
+    tx.nLockTime = 1 << 31; // Disable BIP68
     tx.vin.resize(1);
     tx.vout.resize(numOutputs);
     tx.vin[0].prevout.hash = prev.GetHash();
@@ -203,6 +203,9 @@ struct ClaimTrieChainFixture{
             assert(0);
         }
 
+        /* TestMemPoolEntryHelper entry; */
+        /* LOCK(mempool.cs); */
+        /* mempool.addUnchecked(tx.GetHash(), entry.Fee(0).Time(GetTime()).SpendsCoinbase(true).FromTx(tx)); */
         CValidationState state;
         CAmount txFeeRate = CAmount(0);
         LOCK(cs_main);
@@ -595,7 +598,6 @@ BOOST_AUTO_TEST_CASE(support_spend_test)
     fixture.DecrementBlocks(1);
 
     // spend a support on txin[i] where i is not 0
-
     CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"x","one",3);
     CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(),"test","two",2);
     CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(),"test","three",1);
@@ -607,8 +609,8 @@ BOOST_AUTO_TEST_CASE(support_spend_test)
     // build the spend where s2 is sppent on txin[1] and tx3 is  spent on txin[0]
     uint32_t prevout = 0;
     CMutableTransaction tx;
-    tx.nVersion = 1;
-    tx.nLockTime = 0;
+    tx.nVersion = CTransaction::CURRENT_VERSION;
+    tx.nLockTime = 1 << 31; // Disable BIP68
     tx.vin.resize(2);
     tx.vout.resize(1);
     tx.vin[0].prevout.hash = tx3.GetHash();
@@ -691,8 +693,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     BOOST_CHECK(is_best_claim("test", tx7));
 
     CMutableTransaction tx;
-    tx.nVersion = 1;
-    tx.nLockTime = 0;
+    tx.nVersion = CTransaction::CURRENT_VERSION;
+    tx.nLockTime = 1 << 31; // Disable BIP68
     tx.vin.resize(2);
     tx.vout.resize(1);
     tx.vin[0].prevout.hash = tx8.GetHash();
