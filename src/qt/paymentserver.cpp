@@ -228,11 +228,11 @@ void PaymentServer::ipcParseCommandLine(interfaces::Node& node, int argc, char* 
             PaymentRequestPlus request;
             if (readPaymentRequestFromFile(arg, request))
             {
-                if (request.getDetails().network() == "main")
+                if (request.getDetails().network() == "lbrycrd")
                 {
                     node.selectParams(CBaseChainParams::MAIN);
                 }
-                else if (request.getDetails().network() == "test")
+                else if (request.getDetails().network() == "lbrycrdtest")
                 {
                     node.selectParams(CBaseChainParams::TESTNET);
                 }

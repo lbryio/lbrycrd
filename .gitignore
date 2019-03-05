@@ -9,6 +9,13 @@ src/test/test_bitcoin
 src/test/test_bitcoin_fuzzy
 src/qt/test/test_bitcoin-qt
 
+src/lbrycrdd
+src/lbrycrd-cli
+src/lbrycrd-tx
+src/test/test_lbrycrd
+src/test/test_lbrycrd_fuzzy
+src/qt/test/test_lbrycrd-qt
+
 # autoreconf
 Makefile.in
 aclocal.m4
@@ -62,6 +69,7 @@ src/qt/bitcoin-qt.includes
 *.o
 *.o-*
 *.patch
+.bitcoin
 *.a
 *.pb.cc
 *.pb.h
@@ -76,10 +84,12 @@ src/qt/bitcoin-qt.includes
 #libtool object files
 *.lo
 *.la
+start_time
 
 # Compilation and Qt preprocessor part
 *.qm
 Makefile
+lbrycrd-qt
 bitcoin-qt
 Bitcoin-Qt.app
 background.tiff*
@@ -87,6 +97,7 @@ background.tiff*
 # Unit-tests
 Makefile.test
 bitcoin-qt_test
+src/test/buildenv.py
 
 # Resources cpp
 qrc_*.cpp
@@ -116,3 +127,6 @@ test/cache/*
 
 libbitcoinconsensus.pc
 contrib/devtools/split-debug.sh
+
+.idea
+cmake-build-*/

@@ -5,19 +5,19 @@ define(_CLIENT_VERSION_MINOR, 17)
 define(_CLIENT_VERSION_REVISION, 1)
 define(_CLIENT_VERSION_BUILD, 0)
 define(_CLIENT_VERSION_IS_RELEASE, true)
-define(_COPYRIGHT_YEAR, 2018)
+define(_COPYRIGHT_YEAR, 2019)
 define(_COPYRIGHT_HOLDERS,[The %s developers])
-define(_COPYRIGHT_HOLDERS_SUBSTITUTION,[[Bitcoin Core]])
-AC_INIT([Bitcoin Core],[_CLIENT_VERSION_MAJOR._CLIENT_VERSION_MINOR._CLIENT_VERSION_REVISION],[https://github.com/bitcoin/bitcoin/issues],[bitcoin],[https://bitcoincore.org/])
+define(_COPYRIGHT_HOLDERS_SUBSTITUTION,[[LBRY]])
+AC_INIT([LBRYcrd Core],[_CLIENT_VERSION_MAJOR._CLIENT_VERSION_MINOR._CLIENT_VERSION_REVISION],[https://github.com/lbryio/lbrycrd/issues],[lbrycrd],[https://lbry.io/])
 AC_CONFIG_SRCDIR([src/validation.cpp])
 AC_CONFIG_HEADERS([src/config/bitcoin-config.h])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([build-aux/m4])
 
-BITCOIN_DAEMON_NAME=bitcoind
-BITCOIN_GUI_NAME=bitcoin-qt
-BITCOIN_CLI_NAME=bitcoin-cli
-BITCOIN_TX_NAME=bitcoin-tx
+BITCOIN_DAEMON_NAME=lbrycrdd
+BITCOIN_GUI_NAME=lbrycrd-qt
+BITCOIN_CLI_NAME=lbrycrd-cli
+BITCOIN_TX_NAME=lbrycrd-tx
 
 dnl Unless the user specified ARFLAGS, force it to be cr
 AC_ARG_VAR(ARFLAGS, [Flags for the archiver, defaults to <cr> if not set])
@@ -145,6 +145,12 @@ AC_ARG_WITH([qrencode],
   [enable QR code support (default is yes if qt is enabled and libqrencode is found)])],
   [use_qr=$withval],
   [use_qr=auto])
+
+AC_ARG_WITH([icu],
+  [AS_HELP_STRING([--with-icu],
+  [Required ICU root path])],
+  [ICU_PREFIX=$withval],
+  [ICU_PREFIX=auto])
 
 AC_ARG_ENABLE([hardening],
   [AS_HELP_STRING([--disable-hardening],
@@ -640,6 +646,9 @@ if test x$ac_cv_sys_large_files != x &&
   CPPFLAGS="$CPPFLAGS -D_LARGE_FILES=$ac_cv_sys_large_files"
 fi
 
+if test x$enable_static != x; then
+  AX_CHECK_LINK_FLAG([[-static-libstdc++]], [LDFLAGS="$LDFLAGS -static-libstdc++"])
+fi
 AX_CHECK_LINK_FLAG([[-Wl,--large-address-aware]], [LDFLAGS="$LDFLAGS -Wl,--large-address-aware"])
 
 AX_GCC_FUNC_ATTRIBUTE([visibility])
@@ -695,8 +704,6 @@ fi
 
 if test x$use_hardening != xno; then
   use_hardening=yes
-  AX_CHECK_COMPILE_FLAG([-Wstack-protector],[HARDENED_CXXFLAGS="$HARDENED_CXXFLAGS -Wstack-protector"])
-  AX_CHECK_COMPILE_FLAG([-fstack-protector-all],[HARDENED_CXXFLAGS="$HARDENED_CXXFLAGS -fstack-protector-all"])
 
   AX_CHECK_PREPROC_FLAG([-D_FORTIFY_SOURCE=2],[
     AX_CHECK_PREPROC_FLAG([-U_FORTIFY_SOURCE],[
@@ -715,6 +722,10 @@ if test x$use_hardening != xno; then
   case $host in
     *mingw*)
        AC_CHECK_LIB([ssp],      [main],, AC_MSG_ERROR(libssp missing))
+    ;;
+    *)
+       AX_CHECK_COMPILE_FLAG([-Wstack-protector],[HARDENED_CXXFLAGS="$HARDENED_CXXFLAGS -Wstack-protector"])
+       AX_CHECK_COMPILE_FLAG([-fstack-protector-all],[HARDENED_CXXFLAGS="$HARDENED_CXXFLAGS -fstack-protector-all"])
     ;;
   esac
 fi
@@ -895,6 +906,7 @@ AX_BOOST_SYSTEM
 AX_BOOST_FILESYSTEM
 AX_BOOST_THREAD
 AX_BOOST_CHRONO
+AX_BOOST_LOCALE
 
 dnl Boost 1.56 through 1.62 allow using std::atomic instead of its own atomic
 dnl counter implementations. In 1.63 and later the std::atomic approach is default.
@@ -961,7 +973,7 @@ fi
 
 if test x$use_boost = xyes; then
 
-BOOST_LIBS="$BOOST_LDFLAGS $BOOST_SYSTEM_LIB $BOOST_FILESYSTEM_LIB $BOOST_THREAD_LIB $BOOST_CHRONO_LIB"
+BOOST_LIBS="$BOOST_LDFLAGS $BOOST_SYSTEM_LIB $BOOST_FILESYSTEM_LIB $BOOST_LOCALE_LIB $BOOST_THREAD_LIB $BOOST_CHRONO_LIB"
 
 
 dnl If boost (prior to 1.57) was built without c++11, it emulated scoped enums
@@ -1052,6 +1064,26 @@ fi
 
 fi
 
+# the plan for dealing with ICU:
+# if the user specifies an ICU prefix, use that one.
+# if the user did not specify an ICU prefix but did specify a general prefix use that one.
+# otherwise use pkg_config if it's available.
+# well, actually, things seem to work fine without this fallback to pkg_config so we'll leave that out for now.
+# note: in order to use AC_CHECK_LIB we have to override CPPFLAGS and LDFLAGS
+# however, we don't want to keep those overridden after our checks; 
+# we want to rely on ICU_CPPFLAGS and ICU_LIBS after that
+# to further complicate matters there are at least three different naming conventions for ICU libraries
+# to simplify things we'll just check one from each convention
+
+AS_IF([test "x${prefix}" != "xNONE" && test "x$ICU_PREFIX" == "xauto"], [
+  ICU_PREFIX="${prefix}"
+])  
+
+AS_IF([test "x$ICU_PREFIX" != "xauto"], [
+  ICU_CPPFLAGS="$(PKG_CONFIG_SYSROOT_DIR=/ PKG_CONFIG_LIBDIR=$ICU_PREFIX/lib/pkgconfig PKG_CONFIG_PATH=$ICU_PREFIX/share/pkgconfig pkg-config icu-io icu-uc icu-i18n --cflags)"
+  ICU_LIBS="$(PKG_CONFIG_SYSROOT_DIR=/ PKG_CONFIG_LIBDIR=$ICU_PREFIX/lib/pkgconfig PKG_CONFIG_PATH=$ICU_PREFIX/share/pkgconfig pkg-config icu-io icu-uc icu-i18n --libs)"
+])
+
 if test x$use_pkgconfig = xyes; then
   : dnl
   m4_ifdef(
@@ -1079,9 +1111,15 @@ if test x$use_pkgconfig = xyes; then
       else
           AC_DEFINE_UNQUOTED([ENABLE_ZMQ],[0],[Define to 1 to enable ZMQ functions])
       fi
+
+      if test "x$ICU_PREFIX" == "xauto"; then
+        PKG_CHECK_MODULES([ICU], [icu-io, icu-uc, icu-i18n])
+      fi
     ]
   )
-else
+else # probably compiling on Windows or cross-compiling for it:
+  AC_MSG_NOTICE([Configuring for MinGW])
+
   AC_CHECK_HEADER([openssl/crypto.h],,AC_MSG_ERROR(libcrypto headers missing))
   AC_CHECK_LIB([crypto],      [main],CRYPTO_LIBS=-lcrypto, AC_MSG_ERROR(libcrypto missing))
 
@@ -1125,6 +1163,9 @@ else
     BITCOIN_QT_CHECK([AC_CHECK_HEADER([qrencode.h],, have_qrencode=no)])
   fi
 fi
+
+AC_MSG_NOTICE([Using ICU_CPPFLAGS="$ICU_CPPFLAGS"])
+AC_MSG_NOTICE([Using ICU_LIBS="$ICU_LIBS"])
 
 save_CXXFLAGS="${CXXFLAGS}"
 CXXFLAGS="${CXXFLAGS} ${CRYPTO_CFLAGS} ${SSL_CFLAGS}"
@@ -1385,6 +1426,8 @@ AC_SUBST(LIBTOOL_APP_LDFLAGS)
 AC_SUBST(USE_UPNP)
 AC_SUBST(USE_QRCODE)
 AC_SUBST(BOOST_LIBS)
+AC_SUBST(ICU_CPPFLAGS)
+AC_SUBST(ICU_LIBS)
 AC_SUBST(TESTDEFS)
 AC_SUBST(LEVELDB_TARGET_FLAGS)
 AC_SUBST(MINIUPNPC_CPPFLAGS)
@@ -1431,7 +1474,7 @@ if test x$need_bundled_univalue = xyes; then
   AC_CONFIG_SUBDIRS([src/univalue])
 fi
 
-ac_configure_args="${ac_configure_args} --disable-shared --with-pic --with-bignum=no --enable-module-recovery --disable-jni"
+ac_configure_args="${ac_configure_args} --enable-static --disable-shared --with-pic --with-bignum=no --enable-module-recovery --disable-jni"
 AC_CONFIG_SUBDIRS([src/secp256k1])
 
 AC_OUTPUT

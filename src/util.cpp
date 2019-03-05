@@ -81,8 +81,8 @@
 // Application startup time (used for uptime calculation)
 const int64_t nStartupTime = GetTime();
 
-const char * const BITCOIN_CONF_FILENAME = "bitcoin.conf";
-const char * const BITCOIN_PID_FILENAME = "bitcoind.pid";
+const char * const BITCOIN_CONF_FILENAME = "lbrycrd.conf";
+const char * const BITCOIN_PID_FILENAME = "lbrycrd.pid";
 
 ArgsManager gArgs;
 
@@ -707,10 +707,10 @@ fs::path GetDefaultDataDir()
     // Windows < Vista: C:\Documents and Settings\Username\Application Data\Bitcoin
     // Windows >= Vista: C:\Users\Username\AppData\Roaming\Bitcoin
     // Mac: ~/Library/Application Support/Bitcoin
-    // Unix: ~/.bitcoin
+    // Unix: ~/.lbrycrd
 #ifdef WIN32
     // Windows
-    return GetSpecialFolderPath(CSIDL_APPDATA) / "Bitcoin";
+    return GetSpecialFolderPath(CSIDL_APPDATA) / "lbrycrd";
 #else
     fs::path pathRet;
     char* pszHome = getenv("HOME");
@@ -720,10 +720,10 @@ fs::path GetDefaultDataDir()
         pathRet = fs::path(pszHome);
 #ifdef MAC_OSX
     // Mac
-    return pathRet / "Library/Application Support/Bitcoin";
+    return pathRet / "Library/Application Support/lbrycrd";
 #else
     // Unix
-    return pathRet / ".bitcoin";
+    return pathRet / ".lbrycrd";
 #endif
 #endif
 }

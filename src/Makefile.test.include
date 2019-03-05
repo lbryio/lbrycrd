@@ -2,13 +2,14 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-bin_PROGRAMS += test/test_bitcoin
-noinst_PROGRAMS += test/test_bitcoin_fuzzy
+bin_PROGRAMS += test/test_lbrycrd
+noinst_PROGRAMS += test/test_lbrycrd_fuzzy
 TEST_SRCDIR = test
-TEST_BINARY=test/test_bitcoin$(EXEEXT)
+TEST_BINARY=test/test_lbrycrd$(EXEEXT)
 
 JSON_TEST_FILES = \
   test/data/base58_encode_decode.json \
+  test/data/base58_keys_valid.json \
   test/data/key_io_valid.json \
   test/data/key_io_invalid.json \
   test/data/script_tests.json \
@@ -40,6 +41,7 @@ BITCOIN_TESTS =\
   test/blockchain_tests.cpp \
   test/blockencodings_tests.cpp \
   test/bloom_tests.cpp \
+  test/Checkpoints_tests.cpp \
   test/bswap_tests.cpp \
   test/checkqueue_tests.cpp \
   test/coins_tests.cpp \
@@ -61,6 +63,9 @@ BITCOIN_TESTS =\
   test/miner_tests.cpp \
   test/multisig_tests.cpp \
   test/net_tests.cpp \
+  test/claimtriecache_tests.cpp \
+  test/claimtriebranching_tests.cpp \
+  test/nameclaim_tests.cpp \
   test/netbase_tests.cpp \
   test/pmt_tests.cpp \
   test/policyestimator_tests.cpp \
@@ -105,32 +110,32 @@ BITCOIN_TEST_SUITE += \
   wallet/test/wallet_test_fixture.h
 endif
 
-test_test_bitcoin_SOURCES = $(BITCOIN_TEST_SUITE) $(BITCOIN_TESTS) $(JSON_TEST_FILES) $(RAW_TEST_FILES)
-test_test_bitcoin_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(TESTDEFS) $(EVENT_CFLAGS)
-test_test_bitcoin_LDADD =
+test_test_lbrycrd_SOURCES = $(BITCOIN_TEST_SUITE) $(BITCOIN_TESTS) $(JSON_TEST_FILES) $(RAW_TEST_FILES)
+test_test_lbrycrd_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(TESTDEFS) $(BOOST_CPPFLAGS) $(EVENT_CFLAGS)
+test_test_lbrycrd_LDADD =
 if ENABLE_WALLET
-test_test_bitcoin_LDADD += $(LIBBITCOIN_WALLET)
+test_test_lbrycrd_LDADD += $(LIBBITCOIN_WALLET)
 endif
 
-test_test_bitcoin_LDADD += $(LIBBITCOIN_SERVER) $(LIBBITCOIN_CLI) $(LIBBITCOIN_COMMON) $(LIBBITCOIN_UTIL) $(LIBBITCOIN_CONSENSUS) $(LIBBITCOIN_CRYPTO) $(LIBUNIVALUE) \
+test_test_lbrycrd_LDADD += $(LIBBITCOIN_SERVER) $(LIBBITCOIN_CLI) $(LIBBITCOIN_COMMON) $(LIBBITCOIN_UTIL) $(LIBBITCOIN_CONSENSUS) $(LIBBITCOIN_CRYPTO) $(LIBUNIVALUE) \
   $(LIBLEVELDB) $(LIBLEVELDB_SSE42) $(LIBMEMENV) $(BOOST_LIBS) $(BOOST_UNIT_TEST_FRAMEWORK_LIB) $(LIBSECP256K1) $(EVENT_LIBS) $(EVENT_PTHREADS_LIBS)
-test_test_bitcoin_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+test_test_lbrycrd_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 
-test_test_bitcoin_LDADD += $(LIBBITCOIN_CONSENSUS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS)
-test_test_bitcoin_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) -static
+test_test_lbrycrd_LDADD += $(LIBBITCOIN_CONSENSUS) $(ICU_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS)
+test_test_lbrycrd_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) -static
 
 if ENABLE_ZMQ
-test_test_bitcoin_LDADD += $(ZMQ_LIBS)
+test_test_lbrycrd_LDADD += $(ZMQ_LIBS)
 endif
 #
 
 # test_bitcoin_fuzzy binary #
-test_test_bitcoin_fuzzy_SOURCES = test/test_bitcoin_fuzzy.cpp
-test_test_bitcoin_fuzzy_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
-test_test_bitcoin_fuzzy_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-test_test_bitcoin_fuzzy_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
+test_test_lbrycrd_fuzzy_SOURCES = test/test_bitcoin_fuzzy.cpp
+test_test_lbrycrd_fuzzy_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
+test_test_lbrycrd_fuzzy_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+test_test_lbrycrd_fuzzy_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
-test_test_bitcoin_fuzzy_LDADD = \
+test_test_lbrycrd_fuzzy_LDADD = \
   $(LIBUNIVALUE) \
   $(LIBBITCOIN_SERVER) \
   $(LIBBITCOIN_COMMON) \
@@ -142,10 +147,9 @@ test_test_bitcoin_fuzzy_LDADD = \
   $(LIBBITCOIN_CRYPTO_SHANI) \
   $(LIBSECP256K1)
 
-test_test_bitcoin_fuzzy_LDADD += $(BOOST_LIBS) $(CRYPTO_LIBS)
-#
+test_test_lbrycrd_fuzzy_LDADD += $(BOOST_LIBS) $(ICU_LIBS) $(CRYPTO_LIBS)
 
-nodist_test_test_bitcoin_SOURCES = $(GENERATED_TEST_FILES)
+nodist_test_test_lbrycrd_SOURCES = $(GENERATED_TEST_FILES)
 
 $(BITCOIN_TESTS): $(GENERATED_TEST_FILES)
 
@@ -153,13 +157,13 @@ CLEAN_BITCOIN_TEST = test/*.gcda test/*.gcno $(GENERATED_TEST_FILES)
 
 CLEANFILES += $(CLEAN_BITCOIN_TEST)
 
-bitcoin_test: $(TEST_BINARY)
+lbrycrd_test: $(TEST_BINARY)
 
-bitcoin_test_check: $(TEST_BINARY) FORCE
+lbrycrd_test_check: $(TEST_BINARY) FORCE
 	$(MAKE) check-TESTS TESTS=$^
 
-bitcoin_test_clean : FORCE
-	rm -f $(CLEAN_BITCOIN_TEST) $(test_test_bitcoin_OBJECTS) $(TEST_BINARY)
+lbrycrd_test_clean : FORCE
+	rm -f $(CLEAN_BITCOIN_TEST) $(test_test_lbrycrd_OBJECTS) $(TEST_BINARY)
 
 check-local: $(BITCOIN_TESTS:.cpp=.cpp.test)
 	@echo "Running test/util/bitcoin-util-test.py..."
@@ -184,3 +188,12 @@ endif
 	 echo "};};"; \
 	} > "$@.new" && mv -f "$@.new" "$@"
 	@echo "Generated $@"
+
+%.raw.h: %.raw
+	@$(MKDIR_P) $(@D)
+	@echo "namespace alert_tests{" > $@
+	@echo "static unsigned const char $(*F)[] = {" >> $@
+	@$(HEXDUMP) -v -e '8/1 "0x%02x, "' -e '"\n"' $< | $(SED) -e 's/0x  ,//g' >> $@
+	@echo "};};" >> $@
+	@echo "Generated $@"
+

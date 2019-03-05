@@ -48,7 +48,11 @@ struct BIP9Deployment {
  */
 struct Params {
     uint256 hashGenesisBlock;
-    int nSubsidyHalvingInterval;
+    int nSubsidyLevelInterval;
+    /** Used to check majorities for block version upgrade */
+    int nMajorityEnforceBlockUpgrade;
+    int nMajorityRejectBlockOutdated;
+    int nMajorityWindow;
     /* Block hash that is excepted from BIP16 enforcement */
     uint256 BIP16Exception;
     /** Block height and hash at which BIP34 becomes active */
@@ -59,7 +63,7 @@ struct Params {
     /** Block height at which BIP66 becomes active */
     int BIP66Height;
     /**
-     * Minimum blocks including miner confirmation of the total of 2016 blocks in a retargeting period,
+     * Minimum blocks including miner confirmation of the total of 2016 blocks in a retargetting period,
      * (nPowTargetTimespan / nPowTargetSpacing) which is also used for BIP9 deployments.
      * Examples: 1916 for 95%, 1512 for testchains.
      */
@@ -69,9 +73,23 @@ struct Params {
     /** Proof of work parameters */
     uint256 powLimit;
     bool fPowAllowMinDifficultyBlocks;
+    int nAllowMinDiffMinHeight;
+    int nAllowMinDiffMaxHeight;
     bool fPowNoRetargeting;
+    int nNormalizedNameForkHeight;
     int64_t nPowTargetSpacing;
     int64_t nPowTargetTimespan;
+    /** how long it took claims to expire before the hard fork */
+    int64_t nOriginalClaimExpirationTime;
+    /** how long it takes claims to expire after the hard fork */
+    int64_t nExtendedClaimExpirationTime;
+    /** blocks before the hard fork that changed the expiration time */
+    int64_t nExtendedClaimExpirationForkHeight;
+    int64_t GetExpirationTime(int64_t nHeight) const {
+        return nHeight < nExtendedClaimExpirationForkHeight ?
+            nOriginalClaimExpirationTime :
+            nExtendedClaimExpirationTime;
+    }
     int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
     uint256 nMinimumChainWork;
     uint256 defaultAssumeValid;

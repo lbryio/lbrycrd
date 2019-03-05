@@ -25,6 +25,7 @@
 #include <sync.h>
 #include <txdb.h>
 #include <txmempool.h>
+#include <uint256.h>
 #include <util.h>
 #include <utilstrencodings.h>
 #include <hash.h>
@@ -66,12 +67,12 @@ double GetDifficulty(const CBlockIndex* blockindex)
     double dDiff =
         (double)0x0000ffff / (double)(blockindex->nBits & 0x00ffffff);
 
-    while (nShift < 29)
+    while (nShift < 31)
     {
         dDiff *= 256.0;
         nShift++;
     }
-    while (nShift > 29)
+    while (nShift > 31)
     {
         dDiff /= 256.0;
         nShift--;
@@ -94,6 +95,7 @@ UniValue blockheaderToJSON(const CBlockIndex* blockindex)
     result.pushKV("version", blockindex->nVersion);
     result.pushKV("versionHex", strprintf("%08x", blockindex->nVersion));
     result.pushKV("merkleroot", blockindex->hashMerkleRoot.GetHex());
+    result.pushKV("nameclaimroot", blockindex->hashClaimTrie.GetHex());
     result.pushKV("time", (int64_t)blockindex->nTime);
     result.pushKV("mediantime", (int64_t)blockindex->GetMedianTimePast());
     result.pushKV("nonce", (uint64_t)blockindex->nNonce);
@@ -127,6 +129,7 @@ UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool tx
     result.pushKV("version", block.nVersion);
     result.pushKV("versionHex", strprintf("%08x", block.nVersion));
     result.pushKV("merkleroot", block.hashMerkleRoot.GetHex());
+    result.pushKV("nameclaimroot", block.hashClaimTrie.GetHex());
     UniValue txs(UniValue::VARR);
     for(const auto& tx : block.vtx)
     {
@@ -695,6 +698,7 @@ static UniValue getblockheader(const JSONRPCRequest& request)
             "  \"version\" : n,         (numeric) The block version\n"
             "  \"versionHex\" : \"00000000\", (string) The block version formatted in hexadecimal\n"
             "  \"merkleroot\" : \"xxxx\", (string) The merkle root\n"
+            "  \"nameclaimroot\" : \"xxxx\",  (string) The hash of the root of the name claim trie\n"
             "  \"time\" : ttt,          (numeric) The block time in seconds since epoch (Jan 1 1970 GMT)\n"
             "  \"mediantime\" : ttt,    (numeric) The median block time in seconds since epoch (Jan 1 1970 GMT)\n"
             "  \"nonce\" : n,           (numeric) The nonce\n"
@@ -780,6 +784,7 @@ static UniValue getblock(const JSONRPCRequest& request)
             "  \"version\" : n,         (numeric) The block version\n"
             "  \"versionHex\" : \"00000000\", (string) The block version formatted in hexadecimal\n"
             "  \"merkleroot\" : \"xxxx\", (string) The merkle root\n"
+            "  \"nameclaimroot\" : \"xxxx\",  (string) The hash of the root of the name claim trie\n"
             "  \"tx\" : [               (array of string) The transaction ids\n"
             "     \"transactionid\"     (string) The transaction id\n"
             "     ,...\n"
