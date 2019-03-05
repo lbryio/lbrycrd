@@ -14,6 +14,8 @@
 #include <util.h>
 #include <utilstrencodings.h>
 
+#include "nameclaim.h"
+
 
 CAmount GetDustThreshold(const CTxOut& txout, const CFeeRate& dustRelayFeeIn)
 {
@@ -115,7 +117,8 @@ bool IsStandardTx(const CTransaction& tx, std::string& reason)
     unsigned int nDataOut = 0;
     txnouttype whichType;
     for (const CTxOut& txout : tx.vout) {
-        if (!::IsStandard(txout.scriptPubKey, whichType)) {
+        const CScript& scriptPubKey = StripClaimScriptPrefix(txout.scriptPubKey);
+        if (!::IsStandard(scriptPubKey, whichType)) {
             reason = "scriptpubkey";
             return false;
         }
@@ -168,7 +171,7 @@ bool AreInputsStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs)
         std::vector<std::vector<unsigned char> > vSolutions;
         txnouttype whichType;
         // get the scriptPubKey corresponding to this input:
-        const CScript& prevScript = prev.scriptPubKey;
+        const CScript& prevScript = StripClaimScriptPrefix(prev.scriptPubKey);
         if (!Solver(prevScript, whichType, vSolutions))
             return false;
 

@@ -18,7 +18,7 @@ message Output {
 	required bytes script = 2; // usually one of the standard Script forms
 }
 message PaymentDetails {
-        optional string network = 1 [default = "main"]; // "main" or "test"
+        optional string network = 1 [default = "lbrycrd"]; // "lbrycrd" or "lbrycrdtest"
         repeated Output outputs = 2;        // Where payment should be sent
         required uint64 time = 3;           // Timestamp; when payment request created
         optional uint64 expires = 4;        // Timestamp; when this request should be considered invalid

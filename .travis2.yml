@@ -1,0 +1,79 @@
+stages:
+  - quality
+  - build
+  - test
+
+jobs:
+  include:
+
+    - stage: quality
+      name: "check format"
+      os: linux
+      dist: xenial
+      language: minimal
+      install:
+        - apt-get install -y clang-format-3.9 
+      script: git diff -U0 origin/master -- '*.h' '*.cpp' | ./contrib/devtools/clang-format-diff.py -p1
+
+    - &build-template
+      stage: build
+      name: linux
+      os: linux
+      dist: xenial
+      language: minimal
+      services:
+        - docker
+      install:
+        - [ "$NAME" == "darwin" ] && mkdir /lbrycrd/depends/SDKs && pushd /lbrycrd/depends/SDKs && curl $MAC_OS_SDK | tar -xJ && popd
+        - docker pull $DOCKER_IMAGE
+      script:
+        - docker run -v "$(pwd):/lbrycrd" -w /lbrycrd $DOCKER_IMAGE packaging/build_$NAME_64bit.sh
+        - sudo zip -j dist/lbrynet-$NAME.zip src/lbrycrdd$EXT src/lbrycrd-cli$EXT src/lbrycrd-tx$EXT
+        - sudo zip -j dist/lbrynet-$NAME-test.zip test/test_lbrycrd*$EXT
+      deploy:
+        provider: releases
+        name: "$TRAVIS_BRANCH"
+        target_commitish: $TRAVIS_COMMIT
+        tag_name: $TRAVIS_TAG
+        draft: true
+        api_key: $GITHUB_OAUTH_TOKEN
+        file: dist/lbrynet-$NAME.zip
+        skip_cleanup: true
+        overwrite: true
+        draft: true
+        on:
+          tags: true
+      addons:
+        artifacts:
+          working_dir: dist
+          paths:
+            - lbrynet-$NAME.zip
+            - lbrynet-$NAME-test.zip
+          target_paths:
+            - /lbrycrd/$TRAVIS_BRANCH
+
+    - <<: *build-template
+      name: windows
+      env: NAME=windows EXT=.exe
+
+    - <<: *build-template
+      name: osx
+      env: NAME=darwin EXT=
+      
+
+    - &test-template
+      stage: test
+      os: linux
+      dist: xenial
+      language: minimal
+      install: curl http://build.lbry.io/lbrycrd/$TRAVIS_BRANCH/lbrynet-$NAME-test.zip | unzip
+      script: ./test_lbrynet$EXT
+
+    - <<: *test-template
+      os: windows
+      env: NAME=windows EXT=.exe
+
+    - <<: *test-template
+      os: osx
+      env: NAME=darwin EXT=
+

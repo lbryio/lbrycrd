@@ -20,7 +20,6 @@ if test -z $with_protoc_bindir && test -z "@no_qt@"; then
   with_protoc_bindir=$depends_prefix/native/bin
 fi
 
-
 if test -z $enable_wallet && test -n "@no_wallet@"; then
   enable_wallet=no
 fi

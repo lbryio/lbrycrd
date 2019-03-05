@@ -24,6 +24,7 @@ public:
     int32_t nVersion;
     uint256 hashPrevBlock;
     uint256 hashMerkleRoot;
+    uint256 hashClaimTrie;
     uint32_t nTime;
     uint32_t nBits;
     uint32_t nNonce;
@@ -40,6 +41,7 @@ public:
         READWRITE(this->nVersion);
         READWRITE(hashPrevBlock);
         READWRITE(hashMerkleRoot);
+        READWRITE(hashClaimTrie);
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
@@ -50,6 +52,7 @@ public:
         nVersion = 0;
         hashPrevBlock.SetNull();
         hashMerkleRoot.SetNull();
+        hashClaimTrie.SetNull();
         nTime = 0;
         nBits = 0;
         nNonce = 0;
@@ -61,6 +64,8 @@ public:
     }
 
     uint256 GetHash() const;
+
+    uint256 GetPoWHash() const;
 
     int64_t GetBlockTime() const
     {
@@ -110,6 +115,7 @@ public:
         block.nVersion       = nVersion;
         block.hashPrevBlock  = hashPrevBlock;
         block.hashMerkleRoot = hashMerkleRoot;
+        block.hashClaimTrie  = hashClaimTrie;
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
