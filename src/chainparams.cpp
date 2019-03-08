@@ -140,9 +140,10 @@ public:
         consensus.nOriginalClaimExpirationTime = 262974;
         consensus.nExtendedClaimExpirationTime = 2102400;
         consensus.nExtendedClaimExpirationForkHeight = 400155;
+        consensus.nAllowMinDiffMinHeight = -1;
+        consensus.nAllowMinDiffMaxHeight = -1;
         consensus.nNormalizedNameForkHeight = 539940; // targeting 21 March 2019
         consensus.fPowAllowMinDifficultyBlocks = false;
-        consensus.nAllowMinDiffMinHeight = consensus.nAllowMinDiffMaxHeight = -1;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1916; // 95% of 2016
         consensus.nMinerConfirmationWindow = 2016; // nPowTargetTimespan / nPowTargetSpacing
@@ -360,9 +361,11 @@ public:
         consensus.nOriginalClaimExpirationTime = 500;
         consensus.nExtendedClaimExpirationTime = 600;
         consensus.nExtendedClaimExpirationForkHeight = 800;
+        consensus.nAllowMinDiffMinHeight = -1;
+        consensus.nAllowMinDiffMaxHeight = -1;
+        consensus.nNormalizedNameForkHeight = 250; // SDK depends upon this number
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
-        consensus.nNormalizedNameForkHeight = 250; // SDK depends upon this number
         consensus.nRuleChangeActivationThreshold = 108; // 75% for testchains
         consensus.nMinerConfirmationWindow = 144; // Faster than normal for regtest (144 instead of 2016)
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].bit = 28;

@@ -24,7 +24,8 @@ popd
 
 ./autogen.sh
 DEPS_DIR=`pwd`/depends/x86_64-apple-darwin14
-CONFIG_SITE=${DEPS_DIR}/share/config.site ./configure --enable-reduce-exports --without-gui --with-icu="$DEPS_DIR" --enable-static --disable-shared
+CONFIG_SITE=${DEPS_DIR}/share/config.site ./configure --enable-reduce-exports --without-gui --with-icu="${DEPS_DIR}" --enable-static --disable-shared
 make -j`nproc`
+${DEPS_DIR}/native/bin/x86_64-apple-darwin14-strip src/lbrycrdd src/lbrycrd-cli src/lbrycrd-tx
 
 echo "OSX 64bit build is complete"

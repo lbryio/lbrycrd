@@ -19,5 +19,6 @@ popd
 DEPS_DIR=`pwd`/depends/i686-w64-mingw32
 CONFIG_SITE=${DEPS_DIR}/share/config.site ./configure --prefix=/ --without-gui --with-icu="$DEPS_DIR" --enable-static --disable-shared
 make -j`nproc`
+i686-w64-mingw32-strip src/lbrycrdd.exe src/lbrycrd-cli.exe src/lbrycrd-tx.exe
 
 echo "Windows 32bit build is complete"

@@ -6,3 +6,5 @@ LICENSE
 hooks
 Dockerfile
 Makefile
+*.sh
+*.patch
