@@ -1550,7 +1550,6 @@ bool static ProcessHeadersMessage(CNode *pfrom, CConnman *connman, const std::ve
                 // as an anti-DoS measure.
                 if (IsOutboundDisconnectionCandidate(pfrom)) {
                     LogPrintf("Disconnecting outbound peer %d (%s < %s) -- headers chain has insufficient work\n", pfrom->GetId(), nodestate->pindexBestKnownBlock->nChainWork.GetHex(), nMinimumChainWork.GetHex());
-                    LogPrintf("Disconnecting outbound peer %d -- headers chain has insufficient work\n", pfrom->GetId());
                     pfrom->fDisconnect = true;
                 }
             }
@@ -2017,7 +2016,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
     else if (strCommand == NetMsgType::GETBLOCKS)
     {
-        LogPrintf("%s: Got GETBLOCKS message\n", __func__);
         CBlockLocator locator;
         uint256 hashStop;
         vRecv >> locator >> hashStop;

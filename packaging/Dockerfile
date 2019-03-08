@@ -1,9 +1,9 @@
-FROM ubuntu:18.04
+FROM ubuntu:16.04
 
 ARG VCS_REF
 ARG BUILD_DATE
 
-LABEL maintainer="Brannon King, brannon@lbry.io" \
+LABEL maintainer="Brannon King" \
     decription="build_lbrycrd" \
     version="1.0" \
     org.label-schema.name="build_lbrycrd" \
@@ -16,7 +16,7 @@ LABEL maintainer="Brannon King, brannon@lbry.io" \
 
 RUN set -xe; \
     apt-get update; \
-    apt-get install -y build-essential libtool autotools-dev automake pkg-config python3 git wget apt-utils \
+    apt-get install --no-install-recommends -y build-essential libtool autotools-dev automake pkg-config python3 git wget apt-utils \
         librsvg2-bin libtiff-tools cmake imagemagick libcap-dev libz-dev libbz2-dev python-setuptools xz-utils \
         g++-mingw-w64-i686 mingw-w64-i686-dev bsdmainutils curl ca-certificates g++-mingw-w64-x86-64 mingw-w64-x86-64-dev; \
     rm -rf /var/lib/apt/lists/*; \

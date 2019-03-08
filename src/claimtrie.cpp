@@ -405,7 +405,7 @@ const CClaimTrieNode* CClaimTrie::getNodeForName(const std::string& name) const
     for (std::string::const_iterator itname = name.begin(); itname != name.end(); ++itname) {
         nodeMapType::const_iterator itchildren = current->children.find(*itname);
         if (itchildren == current->children.end())
-            return NULL;
+            return nullptr;
         current = itchildren->second;
     }
     return current;
@@ -435,7 +435,7 @@ bool CClaimTrie::getLastTakeoverForName(const std::string& name, int& lastTakeov
 std::vector<CClaimValue> CClaimTrie::getClaimsForName(const std::string& name) const
 {
     const CClaimTrieNode* current = getNodeForName(name);
-    return current != NULL ? current->claims : std::vector<CClaimValue>();
+    return current != nullptr ? current->claims : std::vector<CClaimValue>();
 }
 
 bool CClaimTrie::checkConsistency() const
@@ -765,7 +765,7 @@ bool CClaimTrie::updateName(const std::string &name, CClaimTrieNode* updatedNode
             current = itchild->second;
         }
     }
-    assert(current != NULL);
+    assert(current != nullptr);
     current->claims.swap(updatedNode->claims);
     markNodeDirty(name, current);
     for (nodeMapType::iterator itchild = current->children.begin(); itchild != current->children.end();)
@@ -789,7 +789,7 @@ bool CClaimTrie::updateName(const std::string &name, CClaimTrieNode* updatedNode
 
 bool CClaimTrie::recursiveNullify(CClaimTrieNode* node, const std::string& name)
 {
-    assert(node != NULL);
+    assert(node != nullptr);
     for (nodeMapType::iterator itchild = node->children.begin(); itchild != node->children.end(); ++itchild)
     {
         std::stringstream nextName;
@@ -798,7 +798,7 @@ bool CClaimTrie::recursiveNullify(CClaimTrieNode* node, const std::string& name)
             return false;
     }
     node->children.clear();
-    markNodeDirty(name, NULL);
+    markNodeDirty(name, nullptr);
     delete node;
     return true;
 }
@@ -813,7 +813,7 @@ bool CClaimTrie::updateHash(const std::string& name, uint256& hash)
             return false;
         current = itchild->second;
     }
-    assert(current != NULL);
+    assert(current != nullptr);
     assert(!hash.IsNull());
     current->hash = hash;
     markNodeDirty(name, current);
@@ -829,7 +829,7 @@ bool CClaimTrie::updateTakeoverHeight(const std::string& name, int nTakeoverHeig
             return false;
         current = itchild->second;
     }
-    assert(current != NULL);
+    assert(current != nullptr);
     current->nHeightOfLastTakeover = nTakeoverHeight;
     markNodeDirty(name, current);
     return true;
@@ -1177,7 +1177,7 @@ bool CClaimTrieCacheBase::insertClaimIntoTrie(const std::string& name, CClaimVal
         {
             currentNode = addNodeToCache(sCurrentSubstring, currentNode);
         }
-        CClaimTrieNode* newNode = addNodeToCache(sNextSubstring, NULL);
+        CClaimTrieNode* newNode = addNodeToCache(sNextSubstring, nullptr);
         currentNode->children[*itCur] = newNode;
         currentNode = newNode;
     }
@@ -1225,7 +1225,7 @@ bool CClaimTrieCacheBase::removeClaimFromTrie(const std::string& name, const COu
 {
     CClaimTrieNode* currentNode = getRoot();
     nodeCacheType::iterator cachedNode;
-    assert(currentNode != NULL); // If there is no root in either the trie or the cache, how can there be any names to remove?
+    assert(currentNode != nullptr); // If there is no root in either the trie or the cache, how can there be any names to remove?
     for (std::string::const_iterator itCur = name.begin(); itCur != name.end(); ++itCur) {
         std::string sCurrentSubstring(name.begin(), itCur);
         std::string sNextSubstring(name.begin(), itCur + 1);
@@ -1252,7 +1252,7 @@ bool CClaimTrieCacheBase::removeClaimFromTrie(const std::string& name, const COu
     else
         currentNode = addNodeToCache(name, currentNode);
 
-    assert(currentNode != NULL);
+    assert(currentNode != nullptr);
     if (currentNode->claims.empty())
     {
         LogPrintf("%s: Asked to remove claim from node without claims\n", __func__);
@@ -1297,7 +1297,7 @@ bool CClaimTrieCacheBase::recursivePruneName(CClaimTrieNode* tnCurrent, unsigned
     {
         std::string sNextSubstring = sName.substr(0, nPos + 1);
         unsigned char cNext = sName.at(nPos);
-        CClaimTrieNode* tnNext = NULL;
+        CClaimTrieNode* tnNext = nullptr;
         nodeCacheType::iterator cachedNode = cache.find(sNextSubstring);
         if (cachedNode != cache.end())
             tnNext = cachedNode->second;
@@ -1307,7 +1307,7 @@ bool CClaimTrieCacheBase::recursivePruneName(CClaimTrieNode* tnCurrent, unsigned
             if (childNode != tnCurrent->children.end())
                 tnNext = childNode->second;
         }
-        if (tnNext == NULL)
+        if (tnNext == nullptr)
             return false;
         bool fChildNullified = false;
         if (!recursivePruneName(tnNext, nPos + 1, sName, &fChildNullified))
@@ -2319,7 +2319,7 @@ int CClaimTrieCacheBase::getNumBlocksOfContinuousOwnership(const std::string& na
 
 const CClaimTrieNode* CClaimTrieCacheBase::getNodeForName(const std::string& name) const
 {
-    const CClaimTrieNode* node = NULL;
+    const CClaimTrieNode* node = nullptr;
     nodeCacheType::const_iterator itCache = cache.find(name);
     if (itCache != cache.end()) {
         node = itCache->second;
@@ -2354,7 +2354,7 @@ int CClaimTrieCacheBase::getDelayForName(const std::string& name, const uint160&
 uint256 CClaimTrieCacheBase::getBestBlock()
 {
     if (hashBlock.IsNull())
-        if (base != NULL)
+        if (base != nullptr)
             hashBlock = base->hashBlock;
     return hashBlock;
 }
@@ -2532,7 +2532,7 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, CClaimTriePro
             valueHash = getValueHash(claim.outPoint, nHeightOfLastTakeover);
         }
         std::vector<std::pair<unsigned char, uint256> > children;
-        CClaimTrieNode* nextCurrent = NULL;
+        CClaimTrieNode* nextCurrent = nullptr;
         for (nodeMapType::const_iterator itChildren = current->children.begin(); itChildren != current->children.end(); ++itChildren)
         {
             std::stringstream ss;
@@ -2560,10 +2560,9 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, CClaimTriePro
             }
             valueHash.SetNull();
         }
-        CClaimTrieProofNode node(children, fNodeHasValue, valueHash);
-        nodes.push_back(node);
+        nodes.emplace_back(std::move(children), fNodeHasValue, valueHash);
         current = nextCurrent;
     }
-    proof = CClaimTrieProof(nodes, fNameHasValue, outPoint, nHeightOfLastTakeover);
+    proof = CClaimTrieProof(std::move(nodes), fNameHasValue, outPoint, nHeightOfLastTakeover);
     return true;
 }

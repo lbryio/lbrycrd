@@ -10,20 +10,27 @@ define $(package)_set_vars
   $(package)_config_opts=$($(package)_standard_opts)
   $(package)_config_opts_debug=--enable-debug --disable-release
   $(package)_config_opts_release=--disable-debug --enable-release
-  $(package)_config_opts_mingw32=--with-cross-build="`pwd`/../build"
-  $(package)_config_opts_linux=--with-pic
-  $(package)_config_opts_darwin=--with-cross-build="`pwd`/../build" LIBTOOL="$($(package)_libtool)"
+  $(package)_config_opts_mingw32=--with-cross-build="$($(package)_extract_dir)/build"
+  $(package)_config_opts_darwin=--with-cross-build="$($(package)_extract_dir)/build" LIBTOOL="$($(package)_libtool)"
   $(package)_archiver_darwin=$($(package)_libtool)
+  $(package)_cflags=-fPIC
+  $(package)_cppflags=-fPIC
+endef
+
+define $(package)_preprocess_cmds
+  PKG_CONFIG_SYSROOT_DIR=/ \
+  PKG_CONFIG_LIBDIR=$(host_prefix)/lib/pkgconfig \
+  PKG_CONFIG_PATH=$(host_prefix)/share/pkgconfig \
+  mkdir -p build && cd build && \
+  ../source/runConfigureICU `uname` $($(package)_standard_opts) && \
+  make -j`nproc` && cd ..
 endef
 
 define $(package)_config_cmds
   PKG_CONFIG_SYSROOT_DIR=/ \
   PKG_CONFIG_LIBDIR=$(host_prefix)/lib/pkgconfig \
   PKG_CONFIG_PATH=$(host_prefix)/share/pkgconfig \
-  mkdir -p ../build && cd ../build && \
-  PATH=$(PATH):$(host_prefix)/native/bin ../source/runConfigureICU `uname` $($(package)_standard_opts) --with-pic && \
-  make -j`nproc` && cd ../source && \
- PATH=$(PATH):$(host_prefix)/native/bin  $($(package)_autoconf)
+  $($(package)_autoconf)
 endef
 
 define $(package)_build_cmds
