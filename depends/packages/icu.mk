@@ -13,8 +13,9 @@ define $(package)_set_vars
   $(package)_config_opts_mingw32=--with-cross-build="$($(package)_extract_dir)/build"
   $(package)_config_opts_darwin=--with-cross-build="$($(package)_extract_dir)/build" LIBTOOL="$($(package)_libtool)"
   $(package)_archiver_darwin=$($(package)_libtool)
-  $(package)_cflags=-fPIC
-  $(package)_cppflags=-fPIC
+  $(package)_cflags_linux=-fPIC
+  $(package)_cppflags_linux=-fPIC
+  $(package)_cxxflags=-std=c++11
 endef
 
 define $(package)_preprocess_cmds
