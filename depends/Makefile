@@ -108,7 +108,7 @@ $(host_arch)_$(host_os)_native_toolchain?=$($(host_os)_native_toolchain)
 
 include funcs.mk
 
-toolchain_path=$($($(host_arch)_$(host_os)_native_toolchain)_prefixbin)
+toolchain_path=$(strip $($($(host_arch)_$(host_os)_native_toolchain)_prefixbin))
 final_build_id_long+=$(shell $(build_SHA256SUM) config.site.in)
 final_build_id+=$(shell echo -n "$(final_build_id_long)" | $(build_SHA256SUM) | cut -c-$(HASH_LENGTH))
 $(host_prefix)/.stamp_$(final_build_id): $(native_packages) $(packages)
@@ -122,8 +122,8 @@ $(host_prefix)/.stamp_$(final_build_id): $(native_packages) $(packages)
 $(host_prefix)/share/config.site : config.site.in $(host_prefix)/.stamp_$(final_build_id)
 	$(AT)@mkdir -p $(@D)
 	$(AT)sed -e 's|@HOST@|$(host)|' \
-            -e 's|@CC@|$(toolchain_path)$(host_CC)|' \
-            -e 's|@CXX@|$(toolchain_path)$(host_CXX)|' \
+            -e 's|@CC@|$(toolchain_path)$(strip $(host_CC:ccache=))|' \
+	    -e 's|@CXX@|$(toolchain_path)$(strip $(host_CXX:ccache=))|' \
             -e 's|@AR@|$(toolchain_path)$(host_AR)|' \
             -e 's|@RANLIB@|$(toolchain_path)$(host_RANLIB)|' \
             -e 's|@NM@|$(toolchain_path)$(host_NM)|' \

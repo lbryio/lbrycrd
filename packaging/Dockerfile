@@ -16,12 +16,14 @@ LABEL maintainer="Brannon King" \
 
 RUN set -xe; \
     apt-get update; \
-    apt-get install --no-install-recommends -y build-essential libtool autotools-dev automake pkg-config python3 git wget apt-utils \
-        librsvg2-bin libtiff-tools cmake imagemagick libcap-dev libz-dev libbz2-dev python-setuptools xz-utils \
+    apt-get install --no-install-recommends -y build-essential libtool autotools-dev automake pkg-config git wget apt-utils \
+        librsvg2-bin libtiff-tools cmake imagemagick libcap-dev libz-dev libbz2-dev python-setuptools xz-utils ccache g++-multilib \
         g++-mingw-w64-i686 mingw-w64-i686-dev bsdmainutils curl ca-certificates g++-mingw-w64-x86-64 mingw-w64-x86-64-dev; \
     rm -rf /var/lib/apt/lists/*; \
     update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix; \
-    update-alternatives --set i686-w64-mingw32-g++ /usr/bin/i686-w64-mingw32-g++-posix;
+    update-alternatives --set i686-w64-mingw32-g++ /usr/bin/i686-w64-mingw32-g++-posix; \
+    /usr/sbin/update-ccache-symlinks
 
+ENV PATH "/usr/lib/ccache:$PATH"
 WORKDIR /home
 CMD ["/bin/bash"]
