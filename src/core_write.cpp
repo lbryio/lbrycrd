@@ -76,6 +76,10 @@ std::string SighashToStr(unsigned char sighash_type)
     return it->second;
 }
 
+bool IsClaimOpCode(opcodetype code) {
+    return code == opcodetype::OP_CLAIM_NAME || code == opcodetype::OP_SUPPORT_CLAIM || code == opcodetype::OP_UPDATE_CLAIM;
+}
+
 /**
  * Create the assembly string representation of a CScript object.
  * @param[in] script    CScript object to convert into the asm string representation.
@@ -89,6 +93,7 @@ std::string ScriptToAsmStr(const CScript& script, const bool fAttemptSighashDeco
     opcodetype opcode;
     std::vector<unsigned char> vch;
     CScript::const_iterator pc = script.begin();
+    bool isClaimScript = false;
     while (pc < script.end()) {
         if (!str.empty()) {
             str += " ";
@@ -97,8 +102,9 @@ std::string ScriptToAsmStr(const CScript& script, const bool fAttemptSighashDeco
             str += "[error]";
             return str;
         }
+        isClaimScript |= IsClaimOpCode(opcode);
         if (0 <= opcode && opcode <= OP_PUSHDATA4) {
-            if (vch.size() <= static_cast<std::vector<unsigned char>::size_type>(4)) {
+            if (vch.size() <= static_cast<std::vector<unsigned char>::size_type>(4) && !isClaimScript) {
                 str += strprintf("%d", CScriptNum(vch, false).getint());
             } else {
                 // the IsUnspendable check makes sure not to try to decode OP_RETURN data that may match the format of a signature
