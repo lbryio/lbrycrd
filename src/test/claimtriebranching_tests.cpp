@@ -26,6 +26,9 @@ using namespace std;
 
 BOOST_FIXTURE_TEST_SUITE(claimtriebranching_tests, RegTestingSetup)
 
+static const boost::test_tools::predicate_result predicate_true(true);
+static const boost::test_tools::predicate_result predicate_false(false);
+
 //is a claim in queue
 boost::test_tools::predicate_result
 is_claim_in_queue(std::string name, const CTransaction &tx)
@@ -182,12 +185,12 @@ struct ClaimTrieChainFixture{
 
     bool CreateCoinbases(unsigned int num_coinbases, std::vector<CTransaction>& coinbases)
     {
-        std::unique_ptr<CBlockTemplate> pblocktemplate;
         coinbases.clear();
-        BOOST_CHECK(pblocktemplate = AssemblerForTest().CreateNewBlock(CScript() << OP_TRUE));
+        std::unique_ptr<CBlockTemplate> pblocktemplate = AssemblerForTest().CreateNewBlock(CScript() << OP_TRUE);
+        BOOST_CHECK_EQUAL(pblocktemplate != nullptr, true);
         BOOST_CHECK_EQUAL(pblocktemplate->block.vtx.size(), 1);
         for (unsigned int i = 0; i < 100 + num_coinbases; ++i) {
-            BOOST_CHECK(CreateBlock(pblocktemplate));
+            BOOST_CHECK_EQUAL(CreateBlock(pblocktemplate), true);
             if (coinbases.size() < num_coinbases)
                 coinbases.push_back(std::move(*pblocktemplate->block.vtx[0]));
         }
@@ -209,7 +212,7 @@ struct ClaimTrieChainFixture{
         CValidationState state;
         CAmount txFeeRate = CAmount(0);
         LOCK(cs_main);
-        BOOST_CHECK(AcceptToMemoryPool(mempool, state, MakeTransactionRef(tx), nullptr, nullptr, false, txFeeRate, false));
+        BOOST_CHECK_EQUAL(AcceptToMemoryPool(mempool, state, MakeTransactionRef(tx), nullptr, nullptr, false, txFeeRate, false), true);
     }
 
     //spend a bid into some non claimtrie related unspent
@@ -285,12 +288,12 @@ struct ClaimTrieChainFixture{
 
         for (int i = 0; i < num_blocks; ++i)
         {
-            std::unique_ptr<CBlockTemplate> pblocktemplate;
             CScript coinbase_scriptpubkey;
             coinbase_scriptpubkey << CScriptNum(chainActive.Height());
-            BOOST_CHECK(pblocktemplate = AssemblerForTest().CreateNewBlock(coinbase_scriptpubkey));
+            std::unique_ptr<CBlockTemplate> pblocktemplate = AssemblerForTest().CreateNewBlock(coinbase_scriptpubkey);
+            BOOST_CHECK_EQUAL(pblocktemplate != nullptr, true);
             BOOST_CHECK_EQUAL(pblocktemplate->block.vtx.size(), num_txs_for_next_block + 1);
-            BOOST_CHECK(CreateBlock(pblocktemplate));
+            BOOST_CHECK_EQUAL(CreateBlock(pblocktemplate), true);
             num_txs_for_next_block = 0 ;
         }
     }
@@ -356,60 +359,60 @@ BOOST_AUTO_TEST_CASE(claim_test)
     ClaimTrieChainFixture fixture;
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(!is_best_claim("test",tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_false);
 
     // there is a competing bid inserted same height
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
     CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx3));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
     BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").size());
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(!is_best_claim("test",tx2));
-    BOOST_CHECK(!is_best_claim("test",tx3));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx2), predicate_false);
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_false);
     BOOST_CHECK_EQUAL(0U, pclaimTrie->getClaimsForName("test").size());
 
     // make two claims , one older
     CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx4));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
     CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(),"test","two",1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_claim_in_queue("test",tx5));
-    BOOST_CHECK(is_best_claim("test", tx4));
+    BOOST_CHECK_EQUAL(is_claim_in_queue("test", tx5), predicate_true);
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx4));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
     BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").size());
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test", tx4));
-    BOOST_CHECK(is_claim_in_queue("test",tx5));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
+    BOOST_CHECK_EQUAL(is_claim_in_queue("test", tx5), predicate_true);
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test", tx4));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
     fixture.DecrementBlocks(1);
 
     // check claim takeover, note that CClaimTrie.nProportionalDelayFactor is set to 1
     // instead of 32 in test_bitcoin.cpp
     CMutableTransaction tx6 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
     fixture.IncrementBlocks(10);
-    BOOST_CHECK(is_best_claim("test",tx6));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx6), predicate_true);
     CMutableTransaction tx7 = fixture.MakeClaim(fixture.GetCoinbase(),"test","two",2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_claim_in_queue("test",tx7));
-    BOOST_CHECK(is_best_claim("test", tx6));
+    BOOST_CHECK_EQUAL(is_claim_in_queue("test", tx7), predicate_true);
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx6), predicate_true);
     fixture.IncrementBlocks(10);
-    BOOST_CHECK(is_best_claim("test",tx7));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx7), predicate_true);
     BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").size());
 
     fixture.DecrementBlocks(10);
-    BOOST_CHECK(is_claim_in_queue("test",tx7));
-    BOOST_CHECK(is_best_claim("test", tx6));
+    BOOST_CHECK_EQUAL(is_claim_in_queue("test", tx7), predicate_true);
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx6), predicate_true);
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx6));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx6), predicate_true);
     fixture.DecrementBlocks(10);
 }
 
@@ -427,45 +430,45 @@ BOOST_AUTO_TEST_CASE(spend_claim_test)
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test", tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
     fixture.Spend(tx1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test", tx2));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx2), predicate_true);
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test", tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
     fixture.DecrementBlocks(1);
 
 
     // spending winning claim will make inactive claim winner
     CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     fixture.IncrementBlocks(10);
-    BOOST_CHECK(is_best_claim("test",tx3));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
     CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx3));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
     fixture.Spend(tx3);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx4));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx3));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx3));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
     fixture.DecrementBlocks(10);
 
 
     //spending winning claim will empty out claim trie
     CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx5));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx5), predicate_true);
     fixture.Spend(tx5);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(!is_best_claim("test",tx5));
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx5), predicate_false);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx5));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx5), predicate_true);
     fixture.DecrementBlocks(1);
 }
 
@@ -482,33 +485,33 @@ BOOST_AUTO_TEST_CASE(support_test)
     // check claim with more support wins
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
-    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(),tx1,"test",1);
-    CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(),tx2,"test",10);
+    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx1,"test",1);
+    CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(), tx2,"test",10);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx2));
-    BOOST_CHECK(best_claim_effective_amount_equals("test",11));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx2), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test",11), predicate_true);
     fixture.DecrementBlocks(1);
 
     // check support delay
     CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
     CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(),"test","two",2);
     fixture.IncrementBlocks(10);
-    BOOST_CHECK(is_best_claim("test",tx4));
-    BOOST_CHECK(best_claim_effective_amount_equals("test",2));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test",2), predicate_true);
     CMutableTransaction s4 = fixture.MakeSupport(fixture.GetCoinbase(), tx3, "test", 10); //10 delay
     fixture.IncrementBlocks(10);
-    BOOST_CHECK(is_best_claim("test",tx4));
-    BOOST_CHECK(best_claim_effective_amount_equals("test",2));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test",2), predicate_true);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx3));
-    BOOST_CHECK(best_claim_effective_amount_equals("test",11));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test",11), predicate_true);
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx4));
-    BOOST_CHECK(best_claim_effective_amount_equals("test",2));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test",2), predicate_true);
     fixture.DecrementBlocks(10);
-    BOOST_CHECK(is_best_claim("test", tx4));
-    BOOST_CHECK(best_claim_effective_amount_equals("test",2));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test",2), predicate_true);
     fixture.DecrementBlocks(10);
 }
 
@@ -527,31 +530,30 @@ BOOST_AUTO_TEST_CASE(support_on_abandon_test)
     fixture.IncrementBlocks(1);
 
     //supporting and abandoing on the same block will cause it to crash
-    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(),tx1,"test",1);
+    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx1,"test",1);
     fixture.Spend(tx1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(!is_best_claim("test",tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_false);
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx1));
-
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
 }
 
 BOOST_AUTO_TEST_CASE(support_on_abandon_2_test)
 {
     ClaimTrieChainFixture fixture;
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
-    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(),tx1,"test",1);
+    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx1,"test",1);
     fixture.IncrementBlocks(1);
 
     //abandoning a support and abandoing claim on the same block will cause it to crash
     fixture.Spend(tx1);
     fixture.Spend(s1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(!is_best_claim("test",tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_false);
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
 }
 
 BOOST_AUTO_TEST_CASE(update_on_support_test)
@@ -563,15 +565,15 @@ BOOST_AUTO_TEST_CASE(update_on_support_test)
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",3);
     fixture.IncrementBlocks(1);
 
-    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(),tx1,"test",1);
+    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx1,"test",1);
     CMutableTransaction u1 = fixture.MakeUpdate(tx1,"test","two",ClaimIdHash(tx1.GetHash(),0),1);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(is_best_claim("test",u1));
-    BOOST_CHECK(best_claim_effective_amount_equals("test",2));
+    BOOST_CHECK_EQUAL(is_best_claim("test", u1), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 2), predicate_true);
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test", tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
 }
 
 /*
@@ -586,24 +588,24 @@ BOOST_AUTO_TEST_CASE(support_spend_test)
     ClaimTrieChainFixture fixture;
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
-    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(),tx1,"test",2);
+    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx1,"test",2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test", tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
     CMutableTransaction sp1 = fixture.Spend(s1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx2));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx2), predicate_true);
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
     fixture.DecrementBlocks(1);
 
     // spend a support on txin[i] where i is not 0
     CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"x","one",3);
     CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(),"test","two",2);
     CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(),"test","three",1);
-    CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(),tx5,"test",2);
+    CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(), tx5,"test",2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx5));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx5), predicate_true);
     BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").size());
 
     // build the spend where s2 is sppent on txin[1] and tx3 is  spent on txin[0]
@@ -627,10 +629,11 @@ BOOST_AUTO_TEST_CASE(support_spend_test)
     fixture.CommitTx(tx);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(is_best_claim("test", tx4));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx5));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx5), predicate_true);
 }
+
 /*
     update
         update preserves claim id
@@ -651,7 +654,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     CClaimValue val;
     pclaimTrie->getInfoForName("test",val);
     BOOST_CHECK_EQUAL(val.claimId, ClaimIdHash(tx1.GetHash(),0));
-    BOOST_CHECK(is_best_claim("test",u1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", u1), predicate_true);
     fixture.DecrementBlocks(1);
 
     // update preserves supports
@@ -659,7 +662,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx2, "test", 1);
     CMutableTransaction u2 = fixture.MakeUpdate(tx2, "test", "one", ClaimIdHash(tx2.GetHash(), 0), 1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(best_claim_effective_amount_equals("test",2));
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 2), predicate_true);
     fixture.DecrementBlocks(1);
 
     // winning update on winning claim happens without delay
@@ -668,7 +671,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     fixture.IncrementBlocks(10);
     CMutableTransaction u3 = fixture.MakeUpdate(tx3, "test", "one", ClaimIdHash(tx3.GetHash(), 0), 2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",u3));
+    BOOST_CHECK_EQUAL(is_best_claim("test", u3), predicate_true);
     BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").size());
     fixture.DecrementBlocks(11);
 
@@ -676,21 +679,21 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",3);
     CMutableTransaction tx6 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     fixture.IncrementBlocks(10);
-    BOOST_CHECK(is_best_claim("test", tx5));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx5), predicate_true);
     BOOST_CHECK_EQUAL(2U, pclaimTrie->getClaimsForName("test").size());
     CMutableTransaction u4 = fixture.MakeUpdate(tx5, "test", "one", ClaimIdHash(tx5.GetHash(), 0), 1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx6));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx6), predicate_true);
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test", tx5));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx5), predicate_true);
     fixture.DecrementBlocks(10);
 
     // update on losing claim happens with delay , and wins
     CMutableTransaction tx7 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",3);
     CMutableTransaction tx8 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     fixture.IncrementBlocks(10);
-    BOOST_CHECK(is_best_claim("test", tx7));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx7), predicate_true);
 
     CMutableTransaction tx;
     tx.nVersion = CTransaction::CURRENT_VERSION;
@@ -710,12 +713,12 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     fixture.CommitTx(tx);
 
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx7));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx7), predicate_true);
     fixture.IncrementBlocks(10);
-    BOOST_CHECK(is_best_claim("test",tx));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx), predicate_true);
 
     fixture.DecrementBlocks(10);
-    BOOST_CHECK(is_best_claim("test",tx7));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx7), predicate_true);
     fixture.DecrementBlocks(11);
 }
 
@@ -733,56 +736,56 @@ BOOST_AUTO_TEST_CASE(claimtrie_expire_test)
     // check claims expire and loses claim
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     fixture.IncrementBlocks(pclaimTrie->nExpirationTime);
-    BOOST_CHECK(is_best_claim("test",tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx2));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx2), predicate_true);
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
     fixture.DecrementBlocks(pclaimTrie->nExpirationTime);
 
     // check claims expire and is not updateable (may be changed in future soft fork)
     CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx3));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
     fixture.IncrementBlocks(pclaimTrie->nExpirationTime);
     CMutableTransaction u1 = fixture.MakeUpdate(tx3,"test","two",ClaimIdHash(tx3.GetHash(),0) ,2);
-    BOOST_CHECK(!is_best_claim("test",u1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", u1), predicate_false);
 
     fixture.DecrementBlocks(pclaimTrie->nExpirationTime);
-    BOOST_CHECK(is_best_claim("test",tx3));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
     fixture.DecrementBlocks(1);
 
     // check supports expire and can cause supported bid to lose claim
     CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
     CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
-    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(),tx4,"test",2);
+    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx4,"test",2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx4));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
     CMutableTransaction u2 = fixture.MakeUpdate(tx4,"test","two",ClaimIdHash(tx4.GetHash(),0) ,1);
     CMutableTransaction u3 = fixture.MakeUpdate(tx5,"test","two",ClaimIdHash(tx5.GetHash(),0) ,2);
     fixture.IncrementBlocks(pclaimTrie->nExpirationTime);
-    BOOST_CHECK(is_best_claim("test",u3));
+    BOOST_CHECK_EQUAL(is_best_claim("test", u3), predicate_true);
     fixture.DecrementBlocks(pclaimTrie->nExpirationTime);
-    BOOST_CHECK(is_best_claim("test",tx4));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
     fixture.DecrementBlocks(1);
 
     // check updated claims will extend expiration
     CMutableTransaction tx6 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",tx6));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx6), predicate_true);
     CMutableTransaction u4 = fixture.MakeUpdate(tx6,"test","two",ClaimIdHash(tx6.GetHash(),0) ,2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",u4));
+    BOOST_CHECK_EQUAL(is_best_claim("test", u4), predicate_true);
     fixture.IncrementBlocks(pclaimTrie->nExpirationTime-1);
-    BOOST_CHECK(is_best_claim("test",u4));
+    BOOST_CHECK_EQUAL(is_best_claim("test", u4), predicate_true);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(!is_best_claim("test",u4));
+    BOOST_CHECK_EQUAL(is_best_claim("test", u4), predicate_false);
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",u4));
+    BOOST_CHECK_EQUAL(is_best_claim("test", u4), predicate_true);
     fixture.DecrementBlocks(pclaimTrie->nExpirationTime);
-    BOOST_CHECK(is_best_claim("test",tx6));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx6), predicate_true);
 }
 
 /*
@@ -796,38 +799,38 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_get_effective_amount_for_claim)
     uint160 claimId = ClaimIdHash(claimtx.GetHash(), 0);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId) == 2);
-    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("inexistent", claimId) == 0); //not found returns 0
+    BOOST_CHECK_EQUAL(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId), 2);
+    BOOST_CHECK_EQUAL(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("inexistent", claimId), 0); //not found returns 0
 
     // one claim, one support
     fixture.MakeSupport(fixture.GetCoinbase(), claimtx, "test", 40);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId) == 42);
+    BOOST_CHECK_EQUAL(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId), 42);
 
     // Two claims, first one with supports
     CMutableTransaction claimtx2 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "two", 1);
     uint160 claimId2 = ClaimIdHash(claimtx2.GetHash(), 0);
     fixture.IncrementBlocks(10);
 
-    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId) == 42);
-    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId2) == 1);
-    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("inexistent", claimId) == 0);
-    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("inexistent", claimId2) == 0);
+    BOOST_CHECK_EQUAL(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId), 42);
+    BOOST_CHECK_EQUAL(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId2), 1);
+    BOOST_CHECK_EQUAL(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("inexistent", claimId), 0);
+    BOOST_CHECK_EQUAL(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("inexistent", claimId2), 0);
 
     // Two claims, both with supports, second claim effective amount being less than first claim
     fixture.MakeSupport(fixture.GetCoinbase(), claimtx2, "test", 6);
     fixture.IncrementBlocks(13); //delay
 
-    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId) == 42);
-    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId2) == 7);
+    BOOST_CHECK_EQUAL(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId), 42);
+    BOOST_CHECK_EQUAL(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId2), 7);
 
     // Two claims, both with supports, second one taking over
     fixture.MakeSupport(fixture.GetCoinbase(), claimtx2, "test", 1330);
     fixture.IncrementBlocks(26); //delay
 
-    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId) == 42);
-    BOOST_CHECK(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId2) == 1337);
+    BOOST_CHECK_EQUAL(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId), 42);
+    BOOST_CHECK_EQUAL(CClaimTrieCache(pclaimTrie).getEffectiveAmountForClaim("test", claimId2), 1337);
 }
 
 /*
@@ -869,15 +872,15 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
 
     fixture.Spend(u1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(!pclaimTrie->getClaimById(claimId, claimName, claimValue));
+    BOOST_CHECK_EQUAL(pclaimTrie->getClaimById(claimId, claimName, claimValue), false);
 
     fixture.DecrementBlocks(3);
 
     CClaimValue claimValue2;
     claimName = "";
     pclaimTrie->getClaimById(claimId2, claimName, claimValue2);
-    BOOST_CHECK(claimName != name);
-    BOOST_CHECK(claimValue2.claimId != claimId2);
+    BOOST_CHECK_EQUAL(claimName != name, true);
+    BOOST_CHECK_EQUAL(claimValue2.claimId != claimId2, true);
 
     pclaimTrie->getClaimById(claimId, claimName, claimValue);
     BOOST_CHECK_EQUAL(claimName, name);
@@ -887,8 +890,8 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
 
     claimName = "";
     pclaimTrie->getClaimById(claimId, claimName, claimValue2);
-    BOOST_CHECK(claimName != name);
-    BOOST_CHECK(claimValue2.claimId != claimId);
+    BOOST_CHECK_EQUAL(claimName != name, true);
+    BOOST_CHECK_EQUAL(claimValue2.claimId != claimId, true);
 }
 
 /*
@@ -904,11 +907,11 @@ BOOST_AUTO_TEST_CASE(hardfork_claim_test)
     // First create a claim and make sure it expires pre-fork
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",3);
     fixture.IncrementBlocks(fixture.originalExpiration+1);
-    BOOST_CHECK(!is_best_claim("test",tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_false);
     fixture.DecrementBlocks(fixture.originalExpiration);
-    BOOST_CHECK(is_best_claim("test",tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
     fixture.IncrementBlocks(fixture.originalExpiration);
-    BOOST_CHECK(!is_best_claim("test",tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_false);
 
     // Create a claim 1 block before the fork height that will expire after the fork height
     fixture.IncrementBlocks(fixture.expirationForkHeight - chainActive.Height() -2);
@@ -928,50 +931,50 @@ BOOST_AUTO_TEST_CASE(hardfork_claim_test)
 
     // make sure that claim created 1 block before the fork expires as expected
     // at the extended expiration times
-    BOOST_CHECK(is_best_claim("test2", tx2));
+    BOOST_CHECK_EQUAL(is_best_claim("test2", tx2), predicate_true);
     fixture.IncrementBlocks(fixture.extendedExpiration-1);
-    BOOST_CHECK(!is_best_claim("test2", tx2));
+    BOOST_CHECK_EQUAL(is_best_claim("test2", tx2), predicate_false);
     fixture.DecrementBlocks(fixture.extendedExpiration-1);
 
     // This first claim is still expired since it's pre-fork, even
     // after fork activation
-    BOOST_CHECK(!is_best_claim("test",tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_false);
 
     // This new claim created at the fork height cannot expire at original expiration
     BOOST_CHECK_EQUAL(chainActive.Height(), fixture.expirationForkHeight);
     CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
     fixture.IncrementBlocks(1);
     fixture.IncrementBlocks(fixture.originalExpiration);
-    BOOST_CHECK(is_best_claim("test",tx3));
-    BOOST_CHECK(!is_best_claim("test",tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_false);
     fixture.DecrementBlocks(fixture.originalExpiration);
 
     // but it expires at the extended expiration, and not a single block below
     fixture.IncrementBlocks(fixture.extendedExpiration);
-    BOOST_CHECK(!is_best_claim("test",tx3));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_false);
     fixture.DecrementBlocks(fixture.extendedExpiration);
     fixture.IncrementBlocks(fixture.extendedExpiration-1);
-    BOOST_CHECK(is_best_claim("test",tx3));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
     fixture.DecrementBlocks(fixture.extendedExpiration-1);
 
 
     // Ensure that we cannot update the original pre-fork expired claim
     CMutableTransaction u1 = fixture.MakeUpdate(tx1,"test","two",ClaimIdHash(tx1.GetHash(),0), 3);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(!is_best_claim("test",u1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", u1), predicate_false);
 
     // Ensure that supports for the expired claim don't support it
-    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(),u1,"test",10);
-    BOOST_CHECK(!is_best_claim("test",u1));
+    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), u1,"test",10);
+    BOOST_CHECK_EQUAL(is_best_claim("test", u1), predicate_false);
 
     // Ensure that we can update the new post-fork claim
     CMutableTransaction u2 = fixture.MakeUpdate(tx3,"test","two",ClaimIdHash(tx3.GetHash(),0), 1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("test",u2));
+    BOOST_CHECK_EQUAL(is_best_claim("test", u2), predicate_true);
 
     // Ensure that supports for the new post-fork claim
-    CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(),u2,"test",3);
-    BOOST_CHECK(is_best_claim("test",u2));
+    CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(), u2,"test",3);
+    BOOST_CHECK_EQUAL(is_best_claim("test", u2), predicate_true);
 }
 
 /*
@@ -985,7 +988,7 @@ BOOST_AUTO_TEST_CASE(hardfork_support_test)
     fixture.IncrementBlocks(fixture.expirationForkHeight - chainActive.Height() - blocks_before_fork - 1);
     // Create claim and support it before the fork height
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
-    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(),tx1,"test",2);
+    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx1,"test",2);
     // this claim will win without the support
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     fixture.IncrementBlocks(1);
@@ -993,15 +996,15 @@ BOOST_AUTO_TEST_CASE(hardfork_support_test)
 
     // check that the claim expires as expected at the extended time, as does the support
     fixture.IncrementBlocks(fixture.originalExpiration - blocks_before_fork);
-    BOOST_CHECK(is_best_claim("test",tx1));
-    BOOST_CHECK(best_claim_effective_amount_equals("test",3));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test",3), predicate_true);
     fixture.DecrementBlocks(fixture.originalExpiration - blocks_before_fork);
     fixture.IncrementBlocks(fixture.extendedExpiration - blocks_before_fork);
-    BOOST_CHECK(!is_best_claim("test",tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_false);
     fixture.DecrementBlocks(fixture.extendedExpiration - blocks_before_fork);
     fixture.IncrementBlocks(fixture.extendedExpiration - blocks_before_fork - 1);
-    BOOST_CHECK(is_best_claim("test",tx1));
-    BOOST_CHECK(best_claim_effective_amount_equals("test",3));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test",3), predicate_true);
     fixture.DecrementBlocks(fixture.extendedExpiration - blocks_before_fork - 1);
 
     // update the claims at fork
@@ -1011,19 +1014,18 @@ BOOST_AUTO_TEST_CASE(hardfork_support_test)
     fixture.IncrementBlocks(1);
     BOOST_CHECK_EQUAL(fixture.expirationForkHeight, chainActive.Height());
 
-    BOOST_CHECK(is_best_claim("test", u1));
-    BOOST_CHECK(best_claim_effective_amount_equals("test",3));
-    BOOST_CHECK(!is_claim_in_queue("test",tx1));
-    BOOST_CHECK(!is_claim_in_queue("test",tx2));
+    BOOST_CHECK_EQUAL(is_best_claim("test", u1), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test",3), predicate_true);
+    BOOST_CHECK_EQUAL(is_claim_in_queue("test", tx1), predicate_false);
+    BOOST_CHECK_EQUAL(is_claim_in_queue("test", tx2), predicate_false);
 
     // check that the support expires as expected
     fixture.IncrementBlocks(fixture.extendedExpiration - blocks_before_fork);
-    BOOST_CHECK(is_best_claim("test", u2));
+    BOOST_CHECK_EQUAL(is_best_claim("test", u2), predicate_true);
     fixture.DecrementBlocks(fixture.extendedExpiration - blocks_before_fork);
     fixture.IncrementBlocks(fixture.extendedExpiration - blocks_before_fork - 1);
-    BOOST_CHECK(is_best_claim("test",u1));
-    BOOST_CHECK(best_claim_effective_amount_equals("test",3));
-
+    BOOST_CHECK_EQUAL(is_best_claim("test", u1), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test",3), predicate_true);
 }
 
 /*
@@ -1042,18 +1044,18 @@ BOOST_AUTO_TEST_CASE(activations_fall_through)
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "A", "2", 3);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(is_best_claim("A", tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("A", tx1), predicate_true);
     fixture.IncrementBlocks(3);
-    BOOST_CHECK(is_best_claim("A", tx2));
+    BOOST_CHECK_EQUAL(is_best_claim("A", tx2), predicate_true);
     fixture.DecrementBlocks(3);
     fixture.Spend(tx1); // this will trigger early activation on tx2 claim
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("A", tx2));
+    BOOST_CHECK_EQUAL(is_best_claim("A", tx2), predicate_true);
     fixture.DecrementBlocks(1); //reorg the early activation
-    BOOST_CHECK(is_best_claim("A", tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("A", tx1), predicate_true);
     fixture.Spend(tx1);
     fixture.IncrementBlocks(1); // this should not cause tx2 to activate again and crash
-    BOOST_CHECK(is_best_claim("A", tx2));
+    BOOST_CHECK_EQUAL(is_best_claim("A", tx2), predicate_true);
 }
 
 BOOST_AUTO_TEST_CASE(supports_fall_through)
@@ -1068,21 +1070,21 @@ BOOST_AUTO_TEST_CASE(supports_fall_through)
     CMutableTransaction sx2 = fixture.MakeSupport(fixture.GetCoinbase(), tx2, "A", 3);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(is_best_claim("A", tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("A", tx1), predicate_true);
     fixture.IncrementBlocks(3);
-    BOOST_CHECK(is_best_claim("A", tx2));
+    BOOST_CHECK_EQUAL(is_best_claim("A", tx2), predicate_true);
     fixture.DecrementBlocks(3);
     fixture.Spend(tx1); // this will trigger early activation
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("A", tx2));
+    BOOST_CHECK_EQUAL(is_best_claim("A", tx2), predicate_true);
     fixture.DecrementBlocks(1); // reorg the early activation
-    BOOST_CHECK(is_best_claim("A", tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("A", tx1), predicate_true);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("A", tx1)); //tx2 support should not be active
+    BOOST_CHECK_EQUAL(is_best_claim("A", tx1), predicate_true); //tx2 support should not be active
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("A", tx1)); //tx2 support should not be active
+    BOOST_CHECK_EQUAL(is_best_claim("A", tx1), predicate_true); //tx2 support should not be active
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(is_best_claim("A", tx2)); //tx2 support should be active now
+    BOOST_CHECK_EQUAL(is_best_claim("A", tx2), predicate_true); //tx2 support should be active now
 }
 
 /*
@@ -1105,7 +1107,7 @@ BOOST_AUTO_TEST_CASE(hardfork_disk_test)
     // proper behavior
     fixture.DecrementBlocks(2);
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
-    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(),tx1,"test",1);
+    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx1,"test",1);
     fixture.IncrementBlocks(1);
     BOOST_CHECK_EQUAL(chainActive.Height(), fixture.expirationForkHeight -1);
 
@@ -1114,40 +1116,40 @@ BOOST_AUTO_TEST_CASE(hardfork_disk_test)
     BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, fixture.originalExpiration);
     fixture.IncrementBlocks(1);
     BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, fixture.extendedExpiration);
-    BOOST_CHECK(is_best_claim("test", tx1));
-    BOOST_CHECK(best_claim_effective_amount_equals("test",2));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test",2), predicate_true);
     fixture.IncrementBlocks(fixture.originalExpiration-1);
-    BOOST_CHECK(is_best_claim("test", tx1));
-    BOOST_CHECK(best_claim_effective_amount_equals("test",2));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test",2), predicate_true);
     fixture.DecrementBlocks(fixture.originalExpiration-1);
     fixture.IncrementBlocks(fixture.extendedExpiration-1);
-    BOOST_CHECK(!is_best_claim("test", tx1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_false);
 
     // Create a claim and support before the fork height, reset to disk, update the claim
     // increment past the fork height and make sure we get proper behavior
     int  height_of_update_before_expiration = 50;
     fixture.DecrementBlocks(chainActive.Height() - fixture.expirationForkHeight + height_of_update_before_expiration+2);
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test2","one",1);
-    CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(),tx2,"test2",1);
+    CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(), tx2,"test2",1);
     fixture.IncrementBlocks(1);
     fixture.WriteClearReadClaimTrie();
     CMutableTransaction u2 = fixture.MakeUpdate(tx2,"test2","two",ClaimIdHash(tx2.GetHash(),0),1);
     // increment to fork
     fixture.IncrementBlocks(fixture.expirationForkHeight - chainActive.Height());
-    BOOST_CHECK(is_best_claim("test2", u2));
-    BOOST_CHECK(best_claim_effective_amount_equals("test2",2));
+    BOOST_CHECK_EQUAL(is_best_claim("test2", u2), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test2",2), predicate_true);
     // increment to original expiration, should not be expired
     fixture.IncrementBlocks(fixture.originalExpiration - height_of_update_before_expiration);
-    BOOST_CHECK(is_best_claim("test2", u2));
-    BOOST_CHECK(best_claim_effective_amount_equals("test2", 2));
+    BOOST_CHECK_EQUAL(is_best_claim("test2", u2), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test2", 2), predicate_true);
     fixture.DecrementBlocks(fixture.originalExpiration - height_of_update_before_expiration);
     // increment to extended expiration, should be expired and not one block before
     fixture.IncrementBlocks(fixture.extendedExpiration - height_of_update_before_expiration);
-    BOOST_CHECK(!is_best_claim("test2", u2));
+    BOOST_CHECK_EQUAL(is_best_claim("test2", u2), predicate_false);
     fixture.DecrementBlocks(fixture.extendedExpiration - height_of_update_before_expiration);
     fixture.IncrementBlocks(fixture.extendedExpiration - height_of_update_before_expiration - 1);
-    BOOST_CHECK(is_best_claim("test2", u2));
-    BOOST_CHECK(best_claim_effective_amount_equals("test2", 1)); // the support expires one block before
+    BOOST_CHECK_EQUAL(is_best_claim("test2", u2), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test2", 1), predicate_true); // the support expires one block before
 }
 
 BOOST_AUTO_TEST_CASE(insert_update_claim_test)
@@ -1181,7 +1183,7 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     // Verify claims (tx7) for uncontrolled names go in immediately
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName1, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx7OutPoint);
 
     // Verify claims for controlled names are delayed, and that the bigger claim wins when inserted
@@ -1189,16 +1191,16 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
 
     fixture.IncrementBlocks(5); // 12
 
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
 
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName1, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx1OutPoint);
 
     // Verify updates to the best claim get inserted immediately, and others don't.
@@ -1208,29 +1210,29 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     COutPoint tx9OutPoint(tx9.GetHash(), 0);
     fixture.IncrementBlocks(1, true); // 14
 
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx1OutPoint));
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx7OutPoint));
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName1, tx1OutPoint), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName1, tx7OutPoint), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName1, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx3OutPoint);
-    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName1, tx9OutPoint, nThrowaway));
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName1, tx9OutPoint, nThrowaway), true);
 
     // Roll back the last block, make sure tx1 and tx7 are put back in the trie
     fixture.DecrementBlocks(); // 13
 
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName1, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx1OutPoint);
-    BOOST_CHECK(pclaimTrie->haveClaim(sName1, tx7OutPoint));
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName1, tx7OutPoint), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
 
     // Roll all the way back, make sure all txs are out of the trie
     fixture.DecrementBlocks();
 
-    BOOST_CHECK(!pclaimTrie->getInfoForName(sName1, val));
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName1, val), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->getMerkleHash(), hash0);
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // Test undoing a claim before the claim gets into the trie
 
@@ -1238,8 +1240,8 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     fixture.IncrementBlocks(10); // 11
 
@@ -1247,21 +1249,21 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx7);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
 
     // Undo that block and make sure it's not in the queue
     fixture.DecrementBlocks();
 
     // Make sure it's not in the queue
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // Go back to the beginning
     fixture.DecrementBlocks();
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // Test spend a claim which was just inserted into the trie
 
@@ -1271,12 +1273,12 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     CMutableTransaction tx4 = fixture.Spend(tx2);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // Verify that if a claim in the queue is spent, it does not get into the trie
 
@@ -1290,46 +1292,46 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx2);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName2, tx2OutPoint, nThrowaway));
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName2, tx2OutPoint, nThrowaway), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
 
     fixture.IncrementBlocks(3);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
 
     // Spend tx2 with tx4, and then advance to where tx2 would be inserted into the trie and verify it hasn't happened
 
     fixture.CommitTx(tx4);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     fixture.IncrementBlocks(5);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName2, tx2OutPoint));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName2, tx2OutPoint), false);
 
     // Undo spending tx2 with tx4, and then advance and verify tx2 is inserted into the trie when it should be
 
     fixture.DecrementBlocks();
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName2, tx2OutPoint, nThrowaway));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName2, tx2OutPoint, nThrowaway), true);
 
     fixture.IncrementBlocks(2);
 
-    BOOST_CHECK(pclaimTrie->haveClaim(sName2, tx2OutPoint));
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName2, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName2, tx2OutPoint), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName2, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx5OutPoint);
-    BOOST_CHECK(pclaimTrie->haveClaim(sName2, tx2OutPoint));
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName2, tx2OutPoint), true);
 
     // Test undoing a spend which involves a claim in the trie
 
@@ -1337,24 +1339,24 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx4);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName2, tx2OutPoint));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName2, tx2OutPoint), false);
 
     // undo spending tx2 with tx4, and verify tx2 is back in the trie
     fixture.DecrementBlocks();
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName2, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName2, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx5OutPoint);
-    BOOST_CHECK(pclaimTrie->haveClaim(sName2, tx2OutPoint));
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName2, tx2OutPoint), true);
 
     // roll back to the beginning
     fixture.DecrementBlocks();
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // Test undoing a spent update which updated a claim still in the queue
 
@@ -1368,9 +1370,9 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName1, tx1OutPoint, nThrowaway));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName1, tx1OutPoint, nThrowaway), true);
 
     // move forward some, but not far enough for the claim to get into the trie
     fixture.IncrementBlocks(2);
@@ -1379,46 +1381,46 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx3);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx1OutPoint, nThrowaway));
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx1OutPoint));
-    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName1, tx3OutPoint, nThrowaway));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName1, tx1OutPoint, nThrowaway), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName1, tx1OutPoint), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName1, tx3OutPoint, nThrowaway), true);
 
     // spend the update (tx6 spends tx3)
 
     CMutableTransaction tx6 = fixture.Spend(tx3);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx3OutPoint));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName1, tx3OutPoint), false);
 
     // undo spending the update (undo tx6 spending tx3)
     fixture.DecrementBlocks();
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
 
     // make sure the update (tx3) still goes into effect when it's supposed to
     fixture.IncrementBlocks(9);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName1, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx3OutPoint);
 
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->haveClaim(sName1, tx3OutPoint));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName1, tx3OutPoint), true);
 
     // roll all the way back
     fixture.DecrementBlocks();
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // Test undoing an spent update which updated the best claim to a name
 
@@ -1427,38 +1429,38 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     fixture.IncrementBlocks(5);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName1, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx1OutPoint);
 
     // update the original claim (tx3 spends tx1)
     fixture.CommitTx(tx3);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName1, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx3OutPoint);
 
     // spend the update (tx6 spends tx3)
     fixture.CommitTx(tx6);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // undo spending the update (undo tx6 spending tx3)
     fixture.DecrementBlocks();
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName1, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx3OutPoint);
 
     // Test having two updates to a claim in the same transaction
@@ -1481,26 +1483,26 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
 
     // ensure txout 0 made it into the trie and txout 1 did not
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
 
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName1, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx8OutPoint0);
 
     // roll forward until tx8 output 1 gets into the trie
     fixture.IncrementBlocks(6);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
 
     fixture.IncrementBlocks(1);
 
     // ensure txout 1 made it into the trie and is now in control
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName1, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx8OutPoint1);
 
     // roll back to before tx8
@@ -1509,8 +1511,8 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     // roll all the way back
     fixture.DecrementBlocks();
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // make sure invalid updates don't wreak any havoc
 
@@ -1518,9 +1520,9 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName1, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx1OutPoint);
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // advance a few blocks
     fixture.IncrementBlocks(5);
@@ -1531,8 +1533,8 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     COutPoint tx10OutPoint(tx10.GetHash(), 0);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx10OutPoint, nThrowaway));
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName1, tx10OutPoint, nThrowaway), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // roll back, make sure nothing bad happens
     fixture.DecrementBlocks();
@@ -1541,57 +1543,57 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx10);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx10OutPoint, nThrowaway));
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName1, tx10OutPoint, nThrowaway), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // update it
     CMutableTransaction tx11 = fixture.MakeUpdate(tx10, sName1, sValue1, tx1ClaimId, tx10.vout[0].nValue);
     COutPoint tx11OutPoint(tx11.GetHash(), 0);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx11OutPoint, nThrowaway));
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName1, tx11OutPoint, nThrowaway), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     fixture.IncrementBlocks(10);
 
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx11OutPoint, nThrowaway));
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx11OutPoint));
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName1, tx11OutPoint, nThrowaway), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName1, tx11OutPoint), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // roll back to before the update
     fixture.DecrementBlocks();
 
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx11OutPoint));
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx11OutPoint, nThrowaway));
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx10OutPoint));
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx10OutPoint, nThrowaway));
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName1, tx11OutPoint), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName1, tx11OutPoint, nThrowaway), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName1, tx10OutPoint), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName1, tx10OutPoint, nThrowaway), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // make sure tx10 would have gotten into the trie, then run tests again
 
     fixture.IncrementBlocks(10);
 
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx10OutPoint));
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx10OutPoint, nThrowaway));
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName1, tx10OutPoint), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName1, tx10OutPoint, nThrowaway), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // update it
     fixture.CommitTx(tx11);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx11OutPoint, nThrowaway));
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx11OutPoint));
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName1, tx11OutPoint, nThrowaway), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName1, tx11OutPoint), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // make sure tx11 would have gotten into the trie
 
     fixture.IncrementBlocks(20);
 
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx11OutPoint, nThrowaway));
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx11OutPoint));
-    BOOST_CHECK(!pclaimTrie->haveClaimInQueue(sName1, tx10OutPoint, nThrowaway));
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName1, tx10OutPoint));
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName1, tx11OutPoint, nThrowaway), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName1, tx11OutPoint), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName1, tx10OutPoint, nThrowaway), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName1, tx10OutPoint), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // roll all the way back
     fixture.DecrementBlocks();
@@ -1600,15 +1602,15 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx10);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // update with tx11
     fixture.CommitTx(tx11);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // roll back to before tx11
     fixture.DecrementBlocks();
@@ -1618,8 +1620,8 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
 
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // roll all the way back
     fixture.DecrementBlocks();
@@ -1630,14 +1632,14 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     CMutableTransaction tx13 = fixture.MakeClaim(fixture.GetCoinbase(), sName3, sValue3, 1);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // roll back
     fixture.DecrementBlocks();
@@ -1654,7 +1656,7 @@ BOOST_AUTO_TEST_CASE(basic_merkle_test)
     fixture.IncrementBlocks(20);
     uint256 tx1MerkleHash = pclaimTrie->getMerkleHash();
     fixture.DecrementBlocks(20);
-    BOOST_CHECK(tx1MerkleHash != pclaimTrie->getMerkleHash());
+    BOOST_CHECK_EQUAL(tx1MerkleHash != pclaimTrie->getMerkleHash(), true);
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(20);
     BOOST_CHECK_EQUAL(tx1MerkleHash, pclaimTrie->getMerkleHash());
@@ -1677,128 +1679,128 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     COutPoint tx1OutPoint(tx1.GetHash(), 0);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
     // advance until the expiration event occurs. verify the expiration event occurs on time.
 
     fixture.IncrementBlocks(199); // 200
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
     fixture.IncrementBlocks(1); // 201
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), true);
 
     // roll forward a bit and then roll back to before the expiration event. verify the claim is reinserted. verify the expiration event is scheduled again.
     fixture.IncrementBlocks(100); // 301
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), true);
 
     fixture.DecrementBlocks(101); // 200
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
     // advance until the expiration event occurs. verify the expiration event occurs on time.
     fixture.IncrementBlocks(1); // 201
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), true);
 
     // roll back to before the expiration event. verify the claim is reinserted. verify the expiration event is scheduled again.
     fixture.DecrementBlocks(2); // 199
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
     // roll back some more.
     fixture.DecrementBlocks(99); // 100
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
     // spend the claim. verify the expiration event is removed.
     CMutableTransaction tx2 = fixture.Spend(tx1);
     fixture.IncrementBlocks(1); // 101
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), true);
 
     // roll back the spend. verify the expiration event is returned.
     fixture.DecrementBlocks(1); // 100
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
     // advance until the expiration event occurs. verify the event occurs on time.
     fixture.IncrementBlocks(100); // 200
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
     fixture.IncrementBlocks(1); // 201
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), true);
 
     // spend the expired claim
     fixture.CommitTx(tx2);
     fixture.IncrementBlocks(1); // 202
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), true);
 
     // undo the spend. verify everything remains empty.
     fixture.DecrementBlocks(1); // 201
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), true);
 
     // roll back to before the expiration event. verify the claim is reinserted. verify the expiration event is scheduled again.
     fixture.DecrementBlocks(1); // 200
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
     // verify the expiration event happens at the right time again
     fixture.IncrementBlocks(1); // 201
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), true);
 
     // roll back to before the expiration event. verify it gets reinserted and expiration gets scheduled.
     fixture.DecrementBlocks(1); // 200
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
     // roll all the way back. verify the claim is removed and the expiration event is removed.
     fixture.DecrementBlocks(); // 0
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), true);
 
     // Make sure that when a claim expires, a lesser claim for the same name takes over
 
@@ -1808,9 +1810,9 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1, true); // 1
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
     // advance a little while and insert the second claim
     fixture.IncrementBlocks(4); // 5
@@ -1818,22 +1820,22 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     COutPoint tx3OutPoint(tx3.GetHash(), 0);
     fixture.IncrementBlocks(1); // 6
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
     // advance until tx3 is valid, ensure tx1 is winning
     fixture.IncrementBlocks(4); // 10
 
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName, tx3OutPoint, nThrowaway));
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName, tx3OutPoint, nThrowaway), true);
 
     fixture.IncrementBlocks(1); // 11
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx1OutPoint);
     uint256 tx1MerkleHash = pclaimTrie->getMerkleHash();
 
@@ -1843,28 +1845,28 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     // advance again until tx is valid
     fixture.IncrementBlocks(1); // 11
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx1OutPoint);
     BOOST_CHECK_EQUAL(tx1MerkleHash, pclaimTrie->getMerkleHash());
 
     // advance until the expiration event occurs. verify the expiration event occurs on time.
     fixture.IncrementBlocks(189, true); // 200
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
     fixture.IncrementBlocks(1); // 201
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx3OutPoint);
-    BOOST_CHECK(tx1MerkleHash != pclaimTrie->getMerkleHash());
+    BOOST_CHECK_EQUAL(tx1MerkleHash != pclaimTrie->getMerkleHash(), true);
 
     // spend tx1
     fixture.CommitTx(tx2);
@@ -1873,18 +1875,18 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     // roll back to when tx1 and tx3 are in the trie and tx1 is winning
     fixture.DecrementBlocks(); // 11
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->expirationQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx1OutPoint);
     BOOST_CHECK_EQUAL(tx1MerkleHash, pclaimTrie->getMerkleHash());
 
     // roll all the way back
     fixture.DecrementBlocks();
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->expirationQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), true);
 }
 
 BOOST_AUTO_TEST_CASE(claimtrienode_serialize_unserialize)
@@ -1902,13 +1904,13 @@ BOOST_AUTO_TEST_CASE(claimtrienode_serialize_unserialize)
     BOOST_CHECK_EQUAL(n1, n2);
 
     n1.hash.SetHex("0000000000000000000000000000000000000000000000000000000000000001");
-    BOOST_CHECK(n1 != n2);
+    BOOST_CHECK_EQUAL(n1 != n2, true);
     ss << n1;
     ss >> n2;
     BOOST_CHECK_EQUAL(n1, n2);
 
     n1.hash.SetHex("a79e8a5b28f7fa5e8836a4b48da9988bdf56ce749f81f413cb754f963a516200");
-    BOOST_CHECK(n1 != n2);
+    BOOST_CHECK_EQUAL(n1 != n2, true);
     ss << n1;
     ss >> n2;
     BOOST_CHECK_EQUAL(n1, n2);
@@ -1917,25 +1919,25 @@ BOOST_AUTO_TEST_CASE(claimtrienode_serialize_unserialize)
     CClaimValue v2(COutPoint(uint256S("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"), 1), hash160, 100, 1, 101);
 
     n1.insertClaim(v1);
-    BOOST_CHECK(n1 != n2);
+    BOOST_CHECK_EQUAL(n1 != n2, true);
     ss << n1;
     ss >> n2;
     BOOST_CHECK_EQUAL(n1, n2);
 
     n1.insertClaim(v2);
-    BOOST_CHECK(n1 != n2);
+    BOOST_CHECK_EQUAL(n1 != n2, true);
     ss << n1;
     ss >> n2;
     BOOST_CHECK_EQUAL(n1, n2);
 
     n1.removeClaim(v1.outPoint, throwaway);
-    BOOST_CHECK(n1 != n2);
+    BOOST_CHECK_EQUAL(n1 != n2, true);
     ss << n1;
     ss >> n2;
     BOOST_CHECK_EQUAL(n1, n2);
 
     n1.removeClaim(v2.outPoint, throwaway);
-    BOOST_CHECK(n1 != n2);
+    BOOST_CHECK_EQUAL(n1 != n2, true);
     ss << n1;
     ss >> n2;
     BOOST_CHECK_EQUAL(n1, n2);
@@ -1981,11 +1983,11 @@ BOOST_AUTO_TEST_CASE(invalid_claimid_test)
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue1, 1);
     fixture.IncrementBlocks(1); // 1
 
-    BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 
     // Make sure it gets way in there
     fixture.IncrementBlocks(100); // 101
@@ -1994,9 +1996,9 @@ BOOST_AUTO_TEST_CASE(invalid_claimid_test)
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue2, 5);
     fixture.IncrementBlocks(1); // 102
 
-    BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx2.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pcoinsTip->HaveCoin(COutPoint(tx2.GetHash(), 0)), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
 
     // Create a tx with a bogus claimId
     uint160 tx1ClaimId = ClaimIdHash(tx1.GetHash(), 0);
@@ -2006,42 +2008,42 @@ BOOST_AUTO_TEST_CASE(invalid_claimid_test)
 
     fixture.IncrementBlocks(1); // 103
 
-    BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx3.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pcoinsTip->HaveCoin(COutPoint(tx3.GetHash(), 0)), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // Verify it's not in the claim trie
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
 
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName, tx4OutPoint));
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName, tx4OutPoint), false);
 
     // Update the tx with the bogus claimId
     fixture.CommitTx(tx4);
     fixture.IncrementBlocks(1); // 104
 
-    BOOST_CHECK(pcoinsTip->HaveCoin(tx4OutPoint));
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pcoinsTip->HaveCoin(tx4OutPoint), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 
     // Verify it's not in the claim trie
 
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName, tx4OutPoint));
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName, tx4OutPoint), false);
 
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
 
     // Go forward a few hundred blocks and verify it's not in there
 
     fixture.IncrementBlocks(300); // 404
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->haveClaim(sName, tx4OutPoint));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName, tx4OutPoint), false);
 
     // go all the way back
     fixture.DecrementBlocks(404);
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
 }
 
 
@@ -2075,11 +2077,11 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue1, 1);
     fixture.IncrementBlocks(1); // 1
 
-    BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 
     // advance a few blocks
     fixture.IncrementBlocks(5); // 6
@@ -2088,9 +2090,9 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     CMutableTransaction tx3 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, sName, 5);
     fixture.IncrementBlocks(1); // 7
 
-    BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx3.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pcoinsTip->HaveCoin(COutPoint(tx3.GetHash(), 0)), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 
     // advance a few blocks
     fixture.IncrementBlocks(3); // 10
@@ -2099,24 +2101,24 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue2, 5);
     fixture.IncrementBlocks(1); // 11
 
-    BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx2.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pcoinsTip->HaveCoin(COutPoint(tx2.GetHash(), 0)), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
 
     // advance until tx2 is valid
     fixture.IncrementBlocks(9); // 20
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
 
     fixture.IncrementBlocks(1); // 21
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
     BOOST_CHECK_EQUAL(val.outPoint.n, 0);
     uint256 tx1MerkleHash = pclaimTrie->getMerkleHash();
@@ -2130,22 +2132,22 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     fixture.IncrementBlocks(1); // 22
 
     // verify tx2 gains control
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
-    BOOST_CHECK(tx1MerkleHash != pclaimTrie->getMerkleHash());
+    BOOST_CHECK_EQUAL(tx1MerkleHash != pclaimTrie->getMerkleHash(), true);
 
     // unspend tx3, verify tx1 regains control
     fixture.DecrementBlocks(1); // 21
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
     BOOST_CHECK_EQUAL(tx1MerkleHash, pclaimTrie->getMerkleHash());
 
@@ -2154,19 +2156,19 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     CMutableTransaction tx7 = fixture.MakeUpdate(tx1, sName, sValue1, claimId, tx1.vout[0].nValue);
     fixture.IncrementBlocks(1); // 22
 
-    BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx7.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pcoinsTip->HaveCoin(COutPoint(tx7.GetHash(), 0)), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx7.GetHash());
-    BOOST_CHECK(tx1MerkleHash != pclaimTrie->getMerkleHash());
+    BOOST_CHECK_EQUAL(tx1MerkleHash != pclaimTrie->getMerkleHash(), true);
 
     // roll back to before tx7 is inserted, verify tx1 has control
     fixture.DecrementBlocks(1); // 21
 
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
     BOOST_CHECK_EQUAL(tx1MerkleHash, pclaimTrie->getMerkleHash());
 
@@ -2178,13 +2180,13 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     fixture.IncrementBlocks(1); // 21
 
     // Verify tx2 gains control
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
-    BOOST_CHECK(tx1MerkleHash != pclaimTrie->getMerkleHash());
+    BOOST_CHECK_EQUAL(tx1MerkleHash != pclaimTrie->getMerkleHash(), true);
 
     // roll back to before tx3 is inserted
     fixture.DecrementBlocks(15); // 6
@@ -2196,23 +2198,23 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     fixture.CommitTx(tx2);
     fixture.IncrementBlocks(1); // 11
 
-    BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx2.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pcoinsTip->HaveCoin(COutPoint(tx2.GetHash(), 0)), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
 
     // advance until tx2 is valid
     fixture.IncrementBlocks(9); // 20
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
 
     fixture.IncrementBlocks(2); // 22
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
-    BOOST_CHECK(tx1MerkleHash != pclaimTrie->getMerkleHash());
+    BOOST_CHECK_EQUAL(tx1MerkleHash != pclaimTrie->getMerkleHash(), true);
 
     // roll all the way back
     fixture.DecrementBlocks(22); // 0
@@ -2227,13 +2229,13 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     fixture.CommitTx(tx2);
     fixture.IncrementBlocks(1); // 1
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
-    BOOST_CHECK(tx1MerkleHash != pclaimTrie->getMerkleHash());
+    BOOST_CHECK_EQUAL(tx1MerkleHash != pclaimTrie->getMerkleHash(), true);
 
     // advance a few blocks
     fixture.IncrementBlocks(5); // 6
@@ -2242,8 +2244,8 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     fixture.CommitTx(tx3);
     fixture.IncrementBlocks(1); // 7
 
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), false);
 
     // advance a couple of blocks
     fixture.IncrementBlocks(2); // 9
@@ -2252,22 +2254,22 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     fixture.CommitTx(tx6);
     fixture.IncrementBlocks(1); // 10
 
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 
     // undo spend of tx3, verify it gets back in the right place in the queue
     fixture.DecrementBlocks(1); // 9
 
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), false);
 
     fixture.IncrementBlocks(4); // 13
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
     BOOST_CHECK_EQUAL(val.outPoint.n, 0);
     // tx1MerkleHash doesn't match right here because it is at a different activation height (part of the node hash)
@@ -2277,26 +2279,26 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     fixture.CommitTx(tx6);
     fixture.IncrementBlocks(1); // 14
 
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
-    BOOST_CHECK(tx1MerkleHash != pclaimTrie->getMerkleHash());
+    BOOST_CHECK_EQUAL(tx1MerkleHash != pclaimTrie->getMerkleHash(), true);
 
     fixture.DecrementBlocks(1); // 13
 
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
     BOOST_CHECK_EQUAL(tx1MerkleHash, pclaimTrie->getMerkleHash());
 
     // roll all the way back
     fixture.DecrementBlocks(13);
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 }
 
 BOOST_AUTO_TEST_CASE(supporting_claims2_test)
@@ -2317,11 +2319,11 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue1, 1);
     fixture.IncrementBlocks(1); // 1
 
-    BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 
     // advance a few blocks
     fixture.IncrementBlocks(4); // 5
@@ -2330,22 +2332,22 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue2, 5);
     fixture.IncrementBlocks(1); // 6
 
-    BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx2.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pcoinsTip->HaveCoin(COutPoint(tx2.GetHash(), 0)), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 
     // advance until tx2 is in the trie
     fixture.IncrementBlocks(4); // 10
 
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
     COutPoint tx2cp(tx2.GetHash(), 0);
-    BOOST_CHECK(pclaimTrie->haveClaimInQueue(sName, tx2cp, nThrowaway));
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaimInQueue(sName, tx2cp, nThrowaway), true);
 
     fixture.IncrementBlocks(1); // 11
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
 
     // advance a few blocks
@@ -2356,24 +2358,24 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     CMutableTransaction tx3 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, sName, 5);
     fixture.IncrementBlocks(1); // 16
 
-    BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx3.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pcoinsTip->HaveCoin(COutPoint(tx3.GetHash(), 0)), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), false);
 
     // advance until tx3 is valid
     fixture.IncrementBlocks(4); // 20
 
-    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), false);
 
     fixture.IncrementBlocks(1); // 21
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
 
     CMutableTransaction tx4 = BuildTransaction(tx1);
@@ -2384,40 +2386,40 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx6);
     fixture.IncrementBlocks(1); // 22
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
 
     // undo spend
     fixture.DecrementBlocks(1); // 21
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
 
     // roll back to before tx3 is valid
     fixture.DecrementBlocks(1); // 20
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
 
     // roll all the way back
     fixture.DecrementBlocks(20); // 0
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 
     // Test 4: create 1 LBC claim (tx1), wait till valid, create 5 LBC claim (tx2), create 5 LBC support (tx3)
     // Verify that tx1 retains control throughout
@@ -2427,12 +2429,12 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1); // 1
 
-    BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
 
     // advance a few blocks
@@ -2444,11 +2446,11 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
 
     uint256 rootMerkleHash = pclaimTrie->getMerkleHash();
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
     BOOST_CHECK_EQUAL(rootMerkleHash, pclaimTrie->getMerkleHash());
 
@@ -2457,33 +2459,33 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx3);
     fixture.IncrementBlocks(1); // 10
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
     BOOST_CHECK_EQUAL(rootMerkleHash, pclaimTrie->getMerkleHash());
 
     // advance until tx2 is valid, verify tx1 retains control
     fixture.IncrementBlocks(3); // 13
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
     BOOST_CHECK_EQUAL(rootMerkleHash, pclaimTrie->getMerkleHash());
-    BOOST_CHECK(pclaimTrie->haveClaim(sName, tx2cp));
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName, tx2cp), true);
 
     // roll all the way back
     fixture.DecrementBlocks(13); // 0
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 
     // Test 5: create 5 LBC claim (tx2), wait till valid, create 1 LBC claim (tx1), create 5 LBC support (tx3)
     // Verify that tx2 retains control until support becomes valid
@@ -2492,13 +2494,13 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx2);
     fixture.IncrementBlocks(1); // 1
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
-    BOOST_CHECK(rootMerkleHash != pclaimTrie->getMerkleHash());
+    BOOST_CHECK_EQUAL(rootMerkleHash != pclaimTrie->getMerkleHash(), true);
 
     // advance a few blocks
     fixture.IncrementBlocks(9); // 10
@@ -2507,13 +2509,13 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1); // 11
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
-    BOOST_CHECK(rootMerkleHash != pclaimTrie->getMerkleHash());
+    BOOST_CHECK_EQUAL(rootMerkleHash != pclaimTrie->getMerkleHash(), true);
 
     // advance some
     fixture.IncrementBlocks(5); // 16
@@ -2522,43 +2524,43 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx3);
     fixture.IncrementBlocks(1); // 17
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
-    BOOST_CHECK(rootMerkleHash != pclaimTrie->getMerkleHash());
+    BOOST_CHECK_EQUAL(rootMerkleHash != pclaimTrie->getMerkleHash(), true);
 
     // advance until tx1 is valid
     fixture.IncrementBlocks(5); // 22
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(!pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
     COutPoint tx1cp(tx1.GetHash(), 0);
-    BOOST_CHECK(pclaimTrie->haveClaim(sName, tx1cp));
+    BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName, tx1cp), true);
 
     // advance until tx3 is valid
     fixture.IncrementBlocks(11); // 33
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
 
     // roll all the way back
     fixture.DecrementBlocks(33); // 0
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 
 
     // Test 6: create 1 LBC claim (tx1), wait till valid, create 5 LBC claim (tx2), create 5 LBC support (tx3), spend tx1
@@ -2566,11 +2568,11 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1); // 1
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
 
     // advance a few blocks
@@ -2580,11 +2582,11 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx2);
     fixture.IncrementBlocks(1); // 7
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
 
     // advance some, insert tx3
@@ -2592,51 +2594,51 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx3);
     fixture.IncrementBlocks(1); // 10
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
 
     // advance until tx2 is valid
     fixture.IncrementBlocks(3); // 13
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
 
     // spend tx1
     fixture.CommitTx(tx4);
     fixture.IncrementBlocks(1); // 14
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
 
     // undo spend of tx1
     fixture.DecrementBlocks(1); // 13
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
 
     // roll all the way back
     fixture.DecrementBlocks(13); // 0
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 
     // Test 7: create 1 LBC claim (tx1), wait till valid, create 5 LBC support (tx3), spend tx1
     // Verify name trie is empty
@@ -2645,36 +2647,36 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1); // 1
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 
     // insert tx3 into blockchain
     fixture.CommitTx(tx3);
     fixture.IncrementBlocks(1); // 2
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 
     // spent tx1
     fixture.CommitTx(tx4);
     fixture.IncrementBlocks(1); // 3
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 
     // roll all the way back
     fixture.DecrementBlocks(3);
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 }
 
 BOOST_AUTO_TEST_CASE(expiring_supports_test)
@@ -2698,20 +2700,20 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue1, 1);
     fixture.IncrementBlocks(1); // 1, expires at 201
 
-    BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 
     // Create a 5 LBC support (tx3)
     CMutableTransaction tx3 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, sName, 5);
     fixture.IncrementBlocks(1); // 2, expires at 202
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 
     // Advance some, then insert 5 LBC claim (tx2)
     fixture.IncrementBlocks(49); // 51
@@ -2719,28 +2721,28 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue2, 5);
     fixture.IncrementBlocks(1); // 52, activating in (52 - 2) / 1 = 50block (but not then active because support still holds tx1 up)
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
     uint256 rootMerkleHash = pclaimTrie->getMerkleHash();
 
     // Advance until tx2 is valid
     fixture.IncrementBlocks(50); // 102
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(!pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
     BOOST_CHECK_EQUAL(rootMerkleHash, pclaimTrie->getMerkleHash());
 
     fixture.IncrementBlocks(1); // 103
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx1.GetHash());
     rootMerkleHash = pclaimTrie->getMerkleHash();
 
@@ -2750,53 +2752,53 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
 
     fixture.IncrementBlocks(1); // 104
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx4.GetHash());
-    BOOST_CHECK(rootMerkleHash != pclaimTrie->getMerkleHash());
+    BOOST_CHECK_EQUAL(rootMerkleHash != pclaimTrie->getMerkleHash(), true);
 
     // Advance until the support expires
     fixture.IncrementBlocks(97); // 201
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
     rootMerkleHash = pclaimTrie->getMerkleHash();
 
     fixture.IncrementBlocks(1); // 202
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
-    BOOST_CHECK(rootMerkleHash != pclaimTrie->getMerkleHash());
+    BOOST_CHECK_EQUAL(rootMerkleHash != pclaimTrie->getMerkleHash(), true);
     rootMerkleHash = pclaimTrie->getMerkleHash();
 
     // undo the block, make sure control goes back
     fixture.DecrementBlocks(1); // 201
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx4.GetHash());
-    BOOST_CHECK(rootMerkleHash != pclaimTrie->getMerkleHash());
+    BOOST_CHECK_EQUAL(rootMerkleHash != pclaimTrie->getMerkleHash(), true);
 
     // redo the block, make sure it expires again
     fixture.IncrementBlocks(1); // 202
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
     rootMerkleHash = pclaimTrie->getMerkleHash();
 
@@ -2805,71 +2807,71 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
 
     fixture.DecrementBlocks(49); // 153
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx4.GetHash());
-    BOOST_CHECK(rootMerkleHash != pclaimTrie->getMerkleHash());
+    BOOST_CHECK_EQUAL(rootMerkleHash != pclaimTrie->getMerkleHash(), true);
 
     fixture.Spend(tx3);
     fixture.IncrementBlocks(1); // 154
 
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
 
     fixture.IncrementBlocks(50); // 204
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
 
     //undo the spend, and make sure it still expires on time
 
     fixture.DecrementBlocks(51); // 153
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx4.GetHash());
 
     fixture.IncrementBlocks(48); // 201
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(!pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx4.GetHash());
 
     fixture.IncrementBlocks(1); // 202
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
 
     // roll all the way back
     fixture.DecrementBlocks(202);
 
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->supportEmpty());
-    BOOST_CHECK(pclaimTrie->supportQueueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 }
 
 bool verify_proof(const CClaimTrieProof proof, uint256 rootHash, const std::string& name)
@@ -2981,47 +2983,47 @@ BOOST_AUTO_TEST_CASE(value_proof_test)
     // create a claim. verify the expiration event has been scheduled.
     fixture.IncrementBlocks(5, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName1, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName1, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx1OutPoint);
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName2, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName2, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx2OutPoint);
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName3, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName3, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx3OutPoint);
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName4, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName4, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx4OutPoint);
 
     CClaimTrieCache cache(pclaimTrie);
 
     CClaimTrieProof proof;
 
-    BOOST_CHECK(cache.getProofForName(sName1, proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName1));
+    BOOST_CHECK_EQUAL(cache.getProofForName(sName1, proof), true);
+    BOOST_CHECK_EQUAL(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName1), true);
     BOOST_CHECK_EQUAL(proof.outPoint, tx1OutPoint);
 
-    BOOST_CHECK(cache.getProofForName(sName2, proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName2));
+    BOOST_CHECK_EQUAL(cache.getProofForName(sName2, proof), true);
+    BOOST_CHECK_EQUAL(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName2), true);
     BOOST_CHECK_EQUAL(proof.outPoint, tx2OutPoint);
 
-    BOOST_CHECK(cache.getProofForName(sName3, proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName3));
+    BOOST_CHECK_EQUAL(cache.getProofForName(sName3, proof), true);
+    BOOST_CHECK_EQUAL(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName3), true);
     BOOST_CHECK_EQUAL(proof.outPoint, tx3OutPoint);
 
-    BOOST_CHECK(cache.getProofForName(sName4, proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName4));
+    BOOST_CHECK_EQUAL(cache.getProofForName(sName4, proof), true);
+    BOOST_CHECK_EQUAL(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName4), true);
     BOOST_CHECK_EQUAL(proof.outPoint, tx4OutPoint);
 
-    BOOST_CHECK(cache.getProofForName(sName5, proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName5));
+    BOOST_CHECK_EQUAL(cache.getProofForName(sName5, proof), true);
+    BOOST_CHECK_EQUAL(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName5), true);
     BOOST_CHECK_EQUAL(proof.hasValue, false);
 
-    BOOST_CHECK(cache.getProofForName(sName6, proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName6));
+    BOOST_CHECK_EQUAL(cache.getProofForName(sName6, proof), true);
+    BOOST_CHECK_EQUAL(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName6), true);
     BOOST_CHECK_EQUAL(proof.hasValue, false);
 
-    BOOST_CHECK(cache.getProofForName(sName7, proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName7));
+    BOOST_CHECK_EQUAL(cache.getProofForName(sName7, proof), true);
+    BOOST_CHECK_EQUAL(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName7), true);
     BOOST_CHECK_EQUAL(proof.hasValue, false);
 
     CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(), sName7, sValue4);
@@ -3029,42 +3031,42 @@ BOOST_AUTO_TEST_CASE(value_proof_test)
 
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(pclaimTrie->getInfoForName(sName7, val));
+    BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName7, val), true);
     BOOST_CHECK_EQUAL(val.outPoint, tx5OutPoint);
 
     cache = CClaimTrieCache(pclaimTrie);
 
-    BOOST_CHECK(cache.getProofForName(sName1, proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName1));
+    BOOST_CHECK_EQUAL(cache.getProofForName(sName1, proof), true);
+    BOOST_CHECK_EQUAL(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName1), true);
     BOOST_CHECK_EQUAL(proof.outPoint, tx1OutPoint);
 
-    BOOST_CHECK(cache.getProofForName(sName2, proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName2));
+    BOOST_CHECK_EQUAL(cache.getProofForName(sName2, proof), true);
+    BOOST_CHECK_EQUAL(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName2), true);
     BOOST_CHECK_EQUAL(proof.outPoint, tx2OutPoint);
 
-    BOOST_CHECK(cache.getProofForName(sName3, proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName3));
+    BOOST_CHECK_EQUAL(cache.getProofForName(sName3, proof), true);
+    BOOST_CHECK_EQUAL(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName3), true);
     BOOST_CHECK_EQUAL(proof.outPoint, tx3OutPoint);
 
-    BOOST_CHECK(cache.getProofForName(sName4, proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName4));
+    BOOST_CHECK_EQUAL(cache.getProofForName(sName4, proof), true);
+    BOOST_CHECK_EQUAL(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName4), true);
     BOOST_CHECK_EQUAL(proof.outPoint, tx4OutPoint);
 
-    BOOST_CHECK(cache.getProofForName(sName5, proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName5));
+    BOOST_CHECK_EQUAL(cache.getProofForName(sName5, proof), true);
+    BOOST_CHECK_EQUAL(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName5), true);
     BOOST_CHECK_EQUAL(proof.hasValue, false);
 
-    BOOST_CHECK(cache.getProofForName(sName6, proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName6));
+    BOOST_CHECK_EQUAL(cache.getProofForName(sName6, proof), true);
+    BOOST_CHECK_EQUAL(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName6), true);
     BOOST_CHECK_EQUAL(proof.hasValue, false);
 
-    BOOST_CHECK(cache.getProofForName(sName7, proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName7));
+    BOOST_CHECK_EQUAL(cache.getProofForName(sName7, proof), true);
+    BOOST_CHECK_EQUAL(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName7), true);
     BOOST_CHECK_EQUAL(proof.outPoint, tx5OutPoint);
 
     fixture.DecrementBlocks();
-    BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(pclaimTrie->queueEmpty());
+    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
 }
 
 // Check that blocks with bogus calimtrie hash is rejected
@@ -3078,8 +3080,8 @@ BOOST_AUTO_TEST_CASE(bogus_claimtrie_hash_test)
 
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue1, 1);
 
-    std::unique_ptr<CBlockTemplate> pblockTemp;
-    BOOST_CHECK(pblockTemp = AssemblerForTest().CreateNewBlock(tx1.vout[0].scriptPubKey));
+    std::unique_ptr<CBlockTemplate> pblockTemp = AssemblerForTest().CreateNewBlock(tx1.vout[0].scriptPubKey);
+    BOOST_CHECK_EQUAL(pblockTemp != nullptr, true);
     pblockTemp->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
     pblockTemp->block.nVersion = 5;
     pblockTemp->block.nTime = chainActive.Tip()->GetBlockTime() + Params().GetConsensus().nPowTargetSpacing;
@@ -3102,8 +3104,8 @@ BOOST_AUTO_TEST_CASE(bogus_claimtrie_hash_test)
     }
     bool success = ProcessNewBlock(Params(), std::make_shared<const CBlock>(pblockTemp->block), true, nullptr);
     // will process , but will not be connected
-    BOOST_CHECK(success);
-    BOOST_CHECK(pblockTemp->block.GetHash() != chainActive.Tip()->GetBlockHash());
+    BOOST_CHECK_EQUAL(success, true);
+    BOOST_CHECK_EQUAL(pblockTemp->block.GetHash() != chainActive.Tip()->GetBlockHash(), true);
     BOOST_CHECK_EQUAL(orig_chain_height, chainActive.Height());
 }
 
@@ -3131,8 +3133,8 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test_2)
     CMutableTransaction txb = fixture.Spend(txx);
 
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(!pclaimTrie->getClaimById(claimId, claimName, claimValue));
-    BOOST_CHECK(!pclaimTrie->getClaimById(claimIdx, claimName, claimValue));
+    BOOST_CHECK_EQUAL(pclaimTrie->getClaimById(claimId, claimName, claimValue), false);
+    BOOST_CHECK_EQUAL(pclaimTrie->getClaimById(claimIdx, claimName, claimValue), false);
 
     fixture.DecrementBlocks(1);
     pclaimTrie->getClaimById(claimId, claimName, claimValue);
@@ -3166,15 +3168,15 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test_3)
 
     fixture.IncrementBlocks(1);
     // second claim is not activated yet, but can still access by claim id
-    BOOST_CHECK(is_best_claim(name, tx1));
-    BOOST_CHECK(pclaimTrie->getClaimById(claimId2, claimName, claimValue));
+    BOOST_CHECK_EQUAL(is_best_claim(name, tx1), predicate_true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getClaimById(claimId2, claimName, claimValue), true);
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId2);
 
     fixture.IncrementBlocks(1);
     // second claim has activated
-    BOOST_CHECK(is_best_claim(name, tx2));
-    BOOST_CHECK(pclaimTrie->getClaimById(claimId2, claimName, claimValue));
+    BOOST_CHECK_EQUAL(is_best_claim(name, tx2), predicate_true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getClaimById(claimId2, claimName, claimValue), true);
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId2);
 
@@ -3182,15 +3184,15 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test_3)
     fixture.DecrementBlocks(1);
     // second claim has been deactivated via decrement
     // should still be accesible via claim id
-    BOOST_CHECK(is_best_claim(name, tx1));
-    BOOST_CHECK(pclaimTrie->getClaimById(claimId2, claimName, claimValue));
+    BOOST_CHECK_EQUAL(is_best_claim(name, tx1), predicate_true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getClaimById(claimId2, claimName, claimValue), true);
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId2);
 
     fixture.IncrementBlocks(1);
     // second claim should have been re activated via increment
-    BOOST_CHECK(is_best_claim(name, tx2));
-    BOOST_CHECK(pclaimTrie->getClaimById(claimId2, claimName, claimValue));
+    BOOST_CHECK_EQUAL(is_best_claim(name, tx2), predicate_true);
+    BOOST_CHECK_EQUAL(pclaimTrie->getClaimById(claimId2, claimName, claimValue), true);
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId2);
 }
