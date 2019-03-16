@@ -38,7 +38,8 @@ The data directory contains various things such as your default wallet (wallet.d
 
 For a list of configuration parameters, run `./lbrycrdd --help`. Below is a sample lbrycrd.conf to enable JSON RPC server on lbrycrdd.
 
-```rpcuser=lbry
+```
+rpcuser=lbry
 rpcpassword=xyz123456790
 daemon=1
 server=1
@@ -75,7 +76,7 @@ The Travis CI system makes sure that every pull request is built, and that unit 
 
 ### Testnet
 
-Testnet is maintained for testing purposes and can be accessed using the command `./lbrycrdd -testnet`. If you would like to obtain testnet credits, please contact kay@lbry.io or grin@lbry.io.
+Testnet is maintained for testing purposes and can be accessed using the command `./lbrycrdd -testnet`. If you would like to obtain testnet credits, please contact brannon@lbry.io or grin@lbry.io.
 
 ## License
 
@@ -88,6 +89,6 @@ Our PGP key is [here](https://keybase.io/lbry/key.asc) if you need it.
 
 ## Contact
 
-The primary contact for this project is [@kaykurokawa](https://github.com/kaykurokawa) (kay@lbry.io)
+The primary contact for this project is [@BrannonKing](https://github.com/BrannonKing) (brannon@lbry.io)
 
 

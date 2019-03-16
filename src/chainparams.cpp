@@ -135,7 +135,9 @@ public:
         consensus.nExtendedClaimExpirationTime = 2102400;
         consensus.nExtendedClaimExpirationForkHeight = 400155;
         consensus.fPowAllowMinDifficultyBlocks = false;
+        consensus.nAllowMinDiffMinHeight = consensus.nAllowMinDiffMaxHeight = -1;
         consensus.fPowNoRetargeting = false;
+        consensus.nNormalizedNameForkHeight = 539940; // targeting 21 March 2019
         consensus.nRuleChangeActivationThreshold = 1916; // 95% of 2016
         consensus.nMinerConfirmationWindow = 2016; // nPowTargetTimespan / nPowTargetSpacing
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].bit = 28;
@@ -222,7 +224,10 @@ public:
         consensus.nExtendedClaimExpirationTime = 2102400;
         consensus.nExtendedClaimExpirationForkHeight = 278160;
         consensus.fPowAllowMinDifficultyBlocks = true;
+        consensus.nAllowMinDiffMinHeight = 277299;
+        consensus.nAllowMinDiffMaxHeight = 1100000;
         consensus.fPowNoRetargeting = false;
+        consensus.nNormalizedNameForkHeight = 993380;   // targeting, 21 Feb 2019
         consensus.nRuleChangeActivationThreshold = 1512; // 75% for testchains
         consensus.nMinerConfirmationWindow = 2016; // nPowTargetTimespan / nPowTargetSpacing
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].bit = 28;
@@ -302,7 +307,9 @@ public:
         consensus.nExtendedClaimExpirationTime = 600;
         consensus.nExtendedClaimExpirationForkHeight = 800;
         consensus.fPowAllowMinDifficultyBlocks = false;
+        consensus.nAllowMinDiffMinHeight = consensus.nAllowMinDiffMaxHeight = -1;
         consensus.fPowNoRetargeting = false;
+        consensus.nNormalizedNameForkHeight = 250; // SDK depends upon this number
         consensus.nRuleChangeActivationThreshold = 108; // 75% for testchains
         consensus.nMinerConfirmationWindow = 144; // Faster than normal for regtest (144 instead of 2016)
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].bit = 28;

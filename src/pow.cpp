@@ -18,23 +18,27 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
     if (pindexLast == NULL)
         return nProofOfWorkLimit;
 
-    if (params.fPowAllowMinDifficultyBlocks && pindexLast->nHeight >= 277299)
+    if (params.fPowAllowMinDifficultyBlocks && pindexLast->nHeight >= params.nAllowMinDiffMinHeight
+                                            && pindexLast->nHeight < params.nAllowMinDiffMaxHeight)
     {
         // Special difficulty rule for testnet:
         // If the new block's timestamp is twice the target block time
         // then allow mining of a min-difficulty block.
-        // This is to prevent the testnet from gettig stuck when a large amount
+        // This is to prevent the testnet from getting stuck when a large amount
         // of hashrate drops off the network.
         // This rule was not implemented properly until testnet block 277299.
         if (pblock->GetBlockTime() > pindexLast->GetBlockTime() + params.nPowTargetSpacing*2){
             return nProofOfWorkLimit;
         }
+        // Well, actually, it wasn't ever implemented properly in LBRYcrd.
+        // It doesn't work without the missing "else" statement found in upstream bitcoin.
+        // And that statement doesn't work correctly with our DifficultyAdjustmentInterval == 1.
+        // Hence, we are killing it at block 1100000.
     }
 
     // Go back the full period unless it's the first retarget after genesis.
-    int blockstogoback = params.DifficultyAdjustmentInterval()-1;
-    if ((pindexLast->nHeight+1) != params.DifficultyAdjustmentInterval())
-        blockstogoback = params.DifficultyAdjustmentInterval();
+    int blockstogoback = params.DifficultyAdjustmentInterval();
+    blockstogoback = std::min(blockstogoback, pindexLast->nHeight);
 
     int nHeightFirst = pindexLast->nHeight - blockstogoback;
     assert(nHeightFirst >= 0);

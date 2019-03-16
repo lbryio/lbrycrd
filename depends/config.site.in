@@ -21,6 +21,7 @@ if test -z $with_comparison_tool; then
   with_comparison_tool=$prefix/native/share/BitcoindComparisonTool_jar/BitcoindComparisonTool.jar
 fi
 
+with_icu_dir=@icu_dir@
 
 if test -z $enable_wallet && test -n "@no_wallet@"; then
   enable_wallet=no
@@ -98,4 +99,7 @@ if test -n "@CPPFLAGS@"; then
 fi
 if test -n "@LDFLAGS@"; then
   LDFLAGS="@LDFLAGS@ $LDFLAGS"
+fi
+if test -n "@ICU_DIR@"; then
+  ICU_DIR="@ICU_DIR@"
 fi

@@ -294,7 +294,7 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
                         }
                         std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         int throwaway;
-                        if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), throwaway)) {
+                        if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), nTxinHeight, throwaway)) {
                             std::pair<std::string, uint160> entry(name, claimId);
                             spentClaims.push_back(entry);
                         }
@@ -341,9 +341,9 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
                         spentClaimsType::iterator itSpent;
                         for (itSpent = spentClaims.begin(); itSpent != spentClaims.end(); ++itSpent)
                         {
-                            if (itSpent->first == name && itSpent->second == claimId)
-                            {
-                                break;
+                            if (itSpent->second == claimId) {
+                                if (trieCache.normalizeClaimName(name) == trieCache.normalizeClaimName(itSpent->first))
+                                    break;
                             }
                         }
                         if (itSpent != spentClaims.end())
@@ -442,7 +442,9 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
         insertUndoType dummyInsertSupportUndo;
         supportQueueRowType dummyExpireSupportUndo;
         std::vector<std::pair<std::string, int> > dummyTakeoverHeightUndo;
+
         trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo, dummyInsertSupportUndo, dummyExpireSupportUndo, dummyTakeoverHeightUndo);
+
         pblock->hashClaimTrie = trieCache.getMerkleHash();
 
         CValidationState state;
@@ -450,7 +452,6 @@ CBlockTemplate* CreateNewBlock(const CChainParams& chainparams, const CScript& s
             throw std::runtime_error(strprintf("%s: TestBlockValidity failed: %s", __func__, FormatStateMessage(state)));
         }
     }
-
     return pblocktemplate.release();
 }
 

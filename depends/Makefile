@@ -6,6 +6,8 @@ SDK_PATH ?= $(BASEDIR)/SDKs
 NO_QT ?=
 NO_WALLET ?=
 NO_UPNP ?=
+ICU_DIR ?=
+ICU_ONLY ?=
 FALLBACK_DOWNLOAD_PATH ?= https://bitcoincore.org/depends-sources
 
 BUILD = $(shell ./config.guess)
@@ -73,7 +75,11 @@ include hosts/$(host_os).mk
 include hosts/default.mk
 include builders/$(build_os).mk
 include builders/default.mk
+ifeq ($(ICU_ONLY),)
 include packages/packages.mk
+else
+include packages/packages.icu.mk
+endif
 
 build_id_string:=$(BUILD_ID_SALT)
 build_id_string+=$(shell $(build_CC) --version 2>/dev/null)
@@ -132,6 +138,7 @@ $(host_prefix)/share/config.site : config.site.in $(host_prefix)/.stamp_$(final_
             -e 's|@CPPFLAGS@|$(strip $(host_CPPFLAGS) $(host_$(release_type)_CPPFLAGS))|' \
             -e 's|@LDFLAGS@|$(strip $(host_LDFLAGS) $(host_$(release_type)_LDFLAGS))|' \
             -e 's|@no_qt@|$(NO_QT)|' \
+            -e 's|@ICU_DIR@|$(ICU_DIR)|' \
             -e 's|@no_wallet@|$(NO_WALLET)|' \
             -e 's|@no_upnp@|$(NO_UPNP)|' \
             -e 's|@debug@|$(DEBUG)|' \

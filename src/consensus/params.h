@@ -55,7 +55,10 @@ struct Params {
     /** Proof of work parameters */
     uint256 powLimit;
     bool fPowAllowMinDifficultyBlocks;
+    int nAllowMinDiffMinHeight;
+    int nAllowMinDiffMaxHeight;
     bool fPowNoRetargeting;
+    int nNormalizedNameForkHeight;
     int64_t nPowTargetSpacing;
     int64_t nPowTargetTimespan;
     /** how long it took claims to expire before the hard fork */
