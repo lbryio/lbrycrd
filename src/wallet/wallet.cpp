@@ -1381,7 +1381,13 @@ CAmount CWallet::GetDebit(const CTxIn &txin, const isminefilter& filter) const
 
 isminetype CWallet::IsMine(const CTxOut& txout) const
 {
-    return ::IsMine(*this, txout.scriptPubKey);
+    int op = 0;
+    auto script = StripClaimScriptPrefix(txout.scriptPubKey, op);
+    if (op == OP_CLAIM_NAME)
+        return isminetype::ISMINE_CLAIM;
+    if (op == OP_SUPPORT_CLAIM)
+        return isminetype::ISMINE_SUPPORT;
+    return ::IsMine(*this, script);
 }
 
 CAmount CWallet::GetCredit(const CTxOut& txout, const isminefilter& filter) const
@@ -2372,7 +2378,8 @@ void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const
             }
 
             bool solvable = IsSolvable(*this, pcoin->tx->vout[i].scriptPubKey);
-            bool spendable = ((mine & ISMINE_SPENDABLE) != ISMINE_NO) || (((mine & ISMINE_WATCH_ONLY) != ISMINE_NO) && (coinControl && coinControl->fAllowWatchOnly && solvable));
+            bool spendable = (mine & ISMINE_SPENDABLE) || (mine & ISMINE_CLAIM) || (mine & ISMINE_SUPPORT);
+            spendable |= (((mine & ISMINE_WATCH_ONLY) != ISMINE_NO) && (coinControl && coinControl->fAllowWatchOnly && solvable));
 
             vCoins.push_back(COutput(pcoin, i, nDepth, spendable, solvable, safeTx, (coinControl && coinControl->fAllowWatchOnly)));
 

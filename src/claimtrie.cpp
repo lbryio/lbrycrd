@@ -1915,8 +1915,6 @@ bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimQueueR
         std::vector<std::pair<std::string, int> >& takeoverHeightUndo)
 {
     // we don't actually modify the claimTrie here; that happens in flush
-    LogPrintf("%s: nCurrentHeight (before increment): %d\n", __func__, nCurrentHeight);
-
     claimQueueType::iterator itQueueRow = getQueueCacheRow(nCurrentHeight, false);
     if (itQueueRow != claimQueueCache.end())
     {
@@ -2210,7 +2208,6 @@ bool CClaimTrieCacheBase::decrementBlock(insertUndoType& insertUndo, claimQueueR
         insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo,
         std::vector<std::pair<std::string, int> >& takeoverHeightUndo)
 {
-    LogPrintf("%s: nCurrentHeight (before decrement): %d\n", __func__, nCurrentHeight);
     nCurrentHeight--;
 
     if (expireSupportUndo.begin() != expireSupportUndo.end())
