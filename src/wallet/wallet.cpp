@@ -2377,8 +2377,12 @@ void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const
                 continue;
             }
 
+            // spending claims or supports requires specific selection:
+            auto claimSpendRequested = (mine & ISMINE_CLAIM) || (mine & ISMINE_SUPPORT);
+            claimSpendRequested &= coinControl && coinControl->IsSelected(COutPoint(entry.first, i));
+
             bool solvable = IsSolvable(*this, pcoin->tx->vout[i].scriptPubKey);
-            bool spendable = (mine & ISMINE_SPENDABLE) || (mine & ISMINE_CLAIM) || (mine & ISMINE_SUPPORT);
+            bool spendable = (mine & ISMINE_SPENDABLE) || claimSpendRequested;
             spendable |= (((mine & ISMINE_WATCH_ONLY) != ISMINE_NO) && (coinControl && coinControl->fAllowWatchOnly && solvable));
 
             vCoins.push_back(COutput(pcoin, i, nDepth, spendable, solvable, safeTx, (coinControl && coinControl->fAllowWatchOnly)));

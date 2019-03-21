@@ -1591,7 +1591,7 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
                         assert(vvchParams.size() == 2);
                         claimId = ClaimIdHash(hash, j);
                         LogPrintf("--- %s[%lu]: OP_CLAIM_NAME \"%s\" = \"%s\" with claimId %s and tx prevout %s at index %d\n",
-                                  __func__, pindex->nHeight, name, SanitizeString(value),
+                                  __func__, pindex->nHeight, name, HexStr(value),
                                   claimId.GetHex(), hash.ToString(), j);
                     }
                     else if (op == OP_UPDATE_CLAIM)
@@ -1599,7 +1599,7 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
                         assert(vvchParams.size() == 3);
                         claimId = uint160(vvchParams[1]);
                         LogPrintf("--- %s[%lu]: OP_UPDATE_CLAIM \"%s\" = \"%s\" with claimId %s and tx prevout %s at index %d\n",
-                                  __func__, pindex->nHeight, name, SanitizeString(value),
+                                  __func__, pindex->nHeight, name, HexStr(value),
                                   claimId.GetHex(), hash.ToString(), j);
                     }
                     LogPrintf("%s: (txid: %s, nOut: %d) Trying to remove %s from the claim trie due to its block being disconnected\n",
@@ -2117,14 +2117,14 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                         {
                             claimId = ClaimIdHash(txin.prevout.hash, txin.prevout.n);
                             LogPrintf("+++ %s[%lu]: OP_CLAIM_NAME \"%s\" = \"%s\" with claimId %s and tx prevout %s at index %d\n",
-                                      __func__, pindex->nHeight, name, SanitizeString(value),
+                                      __func__, pindex->nHeight, name, HexStr(value),
                                       claimId.GetHex(), txin.prevout.hash.GetHex(), txin.prevout.n);
                         }
                         else if (op == OP_UPDATE_CLAIM)
                         {
                             claimId = uint160(vvchParams[1]);
                             LogPrintf("+++ %s[%lu]: OP_UPDATE_CLAIM \"%s\" = \"%s\" with claimId %s and tx prevout %s at index %d\n",
-                                      __func__, pindex->nHeight, name, SanitizeString(value),
+                                      __func__, pindex->nHeight, name, HexStr(value),
                                       claimId.GetHex(), txin.prevout.hash.GetHex(), txin.prevout.n);
                         }
                         int nValidAtHeight;
