@@ -1,9 +1,9 @@
-#include "claimtrie.h"
-#include "nameclaim.h"
-#include "uint256.h"
-#include "validation.h"
+#include <claimtrie.h>
+#include <nameclaim.h>
+#include <uint256.h>
+#include <validation.h>
 
-#include "test/test_bitcoin.h"
+#include <test/test_bitcoin.h>
 #include <boost/test/unit_test.hpp>
 using namespace std;
 
