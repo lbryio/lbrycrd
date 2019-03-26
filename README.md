@@ -26,7 +26,7 @@ Run `./lbrycrd-cli help` to get a list of all commands that you can run. To get 
 
 Lbrycrdd will use the below default data directories:
 
-Windows: %appdata%/lbrycrd
+Windows: .\%appdata%\lbrycrd
 
 Mac: ~/Library/Application Support/lbrycrd
 
