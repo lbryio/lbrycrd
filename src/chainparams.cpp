@@ -247,8 +247,8 @@ public:
         consensus.BIP34Height = 21111;
         consensus.BIP34Hash = uint256S("0x0000000023b3a96d3484e5abb3755c413e7d41500f8e2a5c3f0dd01299cd8ef8");
         // FIXME: adjust heights
-        consensus.BIP65Height = 1000000;
-        consensus.BIP66Height = 1000000;
+        consensus.BIP65Height = 1200000;
+        consensus.BIP66Height = 1200000;
         consensus.powLimit = uint256S("0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 150;
         consensus.nPowTargetSpacing = 150;

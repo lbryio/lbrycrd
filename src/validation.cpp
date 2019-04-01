@@ -2187,7 +2187,8 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                         spentClaimsType::iterator itSpent;
                         for (itSpent = spentClaims.begin(); itSpent != spentClaims.end(); ++itSpent)
                         {
-                            if (itSpent->first == name && itSpent->second == claimId)
+                            if ((itSpent->first == name && itSpent->second == claimId) &&
+                                (trieCache.normalizeClaimName(name) == trieCache.normalizeClaimName(itSpent->first)))
                                 break;
                         }
                         if (itSpent != spentClaims.end())

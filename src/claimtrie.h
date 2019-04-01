@@ -142,8 +142,6 @@ typedef std::vector<CSupportValue> supportMapEntryType;
 
 typedef std::map<unsigned char, CClaimTrieNode*> nodeMapType;
 
-typedef std::pair<std::string, CClaimTrieNode> namedNodeType;
-
 class CClaimTrieNode
 {
 public:
@@ -323,9 +321,10 @@ struct claimsForNameType
     int nLastTakeoverHeight;
     std::string name;
 
-    claimsForNameType(const std::vector<CClaimValue>& claims, const std::vector<CSupportValue>& supports,
-            int nLastTakeoverHeight, const std::string& name)
-            : claims(claims), supports(supports), nLastTakeoverHeight(nLastTakeoverHeight), name(name) {}
+    claimsForNameType(std::vector<CClaimValue> claims, std::vector<CSupportValue> supports,
+                      int nLastTakeoverHeight, const std::string& name)
+      : claims(std::move(claims)), supports(std::move(supports)),
+        nLastTakeoverHeight(nLastTakeoverHeight), name(name) {}
 
     claimsForNameType(const claimsForNameType&) = default;
     claimsForNameType(claimsForNameType&& other)
@@ -335,6 +334,7 @@ struct claimsForNameType
         nLastTakeoverHeight = other.nLastTakeoverHeight;
         name = std::move(other.name);
     }
+
     claimsForNameType& operator=(const claimsForNameType&) = default;
     claimsForNameType& operator=(claimsForNameType&& other)
     {
@@ -347,6 +347,8 @@ struct claimsForNameType
         }
         return *this;
     }
+
+    virtual ~claimsForNameType() {}
 };
 
 class CClaimTrieCacheBase;
@@ -356,7 +358,7 @@ class CClaimTrie
 {
 public:
     CClaimTrie(bool fMemory = false, bool fWipe = false, int nProportionalDelayFactor = 32)
-        : db(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false), nCurrentHeight(0),
+      : db(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false), nCurrentHeight(0),
         nExpirationTime(Params().GetConsensus().nOriginalClaimExpirationTime),
         nProportionalDelayFactor(nProportionalDelayFactor),
         root(uint256S("0000000000000000000000000000000000000000000000000000000000000001"))
@@ -381,7 +383,6 @@ public:
     bool supportEmpty() const;
     bool supportQueueEmpty() const;
     bool expirationQueueEmpty() const;
-    bool supportExpirationQueueEmpty() const;
 
     void setExpirationTime(int t);
 
@@ -409,7 +410,8 @@ public:
     int nCurrentHeight;
     int nExpirationTime;
     int nProportionalDelayFactor;
-private:
+
+  private:
     void clear(CClaimTrieNode* current);
 
     const CClaimTrieNode* getNodeForName(const std::string& name) const;
@@ -582,7 +584,7 @@ public:
 
     CClaimTrieNode* getRoot() const
     {
-        nodeCacheType::iterator iter = cache.find("");
+        const nodeCacheType::iterator iter = cache.find("");
         return iter == cache.end() ? &(base->root) : iter->second;
     }
 
@@ -676,7 +678,6 @@ protected:
     virtual int getDelayForName(const std::string& name, const uint160& claimId) const;
 
     mutable nodeCacheType cache;
-
     CClaimTrie* base;
     mutable int nCurrentHeight; // Height of the block that is being worked on, which is
     // one greater than the height of the chain's tip
@@ -750,7 +751,7 @@ private:
 class CClaimTrieCacheExpirationFork: public CClaimTrieCacheBase {
 public:
     CClaimTrieCacheExpirationFork(CClaimTrie* base, bool fRequireTakeoverHeights = true)
-    : CClaimTrieCacheBase(base, fRequireTakeoverHeights) {}
+      : CClaimTrieCacheBase(base, fRequireTakeoverHeights) {}
 
     virtual ~CClaimTrieCacheExpirationFork() {}
 

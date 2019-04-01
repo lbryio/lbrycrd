@@ -91,15 +91,16 @@ static UniValue getclaimsintrie(const JSONRPCRequest& request)
             "Result: \n"
             "[\n"
             "  {\n"
-            "    \"name\"         (string) the name claimed\n"
-            "    \"claims\": [    (array of object) the claims for this name\n"
+            "    \"normalized_name\"    (string) the name of these claims (after normalization)\n"
+            "    \"claims\": [          (array of object) the claims for this name\n"
             "      {\n"
-            "        \"claimId\"  (string) the claimId of the claim\n"
-            "        \"txid\"     (string) the txid of the claim\n"
-            "        \"n\"        (numeric) the vout value of the claim\n"
-            "        \"amount\"   (numeric) txout amount\n"
-            "        \"height\"   (numeric) the height of the block in which this transaction is located\n"
-            "        \"value\"    (string) the value of this claim\n"
+            "        \"claimId\"        (string) the claimId of the claim\n"
+            "        \"txid\"           (string) the txid of the claim\n"
+            "        \"n\"              (numeric) the vout value of the claim\n"
+            "        \"amount\"         (numeric) txout amount\n"
+            "        \"height\"         (numeric) the height of the block in which this transaction is located\n"
+            "        \"value\"          (string) the value of this claim\n"
+            "        \"name\"           (string) the original name of this claim (before normalization)\n"
             "      }\n"
             "    ]\n"
             "  }\n"
@@ -154,14 +155,18 @@ static UniValue getclaimsintrie(const JSONRPCRequest& request)
                     {
                         LogPrintf("%s: the specified txout of %s does not have an claim command\n", __func__, itClaims->outPoint.hash.GetHex());
                     }
-                    std::string sValue(vvchParams[1].begin(), vvchParams[1].end());
-                    claim.pushKV("value", sValue);
+                    claim.pushKV("value", HexStr(vvchParams[1].begin(), vvchParams[1].end()));
                 }
+                std::string targetName;
+                CClaimValue targetClaim;
+                if (pclaimTrie->getClaimById(itClaims->claimId, targetName, targetClaim))
+                    claim.push_back(Pair("name", targetName));
+
                 claims.push_back(claim);
             }
 
             UniValue nodeObj(UniValue::VOBJ);
-            nodeObj.pushKV("name", name);
+            nodeObj.pushKV("normalized_name", name);
             nodeObj.pushKV("claims", claims);
             nodes.push_back(nodeObj);
         }
@@ -249,7 +254,7 @@ static UniValue getclaimtrie(const JSONRPCRequest& request)
     return ret;
 }
 
-static bool getValueForClaim(const CCoinsViewCache& coinsCache, const COutPoint& out, std::string& sValue)
+static bool getValueForOutPoint(const CCoinsViewCache& coinsCache, const COutPoint& out, std::string& sValue)
 {
     const Coin& coin = coinsCache.AccessCoin(out);
     if (coin.IsSpent())
@@ -267,13 +272,15 @@ static bool getValueForClaim(const CCoinsViewCache& coinsCache, const COutPoint&
     }
     if (op == OP_CLAIM_NAME)
     {
-        sValue = std::string(vvchParams[1].begin(), vvchParams[1].end());
+        sValue = HexStr(vvchParams[1].begin(), vvchParams[1].end());
+        return true;
     }
     else if (op == OP_UPDATE_CLAIM)
     {
-        sValue = std::string(vvchParams[2].begin(), vvchParams[2].end());
+        sValue = HexStr(vvchParams[2].begin(), vvchParams[2].end());
+        return true;
     }
-    return true;
+    return false;
 }
 
 
@@ -282,7 +289,7 @@ static UniValue getvalueforname(const JSONRPCRequest& request)
     if (request.fHelp || request.params.size() > 2)
         throw std::runtime_error(
             "getvalueforname \"name\"\n"
-            "Return the value associated with a name, if one exists\n"
+            "Return the winning value associated with a name, if one exists\n"
             "Arguments:\n"
             "1. \"name\"          (string) the name to look up\n"
             "2. \"blockhash\"     (string, optional) get the value\n"
@@ -299,7 +306,8 @@ static UniValue getvalueforname(const JSONRPCRequest& request)
             "\"n\"                (numeric) vout value\n"
             "\"amount\"           (numeric) txout amount\n"
             "\"effective amount\" (numeric) txout amount plus amount from all supports associated with the claim\n"
-            "\"height\"           (numeric) the height of the block in which this transaction is located\n");
+            "\"height\"           (numeric) the height of the block in which this transaction is located\n"
+            "\"name\"             (string) the original name of this claim (before normalization)\n");
 
     LOCK(cs_main);
 
@@ -319,7 +327,7 @@ static UniValue getvalueforname(const JSONRPCRequest& request)
         return ret; // they may have asked for a name that doesn't exist (which is not an error)
 
     std::string sValue;
-    if (!getValueForClaim(coinsCache, claim.outPoint, sValue))
+    if (!getValueForOutPoint(coinsCache, claim.outPoint, sValue))
         return ret;
 
     const auto nEffectiveAmount = trieCache.getEffectiveAmountForClaim(name, claim.claimId);
@@ -331,13 +339,19 @@ static UniValue getvalueforname(const JSONRPCRequest& request)
     ret.pushKV("amount", claim.nAmount);
     ret.pushKV("effective amount", nEffectiveAmount);
     ret.pushKV("height", claim.nHeight);
+
+    std::string targetName;
+    CClaimValue targetClaim;
+    if (pclaimTrie->getClaimById(claim.claimId, targetName, targetClaim))
+        ret.push_back(Pair("name", targetName));
+
     return ret;
 }
 
 typedef std::pair<CClaimValue, std::vector<CSupportValue> > claimAndSupportsType;
 typedef std::map<uint160, claimAndSupportsType> claimSupportMapType;
 
-UniValue supportToJSON(const CSupportValue& support)
+UniValue supportToJSON(const CCoinsViewCache& coinsCache, const CSupportValue& support)
 {
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("txid", support.outPoint.hash.GetHex()));
@@ -345,6 +359,9 @@ UniValue supportToJSON(const CSupportValue& support)
     ret.push_back(Pair("nHeight", support.nHeight));
     ret.push_back(Pair("nValidAtHeight", support.nValidAtHeight));
     ret.push_back(Pair("nAmount", support.nAmount));
+    std::string value;
+    if (getValueForOutPoint(coinsCache, support.outPoint, value))
+        ret.push_back(Pair("value", value));
     return ret;
 }
 
@@ -355,7 +372,7 @@ UniValue claimAndSupportsToJSON(const CCoinsViewCache& coinsCache, CAmount nEffe
 
     UniValue supportObjs(UniValue::VARR);
     for (const auto& support: supports)
-        supportObjs.push_back(supportToJSON(support));
+        supportObjs.push_back(supportToJSON(coinsCache, support));
 
     UniValue result(UniValue::VOBJ);
     result.pushKV("claimId", itClaimsAndSupports->first.GetHex());
@@ -365,10 +382,16 @@ UniValue claimAndSupportsToJSON(const CCoinsViewCache& coinsCache, CAmount nEffe
     result.pushKV("nValidAtHeight", claim.nValidAtHeight);
     result.pushKV("nAmount", claim.nAmount);
     std::string sValue;
-    if (getValueForClaim(coinsCache, claim.outPoint, sValue))
+    if (getValueForOutPoint(coinsCache, claim.outPoint, sValue))
         result.pushKV("value", sValue);
     result.pushKV("nEffectiveAmount", nEffectiveAmount);
     result.pushKV("supports", supportObjs);
+
+    std::string targetName;
+    CClaimValue targetClaim;
+    if (pclaimTrie->getClaimById(claim.claimId, targetName, targetClaim))
+        result.push_back(Pair("name", targetName));
+
     return result;
 }
 
@@ -389,6 +412,7 @@ UniValue getclaimsforname(const JSONRPCRequest& request)
             "Result:\n"
             "{\n"
             "  \"nLastTakeoverHeight\" (numeric) the last height at which ownership of the name changed\n"
+            "  \"normalized_name\"     (string) the name of these claims after normalization\n"
             "  \"claims\": [      (array of object) claims for this name\n"
             "    {\n"
             "      \"claimId\"    (string) the claimId of this claim\n"
@@ -397,7 +421,7 @@ UniValue getclaimsforname(const JSONRPCRequest& request)
             "      \"nHeight\"    (numeric) the height at which the claim was included in the blockchain\n"
             "      \"nValidAtHeight\" (numeric) the height at which the claim became/becomes valid\n"
             "      \"nAmount\"    (numeric) the amount of the claim\n"
-            "      \"value\"      (string) the value of the name, if it exists\n"
+            "      \"value\"      (string) the metadata of the claim\n"
             "      \"nEffectiveAmount\" (numeric) the total effective amount of the claim, taking into effect whether the claim or support has reached its nValidAtHeight\n"
             "      \"supports\" : [ (array of object) supports for this claim\n"
             "        \"txid\"     (string) the txid of the support\n"
@@ -405,6 +429,7 @@ UniValue getclaimsforname(const JSONRPCRequest& request)
             "        \"nHeight\"  (numeric) the height at which the support was included in the blockchain\n"
             "        \"nValidAtHeight\" (numeric) the height at which the support became/becomes valid\n"
             "        \"nAmount\"  (numeric) the amount of the support\n"
+            "        \"value\"    (string) the metadata of the support if any\n"
             "      ]\n"
             "    }\n"
             "  ],\n"
@@ -446,13 +471,14 @@ UniValue getclaimsforname(const JSONRPCRequest& request)
     {
         claimSupportMapType::iterator itClaimAndSupports = claimSupportMap.find(itSupports->supportedClaimId);
         if (itClaimAndSupports == claimSupportMap.end())
-            unmatchedSupports.push_back(supportToJSON(*itSupports));
+            unmatchedSupports.push_back(supportToJSON(coinsCache, *itSupports));
         else
             itClaimAndSupports->second.second.push_back(*itSupports);
     }
 
     UniValue result(UniValue::VOBJ);
     result.pushKV("nLastTakeoverHeight", claimsForName.nLastTakeoverHeight);
+    result.pushKV("normalized_name", claimsForName.name);
 
     for (claimSupportMapType::const_iterator itClaimsAndSupports = claimSupportMap.begin(); itClaimsAndSupports != claimSupportMap.end(); ++itClaimsAndSupports)
     {
@@ -476,8 +502,9 @@ UniValue getclaimbyid(const JSONRPCRequest& request)
             "1.  \"claimId\"           (string) the claimId of this claim\n"
             "Result:\n"
             "{\n"
-            "  \"name\"                (string) the name of the claim\n"
-            "  \"value\"               (string) claim metadata\n"
+            "  \"name\"                (string) the original name of the claim (before normalization)\n"
+            "  \"normalized_name\"     (string) the name of this claim (after normalization)\n"
+            "  \"value\"               (string) metadata of the claim\n"
             "  \"claimId\"             (string) the claimId of this claim\n"
             "  \"txid\"                (string) the hash of the transaction which has successfully claimed this name\n"
             "  \"n\"                   (numeric) vout value\n"
@@ -490,6 +517,7 @@ UniValue getclaimbyid(const JSONRPCRequest& request)
             "    \"height\"            (numeric) the height at which the support was included in the blockchain\n"
             "    \"valid at height\"   (numeric) the height at which the support is valid\n"
             "    \"amount\"            (numeric) the amount of the support\n"
+            "    \"value\"             (string) the metadata of the support if any\n"
             "  ]\n"
             "  \"height\"              (numeric) the height of the block in which this claim transaction is located\n"
             "  \"valid at height\"     (numeric) the height at which the claim is valid\n"
@@ -509,8 +537,10 @@ UniValue getclaimbyid(const JSONRPCRequest& request)
 
         std::string sValue;
         claim.pushKV("name", name);
+        if (trieCache.shouldNormalize())
+            claim.push_back(Pair("normalized_name", trieCache.normalizeClaimName(name, true)));
         CCoinsViewCache coinsCache(pcoinsTip.get());
-        if (getValueForClaim(coinsCache, claimValue.outPoint, sValue))
+        if (getValueForOutPoint(coinsCache, claimValue.outPoint, sValue))
             claim.pushKV("value", sValue);
         claim.pushKV("claimId", claimValue.claimId.GetHex());
         claim.pushKV("txid", claimValue.outPoint.hash.GetHex());
@@ -525,6 +555,8 @@ UniValue getclaimbyid(const JSONRPCRequest& request)
             supportEntry.pushKV("height", support.nHeight);
             supportEntry.pushKV("valid at height", support.nValidAtHeight);
             supportEntry.pushKV("amount", support.nAmount);
+            if (getValueForOutPoint(coinsCache, support.outPoint, sValue))
+                claim.pushKV("value", sValue);
             supportList.pushKVs(supportEntry);
         }
         claim.pushKV("supports", supportList);
@@ -614,6 +646,7 @@ UniValue getclaimsfortx(const JSONRPCRequest& request)
             "    \"nOut\"                   (numeric) the index of the claim or support in the transaction's list of outputs\n"
             "    \"claim type\"             (string) 'claim' or 'support'\n"
             "    \"name\"                   (string) the name claimed or supported\n"
+            "    \"claimId\"                (string) if a claim, its ID\n"
             "    \"value\"                  (string) if a name claim, the value of the claim\n"
             "    \"supported txid\"         (string) if a support, the txid of the supported claim\n"
             "    \"supported nout\"         (numeric) if a support, the index of the supported claim in its transaction\n"
@@ -653,22 +686,22 @@ UniValue getclaimsfortx(const JSONRPCRequest& request)
                 o.pushKV("name", sName);
                 if (op == OP_CLAIM_NAME)
                 {
-                    std::string sValue(vvchParams[1].begin(), vvchParams[1].end());
                     uint160 claimId = ClaimIdHash(hash, i);
                     o.pushKV("claimId", claimId.GetHex());
-                    o.pushKV("value", sValue);
+                    o.pushKV("value", HexStr(vvchParams[1].begin(), vvchParams[1].end()));
                 }
                 else if (op == OP_UPDATE_CLAIM)
                 {
                     uint160 claimId(vvchParams[1]);
-                    std::string sValue(vvchParams[2].begin(), vvchParams[2].end());
                     o.pushKV("claimId", claimId.GetHex());
-                    o.pushKV("value", sValue);
+                    o.pushKV("value", HexStr(vvchParams[2].begin(), vvchParams[2].end()));
                 }
                 else if (op == OP_SUPPORT_CLAIM)
                 {
                     uint160 supportedClaimId(vvchParams[1]);
                     o.pushKV("supported claimId", supportedClaimId.GetHex());
+                    if (vvchParams.size() > 2)
+                        o.pushKV("supported value", HexStr(vvchParams[2].begin(), vvchParams[2].end()));
                 }
                 if (nHeight > 0)
                 {
@@ -850,6 +883,24 @@ UniValue getnameproof(const JSONRPCRequest& request)
     return proofToJSON(proof);
 }
 
+UniValue checknormalization(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 1)
+        throw std::runtime_error(
+            "checknormalization\n"
+            "Given an unnormalized name of a claim, return normalized version of it\n"
+            "Arguments:\n"
+            "1. \"name\"           (string) the name to normalize\n"
+            "Result: \n"
+            "\"normalized\"        (string) fully normalized name\n");
+
+    const bool force = true;
+    const std::string name = request.params[0].get_str();
+
+    CClaimTrieCache triecache(pclaimTrie);
+    return triecache.normalizeClaimName(name, force);
+}
+
 static const CRPCCommand commands[] =
 { //  category              name                            actor (function)            argNames
   //  --------------------- ------------------------        -----------------------     ----------
@@ -862,7 +913,8 @@ static const CRPCCommand commands[] =
     { "Claimtrie",          "gettotalvalueofclaims",        &gettotalvalueofclaims,     { "controlling_only" } },
     { "Claimtrie",          "getclaimsfortx",               &getclaimsfortx,            { "txid" } },
     { "Claimtrie",          "getnameproof",                 &getnameproof,              { "name","blockhash"} },
-    { "Claimtrie",          "getclaimbyid",                 &getclaimbyid,              {"claimId"} },
+    { "Claimtrie",          "getclaimbyid",                 &getclaimbyid,              { "claimId" } },
+    { "Claimtrie",          "checknormalization",           &checknormalization,        { "name" }},
 };
 
 void RegisterClaimTrieRPCCommands(CRPCTable &tableRPC)

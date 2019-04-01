@@ -18,7 +18,9 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
     if (pindexLast == nullptr)
         return nProofOfWorkLimit;
 
-    if (params.fPowAllowMinDifficultyBlocks && pindexLast->nHeight >= 277299)
+    if (params.fPowAllowMinDifficultyBlocks &&
+        pindexLast->nHeight >= params.nAllowMinDiffMinHeight &&
+        pindexLast->nHeight < params.nAllowMinDiffMaxHeight)
     {
         // Special difficulty rule for testnet:
         // If the new block's timestamp is twice the target block time
@@ -29,12 +31,13 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
         if (pblock->GetBlockTime() > pindexLast->GetBlockTime() + params.nPowTargetSpacing*2){
             return nProofOfWorkLimit;
         }
+
+        // Special difficulty rule for LBRY testnet killed at block 1100000.
     }
 
     // Go back the full period unless it's the first retarget after genesis.
-    int blockstogoback = params.DifficultyAdjustmentInterval()-1;
-    if ((pindexLast->nHeight+1) != params.DifficultyAdjustmentInterval())
-        blockstogoback = params.DifficultyAdjustmentInterval();
+    int blockstogoback = params.DifficultyAdjustmentInterval();
+    blockstogoback = std::min(blockstogoback, pindexLast->nHeight);
 
     int nHeightFirst = pindexLast->nHeight - blockstogoback;
     assert(nHeightFirst >= 0);
