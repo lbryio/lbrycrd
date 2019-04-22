@@ -2105,10 +2105,10 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                 std::vector<std::vector<unsigned char> > vvchParams;
                 if (DecodeClaimScript(coin.out.scriptPubKey, op, vvchParams))
                 {
+                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
                     {
                         uint160 claimId;
-                        std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         std::string value(vvchParams[1].begin(), vvchParams[1].end());
                         if (op == OP_CLAIM_NAME)
                         {
@@ -2141,7 +2141,6 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                     else if (op == OP_SUPPORT_CLAIM)
                     {
                         assert(vvchParams.size() == 2);
-                        std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         uint160 supportedClaimId(vvchParams[1]);
                         LogPrintf("+++ %s[%lu]: OP_SUPPORT_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n",
                                   __func__, pindex->nHeight, name,
@@ -2166,10 +2165,10 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                 std::vector<std::vector<unsigned char> > vvchParams;
                 if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams))
                 {
+                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     if (op == OP_CLAIM_NAME)
                     {
                         assert(vvchParams.size() == 2);
-                        std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         LogPrintf("%s: Inserting %s into the claim trie. Tx: %s, nOut: %d\n",
                                   __func__, name, tx.GetHash().GetHex(), j);
                         if (!trieCache.addClaim(name, COutPoint(tx.GetHash(), j), ClaimIdHash(tx.GetHash(), j), txout.nValue, pindex->nHeight))
@@ -2180,15 +2179,14 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                     else if (op == OP_UPDATE_CLAIM)
                     {
                         assert(vvchParams.size() == 3);
-                        std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         uint160 claimId(vvchParams[1]);
                         LogPrintf("%s: Got a claim update. Name: %s, claimId: %s, new txid: %s, nOut: %d\n",
                                   __func__, name, claimId.GetHex(), tx.GetHash().GetHex(), j);
                         spentClaimsType::iterator itSpent;
                         for (itSpent = spentClaims.begin(); itSpent != spentClaims.end(); ++itSpent)
                         {
-                            if ((itSpent->first == name && itSpent->second == claimId) &&
-                                (trieCache.normalizeClaimName(name) == trieCache.normalizeClaimName(itSpent->first)))
+                            if (itSpent->second == claimId &&
+                                trieCache.normalizeClaimName(name) == trieCache.normalizeClaimName(itSpent->first))
                                 break;
                         }
                         if (itSpent != spentClaims.end())
@@ -2203,7 +2201,6 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                     else if (op == OP_SUPPORT_CLAIM)
                     {
                         assert(vvchParams.size() == 2);
-                        std::string name(vvchParams[0].begin(), vvchParams[0].end());
                         uint160 supportedClaimId(vvchParams[1]);
                         if (!trieCache.addSupport(name, COutPoint(tx.GetHash(), j), txout.nValue, supportedClaimId, pindex->nHeight))
                         {

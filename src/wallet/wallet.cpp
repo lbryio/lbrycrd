@@ -15,6 +15,7 @@
 #include <key_io.h>
 #include <keystore.h>
 #include <validation.h>
+#include <nameclaim.h>
 #include <net.h>
 #include <policy/fees.h>
 #include <policy/policy.h>
@@ -1381,7 +1382,13 @@ CAmount CWallet::GetDebit(const CTxIn &txin, const isminefilter& filter) const
 
 isminetype CWallet::IsMine(const CTxOut& txout) const
 {
-    return ::IsMine(*this, txout.scriptPubKey);
+    int op = 0;
+    auto script = StripClaimScriptPrefix(txout.scriptPubKey, op);
+    if (op == OP_CLAIM_NAME)
+        return isminetype::ISMINE_CLAIM;
+    if (op == OP_SUPPORT_CLAIM)
+        return isminetype::ISMINE_SUPPORT;
+    return ::IsMine(*this, script);
 }
 
 CAmount CWallet::GetCredit(const CTxOut& txout, const isminefilter& filter) const
@@ -1403,11 +1410,13 @@ bool CWallet::IsChange(const CTxOut& txout) const
     if (::IsMine(*this, txout.scriptPubKey))
     {
         CTxDestination address;
-        if (!ExtractDestination(txout.scriptPubKey, address))
+        const CScript& scriptPubKey = StripClaimScriptPrefix(txout.scriptPubKey);
+
+        if (!ExtractDestination(scriptPubKey, address))
             return true;
 
         LOCK(cs_wallet);
-        if (!mapAddressBook.count(address))
+        if (!mapAddressBook.count(address) && (scriptPubKey == txout.scriptPubKey))
             return true;
     }
     return false;
@@ -1690,18 +1699,19 @@ void CWalletTx::GetAmounts(std::list<COutputEntry>& listReceived,
 
         // In either case, we need to get the destination address
         CTxDestination address;
+        const CScript& scriptPubKey = StripClaimScriptPrefix(txout.scriptPubKey);
 
-        if (!ExtractDestination(txout.scriptPubKey, address) && !txout.scriptPubKey.IsUnspendable())
+        if (!ExtractDestination(scriptPubKey, address) && !scriptPubKey.IsUnspendable())
         {
-            pwallet->WalletLogPrintf("CWalletTx::GetAmounts: Unknown transaction type found, txid %s\n",
-                                    this->GetHash().ToString());
+            LogPrintf("CWalletTx::GetAmounts: Unknown transaction type found, txid %s\n",
+                     this->GetHash().ToString());
             address = CNoDestination();
         }
 
         COutputEntry output = {address, txout.nValue, (int)i};
 
         // If we are debited by the transaction, add the output as a "sent" entry
-        if (nDebit > 0)
+        if (nDebit > 0 || filter & ISMINE_CLAIM || filter & ISMINE_SUPPORT)
             listSent.push_back(output);
 
         // If we are receiving the output, add it as a "received" entry
@@ -2371,8 +2381,12 @@ void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const
                 continue;
             }
 
+            // spending claims or supports requires specific selection:
+            auto claimSpendRequested = (mine & ISMINE_CLAIM) || (mine & ISMINE_SUPPORT);
+            claimSpendRequested &= coinControl && coinControl->IsSelected(COutPoint(entry.first, i));
+
             bool solvable = IsSolvable(*this, pcoin->tx->vout[i].scriptPubKey);
-            bool spendable = ((mine & ISMINE_SPENDABLE) != ISMINE_NO) || (((mine & ISMINE_WATCH_ONLY) != ISMINE_NO) && (coinControl && coinControl->fAllowWatchOnly && solvable));
+            bool spendable = claimSpendRequested || ((mine & ISMINE_SPENDABLE) != ISMINE_NO) || (((mine & ISMINE_WATCH_ONLY) != ISMINE_NO) && (coinControl && coinControl->fAllowWatchOnly && solvable));
 
             vCoins.push_back(COutput(pcoin, i, nDepth, spendable, solvable, safeTx, (coinControl && coinControl->fAllowWatchOnly)));
 
@@ -2950,6 +2964,9 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CTransac
                     strFailReason = _("Fee estimation failed. Fallbackfee is disabled. Wait a few blocks or enable -fallbackfee.");
                     return false;
                 }
+                // Make sure we meet the minimum claimtrie fee, pick which ever one is largest
+                CAmount minClaimTrieFee = CalcMinClaimTrieFee(txNew, minFeePerNameClaimChar);
+                nFeeNeeded = std::max(nFeeNeeded, minClaimTrieFee);
 
                 // If we made it here and we aren't even able to meet the relay fee on the next pass, give up
                 // because we must be at the maximum allowed fee.

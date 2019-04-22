@@ -205,10 +205,9 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(insert
 
     if (nCurrentHeight == Params().GetConsensus().nNormalizedNameForkHeight) {
 
-        std::cout << "RUNNING NORMALIZATION NOW" << std::endl;
         // run the one-time upgrade of all names that need to change
-        // it modifies the (cache) trie as it goes, so we need to grab everything to be modified first
-
+        // it modifies the (cache) trie as it goes, so we need to grab
+        // everything to be modified first
         CNameChangeDetector detector(this);
         iterateTrie(detector);
 

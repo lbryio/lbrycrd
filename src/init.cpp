@@ -532,7 +532,7 @@ void SetupServerArgs()
 std::string LicenseInfo()
 {
     const std::string URL_SOURCE_CODE = "<https://github.com/lbryio/lbrycrd>";
-    const std::string URL_WEBSITE = "<https://lbry.io>";
+    const std::string URL_WEBSITE = "<https://lbry.com>";
 
     return CopyrightHolders(strprintf(_("Copyright (C) %i-%i"), 2009, COPYRIGHT_YEAR) + " ") + "\n" +
            "\n" +
@@ -1430,6 +1430,7 @@ bool AppInitMain()
     nCoinDBCache = std::min(nCoinDBCache, nMaxCoinsDBCache << 20); // cap total coins db cache
     nTotalCache -= nCoinDBCache;
     nCoinCacheUsage = nTotalCache; // the rest goes to in-memory cache
+    std::cout << "nTotalCache: " << nTotalCache << ", nCoinCacheUsage: " << nCoinCacheUsage << ", nCoinDBCache: " << nCoinDBCache << std::endl;
     int64_t nMempoolSizeMax = gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000;
     LogPrintf("Cache configuration:\n");
     LogPrintf("* Using %.1fMiB for block index database\n", nBlockTreeDBCache * (1.0 / 1024 / 1024));

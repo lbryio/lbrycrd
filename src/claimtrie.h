@@ -139,7 +139,6 @@ class CClaimTrieNode;
 class CClaimTrie;
 
 typedef std::vector<CSupportValue> supportMapEntryType;
-
 typedef std::map<unsigned char, CClaimTrieNode*> nodeMapType;
 
 class CClaimTrieNode
@@ -150,16 +149,18 @@ public:
     CClaimTrieNode(const CClaimTrieNode&) = default;
     CClaimTrieNode(CClaimTrieNode&& other)
     {
-        hash = other.hash;
+        hash = std::move(other.hash);
         claims = std::move(other.claims);
         children = std::move(other.children);
         nHeightOfLastTakeover = other.nHeightOfLastTakeover;
     }
+
     CClaimTrieNode& operator=(const CClaimTrieNode&) = default;
     CClaimTrieNode& operator=(CClaimTrieNode&& other)
     {
-        if (this != &other) {
-            hash = other.hash;
+        if (this != &other)
+        {
+            hash = std::move(other.hash);
             claims = std::move(other.claims);
             children = std::move(other.children);
             nHeightOfLastTakeover = other.nHeightOfLastTakeover;
@@ -323,7 +324,7 @@ struct claimsForNameType
 
     claimsForNameType(std::vector<CClaimValue> claims, std::vector<CSupportValue> supports,
                       int nLastTakeoverHeight, const std::string& name)
-      : claims(std::move(claims)), supports(std::move(supports)),
+    : claims(std::move(claims)), supports(std::move(supports)),
         nLastTakeoverHeight(nLastTakeoverHeight), name(name) {}
 
     claimsForNameType(const claimsForNameType&) = default;
@@ -331,8 +332,8 @@ struct claimsForNameType
     {
         claims = std::move(other.claims);
         supports = std::move(other.supports);
-        nLastTakeoverHeight = other.nLastTakeoverHeight;
         name = std::move(other.name);
+        nLastTakeoverHeight = other.nLastTakeoverHeight;
     }
 
     claimsForNameType& operator=(const claimsForNameType&) = default;
@@ -342,8 +343,8 @@ struct claimsForNameType
         {
             claims = std::move(other.claims);
             supports = std::move(other.supports);
-            nLastTakeoverHeight = other.nLastTakeoverHeight;
             name = std::move(other.name);
+            nLastTakeoverHeight = other.nLastTakeoverHeight;
         }
         return *this;
     }
@@ -358,10 +359,10 @@ class CClaimTrie
 {
 public:
     CClaimTrie(bool fMemory = false, bool fWipe = false, int nProportionalDelayFactor = 32)
-      : db(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false), nCurrentHeight(0),
-        nExpirationTime(Params().GetConsensus().nOriginalClaimExpirationTime),
-        nProportionalDelayFactor(nProportionalDelayFactor),
-        root(uint256S("0000000000000000000000000000000000000000000000000000000000000001"))
+               : db(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false)
+               , nCurrentHeight(0), nExpirationTime(Params().GetConsensus().nOriginalClaimExpirationTime)
+               , nProportionalDelayFactor(nProportionalDelayFactor)
+               , root(uint256S("0000000000000000000000000000000000000000000000000000000000000001"))
     {}
 
     uint256 getMerkleHash();
@@ -411,7 +412,7 @@ public:
     int nExpirationTime;
     int nProportionalDelayFactor;
 
-  private:
+private:
     void clear(CClaimTrieNode* current);
 
     const CClaimTrieNode* getNodeForName(const std::string& name) const;
@@ -432,7 +433,7 @@ public:
 
     bool recursiveCheckConsistency(const CClaimTrieNode* node) const;
 
-    bool InsertFromDisk(const std::string& name, CClaimTrieNode* node);
+    bool InsertFromDisk(const std::string& name, const CClaimTrieNode& node);
 
     unsigned int getTotalNamesRecursive(const CClaimTrieNode* current) const;
     unsigned int getTotalClaimsRecursive(const CClaimTrieNode* current) const;
@@ -490,25 +491,27 @@ public:
     CClaimTrieProofNode() {};
     CClaimTrieProofNode(std::vector<std::pair<unsigned char, uint256> > children,
                         bool hasValue, uint256 valHash)
-        : children(std::move(children)), hasValue(hasValue), valHash(valHash)
+        : children(std::move(children)), hasValue(hasValue), valHash(std::move(valHash))
         {};
     CClaimTrieProofNode(const CClaimTrieProofNode&) = default;
     CClaimTrieProofNode(CClaimTrieProofNode&& other)
     {
         hasValue = other.hasValue;
-        valHash = other.valHash;
+        valHash = std::move(other.valHash);
         children = std::move(other.children);
     }
     CClaimTrieProofNode& operator=(const CClaimTrieProofNode&) = default;
     CClaimTrieProofNode& operator=(CClaimTrieProofNode&& other)
     {
-        if (this != &other) {
+        if (this != &other)
+        {
             hasValue = other.hasValue;
-            valHash = other.valHash;
+            valHash = std::move(other.valHash);
             children = std::move(other.children);
         }
         return *this;
     }
+
     std::vector<std::pair<unsigned char, uint256> > children;
     bool hasValue;
     uint256 valHash;
@@ -523,21 +526,24 @@ public:
     CClaimTrieProof(CClaimTrieProof&& other)
     {
         hasValue = other.hasValue;
-        outPoint = other.outPoint;
+        outPoint = std::move(other.outPoint);
         nodes = std::move(other.nodes);
         nHeightOfLastTakeover = other.nHeightOfLastTakeover;
     }
+
     CClaimTrieProof& operator=(const CClaimTrieProof&) = default;
     CClaimTrieProof& operator=(CClaimTrieProof&& other)
     {
-        if (this != &other) {
+        if (this != &other)
+        {
             hasValue = other.hasValue;
-            outPoint = other.outPoint;
+            outPoint = std::move(other.outPoint);
             nodes = std::move(other.nodes);
             nHeightOfLastTakeover = other.nHeightOfLastTakeover;
         }
         return *this;
     }
+
     std::vector<CClaimTrieProofNode> nodes;
     bool hasValue;
     COutPoint outPoint;
@@ -569,8 +575,7 @@ class CClaimTrieCacheBase
 {
 public:
     CClaimTrieCacheBase(CClaimTrie* base, bool fRequireTakeoverHeights = true)
-                    : base(base),
-                      fRequireTakeoverHeights(fRequireTakeoverHeights)
+      : base(base), fRequireTakeoverHeights(fRequireTakeoverHeights)
     {
         assert(base);
         nCurrentHeight = base->nCurrentHeight;
@@ -584,7 +589,7 @@ public:
 
     CClaimTrieNode* getRoot() const
     {
-        const nodeCacheType::iterator iter = cache.find("");
+        const auto iter = cache.find("");
         return iter == cache.end() ? &(base->root) : iter->second;
     }
 
@@ -611,15 +616,15 @@ public:
     void setBestBlock(const uint256& hashBlock);
 
     virtual bool incrementBlock(insertUndoType& insertUndo,
-                        claimQueueRowType& expireUndo,
-                        insertUndoType& insertSupportUndo,
-                        supportQueueRowType& expireSupportUndo,
-                        std::vector<std::pair<std::string, int> >& takeoverHeightUndo);
+                                claimQueueRowType& expireUndo,
+                                insertUndoType& insertSupportUndo,
+                                supportQueueRowType& expireSupportUndo,
+                                std::vector<std::pair<std::string, int> >& takeoverHeightUndo);
     virtual bool decrementBlock(insertUndoType& insertUndo,
-                        claimQueueRowType& expireUndo,
-                        insertUndoType& insertSupportUndo,
-                        supportQueueRowType& expireSupportUndo,
-                        std::vector<std::pair<std::string, int> >& takeoverHeightUndo);
+                                claimQueueRowType& expireUndo,
+                                insertUndoType& insertSupportUndo,
+                                supportQueueRowType& expireSupportUndo,
+                                std::vector<std::pair<std::string, int> >& takeoverHeightUndo);
 
     virtual ~CClaimTrieCacheBase() { clear(); }
 
@@ -632,31 +637,33 @@ public:
 
     virtual claimsForNameType getClaimsForName(const std::string& name) const;
 
-    CAmount getEffectiveAmountForClaim(const std::string& name, const uint160& claimId, std::vector<CSupportValue>* supports = NULL) const;
-    CAmount getEffectiveAmountForClaim(const claimsForNameType& claims, const uint160& claimId, std::vector<CSupportValue>* supports = NULL) const;
+    CAmount getEffectiveAmountForClaim(const std::string& name, const uint160& claimId,
+                                       std::vector<CSupportValue>* supports = nullptr) const;
+    CAmount getEffectiveAmountForClaim(const claimsForNameType& claims, const uint160& claimId,
+                                       std::vector<CSupportValue>* supports = nullptr) const;
 
 protected:
     // Should be private: Do not use unless you know what you're doing.
     CClaimTrieNode* addNodeToCache(const std::string& position, CClaimTrieNode* original) const;
     bool recursiveComputeMerkleHash(CClaimTrieNode* tnCurrent,
-        const std::string& sPos,
-        bool forceCompute = false) const;
-    bool recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos, const std::string& sName, bool* pfNullified = NULL) const;
+                                    const std::string& sPos,
+                                    bool forceCompute = false) const;
+    bool recursivePruneName(CClaimTrieNode* tnCurrent, unsigned int nPos, const std::string& sName, bool* pfNullified = nullptr) const;
     void checkNamesForTakeover(insertUndoType& insertUndo, insertUndoType& insertSupportUndo,
                                std::vector<std::pair<std::string, int> >& takeoverHeightUndo) const;
 
     virtual bool insertClaimIntoTrie(const std::string& name, CClaimValue claim,
-                             bool fCheckTakeover = false) const;
+                                     bool fCheckTakeover = false) const;
     virtual bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint,
-                             CClaimValue& claim,
-                             bool fCheckTakeover = false) const;
+                                     CClaimValue& claim,
+                                     bool fCheckTakeover = false) const;
 
     virtual bool insertSupportIntoMap(const std::string& name,
-                              CSupportValue support,
-                              bool fCheckTakeover) const;
+                                      CSupportValue support,
+                                      bool fCheckTakeover) const;
     virtual bool removeSupportFromMap(const std::string& name, const COutPoint& outPoint,
-                              CSupportValue& support,
-                              bool fCheckTakeover) const;
+                                      CSupportValue& support,
+                                      bool fCheckTakeover) const;
 
     virtual void addClaimToQueues(const std::string& name, CClaimValue& claim) const;
     virtual bool addSupportToQueues(const std::string& name, CSupportValue& support) const;
@@ -726,9 +733,9 @@ private:
     supportQueueType::iterator getSupportQueueCacheRow(int nHeight,
                                                        bool createIfNotExists) const;
     queueNameType::iterator getSupportQueueCacheNameRow(const std::string& name,
-                                                                 bool createIfNotExists) const;
+                                                        bool createIfNotExists) const;
     expirationQueueType::iterator getSupportExpirationQueueCacheRow(int nHeight,
-                                                                     bool createIfNotExists) const;
+                                                                    bool createIfNotExists) const;
 
     bool removeSupportFromQueue(const std::string& name, const COutPoint& outPoint,
                                 CSupportValue& support) const;
@@ -749,9 +756,9 @@ private:
 };
 
 class CClaimTrieCacheExpirationFork: public CClaimTrieCacheBase {
-public:
+  public:
     CClaimTrieCacheExpirationFork(CClaimTrie* base, bool fRequireTakeoverHeights = true)
-      : CClaimTrieCacheBase(base, fRequireTakeoverHeights) {}
+        : CClaimTrieCacheBase(base, fRequireTakeoverHeights) {}
 
     virtual ~CClaimTrieCacheExpirationFork() {}
 
@@ -765,7 +772,7 @@ private:
 };
 
 class CClaimTrieCacheNormalizationFork: public CClaimTrieCacheExpirationFork {
-public:
+  public:
     CClaimTrieCacheNormalizationFork(CClaimTrie* base, bool fRequireTakeoverHeights = true)
         : CClaimTrieCacheExpirationFork(base, fRequireTakeoverHeights),
         overrideInsertNormalization(false), overrideRemoveNormalization(false) {}

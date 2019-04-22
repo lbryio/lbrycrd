@@ -5,7 +5,7 @@ define(_CLIENT_VERSION_MINOR, 17)
 define(_CLIENT_VERSION_REVISION, 1)
 define(_CLIENT_VERSION_BUILD, 0)
 define(_CLIENT_VERSION_IS_RELEASE, true)
-define(_COPYRIGHT_YEAR, 2018)
+define(_COPYRIGHT_YEAR, 2019)
 define(_COPYRIGHT_HOLDERS,[The %s developers])
 define(_COPYRIGHT_HOLDERS_SUBSTITUTION,[[LBRYcrd Core]])
 AC_INIT([LBRYcrd Core],[_CLIENT_VERSION_MAJOR._CLIENT_VERSION_MINOR._CLIENT_VERSION_REVISION],[https://github.com/bitcoin/bitcoin/issues],[bitcoin],[https://bitcoincore.org/])
@@ -14,7 +14,7 @@ AC_CONFIG_HEADERS([src/config/bitcoin-config.h])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([build-aux/m4])
 
-BITCOIN_DAEMON_NAME=lbrycrd
+BITCOIN_DAEMON_NAME=lbrycrdd
 BITCOIN_GUI_NAME=lbrycrd-qt
 BITCOIN_CLI_NAME=lbrycrd-cli
 BITCOIN_TX_NAME=lbrycrd-tx

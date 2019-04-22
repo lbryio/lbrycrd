@@ -25,7 +25,7 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
         // Special difficulty rule for testnet:
         // If the new block's timestamp is twice the target block time
         // then allow mining of a min-difficulty block.
-        // This is to prevent the testnet from gettig stuck when a large amount
+        // This is to prevent the testnet from getting stuck when a large amount
         // of hashrate drops off the network.
         // This rule was not implemented properly until testnet block 277299.
         if (pblock->GetBlockTime() > pindexLast->GetBlockTime() + params.nPowTargetSpacing*2){

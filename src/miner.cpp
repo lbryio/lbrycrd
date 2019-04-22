@@ -454,6 +454,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
 
             if (DecodeClaimScript(scriptPubKey, op, vvchParams))
             {
+                std::string name(vvchParams[0].begin(), vvchParams[0].end());
                 if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
                 {
                     uint160 claimId;
@@ -467,7 +468,6 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
                         assert(vvchParams.size() == 3);
                         claimId = uint160(vvchParams[1]);
                     }
-                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     int throwaway;
                     if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), coin.nHeight, throwaway))
                     {
@@ -482,7 +482,6 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
                 else if (op == OP_SUPPORT_CLAIM)
                 {
                     assert(vvchParams.size() == 2);
-                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     int throwaway;
                     if (!trieCache.spendSupport(name, COutPoint(txin.prevout.hash, txin.prevout.n), coin.nHeight, throwaway))
                     {
@@ -500,10 +499,10 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
             int op;
             if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams))
             {
+                std::string name(vvchParams[0].begin(), vvchParams[0].end());
                 if (op == OP_CLAIM_NAME)
                 {
                     assert(vvchParams.size() == 2);
-                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     if (!trieCache.addClaim(name, COutPoint(tx.GetHash(), i), ClaimIdHash(tx.GetHash(), i), txout.nValue, nHeight))
                     {
                         LogPrintf("%s: Something went wrong inserting the name\n", __func__);
@@ -512,13 +511,12 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
                 else if (op == OP_UPDATE_CLAIM)
                 {
                     assert(vvchParams.size() == 3);
-                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     uint160 claimId(vvchParams[1]);
                     spentClaimsType::iterator itSpent;
                     for (itSpent = spentClaims.begin(); itSpent != spentClaims.end(); ++itSpent)
                     {
-                        if ((itSpent->first == name && itSpent->second == claimId) &&
-                            (trieCache.normalizeClaimName(name) == trieCache.normalizeClaimName(itSpent->first)))
+                        if (itSpent->second == claimId &&
+                            trieCache.normalizeClaimName(name) == trieCache.normalizeClaimName(itSpent->first))
                             break;
                     }
                     if (itSpent != spentClaims.end())
@@ -537,7 +535,6 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
                 else if (op == OP_SUPPORT_CLAIM)
                 {
                     assert(vvchParams.size() == 2);
-                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
                     uint160 supportedClaimId(vvchParams[1]);
                     if (!trieCache.addSupport(name, COutPoint(tx.GetHash(), i), txout.nValue, supportedClaimId, nHeight))
                     {

@@ -275,7 +275,7 @@ static bool getValueForOutPoint(const CCoinsViewCache& coinsCache, const COutPoi
         sValue = HexStr(vvchParams[1].begin(), vvchParams[1].end());
         return true;
     }
-    else if (op == OP_UPDATE_CLAIM)
+    else if (vvchParams.size() > 2) // both UPDATE and SUPPORT
     {
         sValue = HexStr(vvchParams[2].begin(), vvchParams[2].end());
         return true;
@@ -431,6 +431,7 @@ UniValue getclaimsforname(const JSONRPCRequest& request)
             "        \"nAmount\"  (numeric) the amount of the support\n"
             "        \"value\"    (string) the metadata of the support if any\n"
             "      ]\n"
+            "      \"name\"       (string) the original name of this claim before normalization\n"
             "    }\n"
             "  ],\n"
             "  \"supports without claims\": [ (array of object) supports that did not match a claim for this name\n"
