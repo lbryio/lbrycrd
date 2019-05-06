@@ -128,22 +128,21 @@ struct ClaimTrieChainFixture
     unsigned int num_txs;
     unsigned int num_txs_for_next_block;
 
-    // these will take on regtest parameters
-    const int expirationForkHeight;
-    const int originalExpiration;
-    const int extendedExpiration;
+    int64_t expirationForkHeight;
+    int64_t originalExpiration;
+    int64_t extendedExpiration;
 
     ClaimTrieChainFixture():
-        coinbase_txs_used(0), unique_block_counter(0),
-        normalization_original(-1), num_txs(0), num_txs_for_next_block(0),
-        expirationForkHeight(Params().GetConsensus().nExtendedClaimExpirationForkHeight),
-        originalExpiration(Params().GetConsensus().nOriginalClaimExpirationTime),
-        extendedExpiration(Params().GetConsensus().nExtendedClaimExpirationTime)
+        expirationForkHeight(-1), unique_block_counter(0), normalization_original(-1)
     {
         fRequireStandard = false;
         BOOST_CHECK_EQUAL(pclaimTrie->nCurrentHeight, chainActive.Height() + 1);
-        pclaimTrie->setExpirationTime(originalExpiration); // in case it was changed during the test
-        setNormalizationForkHeight(1000000); // Default should be dictated by Params(?)
+        setNormalizationForkHeight(1000000);
+
+        num_txs_for_next_block = 0;
+        num_txs = 0;
+        coinbase_txs_used = 0;
+        unique_block_counter = 0;
         // generate coinbases to spend
         CreateCoinbases(40, coinbase_txs);
     }
@@ -156,11 +155,30 @@ struct ClaimTrieChainFixture
             auto& consensus = const_cast<Consensus::Params&>(Params().GetConsensus());
             consensus.nNormalizedNameForkHeight = normalization_original;
         }
-        pclaimTrie->setExpirationTime(originalExpiration); // in case it was changed during the test
+        if (expirationForkHeight >= 0) {
+            const Consensus::Params& consensus = Params().GetConsensus();
+            const_cast<Consensus::Params&>(consensus).nExtendedClaimExpirationForkHeight = expirationForkHeight;
+            const_cast<Consensus::Params&>(consensus).nExtendedClaimExpirationTime = extendedExpiration;
+            const_cast<Consensus::Params&>(consensus).nOriginalClaimExpirationTime = originalExpiration;
+            pclaimTrie->setExpirationTime(originalExpiration);
+        }
     }
 
-    void setNormalizationForkHeight(int targetMinusCurrent)
-    {
+    void setExpirationForkHeight(int targetMinusCurrent, int64_t preForkExpirationTime, int64_t postForkExpirationTime) {
+        int target = chainActive.Height() + targetMinusCurrent;
+        const Consensus::Params& consensus = Params().GetConsensus();
+        if (expirationForkHeight < 0) {
+            expirationForkHeight = consensus.nExtendedClaimExpirationForkHeight;
+            originalExpiration = consensus.nOriginalClaimExpirationTime;
+            extendedExpiration = consensus.nExtendedClaimExpirationTime;
+        }
+        const_cast<Consensus::Params&>(consensus).nExtendedClaimExpirationForkHeight = target;
+        const_cast<Consensus::Params&>(consensus).nExtendedClaimExpirationTime = postForkExpirationTime;
+        const_cast<Consensus::Params&>(consensus).nOriginalClaimExpirationTime = preForkExpirationTime;
+        pclaimTrie->setExpirationTime(targetMinusCurrent >= 0 ? preForkExpirationTime : postForkExpirationTime);
+    }
+
+    void setNormalizationForkHeight(int targetMinusCurrent) {
         int target = chainActive.Height() + targetMinusCurrent;
         auto& consensus = const_cast<Consensus::Params&>(Params().GetConsensus());
         if (normalization_original < 0)
@@ -736,7 +754,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
 BOOST_AUTO_TEST_CASE(claimtrie_expire_test)
 {
     ClaimTrieChainFixture fixture;
-    pclaimTrie->setExpirationTime(5);
+    fixture.setExpirationForkHeight(1000000, 5, 1000000);
 
     // check claims expire and loses claim
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one",2);
@@ -907,60 +925,60 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
 BOOST_AUTO_TEST_CASE(hardfork_claim_test)
 {
     ClaimTrieChainFixture fixture;
+    fixture.setExpirationForkHeight(7, 3, 6);
 
-    BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, fixture.originalExpiration);
     // First create a claim and make sure it expires pre-fork
-    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one",3);
-    fixture.IncrementBlocks(fixture.originalExpiration+1);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_false);
-    fixture.DecrementBlocks(fixture.originalExpiration);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
-    fixture.IncrementBlocks(fixture.originalExpiration);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_false);
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",3);
+    fixture.IncrementBlocks(4);
+    BOOST_CHECK(!is_best_claim("test",tx1));
+    fixture.DecrementBlocks(3);
+    BOOST_CHECK(is_best_claim("test",tx1));
+    fixture.IncrementBlocks(3);
+    BOOST_CHECK(!is_best_claim("test",tx1));
 
     // Create a claim 1 block before the fork height that will expire after the fork height
-    fixture.IncrementBlocks(fixture.expirationForkHeight - chainActive.Height() -2);
-    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "test2", "one",3);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK_EQUAL(chainActive.Height(), fixture.expirationForkHeight -1);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test2","one",3);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, 3);
 
     // Disable future expirations and fast-forward past the fork height
     fixture.IncrementBlocks(1);
-    BOOST_CHECK_EQUAL(chainActive.Height(), fixture.expirationForkHeight);
-    BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, fixture.extendedExpiration);
+    BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, 6);
     // make sure decrementing to before the fork height will apppropriately set back the
     // expiration time to the original expiraiton time
     fixture.DecrementBlocks(1);
-    BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, fixture.originalExpiration);
+    BOOST_CHECK_NE(pclaimTrie->nExpirationTime, 6);
     fixture.IncrementBlocks(1);
+    BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, 6);
 
     // make sure that claim created 1 block before the fork expires as expected
     // at the extended expiration times
-    BOOST_CHECK_EQUAL(is_best_claim("test2", tx2), predicate_true);
-    fixture.IncrementBlocks(fixture.extendedExpiration-1);
-    BOOST_CHECK_EQUAL(is_best_claim("test2", tx2), predicate_false);
-    fixture.DecrementBlocks(fixture.extendedExpiration-1);
+    BOOST_CHECK(is_best_claim("test2", tx2));
+    fixture.IncrementBlocks(5);
+    BOOST_CHECK(!is_best_claim("test2", tx2));
+    fixture.DecrementBlocks(5);
+    BOOST_CHECK(is_best_claim("test2", tx2));
 
     // This first claim is still expired since it's pre-fork, even
     // after fork activation
     BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_false);
 
     // This new claim created at the fork height cannot expire at original expiration
-    BOOST_CHECK_EQUAL(chainActive.Height(), fixture.expirationForkHeight);
-    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one",1);
+    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
     fixture.IncrementBlocks(1);
-    fixture.IncrementBlocks(fixture.originalExpiration);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_false);
-    fixture.DecrementBlocks(fixture.originalExpiration);
+    fixture.IncrementBlocks(3);
+    BOOST_CHECK(is_best_claim("test",tx3));
+    BOOST_CHECK(!is_best_claim("test",tx1));
+    fixture.DecrementBlocks(3);
 
     // but it expires at the extended expiration, and not a single block below
-    fixture.IncrementBlocks(fixture.extendedExpiration);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_false);
-    fixture.DecrementBlocks(fixture.extendedExpiration);
-    fixture.IncrementBlocks(fixture.extendedExpiration-1);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
-    fixture.DecrementBlocks(fixture.extendedExpiration-1);
+    fixture.IncrementBlocks(6);
+    BOOST_CHECK(!is_best_claim("test",tx3));
+    fixture.DecrementBlocks(6);
+    fixture.IncrementBlocks(5);
+    BOOST_CHECK(is_best_claim("test",tx3));
+    fixture.DecrementBlocks(5);
 
 
     // Ensure that we cannot update the original pre-fork expired claim
@@ -988,36 +1006,34 @@ BOOST_AUTO_TEST_CASE(hardfork_claim_test)
 BOOST_AUTO_TEST_CASE(hardfork_support_test)
 {
     ClaimTrieChainFixture fixture;
+    fixture.setExpirationForkHeight(2, 2, 4);
 
-    int blocks_before_fork = 10;
-    fixture.IncrementBlocks(fixture.expirationForkHeight - chainActive.Height() - blocks_before_fork - 1);
     // Create claim and support it before the fork height
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 1);
     CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, "test", 2);
     // this claim will win without the support
-    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
-    fixture.IncrementBlocks(1);
-    fixture.IncrementBlocks(blocks_before_fork);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
+    fixture.IncrementBlocks(2);
 
     // check that the claim expires as expected at the extended time, as does the support
-    fixture.IncrementBlocks(fixture.originalExpiration - blocks_before_fork);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
-    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 3), predicate_true);
-    fixture.DecrementBlocks(fixture.originalExpiration - blocks_before_fork);
-    fixture.IncrementBlocks(fixture.extendedExpiration - blocks_before_fork);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_false);
-    fixture.DecrementBlocks(fixture.extendedExpiration - blocks_before_fork);
-    fixture.IncrementBlocks(fixture.extendedExpiration - blocks_before_fork - 1);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
-    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 3), predicate_true);
-    fixture.DecrementBlocks(fixture.extendedExpiration - blocks_before_fork - 1);
+    fixture.IncrementBlocks(2);
+    BOOST_CHECK(is_best_claim("test",tx1));
+    BOOST_CHECK(best_claim_effective_amount_equals("test",3));
+    fixture.DecrementBlocks(2);
+    fixture.IncrementBlocks(3);
+    BOOST_CHECK(!is_best_claim("test",tx1));
+    fixture.DecrementBlocks(3);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(is_best_claim("test",tx1));
+    BOOST_CHECK(best_claim_effective_amount_equals("test",3));
+    fixture.DecrementBlocks(1);
 
     // update the claims at fork
     fixture.DecrementBlocks(1);
     CMutableTransaction u1 = fixture.MakeUpdate(tx1, "test", "two", ClaimIdHash(tx1.GetHash(),0), 1);
     CMutableTransaction u2 = fixture.MakeUpdate(tx2, "test", "two", ClaimIdHash(tx2.GetHash(),0), 2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK_EQUAL(fixture.expirationForkHeight, chainActive.Height());
+    BOOST_CHECK_EQUAL(Params().GetConsensus().nExtendedClaimExpirationForkHeight, chainActive.Height());
 
     BOOST_CHECK_EQUAL(is_best_claim("test", u1), predicate_true);
     BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test",3), predicate_true);
@@ -1025,12 +1041,12 @@ BOOST_AUTO_TEST_CASE(hardfork_support_test)
     BOOST_CHECK_EQUAL(is_claim_in_queue("test", tx2), predicate_false);
 
     // check that the support expires as expected
-    fixture.IncrementBlocks(fixture.extendedExpiration - blocks_before_fork);
-    BOOST_CHECK_EQUAL(is_best_claim("test", u2), predicate_true);
-    fixture.DecrementBlocks(fixture.extendedExpiration - blocks_before_fork);
-    fixture.IncrementBlocks(fixture.extendedExpiration - blocks_before_fork - 1);
-    BOOST_CHECK_EQUAL(is_best_claim("test", u1), predicate_true);
-    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test",3), predicate_true);
+    fixture.IncrementBlocks(3);
+    BOOST_CHECK(is_best_claim("test", u2));
+    fixture.DecrementBlocks(3);
+    fixture.IncrementBlocks(2);
+    BOOST_CHECK(is_best_claim("test",u1));
+    BOOST_CHECK(best_claim_effective_amount_equals("test",3));
 }
 
 /*
@@ -1592,13 +1608,14 @@ BOOST_AUTO_TEST_CASE(hardfork_disk_test)
 {
     ClaimTrieChainFixture fixture;
 
+    fixture.setExpirationForkHeight(7, 3, 6);
+
     // Check that incrementing to fork height, reseting to disk will get proper expiration time
-    BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, fixture.originalExpiration);
-    fixture.IncrementBlocks(fixture.expirationForkHeight - chainActive.Height());
-    BOOST_CHECK_EQUAL(chainActive.Height(), fixture.expirationForkHeight);
-    BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, fixture.extendedExpiration);
+    BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, 3);
+    fixture.IncrementBlocks(7, true);
+    BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, 6);
     fixture.WriteClearReadClaimTrie();
-    BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, fixture.extendedExpiration);
+    BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, 6);
 
     // Create a claim and support 1 block before the fork height that will expire after the fork height.
     // Reset to disk, increment past the fork height and make sure we get
@@ -1607,47 +1624,46 @@ BOOST_AUTO_TEST_CASE(hardfork_disk_test)
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 1);
     CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, "test", 1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK_EQUAL(chainActive.Height(), fixture.expirationForkHeight -1);
 
     fixture.WriteClearReadClaimTrie();
-    BOOST_CHECK_EQUAL(chainActive.Height(), fixture.expirationForkHeight-1);
-    BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, fixture.originalExpiration);
+    BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, 3);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, fixture.extendedExpiration);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
-    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 2), predicate_true);
-    fixture.IncrementBlocks(fixture.originalExpiration-1);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
-    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 2), predicate_true);
-    fixture.DecrementBlocks(fixture.originalExpiration-1);
-    fixture.IncrementBlocks(fixture.extendedExpiration-1);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_false);
+    BOOST_CHECK_EQUAL(pclaimTrie->nExpirationTime, 6);
+    BOOST_CHECK(is_best_claim("test", tx1));
+    BOOST_CHECK(best_claim_effective_amount_equals("test",2));
+    fixture.IncrementBlocks(2);
+    BOOST_CHECK(is_best_claim("test", tx1));
+    BOOST_CHECK(best_claim_effective_amount_equals("test",2));
+    fixture.DecrementBlocks(2);
+    fixture.IncrementBlocks(5);
+    BOOST_CHECK(!is_best_claim("test", tx1));
 
     // Create a claim and support before the fork height, reset to disk, update the claim
     // increment past the fork height and make sure we get proper behavior
-    int  height_of_update_before_expiration = 50;
-    fixture.DecrementBlocks(chainActive.Height() - fixture.expirationForkHeight + height_of_update_before_expiration+2);
-    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "test2", "one", 1);
-    CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(), tx2, "test2", 1);
+    fixture.DecrementBlocks();
+    fixture.setExpirationForkHeight(3, 5, 6);
+
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test2","one",1);
+    CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(),tx2,"test2",1);
     fixture.IncrementBlocks(1);
     fixture.WriteClearReadClaimTrie();
     CMutableTransaction u2 = fixture.MakeUpdate(tx2, "test2", "two", ClaimIdHash(tx2.GetHash(), 0), 1);
     // increment to fork
-    fixture.IncrementBlocks(fixture.expirationForkHeight - chainActive.Height());
-    BOOST_CHECK_EQUAL(is_best_claim("test2", u2), predicate_true);
-    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test2", 2), predicate_true);
+    fixture.IncrementBlocks(2);
+    BOOST_CHECK(is_best_claim("test2", u2));
+    BOOST_CHECK(best_claim_effective_amount_equals("test2",2));
     // increment to original expiration, should not be expired
-    fixture.IncrementBlocks(fixture.originalExpiration - height_of_update_before_expiration);
-    BOOST_CHECK_EQUAL(is_best_claim("test2", u2), predicate_true);
-    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test2", 2), predicate_true);
-    fixture.DecrementBlocks(fixture.originalExpiration - height_of_update_before_expiration);
+    fixture.IncrementBlocks(2);
+    BOOST_CHECK(is_best_claim("test2", u2));
+    BOOST_CHECK(best_claim_effective_amount_equals("test2", 2));
+    fixture.DecrementBlocks(2);
     // increment to extended expiration, should be expired and not one block before
-    fixture.IncrementBlocks(fixture.extendedExpiration - height_of_update_before_expiration);
-    BOOST_CHECK_EQUAL(is_best_claim("test2", u2), predicate_false);
-    fixture.DecrementBlocks(fixture.extendedExpiration - height_of_update_before_expiration);
-    fixture.IncrementBlocks(fixture.extendedExpiration - height_of_update_before_expiration - 1);
-    BOOST_CHECK_EQUAL(is_best_claim("test2", u2), predicate_true);
-    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test2", 1), predicate_true); // the support expires one block before
+    fixture.IncrementBlocks(5);
+    BOOST_CHECK(!is_best_claim("test2", u2));
+    fixture.DecrementBlocks(5);
+    fixture.IncrementBlocks(4);
+    BOOST_CHECK(is_best_claim("test2", u2));
+    BOOST_CHECK(best_claim_effective_amount_equals("test2", 1)); // the support expires one block before
 }
 
 BOOST_AUTO_TEST_CASE(insert_update_claim_test)
@@ -2170,8 +2186,8 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
 
     int nThrowaway;
 
-    // set expiration time to 200 blocks after the block is created
-    pclaimTrie->setExpirationTime(200);
+    // set expiration time to 80 blocks after the block is created
+    fixture.setExpirationForkHeight(1000000, 80, 1000000);
 
     // create a claim. verify the expiration event has been scheduled.
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue, 10);
@@ -2184,47 +2200,47 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
 
     // advance until the expiration event occurs. verify the expiration event occurs on time.
 
-    fixture.IncrementBlocks(199); // 200
+    fixture.IncrementBlocks(79); // 80
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
-    fixture.IncrementBlocks(1); // 201
+    fixture.IncrementBlocks(1); // 81
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), true);
 
     // roll forward a bit and then roll back to before the expiration event. verify the claim is reinserted. verify the expiration event is scheduled again.
-    fixture.IncrementBlocks(100); // 301
+    fixture.IncrementBlocks(20); // 101
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), true);
 
-    fixture.DecrementBlocks(101); // 200
+    fixture.DecrementBlocks(21); // 80
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
     // advance until the expiration event occurs. verify the expiration event occurs on time.
-    fixture.IncrementBlocks(1); // 201
+    fixture.IncrementBlocks(1); // 81
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), true);
 
     // roll back to before the expiration event. verify the claim is reinserted. verify the expiration event is scheduled again.
-    fixture.DecrementBlocks(2); // 199
+    fixture.DecrementBlocks(2); // 79
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
     // roll back some more.
-    fixture.DecrementBlocks(99); // 100
+    fixture.DecrementBlocks(39); // 40
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
@@ -2232,27 +2248,27 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
 
     // spend the claim. verify the expiration event is removed.
     CMutableTransaction tx2 = fixture.Spend(tx1);
-    fixture.IncrementBlocks(1); // 101
+    fixture.IncrementBlocks(1); // 41
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), true);
 
     // roll back the spend. verify the expiration event is returned.
-    fixture.DecrementBlocks(1); // 100
+    fixture.DecrementBlocks(1); // 40
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
     // advance until the expiration event occurs. verify the event occurs on time.
-    fixture.IncrementBlocks(100); // 200
+    fixture.IncrementBlocks(40); // 80
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
-    fixture.IncrementBlocks(1); // 201
+    fixture.IncrementBlocks(1); // 81
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
@@ -2260,35 +2276,35 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
 
     // spend the expired claim
     fixture.CommitTx(tx2);
-    fixture.IncrementBlocks(1); // 202
+    fixture.IncrementBlocks(1); // 82
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), true);
 
     // undo the spend. verify everything remains empty.
-    fixture.DecrementBlocks(1); // 201
+    fixture.DecrementBlocks(1); // 81
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), true);
 
     // roll back to before the expiration event. verify the claim is reinserted. verify the expiration event is scheduled again.
-    fixture.DecrementBlocks(1); // 200
+    fixture.DecrementBlocks(1); // 80
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
     // verify the expiration event happens at the right time again
-    fixture.IncrementBlocks(1); // 201
+    fixture.IncrementBlocks(1); // 81
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), true);
 
     // roll back to before the expiration event. verify it gets reinserted and expiration gets scheduled.
-    fixture.DecrementBlocks(1); // 200
+    fixture.DecrementBlocks(1); // 80
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
@@ -2352,13 +2368,13 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     BOOST_CHECK_EQUAL(tx1MerkleHash, pclaimTrie->getMerkleHash());
 
     // advance until the expiration event occurs. verify the expiration event occurs on time.
-    fixture.IncrementBlocks(189, true); // 200
+    fixture.IncrementBlocks(69, true); // 80
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->expirationQueueEmpty(), false);
 
-    fixture.IncrementBlocks(1); // 201
+    fixture.IncrementBlocks(1); // 81
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
@@ -2369,7 +2385,7 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
 
     // spend tx1
     fixture.CommitTx(tx2);
-    fixture.IncrementBlocks(1); // 202
+    fixture.IncrementBlocks(1); // 82
 
     // roll back to when tx1 and tx3 are in the trie and tx1 is winning
     fixture.DecrementBlocks(); // 11
@@ -2480,7 +2496,7 @@ BOOST_AUTO_TEST_CASE(invalid_claimid_test)
 
     // Create a 1 LBC claim (tx1)
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue1, 1);
-    fixture.IncrementBlocks(1); // 1
+    fixture.IncrementBlocks(1, true); // 1
 
     BOOST_CHECK_EQUAL(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)), true);
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
@@ -2534,15 +2550,15 @@ BOOST_AUTO_TEST_CASE(invalid_claimid_test)
 
     // Go forward a few hundred blocks and verify it's not in there
 
-    fixture.IncrementBlocks(300); // 404
+    fixture.IncrementBlocks(101); // 205
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->haveClaim(sName, tx4OutPoint), false);
 
     // go all the way back
-    fixture.DecrementBlocks(404);
-    BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
+    fixture.DecrementBlocks();
+    BOOST_CHECK(pclaimTrie->empty());
 }
 
 
@@ -3189,7 +3205,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     CClaimValue val;
     std::vector<uint256> blocks_to_invalidate;
 
-    pclaimTrie->setExpirationTime(200);
+    fixture.setExpirationForkHeight(1000000, 80, 1000000);
 
     // to be active bid must have: a higher block number and current block >= (current height - block number) / 32
 
@@ -3197,7 +3213,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
 
     // Create a 1 LBC claim (tx1)
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue1, 1);
-    fixture.IncrementBlocks(1); // 1, expires at 201
+    fixture.IncrementBlocks(1); // 1, expires at 81
 
     BOOST_CHECK_EQUAL(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)), true);
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
@@ -3207,7 +3223,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
 
     // Create a 5 LBC support (tx3)
     CMutableTransaction tx3 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, sName, 5);
-    fixture.IncrementBlocks(1); // 2, expires at 202
+    fixture.IncrementBlocks(1); // 2, expires at 82
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
@@ -3215,10 +3231,10 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
 
     // Advance some, then insert 5 LBC claim (tx2)
-    fixture.IncrementBlocks(49); // 51
+    fixture.IncrementBlocks(19); // 21
 
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue2, 5);
-    fixture.IncrementBlocks(1); // 52, activating in (52 - 2) / 1 = 50block (but not then active because support still holds tx1 up)
+    fixture.IncrementBlocks(1); // 22, activating in (22 - 2) / 1 = 20block (but not then active because support still holds tx1 up)
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
@@ -3227,7 +3243,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     uint256 rootMerkleHash = pclaimTrie->getMerkleHash();
 
     // Advance until tx2 is valid
-    fixture.IncrementBlocks(50); // 102
+    fixture.IncrementBlocks(20); // 42
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), false);
@@ -3235,7 +3251,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
     BOOST_CHECK_EQUAL(rootMerkleHash, pclaimTrie->getMerkleHash());
 
-    fixture.IncrementBlocks(1); // 103
+    fixture.IncrementBlocks(1); // 43
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
@@ -3249,7 +3265,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     uint160 claimId = ClaimIdHash(tx1.GetHash(), 0);
     CMutableTransaction tx4 = fixture.MakeUpdate(tx1, sName, sValue1, claimId, tx1.vout[0].nValue);
 
-    fixture.IncrementBlocks(1); // 104
+    fixture.IncrementBlocks(1); // 44
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
@@ -3260,7 +3276,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK_EQUAL(rootMerkleHash != pclaimTrie->getMerkleHash(), true);
 
     // Advance until the support expires
-    fixture.IncrementBlocks(97); // 201
+    fixture.IncrementBlocks(37); // 81
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
@@ -3268,7 +3284,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK_EQUAL(pclaimTrie->supportQueueEmpty(), true);
     rootMerkleHash = pclaimTrie->getMerkleHash();
 
-    fixture.IncrementBlocks(1); // 202
+    fixture.IncrementBlocks(1); // 82
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
@@ -3280,7 +3296,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     rootMerkleHash = pclaimTrie->getMerkleHash();
 
     // undo the block, make sure control goes back
-    fixture.DecrementBlocks(1); // 201
+    fixture.DecrementBlocks(1); // 81
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
@@ -3291,7 +3307,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK_EQUAL(rootMerkleHash != pclaimTrie->getMerkleHash(), true);
 
     // redo the block, make sure it expires again
-    fixture.IncrementBlocks(1); // 202
+    fixture.IncrementBlocks(1); // 82
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
@@ -3304,7 +3320,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     // roll back some, spend the support, and make sure nothing unexpected
     // happens at the time the support should have expired
 
-    fixture.DecrementBlocks(49); // 153
+    fixture.DecrementBlocks(19); // 63
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
@@ -3315,7 +3331,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK_EQUAL(rootMerkleHash != pclaimTrie->getMerkleHash(), true);
 
     fixture.Spend(tx3);
-    fixture.IncrementBlocks(1); // 154
+    fixture.IncrementBlocks(1); // 64
 
     blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
 
@@ -3326,7 +3342,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
 
-    fixture.IncrementBlocks(50); // 204
+    fixture.IncrementBlocks(20); // 84
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
@@ -3337,7 +3353,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
 
     //undo the spend, and make sure it still expires on time
 
-    fixture.DecrementBlocks(51); // 153
+    fixture.DecrementBlocks(21); // 63
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
@@ -3346,7 +3362,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx4.GetHash());
 
-    fixture.IncrementBlocks(48); // 201
+    fixture.IncrementBlocks(18); // 81
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
@@ -3355,7 +3371,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK_EQUAL(pclaimTrie->getInfoForName(sName, val), true);
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx4.GetHash());
 
-    fixture.IncrementBlocks(1); // 202
+    fixture.IncrementBlocks(1); // 82
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), false);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
@@ -3365,7 +3381,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
 
     // roll all the way back
-    fixture.DecrementBlocks(202);
+    fixture.DecrementBlocks(82);
 
     BOOST_CHECK_EQUAL(pclaimTrie->empty(), true);
     BOOST_CHECK_EQUAL(pclaimTrie->queueEmpty(), true);
@@ -3649,7 +3665,8 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test_2)
 BOOST_AUTO_TEST_CASE(get_claim_by_id_test_3)
 {
     ClaimTrieChainFixture fixture;
-    pclaimTrie->setExpirationTime(5);
+    fixture.setExpirationForkHeight(1000000, 5, 1000000);
+
     const std::string name = "test";
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), name, "one", 1);
     uint160 claimId = ClaimIdHash(tx1.GetHash(), 0);
