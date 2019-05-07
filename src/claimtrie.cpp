@@ -1,6 +1,8 @@
 #include <claimtrie.h>
 #include <coins.h>
 #include <hash.h>
+#include <logging.h>
+#include <util.h>
 
 #include <iostream>
 #include <algorithm>
@@ -27,34 +29,21 @@ std::vector<unsigned char> heightToVch(int n)
 
 uint256 getValueHash(COutPoint outPoint, int nHeightOfLastTakeover)
 {
-    CHash256 txHasher;
-    txHasher.Write(outPoint.hash.begin(), outPoint.hash.size());
-    std::vector<unsigned char> vchtxHash(txHasher.OUTPUT_SIZE);
-    txHasher.Finalize(&(vchtxHash[0]));
-
-    CHash256 nOutHasher;
-    std::stringstream ss;
-    ss << outPoint.n;
-    std::string snOut = ss.str();
-    nOutHasher.Write((unsigned char*) snOut.data(), snOut.size());
-    std::vector<unsigned char> vchnOutHash(nOutHasher.OUTPUT_SIZE);
-    nOutHasher.Finalize(&(vchnOutHash[0]));
-
-    CHash256 takeoverHasher;
-    std::vector<unsigned char> vchTakeoverHeightToHash = heightToVch(nHeightOfLastTakeover);
-    takeoverHasher.Write(vchTakeoverHeightToHash.data(), vchTakeoverHeightToHash.size());
-    std::vector<unsigned char> vchTakeoverHash(takeoverHasher.OUTPUT_SIZE);
-    takeoverHasher.Finalize(&(vchTakeoverHash[0]));
-
     CHash256 hasher;
-    hasher.Write(vchtxHash.data(), vchtxHash.size());
-    hasher.Write(vchnOutHash.data(), vchnOutHash.size());
-    hasher.Write(vchTakeoverHash.data(), vchTakeoverHash.size());
-    std::vector<unsigned char> vchHash(hasher.OUTPUT_SIZE);
-    hasher.Finalize(&(vchHash[0]));
+    auto hash = Hash(outPoint.hash.begin(), outPoint.hash.end());
+    hasher.Write(hash.begin(), hash.size());
 
-    uint256 valueHash(vchHash);
-    return valueHash;
+    auto snOut = std::to_string(outPoint.n);
+    hash = Hash(snOut.begin(), snOut.end());
+    hasher.Write(hash.begin(), hash.size());
+
+    auto vchHash = heightToVch(nHeightOfLastTakeover);
+    hash = Hash(vchHash.begin(), vchHash.end());
+    hasher.Write(hash.begin(), hash.size());
+
+    uint256 result;
+    hasher.Finalize(result.begin());
+    return result;
 }
 
 bool CClaimTrieNode::insertClaim(CClaimValue claim)
@@ -453,11 +442,7 @@ bool CClaimTrie::recursiveCheckConsistency(const CClaimTrieNode* node) const
         vchToHash.insert(vchToHash.end(), valueHash.begin(), valueHash.end());
     }
 
-    CHash256 hasher;
-    std::vector<unsigned char> vchHash(hasher.OUTPUT_SIZE);
-    hasher.Write(vchToHash.data(), vchToHash.size());
-    hasher.Finalize(&(vchHash[0]));
-    uint256 calculatedHash(vchHash);
+    auto calculatedHash = Hash(vchToHash.begin(), vchToHash.end());
     return calculatedHash == node->hash;
 }
 
