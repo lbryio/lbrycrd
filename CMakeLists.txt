@@ -7,13 +7,15 @@ if(EXISTS "build/boost")
     set(BOOST_ROOT "build/boost" CACHE PATH "Boost library path")
     set(Boost_NO_SYSTEM_PATHS on CACHE BOOL "Do not search system for Boost")
 endif()
-find_package(Boost REQUIRED COMPONENTS filesystem program_options thread chrono locale)
+find_package(Boost REQUIRED COMPONENTS filesystem thread chrono locale)
 
 file(GLOB sources
         src/*.h src/*.cpp
         src/wallet/*.h src/wallet/*.cpp
         src/support/*.h src/support/*.cpp src/support/allocators/*.h
         src/script/*.h src/script/*.cpp
+        src/index/*.h src/index/*.cpp
+        src/interfaces/*.h src/interfaces/*.cpp
         src/rpc/*.h src/rpc/*.cpp
         src/primitives/*.h src/primitives/*.cpp
         src/policy/*.h src/policy/*.cpp
@@ -50,8 +52,5 @@ add_executable(lbrycrd-tx src/bitcoin-tx.cpp ${sources})
 add_executable(lbrycrdd src/bitcoind.cpp ${sources})
 
 file(GLOB tests src/test/*.cpp)
-foreach(test ${tests})
-    get_filename_component(filename ${test} NAME_WE)
-    add_executable(${filename} ${test} ${sources})
-    target_include_directories(${filename} PRIVATE src/test)
-endforeach(test)
+add_executable(test_lbrycrd ${tests} ${sources})
+target_include_directories(test_lbrycrd PRIVATE src/test)
