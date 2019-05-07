@@ -102,6 +102,7 @@ BITCOIN_CORE_H = \
   chainparamsseeds.h \
   checkpoints.h \
   checkqueue.h \
+  claimscriptop.h \
   claimtrie.h \
   clientversion.h \
   coins.h \
@@ -226,6 +227,7 @@ libbitcoin_server_a_SOURCES = \
   blockencodings.cpp \
   chain.cpp \
   checkpoints.cpp \
+  claimscriptop.cpp \
   claimtrie.cpp \
   claimtrieforks.cpp \
   consensus/tx_verify.cpp \

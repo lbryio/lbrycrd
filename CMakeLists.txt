@@ -16,12 +16,12 @@ file(GLOB sources
         src/script/*.h src/script/*.cpp
         src/index/*.h src/index/*.cpp
         src/interfaces/*.h src/interfaces/*.cpp
-        src/rpc/*.h src/rpc/*.cpp
         src/primitives/*.h src/primitives/*.cpp
         src/policy/*.h src/policy/*.cpp
         src/crypto/*.h src/crypto/*.cpp
         src/consensus/*.h src/consensus/*.cpp
         src/compat/*.h src/compat/*.cpp
+        src/rpc/*.h src/rpc/*.cpp
     )
 list(FILTER sources EXCLUDE REGEX "src/bitcoin*.cpp$")
 
