@@ -279,8 +279,8 @@ BOOST_AUTO_TEST_CASE(recursive_prune_test)
     BOOST_CHECK_EQUAL(1, cc.cacheSize());
     nodeCacheType::iterator it = cc.getCache(std::string("t"));
     BOOST_CHECK_EQUAL(10, it->second->nHeightOfLastTakeover);
-    BOOST_CHECK_EQUAL(1, it->second->claims.size());
-    BOOST_CHECK_EQUAL(0, it->second->children.size());
+    BOOST_CHECK_EQUAL(1U, it->second->claims.size());
+    BOOST_CHECK_EQUAL(0U, it->second->children.size());
 }
 
 BOOST_AUTO_TEST_CASE(iteratetrie_test)

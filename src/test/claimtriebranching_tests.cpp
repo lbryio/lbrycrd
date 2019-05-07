@@ -297,8 +297,8 @@ struct ClaimTrieChainFixture
 
     CTransaction GetCoinbase()
     {
-        assert(static_cast<size_t>(coinbase_txs_used + 1) < coinbase_txs.size());
-        return coinbase_txs[coinbase_txs_used++];
+        auto tx = coinbase_txs.at(coinbase_txs_used++);
+        return tx;
     }
 
     //create i blocks
