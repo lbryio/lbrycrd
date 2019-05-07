@@ -2290,11 +2290,6 @@ int CClaimTrieCacheBase::getNumBlocksOfContinuousOwnership(const std::string& na
 
 const CClaimTrieNode* CClaimTrieCacheBase::getNodeForName(const std::string& name) const
 {
-    /* CClaimTrieNode* node = nullptr; */
-    /* nodeCacheType::const_iterator itCache = cache.find(name); */
-    /* if (itCache != cache.end()) */
-    /*     node = itCache->second; */
-    /* return (node ? node : base->getNodeForName(name)); */
     const CClaimTrieNode* node = nullptr;
     nodeCacheType::const_iterator itCache = cache.find(name);
     if (itCache != cache.end()) {
