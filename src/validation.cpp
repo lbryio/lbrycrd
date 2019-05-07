@@ -9,6 +9,7 @@
 #include <chain.h>
 #include <chainparams.h>
 #include <checkqueue.h>
+#include <claimscriptop.h>
 #include <consensus/consensus.h>
 #include <consensus/merkle.h>
 #include <consensus/tx_check.h>
@@ -25,6 +26,7 @@
 #include <pow.h>
 #include <primitives/block.h>
 #include <primitives/transaction.h>
+#include <protocol.h>
 #include <random.h>
 #include <reverse_iterator.h>
 #include <script/script.h>
@@ -1730,55 +1732,15 @@ int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CC
         }
     }
 
-    /* restore claim if applicable */
-    int op;
-    std::vector<std::vector<unsigned char> > vvchParams;
-    if (fIsClaim && DecodeClaimScript(undo.out.scriptPubKey, op, vvchParams))
-    {
-        if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
-        {
-            uint160 claimId{};
-            if (op == OP_CLAIM_NAME)
-            {
-                assert(vvchParams.size() == 2);
-                claimId = ClaimIdHash(out.hash, out.n);
-            }
-            else if (op == OP_UPDATE_CLAIM)
-            {
-                assert(vvchParams.size() == 3);
-                claimId = uint160(vvchParams[1]);
-            }
-            std::string name(vvchParams[0].begin(), vvchParams[0].end());
-            int nValidHeight = static_cast<int>(nClaimValidHeight);
-            if (nValidHeight > 0 && nValidHeight >= undo.nHeight)
-            {
-                LogPrintf("%s: (txid: %s, nOut: %d) Restoring %s to the claim trie due to a block being disconnected\n", __func__, out.hash.ToString(), out.n, name);
-                if (!trieCache.undoSpendClaim(name, COutPoint(out.hash, out.n), claimId, undo.out.nValue, undo.nHeight, nValidHeight))
-                    LogPrintf("%s: Something went wrong inserting the claim\n", __func__);
-            }
-            else
-            {
-                LogPrintf("%s: (txid: %s, nOut: %d) Not restoring %s to the claim trie because it expired before it was spent\n", __func__, out.hash.ToString(), out.n, name.c_str());
-                LogPrintf("%s: nValidHeight = %d, undo.nHeight = %d, nCurrentHeight = %d\n", __func__, nValidHeight, undo.nHeight, chainActive.Height());
-            }
-        }
-        else if (op == OP_SUPPORT_CLAIM)
-        {
-            assert(vvchParams.size() == 2);
-            std::string name(vvchParams[0].begin(), vvchParams[0].end());
-            uint160 supportedClaimId(vvchParams[1]);
-            int nValidHeight = static_cast<int>(nClaimValidHeight);
-            if (nValidHeight > 0 && nValidHeight >= undo.nHeight)
-            {
-                LogPrintf("%s: (txid: %s, nOut: %d) Restoring support for %s in claimid %s due to a block being disconnected\n", __func__, out.hash.ToString(), out.n, name, supportedClaimId.ToString());
-                if (!trieCache.undoSpendSupport(name, COutPoint(out.hash, out.n), supportedClaimId, undo.out.nValue, undo.nHeight, nValidHeight))
-                    LogPrintf("%s: Something went wrong inserting support for the claim\n", __func__);
-            }
-            else
-            {
-                LogPrintf("%s: (txid: %s, nOut: %d) Not restoring support for %s in claimid %s because the support expired before it was spent\n", __func__, out.hash.ToString(), out.n, name, supportedClaimId.ToString());
-                LogPrintf("%s: nValidHeight = %d, undo.nHeight = %d, nCurrentHeight = %d\n", __func__, nValidHeight, undo.nHeight, chainActive.Height());
-            }
+    // restore claim if applicable
+    if (fIsClaim && !undo.out.scriptPubKey.empty()) {
+        int nValidHeight = static_cast<int>(nClaimValidHeight);
+        if (nValidHeight > 0 && nValidHeight >= undo.nHeight) {
+            CClaimScriptUndoSpendOp undoSpend(COutPoint(out.hash, out.n), undo.out.nValue, undo.nHeight, nValidHeight);
+            ProcessClaim(undoSpend, trieCache, undo.out.scriptPubKey);
+        } else {
+            LogPrintf("%s: (txid: %s, nOut: %d) Not restoring claim/support to the claim trie because it expired before it was spent\n", __func__, out.hash.ToString(), out.n);
+            LogPrintf("%s: nValidHeight = %d, undo.nHeight = %d, nCurrentHeight = %d\n", __func__, nValidHeight, undo.nHeight, chainActive.Height());
         }
     }
 
@@ -1838,48 +1800,9 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
         {
             const CTxOut& txout = tx.vout[j];
 
-            int op;
-            std::vector<std::vector<unsigned char>> vvchParams;
-            if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams))
-            {
-                if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
-                {
-                    uint160 claimId;
-                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                    std::string value(vvchParams[1].begin(), vvchParams[1].end());
-                    if (op == OP_CLAIM_NAME)
-                    {
-                        assert(vvchParams.size() == 2);
-                        claimId = ClaimIdHash(hash, j);
-                        LogPrintf("--- %s[%lu]: OP_CLAIM_NAME \"%s\" with claimId %s and tx prevout %s at index %d\n",
-                                  __func__, pindex->nHeight, name, claimId.GetHex(), hash.ToString(), j);
-                    }
-                    else if (op == OP_UPDATE_CLAIM)
-                    {
-                        assert(vvchParams.size() == 3);
-                        claimId = uint160(vvchParams[1]);
-                        LogPrintf("--- %s[%lu]: OP_UPDATE_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n",
-                                  __func__, pindex->nHeight, name, claimId.GetHex(), hash.ToString(), j);
-                    }
-                    LogPrintf("%s: (txid: %s, nOut: %d) Trying to remove %s from the claim trie due to its block being disconnected\n",
-                              __func__, hash.ToString(), j, name);
-                    if (!trieCache.undoAddClaim(name, COutPoint(hash, j), pindex->nHeight))
-                    {
-                        LogPrintf("%s: Could not find the claim in the trie or the cache\n", __func__);
-                    }
-                }
-                else if (op == OP_SUPPORT_CLAIM)
-                {
-                    assert(vvchParams.size() == 2);
-                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                    uint160 supportedClaimId(vvchParams[1]);
-                    LogPrintf("--- %s[%lu]: OP_SUPPORT_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n",
-                              __func__, pindex->nHeight, name, supportedClaimId.GetHex(), hash.ToString(), j);
-                    LogPrintf("%s: (txid: %s, nOut: %d) Removing support for claim id %s on %s due to its block being disconnected\n",
-                              __func__, hash.ToString(), j, supportedClaimId.ToString(), name);
-                    if (!trieCache.undoAddSupport(name, COutPoint(hash, j), pindex->nHeight))
-                        LogPrintf("%s: Something went wrong removing support for name %s in hash %s\n", __func__, name.c_str(), hash.ToString());
-                }
+            if (!txout.scriptPubKey.empty()) {
+                CClaimScriptUndoAddOp undoAdd(COutPoint(hash, j), pindex->nHeight);
+                ProcessClaim(undoAdd, trieCache, txout.scriptPubKey);
             }
         }
 
@@ -2366,7 +2289,6 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
             // If there are two or more claims in the inputs with the same name, only
             // use the first.
 
-            typedef std::vector<std::pair<std::string, uint160> > spentClaimsType;
             spentClaimsType spentClaims;
 
             for (unsigned int j = 0; j < tx.vin.size(); j++)
@@ -2374,107 +2296,19 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                 const CTxIn& txin = tx.vin[j];
                 const Coin& coin = view.AccessCoin(txin.prevout);
 
-                int op;
-                std::vector<std::vector<unsigned char> > vvchParams;
-                if (DecodeClaimScript(coin.out.scriptPubKey, op, vvchParams))
-                {
-                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                    if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM)
-                    {
-                        uint160 claimId;
-                        std::string value(vvchParams[1].begin(), vvchParams[1].end());
-                        if (op == OP_CLAIM_NAME)
-                        {
-                            claimId = ClaimIdHash(txin.prevout.hash, txin.prevout.n);
-                            LogPrintf("+++ %s[%lu]: OP_CLAIM_NAME \"%s\"with claimId %s and tx prevout %s at index %d\n",
-                                      __func__, pindex->nHeight, name, claimId.GetHex(), txin.prevout.hash.GetHex(), txin.prevout.n);
-                        }
-                        else if (op == OP_UPDATE_CLAIM)
-                        {
-                            claimId = uint160(vvchParams[1]);
-                            LogPrintf("+++ %s[%lu]: OP_UPDATE_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n",
-                                      __func__, pindex->nHeight, name, claimId.GetHex(), txin.prevout.hash.GetHex(), txin.prevout.n);
-                        }
-                        int nValidAtHeight;
-                        LogPrintf("%s: Removing %s (%s) from the claim trie. Tx: %s, nOut: %d\n",
-                                  __func__, name, claimId.GetHex(), txin.prevout.hash.GetHex(), txin.prevout.n);
-                        if (trieCache.spendClaim(name, COutPoint(txin.prevout.hash, txin.prevout.n), coin.nHeight, nValidAtHeight))
-                        {
-                            mClaimUndoHeights[j] = nValidAtHeight;
-                            std::pair<std::string, uint160> entry(name, claimId);
-                            spentClaims.push_back(entry);
-                        }
-                        else
-                        {
-                            LogPrintf("%s(): The claim was not found in the trie or queue and therefore can't be updated\n", __func__);
-                        }
-                    }
-                    else if (op == OP_SUPPORT_CLAIM)
-                    {
-                        uint160 supportedClaimId(vvchParams[1]);
-                        LogPrintf("+++ %s[%lu]: OP_SUPPORT_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n",
-                                  __func__, pindex->nHeight, name,
-                                  supportedClaimId.GetHex(), txin.prevout.hash.GetHex(), txin.prevout.n);
-                        int nValidAtHeight;
-                        LogPrintf("%s: Removing support for %s in %s. Tx: %s, nOut: %d, removed txid: %s\n",
-                                  __func__, supportedClaimId.ToString(), name, txin.prevout.hash.ToString(),
-                                  txin.prevout.n, tx.GetHash().ToString());
-                        if (trieCache.spendSupport(name, COutPoint(txin.prevout.hash, txin.prevout.n), coin.nHeight, nValidAtHeight))
-                        {
-                            mClaimUndoHeights[j] = nValidAtHeight;
-                        }
-                    }
-                }
+                if (coin.out.scriptPubKey.empty())
+                    continue;
+
+                int nValidAtHeight;
+                if (SpendClaim(trieCache, coin.out.scriptPubKey, COutPoint(txin.prevout.hash, txin.prevout.n), coin.nHeight, nValidAtHeight, spentClaims))
+                    mClaimUndoHeights[j] = nValidAtHeight;
             }
 
-            for (unsigned int j = 0; j < tx.vout.size(); j++)
-            {
+            for (unsigned int j = 0; j < tx.vout.size(); j++) {
                 const CTxOut& txout = tx.vout[j];
 
-                int op;
-                std::vector<std::vector<unsigned char> > vvchParams;
-                if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams))
-                {
-                    std::string name(vvchParams[0].begin(), vvchParams[0].end());
-                    if (op == OP_CLAIM_NAME)
-                    {
-                        LogPrintf("%s: Inserting %s into the claim trie. Tx: %s, nOut: %d\n",
-                                  __func__, name, tx.GetHash().GetHex(), j);
-                        if (!trieCache.addClaim(name, COutPoint(tx.GetHash(), j), ClaimIdHash(tx.GetHash(), j), txout.nValue, pindex->nHeight))
-                        {
-                            LogPrintf("%s: Something went wrong inserting the claim\n", __func__);
-                        }
-                    }
-                    else if (op == OP_UPDATE_CLAIM)
-                    {
-                        uint160 claimId(vvchParams[1]);
-                        LogPrintf("%s: Got a claim update. Name: %s, claimId: %s, new txid: %s, nOut: %d\n",
-                                  __func__, name, claimId.GetHex(), tx.GetHash().GetHex(), j);
-                        spentClaimsType::iterator itSpent;
-                        for (itSpent = spentClaims.begin(); itSpent != spentClaims.end(); ++itSpent)
-                        {
-                            if (itSpent->second == claimId &&
-                                trieCache.normalizeClaimName(name) == trieCache.normalizeClaimName(itSpent->first))
-                                break;
-                        }
-                        if (itSpent != spentClaims.end())
-                        {
-                            spentClaims.erase(itSpent);
-                            if (!trieCache.addClaim(name, COutPoint(tx.GetHash(), j), claimId, txout.nValue, pindex->nHeight))
-                            {
-                                LogPrintf("%s: Something went wrong updating the claim\n", __func__);
-                            }
-                        }
-                    }
-                    else if (op == OP_SUPPORT_CLAIM)
-                    {
-                        uint160 supportedClaimId(vvchParams[1]);
-                        if (!trieCache.addSupport(name, COutPoint(tx.GetHash(), j), txout.nValue, supportedClaimId, pindex->nHeight))
-                        {
-                            LogPrintf("%s: Something went wrong inserting the support\n", __func__);
-                        }
-                    }
-                }
+                if (!txout.scriptPubKey.empty())
+                    AddSpendClaim(trieCache, txout.scriptPubKey, COutPoint(tx.GetHash(), j), txout.nValue, pindex->nHeight, spentClaims);
             }
         }
 
