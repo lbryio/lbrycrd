@@ -24,11 +24,16 @@ By default, this endpoint will only search the mempool.
 To query for a confirmed transaction, enable the transaction index via "txindex=1" command line / configuration option.
 
 #### Blocks
+`GET /rest/block/tip.<bin|hex|json>`
 `GET /rest/block/<BLOCK-HASH>.<bin|hex|json>`
+`GET /rest/block/<BLOCK-HEIGHT>.<bin|hex|json>`
+`GET /rest/block/notxdetails/tip.<bin|hex|json>`
 `GET /rest/block/notxdetails/<BLOCK-HASH>.<bin|hex|json>`
+`GET /rest/block/notxdetails/<BLOCK-HEIGHT>.<bin|hex|json>`
 
 Given a block hash: returns a block, in binary, hex-encoded binary or JSON formats.
-Responds with 404 if the block doesn't exist.
+You can give a block height instead of a hash. Height 0 is not available, 
+but can be negative to go back that many blocks from the tip.
 
 The HTTP request and response are both handled entirely in-memory, thus making maximum memory usage at least 2.66MB (1 MB max block, plus hex encoding) per request.
 

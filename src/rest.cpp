@@ -202,16 +202,28 @@ static bool rest_block(HTTPRequest* req,
     const RetFormat rf = ParseDataFormat(hashStr, strURIPart);
 
     uint256 hash;
-    if (!ParseHashStr(hashStr, hash))
-        return RESTERR(req, HTTP_BAD_REQUEST, "Invalid hash: " + hashStr);
-
+    long int blockHeight = 0;
+    if (hashStr != "tip") {
+        blockHeight = hashStr.size() < 12 ? std::strtol(hashStr.c_str(), nullptr, 10) : 0;
+        if (blockHeight == 0 && !ParseHashStr(hashStr, hash))
+            return RESTERR(req, HTTP_BAD_REQUEST, "Invalid hash or block height: " + hashStr);
+    }
     CBlock block;
     CBlockIndex* pblockindex = nullptr;
     CBlockIndex* tip = nullptr;
     {
         LOCK(cs_main);
         tip = ::ChainActive().Tip();
-        pblockindex = LookupBlockIndex(hash);
+        if (blockHeight < 0) // negative block heights take us back from current tip
+            blockHeight += chainActive.Height();
+        if (blockHeight > 0 && blockHeight <= chainActive.Height())
+            pblockindex = chainActive[blockHeight];
+        else if (blockHeight != 0)
+            return RESTERR(req, HTTP_BAD_REQUEST, "Invalid hash or block height: " + hashStr);
+        else if (hashStr == "tip")
+            pblockindex = chainActive.Tip();
+        else
+            pblockindex = LookupBlockIndex(hash);
         if (!pblockindex) {
             return RESTERR(req, HTTP_NOT_FOUND, hashStr + " not found");
         }
