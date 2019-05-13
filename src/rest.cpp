@@ -210,17 +210,28 @@ static bool rest_block(HTTPRequest* req,
     const RetFormat rf = ParseDataFormat(hashStr, strURIPart);
 
     uint256 hash;
-    if (!ParseHashStr(hashStr, hash))
-        return RESTERR(req, HTTP_BAD_REQUEST, "Invalid hash: " + hashStr);
-
+    long int blockHeight = 0;
+    if (hashStr != "tip") {
+        blockHeight = hashStr.size() < 12 ? std::strtol(hashStr.c_str(), NULL, 10) : 0;
+        if (blockHeight == 0 && !ParseHashStr(hashStr, hash))
+            return RESTERR(req, HTTP_BAD_REQUEST, "Invalid hash or block height: " + hashStr);
+    }
     CBlock block;
     CBlockIndex* pblockindex = NULL;
     {
         LOCK(cs_main);
-        if (mapBlockIndex.count(hash) == 0)
+        if (blockHeight < 0) // negative block heights take us back from current tip
+            blockHeight += chainActive.Height();
+        if (blockHeight > 0 && blockHeight <= chainActive.Height())
+            pblockindex = chainActive[blockHeight];
+        else if (blockHeight != 0)
+            return RESTERR(req, HTTP_BAD_REQUEST, "Invalid hash or block height: " + hashStr);
+        else if (hashStr == "tip")
+            pblockindex = chainActive.Tip();
+        else if (mapBlockIndex.count(hash))
+            pblockindex = mapBlockIndex[hash];
+        if (!pblockindex)
             return RESTERR(req, HTTP_NOT_FOUND, hashStr + " not found");
-
-        pblockindex = mapBlockIndex[hash];
         if (fHavePruned && !(pblockindex->nStatus & BLOCK_HAVE_DATA) && pblockindex->nTx > 0)
             return RESTERR(req, HTTP_NOT_FOUND, hashStr + " not available (pruned data)");
 
