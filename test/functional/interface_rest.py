@@ -84,7 +84,7 @@ class RESTTest (BitcoinTestFramework):
         self.nodes[1].generatetoaddress(100, not_related_address)
         self.sync_all()
 
-        assert_equal(self.nodes[0].getbalance(), 50)
+        assert_equal(self.nodes[0].getbalance(), 1)
 
         txid = self.nodes[0].sendtoaddress(self.nodes[1].getnewaddress(), 0.1)
         self.sync_all()
@@ -200,17 +200,26 @@ class RESTTest (BitcoinTestFramework):
 
         self.log.info("Test the /block and /headers URIs")
         bb_hash = self.nodes[0].getbestblockhash()
+        bb_height = self.nodes[0].getblock(self.nodes[0].getbestblockhash())['height']
 
         # Check binary format
         response = self.test_rest_request("/block/{}".format(bb_hash), req_type=ReqType.BIN, ret_type=RetType.OBJ)
         assert_greater_than(int(response.getheader('content-length')), 80)
         response_bytes = response.read()
 
+        response2 = self.test_rest_request("/block/{}".format(bb_height), req_type=ReqType.BIN, ret_type=RetType.OBJ)
+        response2_bytes = response2.read()
+        assert_equal(response_bytes, response2_bytes)
+
+        response3 = self.test_rest_request("/block/tip", req_type=ReqType.BIN, ret_type=RetType.OBJ)
+        response3_bytes = response3.read()
+        assert_equal(response_bytes, response3_bytes)
+
         # Compare with block header
         response_header = self.test_rest_request("/headers/1/{}".format(bb_hash), req_type=ReqType.BIN, ret_type=RetType.OBJ)
-        assert_equal(int(response_header.getheader('content-length')), 80)
+        assert_equal(int(response_header.getheader('content-length')), 112)
         response_header_bytes = response_header.read()
-        assert_equal(response_bytes[:80], response_header_bytes)
+        assert_equal(response_bytes[:112], response_header_bytes)
 
         # Check block hex format
         response_hex = self.test_rest_request("/block/{}".format(bb_hash), req_type=ReqType.HEX, ret_type=RetType.OBJ)
@@ -259,9 +268,9 @@ class RESTTest (BitcoinTestFramework):
 
         # Make 3 tx and mine them on node 1
         txs = []
-        txs.append(self.nodes[0].sendtoaddress(not_related_address, 11))
-        txs.append(self.nodes[0].sendtoaddress(not_related_address, 11))
-        txs.append(self.nodes[0].sendtoaddress(not_related_address, 11))
+        txs.append(self.nodes[0].sendtoaddress(not_related_address, 0.11))
+        txs.append(self.nodes[0].sendtoaddress(not_related_address, 0.11))
+        txs.append(self.nodes[0].sendtoaddress(not_related_address, 0.11))
         self.sync_all()
 
         # Check that there are exactly 3 transactions in the TX memory pool before generating the block
