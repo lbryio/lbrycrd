@@ -3947,9 +3947,13 @@ BOOST_AUTO_TEST_CASE(claim_rpcs_rollback3_test)
 
     rpcfn_type getclaimsforname = tableRPC["getclaimsforname"]->actor;
     rpcfn_type getvalueforname = tableRPC["getvalueforname"]->actor;
+    rpcfn_type getblocktemplate = tableRPC["getblocktemplate"]->actor;
 
     JSONRPCRequest req;
     req.params = UniValue(UniValue::VARR);
+    UniValue templateResults = getblocktemplate(req);
+    BOOST_CHECK_EQUAL(templateResults["claimtrie"].get_str(), chainActive.Tip()->hashClaimTrie.GetHex());
+
     req.params.push_back(UniValue(sName1));
     req.params.push_back(blockHash.GetHex());
 
@@ -3959,6 +3963,7 @@ BOOST_AUTO_TEST_CASE(claim_rpcs_rollback3_test)
     UniValue valueResults = getvalueforname(req);
     BOOST_CHECK_EQUAL(valueResults["value"].get_str(), HexStr(sValue1));
     BOOST_CHECK_EQUAL(valueResults["amount"].get_int(), 3);
+
 }
 
 BOOST_AUTO_TEST_SUITE_END()
