@@ -7,6 +7,7 @@
 
 #include <key.h>
 #include <keystore.h>
+#include <nameclaim.h>
 #include <script/script.h>
 #include <script/sign.h>
 
@@ -39,6 +40,8 @@ enum class IsMineResult
     WATCH_ONLY = 1,  //! Included in watch-only balance
     SPENDABLE = 2,   //! Included in all balances
     INVALID = 3,     //! Not spendable by anyone (uncompressed pubkey in segwit, P2SH inside P2SH or witness, witness inside witness)
+    CLAIM = 4,
+    SUPPORT = 5,
 };
 
 bool PermitsUncompressed(IsMineSigVersion sigversion)
@@ -57,7 +60,15 @@ bool HaveKeys(const std::vector<valtype>& pubkeys, const CKeyStore& keystore)
 
 IsMineResult IsMineInner(const CKeyStore& keystore, const CScript& scriptPubKey, IsMineSigVersion sigversion)
 {
+    int op = 0;
     IsMineResult ret = IsMineResult::NO;
+    IsMineResult claim_ret = IsMineResult::NO;
+
+    CScript strippedScriptPubKey = StripClaimScriptPrefix(scriptPubKey, op);
+    if (strippedScriptPubKey != scriptPubKey)
+        claim_ret = ((op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM) ? IsMineResult::CLAIM :
+                     ((op == OP_SUPPORT_CLAIM) ? IsMineResult::SUPPORT :
+                      IsMineResult::NO));
 
     std::vector<valtype> vSolutions;
     txnouttype whichType;
@@ -76,7 +87,7 @@ IsMineResult IsMineInner(const CKeyStore& keystore, const CScript& scriptPubKey,
             return IsMineResult::INVALID;
         }
         if (keystore.HaveKey(keyID)) {
-            ret = std::max(ret, IsMineResult::SPENDABLE);
+            ret = std::max(claim_ret, IsMineResult::SPENDABLE);
         }
         break;
     case TX_WITNESS_V0_KEYHASH:
@@ -91,6 +102,10 @@ IsMineResult IsMineInner(const CKeyStore& keystore, const CScript& scriptPubKey,
             // This also applies to the P2WSH case.
             break;
         }
+        // Claims are not explicitly supported on Witness v0
+        // Transactions, and instead of supporting the wrapped inner
+        // tx, we are ignoring this type at this time (consistent with
+        // previous releases).
         ret = std::max(ret, IsMineInner(keystore, GetScriptForDestination(CKeyID(uint160(vSolutions[0]))), IsMineSigVersion::WITNESS_V0));
         break;
     }
@@ -103,7 +118,7 @@ IsMineResult IsMineInner(const CKeyStore& keystore, const CScript& scriptPubKey,
             }
         }
         if (keystore.HaveKey(keyID)) {
-            ret = std::max(ret, IsMineResult::SPENDABLE);
+            ret = std::max(claim_ret, IsMineResult::SPENDABLE);
         }
         break;
     case TX_SCRIPTHASH:
@@ -115,7 +130,7 @@ IsMineResult IsMineInner(const CKeyStore& keystore, const CScript& scriptPubKey,
         CScriptID scriptID = CScriptID(uint160(vSolutions[0]));
         CScript subscript;
         if (keystore.GetCScript(scriptID, subscript)) {
-            ret = std::max(ret, IsMineInner(keystore, subscript, IsMineSigVersion::P2SH));
+            ret = std::max(claim_ret, IsMineInner(keystore, subscript, IsMineSigVersion::P2SH));
         }
         break;
     }
@@ -133,6 +148,10 @@ IsMineResult IsMineInner(const CKeyStore& keystore, const CScript& scriptPubKey,
         CScriptID scriptID = CScriptID(hash);
         CScript subscript;
         if (keystore.GetCScript(scriptID, subscript)) {
+            // Claims are not explicitly supported on Witness v0
+            // Transactions, and instead of supporting the wrapped inner
+            // tx, we are ignoring this type at this time (consistent with
+            // previous releases).
             ret = std::max(ret, IsMineInner(keystore, subscript, IsMineSigVersion::WITNESS_V0));
         }
         break;
@@ -159,14 +178,14 @@ IsMineResult IsMineInner(const CKeyStore& keystore, const CScript& scriptPubKey,
             }
         }
         if (HaveKeys(keys, keystore)) {
-            ret = std::max(ret, IsMineResult::SPENDABLE);
+            ret = std::max(claim_ret, IsMineResult::SPENDABLE);
         }
         break;
     }
     }
 
     if (ret == IsMineResult::NO && keystore.HaveWatchOnly(scriptPubKey)) {
-        ret = std::max(ret, IsMineResult::WATCH_ONLY);
+        ret = std::max(claim_ret, IsMineResult::WATCH_ONLY);
     }
     return ret;
 }
@@ -183,6 +202,10 @@ isminetype IsMine(const CKeyStore& keystore, const CScript& scriptPubKey)
         return ISMINE_WATCH_ONLY;
     case IsMineResult::SPENDABLE:
         return ISMINE_SPENDABLE;
+    case IsMineResult::CLAIM:
+        return ISMINE_CLAIM;
+    case IsMineResult::SUPPORT:
+        return ISMINE_SUPPORT;
     }
     assert(false);
 }
