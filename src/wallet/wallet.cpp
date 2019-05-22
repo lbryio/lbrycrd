@@ -1382,13 +1382,7 @@ CAmount CWallet::GetDebit(const CTxIn &txin, const isminefilter& filter) const
 
 isminetype CWallet::IsMine(const CTxOut& txout) const
 {
-    int op = 0;
-    auto script = StripClaimScriptPrefix(txout.scriptPubKey, op);
-    if (op == OP_CLAIM_NAME)
-        return isminetype::ISMINE_CLAIM;
-    if (op == OP_SUPPORT_CLAIM)
-        return isminetype::ISMINE_SUPPORT;
-    return ::IsMine(*this, script);
+    return ::IsMine(*this, txout.scriptPubKey);
 }
 
 CAmount CWallet::GetCredit(const CTxOut& txout, const isminefilter& filter) const
