@@ -51,6 +51,6 @@ add_executable(lbrycrd-cli src/bitcoin-cli.cpp ${sources})
 add_executable(lbrycrd-tx src/bitcoin-tx.cpp ${sources})
 add_executable(lbrycrdd src/bitcoind.cpp ${sources})
 
-file(GLOB tests src/test/*.cpp)
+file(GLOB tests src/test/*.cpp src/wallet/test/*.cpp)
 add_executable(test_lbrycrd ${tests} ${sources})
 target_include_directories(test_lbrycrd PRIVATE src/test)

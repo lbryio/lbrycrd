@@ -62,17 +62,15 @@ IsMineResult IsMineInner(const CKeyStore& keystore, const CScript& scriptPubKey,
 {
     int op = 0;
     IsMineResult ret = IsMineResult::NO;
-    IsMineResult claim_ret = IsMineResult::NO;
 
     CScript strippedScriptPubKey = StripClaimScriptPrefix(scriptPubKey, op);
-    if (strippedScriptPubKey != scriptPubKey)
-        claim_ret = ((op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM) ? IsMineResult::CLAIM :
-                     ((op == OP_SUPPORT_CLAIM) ? IsMineResult::SUPPORT :
-                      IsMineResult::NO));
+    IsMineResult claim_ret = ((op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM) ? IsMineResult::CLAIM :
+                 ((op == OP_SUPPORT_CLAIM) ? IsMineResult::SUPPORT :
+                  IsMineResult::NO));
 
     std::vector<valtype> vSolutions;
     txnouttype whichType;
-    Solver(scriptPubKey, whichType, vSolutions);
+    Solver(strippedScriptPubKey, whichType, vSolutions);
 
     CKeyID keyID;
     switch (whichType)
