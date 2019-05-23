@@ -1482,12 +1482,11 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txund
     // mark inputs spent
     if (!tx.IsCoinBase()) {
         txundo.vprevout.reserve(tx.vin.size());
-        for(size_t i = 0; i < tx.vin.size(); i++) {
-            const CTxIn& txin = tx.vin[i];
-            Coin coin{};
+        Coin coin;
+        for (const CTxIn &txin : tx.vin) {
             bool is_spent = inputs.SpendCoin(txin.prevout, &coin);
             assert(is_spent);
-            txundo.vprevout.push_back(coin);
+            txundo.vprevout.emplace_back(coin.out, coin.IsCoinBase(), int(coin.nHeight));
         }
     }
     // add outputs
@@ -1707,24 +1706,17 @@ static bool AbortNode(CValidationState& state, const std::string& strMessage, co
  */
 int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CClaimTrieCache& trieCache, const COutPoint& out)
 {
-    Coin& undo = txUndo.vprevout[index];
-    unsigned int nClaimValidHeight = 0;
-    bool fIsClaim = false;
-    const auto claimIt = txUndo.claimInfo.find(index);
-    if (claimIt != txUndo.claimInfo.end()) {
-        nClaimValidHeight = claimIt->second.nClaimValidHeight;
-        fIsClaim = claimIt->second.fIsClaim;
-    }
-
+    auto& undo = txUndo.vprevout[index];
     bool fClean = true;
     if (view.HaveCoin(out)) fClean = false; // overwriting transaction output
 
     if (undo.nHeight == 0) {
-        // Missing undo metadata (height and coinbase). Older versions included this
+        // Missing undo metadata (height and coinbase, not txout). Older versions included this
         // information only in undo records for the last spend of a transactions'
         // outputs. This implies that it must be present for some other output of the same tx.
         const Coin& alternate = AccessByTxid(view, out.hash);
         if (!alternate.IsSpent()) {
+            assert(!undo.fIsClaim);
             undo.nHeight = alternate.nHeight;
             undo.fCoinBase = alternate.fCoinBase;
         } else {
@@ -1733,11 +1725,11 @@ int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CC
     }
 
     // restore claim if applicable
-    if (fIsClaim && !undo.out.scriptPubKey.empty()) {
-        int nValidHeight = static_cast<int>(nClaimValidHeight);
+    if (undo.fIsClaim && !undo.txout.scriptPubKey.empty()) {
+        int nValidHeight = static_cast<int>(undo.nClaimValidHeight);
         if (nValidHeight > 0 && nValidHeight >= undo.nHeight) {
-            CClaimScriptUndoSpendOp undoSpend(COutPoint(out.hash, out.n), undo.out.nValue, undo.nHeight, nValidHeight);
-            ProcessClaim(undoSpend, trieCache, undo.out.scriptPubKey);
+            CClaimScriptUndoSpendOp undoSpend(COutPoint(out.hash, out.n), undo.txout.nValue, undo.nHeight, nValidHeight);
+            ProcessClaim(undoSpend, trieCache, undo.txout.scriptPubKey);
         } else {
             LogPrintf("%s: (txid: %s, nOut: %d) Not restoring claim/support to the claim trie because it expired before it was spent\n", __func__, out.hash.ToString(), out.n);
             LogPrintf("%s: nValidHeight = %d, undo.nHeight = %d, nCurrentHeight = %d\n", __func__, nValidHeight, undo.nHeight, chainActive.Height());
@@ -1748,7 +1740,8 @@ int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CC
     // sure that the coin did not already exist in the cache. As we have queried for that above
     // using HaveCoin, we don't need to guess. When fClean is false, a coin already existed and
     // it is an overwrite.
-    view.AddCoin(out, std::move(undo), !fClean);
+    Coin coin(undo.txout, int(undo.nHeight), undo.fCoinBase);
+    view.AddCoin(out, std::move(coin), !fClean);
 
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
@@ -2319,15 +2312,14 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
         UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
         if (i > 0 && !mClaimUndoHeights.empty())
         {
-            /* std::vector<CTxInUndo>& txinUndos = blockUndo.vtxundo.back().vprevout */
-            /* CTxUndo &txundo = blockUndo.vtxundo[i-1]; */
-            CTxUndo& txUndo = blockundo.vtxundo.back();
+            auto& txinUndos = blockundo.vtxundo.back().vprevout;
             for (std::map<unsigned int, unsigned int>::iterator itHeight = mClaimUndoHeights.begin(); itHeight != mClaimUndoHeights.end(); ++itHeight)
             {
-                // Note: by appearing in this map, we know it's a claim so the bool is redundant
-                txUndo.claimInfo[itHeight->first] = { itHeight->second, true };
+                txinUndos[itHeight->first].nClaimValidHeight = itHeight->second;
+                txinUndos[itHeight->first].fIsClaim = true;
             }
         }
+
         // The CTxUndo vector contains the heights at which claims should be put into the trie.
         // This is necessary because some claims are inserted immediately into the trie, and
         // others are inserted after a delay, depending on the state of the claim trie at the time

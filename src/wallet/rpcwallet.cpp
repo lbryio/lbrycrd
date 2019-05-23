@@ -381,8 +381,10 @@ thoritative as long as it remains unspent and there are no other greater unspent
     std::vector<unsigned char> vchValue(ParseHex(sValue));
 
     CAmount nAmount = AmountFromValue(request.params[2]);
-    EnsureWalletIsUnlocked(pwallet);
     CScript claimScript = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
+
+    pwallet->BlockUntilSyncedToCurrentChain();
+    EnsureWalletIsUnlocked(pwallet);
 
     //Get new address
     CPubKey newKey;
@@ -426,6 +428,7 @@ UniValue updateclaim(const JSONRPCRequest& request)
     std::vector<unsigned char> vchValue(ParseHex(sValue));
     CAmount nAmount = AmountFromValue(request.params[2]);
 
+    pwallet->BlockUntilSyncedToCurrentChain();
     LOCK2(cs_main, pwallet->cs_wallet);
     auto it = pwallet->mapWallet.find(hash);
     if (it == pwallet->mapWallet.end()) {
@@ -436,7 +439,7 @@ UniValue updateclaim(const JSONRPCRequest& request)
     for (uint32_t i = 0; i < wtx.tx->vout.size(); ++i)
     {
         const auto& out = wtx.tx->vout[i];
-        if (pwallet->IsMine(out) & isminetype::ISMINE_SPENDABLE)
+        if (pwallet->IsMine(out) & isminetype::ISMINE_CLAIM)
         {
             std::vector<std::vector<unsigned char>> vvchParams;
             int op;
@@ -466,6 +469,8 @@ UniValue updateclaim(const JSONRPCRequest& request)
 
                 CCoinControl cc;
                 cc.m_change_type = DEFAULT_ADDRESS_TYPE;
+                cc.Select(COutPoint(wtx.tx->GetHash(), i));
+                cc.fAllowOtherInputs = true; // the doc comment on this parameter says it should be false; experience says otherwise
                 wtxNew = SendMoney(pwallet, CTxDestination(newKey.GetID()), nAmount, false, cc, {}, {}, updateScript);
                 break;
             }
@@ -502,6 +507,7 @@ UniValue abandonclaim(const JSONRPCRequest& request)
     CKeyID address;
     address.SetHex(request.params[1].get_str());
 
+    pwallet->BlockUntilSyncedToCurrentChain();
     LOCK2(cs_main, pwallet->cs_wallet);
     auto it = pwallet->mapWallet.find(hash);
     if (it == pwallet->mapWallet.end()) {
@@ -546,9 +552,9 @@ void ListNameClaims(const CWalletTx& wtx, CWallet* const pwallet, const std::str
 
     bool fAllAccounts = (strAccount == std::string("*"));
 
-    if ((!listReceived.empty() || nFee != 0) && (fAllAccounts || strAccount == strSentAccount))
+    if ((!listSent.empty() || nFee != 0) && (fAllAccounts || strAccount == strSentAccount))
     {
-        for (const COutputEntry& s: listReceived)
+        for (const COutputEntry& s: listSent)
         {
             if (!list_spent && pwallet->IsSpent(wtx.GetHash(), s.vout))
                 continue;
@@ -565,18 +571,21 @@ void ListNameClaims(const CWalletTx& wtx, CWallet* const pwallet, const std::str
             if (op == OP_CLAIM_NAME)
             {
                 uint160 claimId = ClaimIdHash(wtx.GetHash(), s.vout);
+                entry.pushKV("claimtype", "CLAIM");
                 entry.pushKV("claimId", claimId.GetHex());
                 entry.pushKV("value", HexStr(vvchParams[1].begin(), vvchParams[1].end()));
             }
             else if (op == OP_UPDATE_CLAIM)
             {
                 uint160 claimId(vvchParams[1]);
+                entry.pushKV("claimtype", "CLAIM");
                 entry.pushKV("claimId", claimId.GetHex());
                 entry.pushKV("value", HexStr(vvchParams[2].begin(), vvchParams[2].end()));
             }
             else if (op == OP_SUPPORT_CLAIM)
             {
                 uint160 claimId(vvchParams[1]);
+                entry.pushKV("claimtype", "SUPPORT");
                 entry.pushKV("supported_claimid", claimId.GetHex());
                 if (vvchParams.size() > 2) {
                     entry.pushKV("value", HexStr(vvchParams[2].begin(), vvchParams[2].end()));
@@ -676,6 +685,7 @@ ot been spent. Default is false.\n"
         nMinDepth = request.params[2].get_int();
 
     UniValue ret(UniValue::VARR);
+    pwallet->BlockUntilSyncedToCurrentChain();
     LOCK2(cs_main, pwallet->cs_wallet);
     const auto& txOrdered = pwallet->wtxOrdered;
 
@@ -736,6 +746,7 @@ UniValue supportclaim(const JSONRPCRequest& request)
     std::vector<unsigned char> vchClaimId (claimId.begin(), claimId.end());
     CAmount nAmount = AmountFromValue(request.params[2]);
 
+    pwallet->BlockUntilSyncedToCurrentChain();
     LOCK2(cs_main, pwallet->cs_wallet);
     EnsureWalletIsUnlocked(pwallet);
     CScript supportScript = CScript() << OP_SUPPORT_CLAIM << vchName << vchClaimId;
@@ -786,6 +797,7 @@ UniValue abandonsupport(const JSONRPCRequest& request)
     CKeyID address;
     address.SetHex(request.params[1].get_str());
 
+    pwallet->BlockUntilSyncedToCurrentChain();
     LOCK2(cs_main, pwallet->cs_wallet);
     auto it = pwallet->mapWallet.find(hash);
     if (it == pwallet->mapWallet.end()) {

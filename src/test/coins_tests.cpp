@@ -410,11 +410,8 @@ BOOST_AUTO_TEST_CASE(updatecoins_simulation_test)
             // restore inputs
             if (!tx.IsCoinBase()) {
                 const COutPoint &out = tx.vin[0].prevout;
-                Coin coin = undo.vprevout[0];
                 CClaimTrieCache trieCache(pclaimTrie);
                 ApplyTxInUndo(0, undo, *(stack.back()), trieCache, out);
-                // return coin
-                undo.vprevout[0] = coin;
             }
             // Store as a candidate for reconnection
             disconnected_coins.insert(utxod->first);
