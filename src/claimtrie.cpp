@@ -946,7 +946,7 @@ bool CClaimTrie::WriteToDisk()
     dirtySupportExpirationQueueRows.clear();
     batch.Write(HASH_BLOCK, hashBlock);
     batch.Write(CURRENT_HEIGHT, nCurrentHeight);
-    return db.WriteBatch(batch);
+    return db.WriteBatch(batch, true);
 }
 
 bool CClaimTrie::InsertFromDisk(const std::string& name, CClaimTrieNode* node)
