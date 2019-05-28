@@ -1716,7 +1716,6 @@ int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CC
         // outputs. This implies that it must be present for some other output of the same tx.
         const Coin& alternate = AccessByTxid(view, out.hash);
         if (!alternate.IsSpent()) {
-            assert(!undo.fIsClaim);
             undo.nHeight = alternate.nHeight;
             undo.fCoinBase = alternate.fCoinBase;
         } else {
