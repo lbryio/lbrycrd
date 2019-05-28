@@ -359,7 +359,7 @@ class CClaimTrie
 {
 public:
     CClaimTrie(bool fMemory = false, bool fWipe = false, int nProportionalDelayFactor = 32)
-               : db(GetDataDir() / "claimtrie", 100, fMemory, fWipe, false)
+               : db(GetDataDir() / "claimtrie", 20 * 1024 * 1024, fMemory, fWipe, false)
                , nCurrentHeight(0), nExpirationTime(Params().GetConsensus().nOriginalClaimExpirationTime)
                , nProportionalDelayFactor(nProportionalDelayFactor)
                , root(uint256S("0000000000000000000000000000000000000000000000000000000000000001"))
