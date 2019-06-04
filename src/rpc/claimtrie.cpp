@@ -8,6 +8,7 @@
 #include <txmempool.h>
 #include <univalue.h>
 #include <validation.h>
+#include <undo.h>
 
 #include <boost/thread.hpp>
 #include <cmath>
@@ -167,6 +168,7 @@ static UniValue getclaimsintrie(const JSONRPCRequest& request)
 
             UniValue nodeObj(UniValue::VOBJ);
             nodeObj.pushKV("normalized_name", name);
+            nodeObj.pushKV("takeover_height", node->nHeightOfLastTakeover);
             nodeObj.pushKV("claims", claims);
             nodes.push_back(nodeObj);
         }
@@ -884,6 +886,70 @@ UniValue getnameproof(const JSONRPCRequest& request)
     return proofToJSON(proof);
 }
 
+extern bool UndoReadFromDisk(CBlockUndo& blockundo, const CBlockIndex *pindex);
+
+UniValue getactivationsinblock(const JSONRPCRequest& request) {
+    if (request.fHelp || request.params.size() > 1)
+        throw std::runtime_error(
+                "getactivationsinblock\n"
+                "Return the list of claims that became active or expired in a block\n"
+                "Arguments:\n"
+                "1. \"blockhash\"   (string, optional) the hash of the block in question for non-tip lookup\n"
+                "Result:\n"
+                "[                  (array of string) claimIDs whose activation or expiration changed,\n"
+                "                                     including those with supports added/removed\n"
+                "]\n");
+
+    CBlockUndo undo;
+
+    LOCK(cs_main);
+    auto index = chainActive.Tip();
+    if (request.params.size() > 0) {
+        index = BlockHashIndex(ParseHashV(request.params[0], "blockhash (optional parameter)"));
+    }
+
+    if (!UndoReadFromDisk(undo, index))
+        throw JSONRPCError(RPC_INTERNAL_ERROR,
+                "Unable to read the undo block for height " + std::to_string(index->nHeight));
+
+    std::set<std::string> activations;
+    for (auto& u: undo.insertUndo)
+        activations.insert(ClaimIdHash(u.outPoint.hash, u.outPoint.n).ToString());
+
+    UniValue removed(UniValue::VARR);
+    for (auto& u: undo.expireUndo)
+        activations.insert(u.second.claimId.ToString());
+
+    if (!undo.insertSupportUndo.empty()) {
+        CBlock block;
+        if (!ReadBlockFromDisk(block, index, Params().GetConsensus()))
+            throw JSONRPCError(RPC_INTERNAL_ERROR,
+                    "Unable to read the block for height " + std::to_string(index->nHeight));
+
+        for (auto& u: undo.insertSupportUndo) { // all the supports added to the map on that block
+            for (const auto& tx : block.vtx) {
+                if (tx->GetHash() != u.outPoint.hash)
+                    continue;
+                const auto& vout = tx->vout[u.outPoint.n];
+                int op = 0;
+                std::vector<std::vector<unsigned char>> vvchParams;
+                if (DecodeClaimScript(vout.scriptPubKey, op, vvchParams)) {
+                    activations.insert(std::string(vvchParams[1].begin(), vvchParams[1].end()));
+                }
+            }
+        }
+    }
+
+    for (auto& u: undo.expireSupportUndo)
+        activations.insert(u.second.supportedClaimId.ToString());
+
+    UniValue result(UniValue::VARR);
+    for (auto& entry: activations)
+        result.push_back(entry);
+
+    return result;
+}
+
 UniValue checknormalization(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 1)
@@ -913,9 +979,10 @@ static const CRPCCommand commands[] =
     { "Claimtrie",          "gettotalclaims",               &gettotalclaims,            { "" } },
     { "Claimtrie",          "gettotalvalueofclaims",        &gettotalvalueofclaims,     { "controlling_only" } },
     { "Claimtrie",          "getclaimsfortx",               &getclaimsfortx,            { "txid" } },
-    { "Claimtrie",          "getnameproof",                 &getnameproof,              { "name","blockhash"} },
+    { "Claimtrie",          "getnameproof",                 &getnameproof,              { "name","blockhash" } },
     { "Claimtrie",          "getclaimbyid",                 &getclaimbyid,              { "claimId" } },
-    { "Claimtrie",          "checknormalization",           &checknormalization,        { "name" }},
+    { "Claimtrie",          "checknormalization",           &checknormalization,        { "name" } },
+    { "Claimtrie",          "getchangesinblock",            &getactivationsinblock,     { "blockhash" } },
 };
 
 void RegisterClaimTrieRPCCommands(CRPCTable &tableRPC)
