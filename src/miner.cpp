@@ -182,6 +182,8 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     CValidationState state;
     if (!TestBlockValidity(state, chainparams, *pblock, pindexPrev, false, false)) {
+        // if (trieCache.checkConsistency()) // TODO: bring back after prefixtrie merge
+        //     trieCache.dumpToLog(trieCache.begin());
         throw std::runtime_error(strprintf("%s: TestBlockValidity failed: %s", __func__, FormatStateMessage(state)));
     }
     int64_t nTime2 = GetTimeMicros();
@@ -301,6 +303,42 @@ void BlockAssembler::SortForBlock(const CTxMemPool::setEntries& package, std::ve
     std::sort(sortedEntries.begin(), sortedEntries.end(), CompareTxIterByAncestorCount());
 }
 
+void iterToTrieCache(CTxMemPool::txiter iter, CClaimTrieCache& trieCache, const CTxMemPool::setEntries& entries, int nHeight)
+{
+    spentClaimsType spentClaims;
+    auto& tx = iter->GetTx();
+
+    CCoinsViewCache view(pcoinsTip.get());
+    for (const CTxIn& txin: tx.vin) {
+        const Coin& coin = view.AccessCoin(txin.prevout);
+        CScript scriptPubKey;
+        int scriptHeight = nHeight;
+        if (coin.out.IsNull()) {
+            for (auto entry : entries) {
+                auto& e = entry->GetTx();
+                if (e.GetHash() != txin.prevout.hash || txin.prevout.n >= e.vout.size())
+                    continue;
+                scriptPubKey = e.vout[txin.prevout.n].scriptPubKey;
+                break;
+            }
+        } else {
+            scriptPubKey = coin.out.scriptPubKey;
+            scriptHeight = coin.nHeight;
+        }
+
+        if (!scriptPubKey.empty()) {
+            int throwaway;
+            SpendClaim(trieCache, scriptPubKey, COutPoint(txin.prevout.hash, txin.prevout.n), scriptHeight, throwaway, spentClaims);
+        }
+    }
+
+    for (unsigned int i = 0; i < tx.vout.size(); ++i) {
+        const CTxOut& txout = tx.vout[i];
+        if (!txout.scriptPubKey.empty())
+            AddSpendClaim(trieCache, txout.scriptPubKey, COutPoint(tx.GetHash(), i), txout.nValue, nHeight, spentClaims);
+    }
+}
+
 // This transaction selection algorithm orders the mempool based
 // on feerate of a transaction including all unconfirmed ancestors.
 // Since we don't remove transactions from the mempool as we select them
@@ -331,7 +369,6 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
     // mempool has a lot of entries.
     const int64_t MAX_CONSECUTIVE_FAILURES = 1000;
     int64_t nConsecutiveFailed = 0;
-    std::vector<CTransactionRef> txs;
 
     while (mi != mempool.mapTx.get<ancestor_score>().end() || !mapModifiedTx.empty())
     {
@@ -383,7 +420,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
 
         if (packageFees < blockMinFeeRate.GetFee(packageSize)) {
             // Everything else we might consider has a lower fee rate
-            return;
+            break;
         }
 
         if (!TestPackage(packageSize, packageSigOpsCost)) {
@@ -397,8 +434,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
 
             ++nConsecutiveFailed;
 
-            if (nConsecutiveFailed > MAX_CONSECUTIVE_FAILURES && nBlockWeight >
-                    nBlockMaxWeight - 4000) {
+            if (nConsecutiveFailed > MAX_CONSECUTIVE_FAILURES && nBlockWeight > nBlockMaxWeight - 4000) {
                 // Give up if we're close to full and haven't succeeded in a while
                 break;
             }
@@ -422,41 +458,6 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
             continue;
         }
 
-        spentClaimsType spentClaims;
-
-        const CTransaction& tx = iter->GetTx();
-        for (const CTxIn& txin: tx.vin)
-        {
-            CCoinsViewCache view(pcoinsTip.get());
-            const Coin& coin = view.AccessCoin(txin.prevout);
-            CScript scriptPubKey;
-            if (coin.out.IsNull()) {
-                auto it = std::find_if(txs.begin(), txs.end(), [&txin](const CTransactionRef& tx) {
-                    return tx->GetHash() == txin.prevout.hash;
-                });
-                if (it == txs.end() || txin.prevout.n >= (*it)->vout.size())
-                    continue;
-                scriptPubKey = (*it)->vout[txin.prevout.n].scriptPubKey;
-            } else {
-                scriptPubKey = coin.out.scriptPubKey;
-            }
-
-            if (!scriptPubKey.empty()) {
-                int throwaway;
-                SpendClaim(trieCache, scriptPubKey, COutPoint(txin.prevout.hash, txin.prevout.n), coin.nHeight, throwaway, spentClaims);
-            }
-        }
-
-        for (unsigned int i = 0; i < tx.vout.size(); ++i)
-        {
-            const CTxOut& txout = tx.vout[i];
-            
-            if (!txout.scriptPubKey.empty())
-                AddSpendClaim(trieCache, txout.scriptPubKey, COutPoint(tx.GetHash(), i), txout.nValue, nHeight, spentClaims);
-        }
-
-        txs.emplace_back(MakeTransactionRef(tx));
-
         // This transaction will make it in; reset the failed counter.
         nConsecutiveFailed = 0;
 
@@ -465,6 +466,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
         SortForBlock(ancestors, sortedEntries);
 
         for (size_t i=0; i<sortedEntries.size(); ++i) {
+            iterToTrieCache(sortedEntries[i], trieCache, inBlock, nHeight);
             AddToBlock(sortedEntries[i]);
             // Erase from the modified set, if present
             mapModifiedTx.erase(sortedEntries[i]);
