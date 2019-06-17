@@ -119,9 +119,10 @@ $(package)_config_opts_linux += -qt-xcb
 $(package)_config_opts_linux += -no-xcb-xlib
 $(package)_config_opts_linux += -no-feature-xlib
 $(package)_config_opts_linux += -system-freetype
+$(package)_config_opts_linux += -no-feature-sessionmanager
 $(package)_config_opts_linux += -fontconfig
 $(package)_config_opts_linux += -no-opengl
-$(package)_config_opts_arm_linux  = -platform linux-g++ -xplatform $(host)
+$(package)_config_opts_arm_linux += -platform linux-g++ -xplatform bitcoin-linux-g++
 $(package)_config_opts_i686_linux  = -xplatform linux-g++-32
 $(package)_config_opts_x86_64_linux = -xplatform linux-g++-64
 $(package)_config_opts_aarch64_linux = -xplatform linux-aarch64-gnu-g++
@@ -157,6 +158,7 @@ define $(package)_preprocess_cmds
   sed -i.old "/updateqm.depends =/d" qttranslations/translations/translations.pro && \
   sed -i.old "s/src_plugins.depends = src_sql src_network/src_plugins.depends = src_network/" qtbase/src/src.pro && \
   sed -i.old -e 's/if \[ "$$$$XPLATFORM_MAC" = "yes" \]; then xspecvals=$$$$(macSDKify/if \[ "$$$$BUILD_ON_MAC" = "yes" \]; then xspecvals=$$$$(macSDKify/' -e 's|/bin/pwd|pwd|' qtbase/configure && \
+  sed -i.old 's/CGEventCreateMouseEvent(0, kCGEventMouseMoved, pos, 0)/CGEventCreateMouseEvent(0, kCGEventMouseMoved, pos, kCGMouseButtonLeft)/' qtbase/src/plugins/platforms/cocoa/qcocoacursor.mm && \
   mkdir -p qtbase/mkspecs/macx-clang-linux &&\
   cp -f qtbase/mkspecs/macx-clang/Info.plist.lib qtbase/mkspecs/macx-clang-linux/ &&\
   cp -f qtbase/mkspecs/macx-clang/Info.plist.app qtbase/mkspecs/macx-clang-linux/ &&\

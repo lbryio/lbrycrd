@@ -175,7 +175,7 @@ $($(1)_preprocessed): | $($(1)_extracted)
 	$(AT)echo Preprocessing $(1)...
 	$(AT)mkdir -p $$(@D) $($(1)_patch_dir)
 	$(AT)$(foreach patch,$($(1)_patches),cd $(PATCHES_PATH)/$(1); cp $(patch) $($(1)_patch_dir) ;)
-	$(AT)cd $$(@D); $(call $(1)_preprocess_cmds, $(1))
+	$(AT)+cd $$(@D); $(call $(1)_preprocess_cmds, $(1))
 	$(AT)touch $$@
 $($(1)_configured): | $($(1)_dependencies) $($(1)_preprocessed)
 	$(AT)echo Configuring $(1)...
@@ -191,7 +191,7 @@ $($(1)_built): | $($(1)_configured)
 $($(1)_staged): | $($(1)_built)
 	$(AT)echo Staging $(1)...
 	$(AT)mkdir -p $($(1)_staging_dir)/$(host_prefix)
-	$(AT)cd $($(1)_build_dir); $($(1)_stage_env) $(call $(1)_stage_cmds, $(1))
+	$(AT)+cd $($(1)_build_dir); $($(1)_stage_env) $(call $(1)_stage_cmds, $(1))
 	$(AT)rm -rf $($(1)_extract_dir)
 	$(AT)touch $$@
 $($(1)_postprocessed): | $($(1)_staged)

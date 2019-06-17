@@ -19,7 +19,7 @@ else
 LIBUNIVALUE = $(UNIVALUE_LIBS)
 endif
 
-BITCOIN_INCLUDES=-I$(builddir) $(BDB_CPPFLAGS) $(ICU_CPPFLAGS) $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS)
+BITCOIN_INCLUDES=-I$(builddir) $(BDB_CPPFLAGS) $(ICU_CPPFLAGS) $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(ICU_CFLAGS)
 
 BITCOIN_INCLUDES += -I$(srcdir)/secp256k1/include
 BITCOIN_INCLUDES += $(UNIVALUE_CFLAGS)
@@ -256,7 +256,7 @@ obj/build.h: FORCE
 	  "$(abs_top_srcdir)"
 libbitcoin_util_a-clientversion.$(OBJEXT): obj/build.h
 
-# server: shared between bitcoind and bitcoin-qt
+# server: shared between lbrycrdd and lbrycrd-qt
 # Contains code accessing mempool and chain state that is meant to be separated
 # from wallet and gui code (see node/README.md). Shared code should go in
 # libbitcoin_common or libbitcoin_util libraries, instead.
@@ -337,7 +337,7 @@ libbitcoin_zmq_a_SOURCES = \
 endif
 
 
-# wallet: shared between bitcoind and bitcoin-qt, but only linked
+# wallet: shared between lbrycrdd and lbrycrd-qt, but only linked
 # when wallet enabled
 libbitcoin_wallet_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 libbitcoin_wallet_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
@@ -454,7 +454,7 @@ libbitcoin_consensus_a_SOURCES = \
   util/strencodings.h \
   version.h
 
-# common: shared between bitcoind, and bitcoin-qt and non-server tools
+# common: shared between lbrycrdd, and lbrycrd-qt and non-server tools
 libbitcoin_common_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 libbitcoin_common_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_common_a_SOURCES = \
@@ -530,7 +530,7 @@ libbitcoin_util_a_SOURCES += compat/glibc_compat.cpp
 AM_LDFLAGS += $(COMPAT_LDFLAGS)
 endif
 
-# cli: shared between lbrycrd-cli and bitcoin-qt
+# cli: shared between lbrycrd-cli and lbrycrd-qt
 libbitcoin_cli_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 libbitcoin_cli_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_cli_a_SOURCES = \
