@@ -1,12 +1,10 @@
-packages:=boost openssl libevent
-darwin_packages:=zeromq
-linux_packages:=zeromq
-native_packages := native_ccache native_comparisontool
+packages:=icu boost openssl libevent zeromq
 
 qt_native_packages = native_protobuf
-qt_packages = qrencode protobuf
+qt_packages = qrencode protobuf zlib
 
-qt_linux_packages= qt expat dbus libxcb xcb_proto libXau xproto freetype fontconfig libX11 xextproto libXext xtrans
+qt_linux_packages:=qt expat dbus libxcb xcb_proto libXau xproto freetype fontconfig libX11 xextproto libXext xtrans
+
 qt_darwin_packages=qt
 qt_mingw32_packages=qt
 
