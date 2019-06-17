@@ -1,16 +1,19 @@
 package=boost
-$(package)_version=1_59_0
-$(package)_download_path=http://sourceforge.net/projects/boost/files/boost/1.59.0
+$(package)_version=1_69_0
+$(package)_download_path=https://dl.bintray.com/boostorg/release/1.69.0/source/
 $(package)_file_name=$(package)_$($(package)_version).tar.bz2
-$(package)_sha256_hash=727a932322d94287b62abb1bd2d41723eec4356a7728909e38adb65ca25241ca
-$(package)_dependencies:icu
+$(package)_sha256_hash=8f32d4617390d1c2d16f26a27ab60d97807b35440d45891fa340fc2648b04406
+$(package)_dependencies=icu
 
 define $(package)_set_vars
 $(package)_config_opts_release=variant=release
 $(package)_config_opts_debug=variant=debug
-$(package)_config_opts=--layout=tagged --build-type=complete --user-config=user-config.jam boost.locale.iconv=off boost.locale.posix=off
-$(package)_config_opts+=threading=multi link=static -sNO_BZIP2=1 -sNO_ZLIB=1 -sICU_PATH=$(ICU_DIR)
-$(package)_config_opts+=-sICU_LINK=-L$(ICU_DIR) -lsicudt -lsicuin -lsicuio -lsicule -lsiculx -lsicutest -lsicutu -lsicuuc
+$(package)_config_opts=--layout=tagged --build-type=complete --user-config=user-config.jam
+$(package)_config_opts+=threading=multi link=static -sNO_BZIP2=1 -sNO_ZLIB=1
+$(package)_config_opts+=boost.locale.iconv=off boost.locale.posix=off boost.locale.icu=on boost.locale.std=off -sICU_PATH="$(host_prefix)"
+# The stupid ICU_LINK handling reorders the dependencies alphabetically, thus making it impossible to get the link order correct.
+# To work around this we're using the ldflags below but we need ICU_LINK to be non-blank so that we don't get an auto-generated conflict with ldflags.
+$(package)_config_opts+=-sICU_LINK="-time"
 $(package)_config_opts_linux=threadapi=pthread runtime-link=shared
 $(package)_config_opts_darwin=--toolset=darwin-4.2.1 runtime-link=shared
 $(package)_config_opts_mingw32=binary-format=pe target-os=windows threadapi=win32 runtime-link=static
@@ -21,17 +24,15 @@ $(package)_toolset_$(host_os)=gcc
 $(package)_archiver_$(host_os)=$($(package)_ar)
 $(package)_toolset_darwin=darwin
 $(package)_archiver_darwin=$($(package)_libtool)
-$(package)_config_libraries=chrono,filesystem,program_options,system,locale,regex,thread,test
-$(package)_cxxflags=-fvisibility=hidden
+$(package)_config_libraries=chrono,filesystem,system,locale,thread,test
+$(package)_cxxflags=-std=c++11 -fvisibility=hidden -Wno-deprecated
 $(package)_cxxflags_linux=-fPIC
-$(package)_config_env+=BOOST_ICU_ICONV="off"
-$(package)_config_env+=BOOST_ICU_POSIX="off"
-$(package)_config_env+=ICU_PREFIX=$(ICU_DIR)
-$(package)_config_env+=BOOST_ICU_LIBS="-L$(ICU_DIR) -lsicudt -lsicuin -lsicuio -lsicule -lsiculx -lsicutest -lsicutu -lsicuuc"
-$(package)_build_env+=BOOST_ICU_ICONV="off"
-$(package)_build_env+=BOOST_ICU_POSIX="off"
-$(package)_build_env+=ICU_PREFIX=$(ICU_DIR)
-$(package)_build_env+=BOOST_ICU_LIBS="-L$(ICU_DIR) -lsicudt -lsicuin -lsicuio -lsicule -lsiculx -lsicutest -lsicutu -lsicuuc"
+# The ideal doesn't work because vars are evaluated before any dependency is processed:
+# $(package)_ldflags=$$(shell PKG_CONFIG_SYSROOT_DIR=/ PKG_CONFIG_LIBDIR=$(host_prefix)/lib/pkgconfig PKG_CONFIG_PATH=$(host_prefix)/share/pkgconfig pkg-config icu-io icu-uc icu-i18n --libs)
+# So we substitute poorly (as these may not actually match all scenarios):
+$(package)_ldflags_mingw32=-L$(host_prefix)/lib -lsicuio -lsicuuc -lsicudt
+$(package)_ldflags_linux=-L$(host_prefix)/lib -licuio -licuuc -licudata -licui18n
+$(package)_ldflags_darwin=-L$(host_prefix)/lib -licuio -licuuc -licudata -licui18n
 endef
 
 define $(package)_preprocess_cmds
@@ -39,12 +40,13 @@ define $(package)_preprocess_cmds
 endef
 
 define $(package)_config_cmds
-  echo "int main() { return 0; }" > ./libs/locale/build/has_icu_test.cpp && echo "int main() { return 0; }" > ./libs/regex/build/has_icu_test.cpp && echo "ICU INSTALL: $(ICU_DIR)" && echo "BOOST CONFIG LIBRARIES: $(boost_config_libraries)" && ./bootstrap.sh --with-icu=$(ICU_DIR) --with-libraries=$(boost_config_libraries)
+  ./bootstrap.sh --with-icu="$(host_prefix)" --with-libraries="$(boost_config_libraries)"
 endef
 
 define $(package)_build_cmds
-  ICU_PATH=$(ICU_DIR) ./b2 link=static cxxflags=-fPIC -d0 -q -j12 --prefix=$($(package)_staging_prefix_dir) $($(package)_config_opts) install
+  ./b2 -d2 -j`getconf _NPROCESSORS_ONLN` -d1 --reconfigure --prefix=$($(package)_staging_prefix_dir) $($(package)_config_opts) stage
 endef
 
 define $(package)_stage_cmds
+  ./b2 -d0 -j`getconf _NPROCESSORS_ONLN` --prefix=$($(package)_staging_prefix_dir) $($(package)_config_opts) install
 endef
