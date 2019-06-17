@@ -30,6 +30,11 @@
 #include <validationinterface.h>
 #include <versionbitsinfo.h>
 #include <warnings.h>
+#ifdef ENABLE_WALLET
+#include <wallet/rpcwallet.h>
+#include <wallet/wallet.h>
+#endif
+
 
 #include <memory>
 #include <stdint.h>
@@ -364,6 +369,8 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
     UniValue lpval = NullUniValue;
     std::set<std::string> setClientRules;
     int64_t nMaxVersionPreVB = -1;
+    UniValue aMutable(UniValue::VARR);
+    bool wantsCoinbaseTxn = false;
     if (!request.params[0].isNull())
     {
         const UniValue& oparam = request.params[0].get_obj();
@@ -377,6 +384,17 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
         else
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid mode");
         lpval = find_value(oparam, "longpollid");
+
+        const UniValue& capval = find_value(oparam, "capabilities");
+        if (capval.isArray()) {
+            for (std::size_t i = 0; i < capval.size(); ++i)
+                if (capval[i].get_str() == "coinbase/append") // should be coinbase/* ? we dont' care what they do to the coinbase
+                    aMutable.push_back(capval[i]);
+#ifdef ENABLE_WALLET
+                else if (capval[i].get_str() == "coinbasetxn")
+                    wantsCoinbaseTxn = true;
+#endif
+        }
 
         if (strMode == "proposal")
         {
@@ -506,8 +524,20 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
         nStart = GetTime();
 
         // Create new block
-        CScript scriptDummy = CScript() << OP_TRUE;
-        pblocktemplate = BlockAssembler(Params()).CreateNewBlock(scriptDummy);
+        CScript newBlockScript = CScript() << OP_TRUE;
+#ifdef ENABLE_WALLET
+        if (wantsCoinbaseTxn) {
+            std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
+            if (!wallet)
+                throw JSONRPCError(RPC_INVALID_PARAMS, "No wallet to comply with coinbasetxn request.");
+            std::shared_ptr<CReserveScript> coinbase_script;
+            wallet->GetScriptForMining(coinbase_script); // tops up and locks inside
+            if (!coinbase_script)
+                throw JSONRPCError(RPC_INVALID_PARAMS, "Unable to acquire address for coinbasetxn request.");
+            newBlockScript = coinbase_script->reserveScript;
+        }
+#endif
+        pblocktemplate = BlockAssembler(Params()).CreateNewBlock(newBlockScript);
         if (!pblocktemplate)
             throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
 
@@ -526,6 +556,7 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
     const bool fPreSegWit = (pindexPrev->nHeight + 1 < consensusParams.SegwitHeight);
 
     UniValue aCaps(UniValue::VARR); aCaps.push_back("proposal");
+    UniValue result(UniValue::VOBJ);
 
     UniValue transactions(UniValue::VARR);
     std::map<uint256, int64_t> setTxIndex;
@@ -535,7 +566,8 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
         uint256 txHash = tx.GetHash();
         setTxIndex[txHash] = i++;
 
-        if (tx.IsCoinBase())
+        auto isCoinbase = tx.IsCoinBase();
+        if (isCoinbase && !wantsCoinbaseTxn)
             continue;
 
         UniValue entry(UniValue::VOBJ);
@@ -562,7 +594,10 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
         entry.pushKV("sigops", nTxSigOps);
         entry.pushKV("weight", GetTransactionWeight(tx));
 
-        transactions.push_back(entry);
+        if (isCoinbase)
+            result.pushKV("coinbasetxn", entry);
+        else
+            transactions.push_back(entry);
     }
 
     UniValue aux(UniValue::VOBJ);
@@ -570,12 +605,11 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
 
     arith_uint256 hashTarget = arith_uint256().SetCompact(pblock->nBits);
 
-    UniValue aMutable(UniValue::VARR);
     aMutable.push_back("time");
     aMutable.push_back("transactions");
     aMutable.push_back("prevblock");
+    aMutable.push_back("submit/coinbase");
 
-    UniValue result(UniValue::VOBJ);
     result.pushKV("capabilities", aCaps);
 
     UniValue aRules(UniValue::VARR);
