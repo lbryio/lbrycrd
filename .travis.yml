@@ -27,7 +27,7 @@ jobs:
       script:
         - docker run -v "$(pwd):/lbrycrd" -v "${HOME}/ccache:/ccache" -w /lbrycrd -e CCACHE_DIR=/ccache ${DOCKER_IMAGE} packaging/build_${NAME}_64bit.sh
       before_deploy:
-        - mkdir dist
+        - mkdir -p dist
         - sudo zip -j dist/lbrycrd-${NAME}.zip src/lbrycrdd${EXT} src/lbrycrd-cli${EXT} src/lbrycrd-tx${EXT}
         - sudo zip -j dist/lbrycrd-${NAME}-test.zip src/test/test_lbrycrd${EXT} src/test/test_lbrycrd_fuzzy${EXT}
         - sha256sum dist/lbrycrd-${NAME}.zip
@@ -77,7 +77,7 @@ jobs:
       git:
         depth: 3
       install:
-        - mkdir testrun && cd testrun
+        - mkdir -p testrun && cd testrun
         - curl http://build.lbry.io/lbrycrd/${TRAVIS_BRANCH}/lbrycrd-${NAME}-test.zip -o temp.zip
         - unzip temp.zip
       script: ./test_lbrycrd
