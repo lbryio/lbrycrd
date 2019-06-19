@@ -1,0 +1,72 @@
+stages:
+  - build
+  - test
+
+.Build Template: &build_template
+  stage: build
+  image: ${BUILD_IMAGE}
+  variables:
+    CCACHE_DIR: ${CI_PROJECT_DIR}/ccache
+  cache:
+    key: ${CI_JOB_NAME}
+    paths:
+      - ${CI_PROJECT_DIR}/ccache
+  artifacts:
+    paths:
+      - src/lbrycrdd
+      - src/lbrycrd-cli
+      - src/lbrycrd-tx
+      - src/test/test_lbrycrd
+
+Build Linux:
+  <<: *build_template
+  script: packaging/build_linux_64bit.sh
+
+Build Windows:
+  <<: *build_template
+  artifacts:
+    paths:
+      - src/lbrycrdd.exe
+      - src/lbrycrd-cli.exe
+      - src/lbrycrd-tx.exe
+      - src/test/test_lbrycrd.exe
+  script: packaging/build_windows_64bit.sh
+
+Build MacOS:
+  <<: *build_template
+  script:
+    - mkdir -p ./depends/SDKs && pushd depends/SDKs && curl -C - ${MAC_OS_SDK} | tar --skip-old-files -xJ && popd
+    - packaging/build_darwin_64bit.sh
+
+Test Ubuntu:
+  variables:
+    GIT_STRATEGY: none
+  stage: test
+  dependencies: [Build Linux]
+  image: ubuntu:16.04
+  script: src/test/test_lbrycrd
+
+Test Fedora:
+  variables:
+    GIT_STRATEGY: none
+  stage: test
+  dependencies: [Build Linux]
+  image: fedora:26
+  script: src/test/test_lbrycrd
+
+Test Windows via Wine:
+  variables:
+    GIT_STRATEGY: none
+    WINEDEBUG: -all
+  stage: test
+  dependencies: [Build Windows]
+  image: jess/wine
+  script: wine src/test/test_lbrycrd.exe
+
+Test MacOS:
+  variables:
+    GIT_STRATEGY: none
+  stage: test
+  tags: [darwin]
+  dependencies: [Build MacOS]
+  script: src/test/test_lbrycrd
