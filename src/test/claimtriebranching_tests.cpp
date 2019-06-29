@@ -28,17 +28,26 @@ extern std::vector<std::string> random_strings(std::size_t count);
 
 using namespace std;
 
-CMutableTransaction BuildTransaction(const CTransaction& prev, uint32_t prevout=0, unsigned int numOutputs=1)
+CMutableTransaction BuildTransaction(const CTransaction& prev, uint32_t prevout=0, unsigned int numOutputs=1, int locktime=0)
 {
     CMutableTransaction tx;
     tx.nVersion = CTransaction::CURRENT_VERSION;
-    tx.nLockTime = 1 << 31; // Disable BIP68
     tx.vin.resize(1);
     tx.vout.resize(numOutputs);
     tx.vin[0].prevout.hash = prev.GetHash();
     tx.vin[0].prevout.n = prevout;
     tx.vin[0].scriptSig = CScript();
-    tx.vin[0].nSequence = std::numeric_limits<unsigned int>::max();
+    if (locktime != 0)
+    {
+        // Use a relative locktime for validity X blocks in the future
+        tx.nLockTime = chainActive.Height() + locktime;
+        tx.vin[0].nSequence = 0xffffffff - 1;
+    }
+    else
+    {
+        tx.nLockTime = 1 << 31; // Disable BIP68
+        tx.vin[0].nSequence = std::numeric_limits<unsigned int>::max();
+    }
     CAmount valuePerOutput = prev.vout[prevout].nValue;
     unsigned int numOutputsCopy = numOutputs;
     while ((numOutputsCopy = numOutputsCopy >> 1) > 0)
@@ -71,6 +80,7 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheBase
     int unique_block_counter;
     int normalization_original;
     unsigned int num_txs_for_next_block;
+    bool added_unchecked;
 
     int64_t expirationForkHeight;
     int64_t originalExpiration;
@@ -93,12 +103,14 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheBase
         num_txs_for_next_block = 0;
         coinbase_txs_used = 0;
         unique_block_counter = 0;
+        added_unchecked = false;
         // generate coinbases to spend
         CreateCoinbases(40, coinbase_txs);
     }
 
     ~ClaimTrieChainFixture()
     {
+        added_unchecked = false;
         DecrementBlocks(chainActive.Height());
         auto& consensus = const_cast<Consensus::Params&>(Params().GetConsensus());
         if (normalization_original >= 0)
@@ -173,16 +185,22 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheBase
         return true;
     }
 
-    void CommitTx(const CMutableTransaction &tx) {
+    void CommitTx(const CMutableTransaction &tx, bool has_locktime=false) {
         num_txs_for_next_block++;
-
-        /* TestMemPoolEntryHelper entry; */
-        /* LOCK(mempool.cs); */
-        /* mempool.addUnchecked(tx.GetHash(), entry.Fee(0).Time(GetTime()).SpendsCoinbase(true).FromTx(tx)); */
-        CValidationState state;
-        CAmount txFeeRate = CAmount(0);
-        LOCK(cs_main);
-        assert(AcceptToMemoryPool(mempool, state, MakeTransactionRef(tx), nullptr, nullptr, false, txFeeRate, false));
+        if (has_locktime)
+        {
+            added_unchecked = true;
+            TestMemPoolEntryHelper entry;
+            LOCK(mempool.cs);
+            mempool.addUnchecked(tx.GetHash(), entry.Fee(0).Time(GetTime()).SpendsCoinbase(true).FromTx(tx));
+        }
+        else
+        {
+            CValidationState state;
+            CAmount txFeeRate = CAmount(0);
+            LOCK(cs_main);
+            BOOST_CHECK_EQUAL(AcceptToMemoryPool(mempool, state, MakeTransactionRef(tx), nullptr, nullptr, false, txFeeRate, false), true);
+        }
     }
 
     //spend a bid into some non claimtrie related unspent
@@ -197,12 +215,12 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheBase
     }
 
     //make claim at the current block
-    CMutableTransaction MakeClaim(const CTransaction& prev, std::string name, std::string value, CAmount quantity)
+    CMutableTransaction MakeClaim(const CTransaction& prev, std::string name, std::string value, CAmount quantity, int locktime=0)
     {
         uint32_t prevout = prev.vout.size() - 1;
         while (prevout > 0 && prev.vout[prevout].nValue < quantity)
             --prevout;
-        CMutableTransaction tx = BuildTransaction(prev, prevout, prev.vout[prevout].nValue > quantity ? 2 : 1);
+        CMutableTransaction tx = BuildTransaction(prev, prevout, prev.vout[prevout].nValue > quantity ? 2 : 1, locktime);
         tx.vout[0].scriptPubKey = ClaimNameScript(name, value);
         tx.vout[0].nValue = quantity;
         if (tx.vout.size() > 1) {
@@ -210,13 +228,13 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheBase
             tx.vout[1].nValue = prev.vout[prevout].nValue - quantity;
         }
 
-        CommitTx(tx);
+        CommitTx(tx, locktime != 0);
         return tx;
     }
 
     CMutableTransaction MakeClaim(const CTransaction& prev, std::string name, std::string value)
     {
-        return MakeClaim(prev, name, value, prev.vout[0].nValue);
+        return MakeClaim(prev, name, value, prev.vout[0].nValue, 0);
     }
 
     //make support at the current block
@@ -267,11 +285,13 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheBase
             std::unique_ptr<CBlockTemplate> pblocktemplate;
             CScript coinbase_scriptpubkey;
             coinbase_scriptpubkey << CScriptNum(chainActive.Height());
-            BOOST_CHECK(pblocktemplate = AssemblerForTest().CreateNewBlock(coinbase_scriptpubkey));
-            BOOST_CHECK_EQUAL(pblocktemplate->block.vtx.size(), num_txs_for_next_block + 1);
-            BOOST_CHECK(CreateBlock(pblocktemplate));
+            std::unique_ptr<CBlockTemplate> pblocktemplate = AssemblerForTest().CreateNewBlock(coinbase_scriptpubkey);
+            BOOST_CHECK_EQUAL(pblocktemplate != nullptr, true);
+            if (!added_unchecked)
+                BOOST_CHECK_EQUAL(pblocktemplate->block.vtx.size(), num_txs_for_next_block + 1);
+            BOOST_CHECK_EQUAL(CreateBlock(pblocktemplate), true);
+            num_txs_for_next_block = 0;
             nNextHeight = chainActive.Height() + 1;
-            num_txs_for_next_block = 0 ;
         }
     }
 
@@ -563,6 +583,45 @@ BOOST_AUTO_TEST_CASE(claim_test)
 }
 
 /*
+  Testing deferred claim activation via a tx with a locktime.
+*/
+BOOST_AUTO_TEST_CASE(claim_locktime_test)
+{
+    ClaimTrieChainFixture fixture;
+    // Effectively disable expiration for this test.
+    fixture.setExpirationForkHeight(1, 1, 10000);
+    fixture.IncrementBlocks(1);
+
+    // Create tx1 with a relative locktime for validity 10 blocks in
+    // the future, staged for automatic takeover if accepted.
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2, 10);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_false);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 1);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx2), predicate_true);
+
+    // Forward to locktime expiration and takeover delay time.
+    fixture.IncrementBlocks(25);
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
+
+    // Abandon/Spend tx1.
+    fixture.Spend(tx1);
+    fixture.IncrementBlocks(1);
+
+    // Ensure tx2 is now best.
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx2), predicate_true);
+
+    // Rewind and check tx1 is best again.
+    fixture.DecrementBlocks(1);
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
+
+    // Rewind to before locktime and activation.
+    fixture.DecrementBlocks(25);
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx2), predicate_true);
+}
+
+/*
     spent claims
         spending winning claim will make losing active claim winner
         spending winning claim will make inactive claim winner
@@ -573,8 +632,8 @@ BOOST_AUTO_TEST_CASE(spend_claim_test)
     ClaimTrieChainFixture fixture;
 
     // spending winning claim will make losing active claim winner
-    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
-    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 1);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("test", tx1));
     fixture.Spend(tx1);
@@ -585,12 +644,11 @@ BOOST_AUTO_TEST_CASE(spend_claim_test)
     BOOST_CHECK(fixture.is_best_claim("test", tx1));
     fixture.DecrementBlocks(1);
 
-
     // spending winning claim will make inactive claim winner
-    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
+    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
     fixture.IncrementBlocks(10);
-    BOOST_CHECK(fixture.is_best_claim("test",tx3));
-    CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
+    CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("test",tx3));
     fixture.Spend(tx3);
@@ -605,7 +663,7 @@ BOOST_AUTO_TEST_CASE(spend_claim_test)
 
 
     //spending winning claim will empty out claim trie
-    CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
+    CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("test",tx5));
     fixture.Spend(tx5);
@@ -629,35 +687,35 @@ BOOST_AUTO_TEST_CASE(support_test)
 {
     ClaimTrieChainFixture fixture;
     // check claim with more support wins
-    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
-    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
-    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(),tx1,"test",1);
-    CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(),tx2,"test",10);
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 1);
+    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, "test", 1);
+    CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(), tx2, "test", 10);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(fixture.is_best_claim("test",tx2));
-    BOOST_CHECK(fixture.best_claim_effective_amount_equals("test",11));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx2), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 11), predicate_true);
     fixture.DecrementBlocks(1);
 
     // check support delay
-    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
-    CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(),"test","two",2);
+    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 1);
+    CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "two", 2);
     fixture.IncrementBlocks(10);
-    BOOST_CHECK(fixture.is_best_claim("test",tx4));
-    BOOST_CHECK(fixture.best_claim_effective_amount_equals("test",2));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 2), predicate_true);
     CMutableTransaction s4 = fixture.MakeSupport(fixture.GetCoinbase(), tx3, "test", 10); //10 delay
     fixture.IncrementBlocks(10);
-    BOOST_CHECK(fixture.is_best_claim("test",tx4));
-    BOOST_CHECK(fixture.best_claim_effective_amount_equals("test",2));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 2), predicate_true);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(fixture.is_best_claim("test",tx3));
-    BOOST_CHECK(fixture.best_claim_effective_amount_equals("test",11));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 11), predicate_true);
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(fixture.is_best_claim("test",tx4));
-    BOOST_CHECK(fixture.best_claim_effective_amount_equals("test",2));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 2), predicate_true);
     fixture.DecrementBlocks(10);
-    BOOST_CHECK(fixture.is_best_claim("test", tx4));
-    BOOST_CHECK(fixture.best_claim_effective_amount_equals("test",2));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
+    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 2), predicate_true);
     fixture.DecrementBlocks(10);
 }
 
@@ -826,7 +884,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
 {
     //update preserves claim id
     ClaimTrieChainFixture fixture;
-    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
     CMutableTransaction u1 = fixture.MakeUpdate(tx1, "test", "one", ClaimIdHash(tx1.GetHash(), 0), 2);
     fixture.IncrementBlocks(1);
     CClaimValue val;
@@ -836,7 +894,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     fixture.DecrementBlocks(1);
 
     // update preserves supports
-    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 1);
     CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx2, "test", 1);
     CMutableTransaction u2 = fixture.MakeUpdate(tx2, "test", "one", ClaimIdHash(tx2.GetHash(), 0), 1);
     fixture.IncrementBlocks(1);
@@ -844,8 +902,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     fixture.DecrementBlocks(1);
 
     // winning update on winning claim happens without delay
-    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
-    CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
+    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
+    CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 1);
     fixture.IncrementBlocks(10);
     CMutableTransaction u3 = fixture.MakeUpdate(tx3, "test", "one", ClaimIdHash(tx3.GetHash(), 0), 2);
     fixture.IncrementBlocks(1);
@@ -854,8 +912,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     fixture.DecrementBlocks(11);
 
     // losing update on winning claim happens without delay
-    CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",3);
-    CMutableTransaction tx6 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
+    CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 3);
+    CMutableTransaction tx6 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
     fixture.IncrementBlocks(10);
     BOOST_CHECK(fixture.is_best_claim("test", tx5));
     BOOST_CHECK_EQUAL(2U, fixture.getClaimsForName("test").claims.size());
@@ -868,8 +926,8 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     fixture.DecrementBlocks(10);
 
     // update on losing claim happens with delay , and wins
-    CMutableTransaction tx7 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",3);
-    CMutableTransaction tx8 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
+    CMutableTransaction tx7 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 3);
+    CMutableTransaction tx8 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
     fixture.IncrementBlocks(10);
     BOOST_CHECK(fixture.is_best_claim("test", tx7));
 
@@ -912,10 +970,10 @@ BOOST_AUTO_TEST_CASE(claimtrie_expire_test)
     fixture.setExpirationForkHeight(1000000, 5, 1000000);
 
     // check claims expire and loses claim
-    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
-    fixture.IncrementBlocks(fixture.expirationTime());
-    BOOST_CHECK(fixture.is_best_claim("test",tx1));
-    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
+    fixture.IncrementBlocks(pclaimTrie->nExpirationTime);
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 1);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("test",tx2));
 
@@ -924,36 +982,36 @@ BOOST_AUTO_TEST_CASE(claimtrie_expire_test)
     fixture.DecrementBlocks(fixture.expirationTime());
 
     // check claims expire and is not updateable (may be changed in future soft fork)
-    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
+    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(fixture.is_best_claim("test",tx3));
-    fixture.IncrementBlocks(fixture.expirationTime());
-    CMutableTransaction u1 = fixture.MakeUpdate(tx3,"test","two",ClaimIdHash(tx3.GetHash(),0) ,2);
-    BOOST_CHECK(!fixture.is_best_claim("test",u1));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
+    fixture.IncrementBlocks(pclaimTrie->nExpirationTime);
+    CMutableTransaction u1 = fixture.MakeUpdate(tx3, "test", "two",ClaimIdHash(tx3.GetHash(),0), 2);
+    BOOST_CHECK_EQUAL(is_best_claim("test", u1), predicate_false);
 
     fixture.DecrementBlocks(fixture.expirationTime());
     BOOST_CHECK(fixture.is_best_claim("test",tx3));
     fixture.DecrementBlocks(1);
 
     // check supports expire and can cause supported bid to lose claim
-    CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
-    CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
-    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(),tx4,"test",2);
+    CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 1);
+    CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
+    CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx4, "test", 2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(fixture.is_best_claim("test",tx4));
-    CMutableTransaction u2 = fixture.MakeUpdate(tx4,"test","two",ClaimIdHash(tx4.GetHash(),0) ,1);
-    CMutableTransaction u3 = fixture.MakeUpdate(tx5,"test","two",ClaimIdHash(tx5.GetHash(),0) ,2);
-    fixture.IncrementBlocks(fixture.expirationTime());
-    BOOST_CHECK(fixture.is_best_claim("test",u3));
-    fixture.DecrementBlocks(fixture.expirationTime());
-    BOOST_CHECK(fixture.is_best_claim("test",tx4));
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
+    CMutableTransaction u2 = fixture.MakeUpdate(tx4, "test", "two",ClaimIdHash(tx4.GetHash(),0) , 1);
+    CMutableTransaction u3 = fixture.MakeUpdate(tx5, "test", "two",ClaimIdHash(tx5.GetHash(),0) , 2);
+    fixture.IncrementBlocks(pclaimTrie->nExpirationTime);
+    BOOST_CHECK_EQUAL(is_best_claim("test", u3), predicate_true);
+    fixture.DecrementBlocks(pclaimTrie->nExpirationTime);
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
     fixture.DecrementBlocks(1);
 
     // check updated claims will extend expiration
-    CMutableTransaction tx6 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
+    CMutableTransaction tx6 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(fixture.is_best_claim("test",tx6));
-    CMutableTransaction u4 = fixture.MakeUpdate(tx6,"test","two",ClaimIdHash(tx6.GetHash(),0) ,2);
+    BOOST_CHECK_EQUAL(is_best_claim("test", tx6), predicate_true);
+    CMutableTransaction u4 = fixture.MakeUpdate(tx6, "test", "two",ClaimIdHash(tx6.GetHash(),0) , 2);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("test",u4));
     fixture.IncrementBlocks(fixture.expirationTime()-1);
