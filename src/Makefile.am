@@ -149,6 +149,7 @@ BITCOIN_CORE_H = \
   policy/policy.h \
   policy/rbf.h \
   pow.h \
+  prefixtrie.h \
   protocol.h \
   random.h \
   reverse_iterator.h \
@@ -249,6 +250,7 @@ libbitcoin_server_a_SOURCES = \
   policy/policy.cpp \
   policy/rbf.cpp \
   pow.cpp \
+  prefixtrie.cpp \
   rest.cpp \
   rpc/blockchain.cpp \
   rpc/claimtrie.cpp \
