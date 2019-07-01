@@ -71,6 +71,7 @@ BITCOIN_TESTS =\
   test/pmt_tests.cpp \
   test/policyestimator_tests.cpp \
   test/pow_tests.cpp \
+  test/prefixtrie_tests.cpp \
   test/prevector_tests.cpp \
   test/raii_event_tests.cpp \
   test/random_tests.cpp \
@@ -151,7 +152,6 @@ test_test_lbrycrd_fuzzy_LDADD = \
   $(LIBSECP256K1)
 
 test_test_lbrycrd_fuzzy_LDADD += $(BOOST_LIBS) $(CRYPTO_LIBS) $(ICU_LIBS)
-#
 
 nodist_test_test_lbrycrd_SOURCES = $(GENERATED_TEST_FILES)
 
