@@ -13,17 +13,22 @@ def get_type(arg_type, full_line):
     if arg_type is None:
         return 'string'
 
-    arg_type = arg_type.lower()
+    arg_type = arg_type.lower().split(',')[0].strip()
     if 'numeric' in arg_type:
         return 'number'
     if 'bool' in arg_type:
         return 'boolean'
-    if 'string' in arg_type:
-        return 'string'
+    if 'array' in arg_type:
+        return 'array'
     if 'object' in arg_type:
         return 'object'
 
-    raise Exception('Not implemented: ' + arg_type)
+    supported_types = ['number', 'string', 'object', 'array', 'optional']
+    if arg_type in supported_types:
+        return arg_type
+
+    print("get_type: WARNING", arg_type, "is not supported type", file=sys.stderr)
+    return arg_type
 
 
 def parse_params(args):
@@ -34,7 +39,7 @@ def parse_params(args):
                 continue
             arg_parsed = re_argline.fullmatch(line)
             if arg_parsed is None:
-                raise Exception("Unparsable argument: " + line)
+                continue
             arg_name, arg_type, arg_desc = arg_parsed.group('name', 'type', 'desc')
             if not arg_type:
                 raise Exception('Not implemented: ' + arg_type)

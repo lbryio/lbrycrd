@@ -1416,7 +1416,6 @@ static bool AbortNode(const std::string& strMessage, const std::string& userMess
 {
     SetMiscWarning(strMessage);
     LogPrintf("*** %s\n", strMessage);
-    throw "nasty";
     uiInterface.ThreadSafeMessageBox(
         userMessage.empty() ? "Error: A fatal internal error occurred, see debug.log for details. System message: " + strMessage : userMessage,
         "", CClientUIInterface::MSG_ERROR);
@@ -1457,6 +1456,16 @@ int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CC
         } else {
             return DISCONNECT_FAILED; // adding output for transaction without known metadata
         }
+
+        // TODO: pick the above approach or this:
+        // what is more correct? the above AccessByTxid or this kind of lookup ?
+//        for (uint32_t i = index + 1; i < txUndo.vprevout.size(); ++i) {
+//            if (txUndo.vprevout[i].nHeight > 0) {
+//                assert(undo.nHeight == txUndo.vprevout[i].nHeight);
+//                assert(undo.fCoinBase == txUndo.vprevout[i].fCoinBase);
+//                break;
+//            }
+//        }
     }
 
     // restore claim if applicable
@@ -1486,7 +1495,11 @@ int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CC
 DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view, CClaimTrieCache& trieCache)
 {
     assert(pindex->GetBlockHash() == view.GetBestBlock());
-    assert(pindex->GetBlockHash() == trieCache.getBestBlock());
+    if (pindex->hashClaimTrie != trieCache.getMerkleHash()) {
+        LogPrintf("%s: Indexed claim hash doesn't match current: %s vs %s\n",
+                __func__, pindex->hashClaimTrie.ToString(), trieCache.getMerkleHash().ToString());
+        assert(false);
+    }
 
     bool fClean = true;
 
@@ -1501,7 +1514,7 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
         return DISCONNECT_FAILED;
     }
 
-    const bool decremented = trieCache.decrementBlock(blockUndo.insertUndo, blockUndo.expireUndo, blockUndo.insertSupportUndo, blockUndo.expireSupportUndo, blockUndo.takeoverHeightUndo);
+    const bool decremented = trieCache.decrementBlock(blockUndo.insertUndo, blockUndo.expireUndo, blockUndo.insertSupportUndo, blockUndo.expireSupportUndo);
     assert(decremented);
 
     // undo transactions in reverse order
@@ -1557,14 +1570,25 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
 
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
-    assert(trieCache.finalizeDecrement());
-    trieCache.setBestBlock(pindex->pprev->GetBlockHash());
-    assert(trieCache.getMerkleHash() == pindex->pprev->hashClaimTrie);
+    assert(trieCache.finalizeDecrement(blockUndo.takeoverHeightUndo));
+    auto merkleHash = trieCache.getMerkleHash();
+    if (merkleHash != pindex->pprev->hashClaimTrie) {
+        if (trieCache.checkConsistency()) {
+            for (auto cit = trieCache.begin(); cit != trieCache.end(); ++cit) {
+                if (cit->claims.size() && cit->nHeightOfLastTakeover <= 0)
+                    LogPrintf("Invalid takeover height discovered in cache for %s\n", cit.key());
+                if (cit->hash.IsNull())
+                    LogPrintf("Invalid hash discovered in cache for %s\n", cit.key());
+            }
+        }
+        LogPrintf("Hash comparison failure at block %d\n", pindex->nHeight);
+        assert(merkleHash == pindex->pprev->hashClaimTrie);
+    }
 
     if (pindex->nHeight == Params().GetConsensus().nExtendedClaimExpirationForkHeight)
     {
         LogPrintf("Decremented past the extended claim expiration hard fork height\n");
-        pclaimTrie->setExpirationTime(Params().GetConsensus().GetExpirationTime(pindex->nHeight-1));
+        trieCache.setExpirationTime(Params().GetConsensus().GetExpirationTime(pindex->nHeight-1));
         trieCache.forkForExpirationChange(false);
     }
 
@@ -1776,7 +1800,11 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     assert(hashPrevBlock == view.GetBestBlock());
 
     // also verify that the trie cache's current state corresponds to the previous block
-    assert(hashPrevBlock == trieCache.getBestBlock());
+    if (pindex->pprev != nullptr && pindex->pprev->hashClaimTrie != trieCache.getMerkleHash()) {
+        LogPrintf("%s: Previous block claim hash doesn't match current: %s vs %s\n",
+                __func__, pindex->pprev->hashClaimTrie.ToString(), trieCache.getMerkleHash().ToString());
+        assert(false);
+    }
 
     // Special case for the genesis block, skipping connection of its transactions
     // (its coinbase is unspendable)
@@ -1784,7 +1812,6 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
         if (!fJustCheck)
         {
             view.SetBestBlock(pindex->GetBlockHash());
-            trieCache.setBestBlock(pindex->GetBlockHash());
         }
         /* return true; */
     }
@@ -1926,7 +1953,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     if (pindex->nHeight == Params().GetConsensus().nExtendedClaimExpirationForkHeight)
     {
         LogPrintf("Incremented past the extended claim expiration hard fork height\n");
-        pclaimTrie->setExpirationTime(chainparams.GetConsensus().GetExpirationTime(pindex->nHeight));
+        trieCache.setExpirationTime(chainparams.GetConsensus().GetExpirationTime(pindex->nHeight));
         trieCache.forkForExpirationChange(true);
     }
 
@@ -2059,15 +2086,17 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
 
+    // TODO: if the "just check" flag is set, we should reduce the work done here. Incrementing blocks twice per mine is not efficient.
     const auto incremented = trieCache.incrementBlock(blockundo.insertUndo, blockundo.expireUndo, blockundo.insertSupportUndo, blockundo.expireSupportUndo, blockundo.takeoverHeightUndo);
     assert(incremented);
 
     if (trieCache.getMerkleHash() != block.hashClaimTrie)
     {
-        return state.DoS(100,
-                         error("ConnectBlock() : the merkle root of the claim trie does not match "
-                               "(actual=%s vs block=%s)", trieCache.getMerkleHash().GetHex(),
-                               block.hashClaimTrie.GetHex()), REJECT_INVALID, "bad-claim-merkle-hash");
+        if (trieCache.checkConsistency())
+            trieCache.dumpToLog(trieCache.begin());
+        return state.DoS(100, error("ConnectBlock() : the merkle root of the claim trie does not match "
+                               "(actual=%s vs block=%s on height=%d)", trieCache.getMerkleHash().GetHex(),
+                               block.hashClaimTrie.GetHex(), pindex->nHeight), REJECT_INVALID, "bad-claim-merkle-hash");
     }
 
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
@@ -2101,7 +2130,6 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     assert(pindex->phashBlock);
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
-    trieCache.setBestBlock(pindex->GetBlockHash());
 
     int64_t nTime5 = GetTimeMicros(); nTimeIndex += nTime5 - nTime4;
     LogPrint(BCLog::BENCH, "    - Index writing: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime5 - nTime4), nTimeIndex * MICRO, nTimeIndex * MILLI / nBlocksTotal);
@@ -2208,7 +2236,7 @@ bool static FlushStateToDisk(const CChainParams& chainparams, CValidationState &
             // overwrite one. Still, use a conservative safety factor of 2.
             if (!CheckDiskSpace(48 * 2 * 2 * pcoinsTip->GetCacheSize()))
                 return state.Error("out of disk space");
-            if (!pclaimTrie->WriteToDisk())
+            if (!pclaimTrie->SyncToDisk())
                 return state.Error("Failed to write to claim trie database");
             // Flush the chainstate (which may refer to block index entries).
             if (!pcoinsTip->Flush())
@@ -4183,7 +4211,6 @@ bool CChainState::ReplayBlocks(const CChainParams& params, CCoinsView* view)
     }
 
     cache.SetBestBlock(pindexNew->GetBlockHash());
-    trieCache.setBestBlock(pindexNew->GetBlockHash());
     cache.Flush();
     trieCache.flush();
     uiInterface.ShowProgress("", 100, false);

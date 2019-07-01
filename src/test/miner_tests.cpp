@@ -222,6 +222,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         BOOST_CHECK(pblocktemplate = AssemblerForTest(chainparams).CreateNewBlock(scriptPubKey));
         CBlock *pblock = &pblocktemplate->block; // pointer for convenience
         {
+            BOOST_CHECK(!pblock->hashClaimTrie.IsNull());
             LOCK(cs_main);
             pblock->hashPrevBlock = chainActive.Tip()->GetBlockHash();
             pblock->nVersion = 5;
@@ -373,16 +374,12 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     // subsidy changing
     int nHeight = chainActive.Height();
     // Create an actual 209999-long block chain (without valid blocks).
-    BOOST_CHECK(pclaimTrie);
-    CClaimTrieCache trieCache(pclaimTrie);
-    BOOST_CHECK(chainActive.Tip()->GetBlockHash() == trieCache.getBestBlock());
     while (chainActive.Tip()->nHeight < 209999) {
         CBlockIndex* prev = chainActive.Tip();
         CBlockIndex* next = new CBlockIndex();
         next->phashBlock = new uint256(InsecureRand256());
+        next->hashClaimTrie = pblocktemplate->block.hashClaimTrie;
         pcoinsTip->SetBestBlock(next->GetBlockHash());
-        trieCache.setBestBlock(next->GetBlockHash());
-        trieCache.flush();
         next->pprev = prev;
         next->nHeight = prev->nHeight + 1;
         next->BuildSkip();
@@ -394,9 +391,8 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         CBlockIndex* prev = chainActive.Tip();
         CBlockIndex* next = new CBlockIndex();
         next->phashBlock = new uint256(InsecureRand256());
+        next->hashClaimTrie = pblocktemplate->block.hashClaimTrie;
         pcoinsTip->SetBestBlock(next->GetBlockHash());
-        trieCache.setBestBlock(next->GetBlockHash());
-        trieCache.flush();
         next->pprev = prev;
         next->nHeight = prev->nHeight + 1;
         next->BuildSkip();
@@ -427,8 +423,6 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         CBlockIndex* del = chainActive.Tip();
         chainActive.SetTip(del->pprev);
         pcoinsTip->SetBestBlock(del->pprev->GetBlockHash());
-        trieCache.setBestBlock(del->pprev->GetBlockHash());
-        trieCache.flush();
         delete del->phashBlock;
         delete del;
     }

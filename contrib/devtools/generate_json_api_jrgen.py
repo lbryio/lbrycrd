@@ -59,12 +59,13 @@ def get_obj_from_dirty_text(full_object: str):
                     last_name = property_name
             elif len(left) > 1:
                 match = re.match(r'^(\[)?"(?P<name>\w.*?)"(\])?.*', left)
-                last_name = match.group('name')
-                if match.group(1) is not None and match.group(3) is not None:
-                    left = '['
-                    property_refined_type = 'string'
-                    if 'string' not in line:
-                        raise NotImplementedError('Not implemented: ' + line)
+                if match is not None:
+                    last_name = match.group('name')
+                    if match.group(1) is not None and match.group(3) is not None:
+                        left = '['
+                        property_refined_type = 'string'
+                        if 'string' not in line:
+                            raise NotImplementedError('Not implemented: ' + line)
 
             if left.endswith('['):
                 object_stack.append({'type': 'array', 'items': {'type': property_refined_type}})
@@ -96,7 +97,15 @@ def get_obj_from_dirty_text(full_object: str):
                     ret = obj
             if ret is not None:
                 if i + 1 < len(lines) - 1:
-                    print('Ignoring this data (below the parsed object): ' + "\n".join(lines[i+1:]), file=sys.stderr)
+                    print('WARNING: unparsable data...', file=sys.stderr)
+                    lines = lines[i+1:]
+                    if not lines[0]:
+                        lines = lines[1:]
+                    nret = get_obj_from_dirty_text("\n".join(lines))
+                    if not nret:
+                        nret = get_obj_from_dirty_text("\n".join(lines[1:]))
+                    if nret:
+                        ret.update(nret)
                 return ret
     except Exception as e:
         print('Exception: ' + str(e), file=sys.stderr)
@@ -113,7 +122,7 @@ def get_type(arg_type: str, full_line: str):
     arg_type = arg_type.lower()
     if 'array' in arg_type:
         return 'array', required, None
-    if 'numeric' in arg_type:
+    if 'numeric' in arg_type or 'number' in arg_type:
         return 'number', required, None
     if 'bool' in arg_type:
         return 'boolean', required, None
@@ -122,6 +131,11 @@ def get_type(arg_type: str, full_line: str):
     if 'object' in arg_type:
         properties = get_obj_from_dirty_text(full_line) if full_line is not None else None
         return 'object', required, properties
+
+    if arg_type.startswith('optional'):
+        return 'optional', required, None
+    if arg_type.startswith('json'):
+        return 'json', required, None
 
     print('Unable to derive type from: ' + arg_type, file=sys.stderr)
     return None, False, None
