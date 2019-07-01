@@ -1518,9 +1518,9 @@ void CClaimTrieCacheBase::addToExpirationQueue(int nExpirationHeight, nameOutPoi
 void CClaimTrieCacheBase::removeFromExpirationQueue(const std::string& name, const COutPoint& outPoint, int expirationHeight) const
 {
     expirationQueueType::iterator itQueueRow = getExpirationQueueCacheRow(expirationHeight, false);
-    expirationQueueRowType::iterator itQueue;
     if (itQueueRow != expirationQueueCache.end())
     {
+        expirationQueueRowType::iterator itQueue;
         for (itQueue = itQueueRow->second.begin(); itQueue != itQueueRow->second.end(); ++itQueue)
         {
             if (outPoint == itQueue->outPoint && name == itQueue->name)
@@ -1822,17 +1822,17 @@ void CClaimTrieCacheBase::addSupportToExpirationQueue(int nExpirationHeight, nam
 void CClaimTrieCacheBase::removeSupportFromExpirationQueue(const std::string& name, const COutPoint& outPoint, int expirationHeight) const
 {
     expirationQueueType::iterator itQueueRow = getSupportExpirationQueueCacheRow(expirationHeight, false);
-    expirationQueueRowType::iterator itQueue;
     if (itQueueRow != supportExpirationQueueCache.end())
     {
+        expirationQueueRowType::iterator itQueue;
         for (itQueue = itQueueRow->second.begin(); itQueue != itQueueRow->second.end(); ++itQueue)
         {
             if (outPoint == itQueue->outPoint && name == itQueue->name)
                 break;
         }
+        if (itQueue != itQueueRow->second.end())
+            itQueueRow->second.erase(itQueue);
     }
-    if (itQueue != itQueueRow->second.end())
-        itQueueRow->second.erase(itQueue);
 }
 
 expirationQueueType::iterator CClaimTrieCacheBase::getSupportExpirationQueueCacheRow(int nHeight, bool createIfNotExists) const

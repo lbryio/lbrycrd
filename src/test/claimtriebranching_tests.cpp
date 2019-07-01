@@ -20,8 +20,10 @@
 
 #include <boost/test/unit_test.hpp>
 #include <iostream>
+#include <random>
 
 extern ::CChainState g_chainstate;
+extern ::ArgsManager gArgs;
 
 using namespace std;
 
@@ -125,7 +127,6 @@ struct ClaimTrieChainFixture
     int coinbase_txs_used;
     int unique_block_counter;
     int normalization_original;
-    unsigned int num_txs;
     unsigned int num_txs_for_next_block;
 
     int64_t expirationForkHeight;
@@ -139,8 +140,12 @@ struct ClaimTrieChainFixture
         BOOST_CHECK_EQUAL(pclaimTrie->nCurrentHeight, chainActive.Height() + 1);
         setNormalizationForkHeight(1000000);
 
+        gArgs.ForceSetArg("-limitancestorcount", "1000000");
+        gArgs.ForceSetArg("-limitancestorsize", "1000000");
+        gArgs.ForceSetArg("-limitdescendantcount", "1000000");
+        gArgs.ForceSetArg("-limitdescendantsize", "1000000");
+
         num_txs_for_next_block = 0;
-        num_txs = 0;
         coinbase_txs_used = 0;
         unique_block_counter = 0;
         // generate coinbases to spend
@@ -225,12 +230,6 @@ struct ClaimTrieChainFixture
 
     void CommitTx(const CMutableTransaction &tx) {
         num_txs_for_next_block++;
-        num_txs++;
-        if(num_txs > coinbase_txs.size())
-        {
-            //ran out of coinbases to spend
-            assert(0);
-        }
 
         /* TestMemPoolEntryHelper entry; */
         /* LOCK(mempool.cs); */
@@ -238,16 +237,15 @@ struct ClaimTrieChainFixture
         CValidationState state;
         CAmount txFeeRate = CAmount(0);
         LOCK(cs_main);
-        BOOST_CHECK_EQUAL(AcceptToMemoryPool(mempool, state, MakeTransactionRef(tx), nullptr, nullptr, false, txFeeRate, false), true);
+        assert(AcceptToMemoryPool(mempool, state, MakeTransactionRef(tx), nullptr, nullptr, false, txFeeRate, false));
     }
 
     //spend a bid into some non claimtrie related unspent
     CMutableTransaction Spend(const CTransaction &prev)
     {
-        uint32_t prevout = 0;
-        CMutableTransaction tx = BuildTransaction(prev, prevout);
+        CMutableTransaction tx = BuildTransaction(prev, 0);
         tx.vout[0].scriptPubKey = CScript() << OP_TRUE;
-        tx.vout[0].nValue = 1;
+        tx.vout[0].nValue = prev.vout[0].nValue;
 
         CommitTx(tx);
         return tx;
@@ -256,10 +254,16 @@ struct ClaimTrieChainFixture
     //make claim at the current block
     CMutableTransaction MakeClaim(const CTransaction& prev, std::string name, std::string value, CAmount quantity)
     {
-        uint32_t prevout = 0;
-        CMutableTransaction tx = BuildTransaction(prev, prevout);
+        uint32_t prevout = prev.vout.size() - 1;
+        while (prevout > 0 && prev.vout[prevout].nValue < quantity)
+            --prevout;
+        CMutableTransaction tx = BuildTransaction(prev, prevout, prev.vout[prevout].nValue > quantity ? 2 : 1);
         tx.vout[0].scriptPubKey = ClaimNameScript(name, value);
         tx.vout[0].nValue = quantity;
+        if (tx.vout.size() > 1) {
+            tx.vout[1].scriptPubKey = CScript() << OP_TRUE;
+            tx.vout[1].nValue = prev.vout[prevout].nValue - quantity;
+        }
 
         CommitTx(tx);
         return tx;
@@ -273,10 +277,16 @@ struct ClaimTrieChainFixture
     //make support at the current block
     CMutableTransaction MakeSupport(const CTransaction &prev, const CTransaction &claimtx, std::string name, CAmount quantity)
     {
-        uint32_t prevout = 0;
-        CMutableTransaction tx = BuildTransaction(prev,prevout);
+        uint32_t prevout = prev.vout.size() - 1;
+        while (prevout > 0 && prev.vout[prevout].nValue < quantity)
+            --prevout;
+        CMutableTransaction tx = BuildTransaction(prev, prevout, prev.vout[prevout].nValue > quantity ? 2 : 1);
         tx.vout[0].scriptPubKey = SupportClaimScript(name, ClaimIdHash(claimtx.GetHash(), 0));
         tx.vout[0].nValue = quantity;
+        if (tx.vout.size() > 1) {
+            tx.vout[1].scriptPubKey = CScript() << OP_TRUE;
+            tx.vout[1].nValue = prev.vout[prevout].nValue - quantity;
+        }
 
         CommitTx(tx);
         return tx;
@@ -286,8 +296,7 @@ struct ClaimTrieChainFixture
     CMutableTransaction MakeUpdate(const CTransaction &prev, std::string name, std::string value,
                                    uint160 claimId, CAmount quantity)
     {
-        uint32_t prevout = 0;
-        CMutableTransaction tx = BuildTransaction(prev, prevout);
+        CMutableTransaction tx = BuildTransaction(prev, 0);
         tx.vout[0].scriptPubKey = UpdateClaimScript(name, claimId, value);
         tx.vout[0].nValue = quantity;
 
@@ -322,24 +331,14 @@ struct ClaimTrieChainFixture
     //disconnect i blocks from tip
     void DecrementBlocks(int num_blocks)
     {
-        for (int i = 0; i < num_blocks; i++)
+        CValidationState state;
         {
-            CValidationState state;
-            {
-                LOCK(cs_main);
-                CBlockIndex* pblockindex = chainActive.Tip();
-                BOOST_CHECK_EQUAL(InvalidateBlock(state, Params(), pblockindex), true);
-            }
-
-            if (state.IsValid())
-            {
-                BOOST_CHECK_EQUAL(ActivateBestChain(state, Params()), true);
-            }
-            else
-            {
-                BOOST_FAIL("removing block failed");
-            }
+            LOCK(cs_main);
+            CBlockIndex* pblockindex = chainActive[chainActive.Height() - num_blocks + 1];
+            BOOST_CHECK_EQUAL(InvalidateBlock(state, Params(), pblockindex), true);
         }
+        BOOST_CHECK_EQUAL(state.IsValid(), true);
+        BOOST_CHECK_EQUAL(ActivateBestChain(state, Params()), true);
         mempool.clear();
         num_txs_for_next_block = 0;
     }
@@ -363,6 +362,101 @@ struct ClaimTrieChainFixture
     }
 };
 
+std::vector<std::string> random_strings(std::size_t count)
+{
+    static auto& chrs = "0123456789"
+                        "abcdefghijklmnopqrstuvwxyz"
+                        "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    std::mt19937 rg(42);
+    std::uniform_int_distribution<std::string::size_type> pick(1, sizeof(chrs) - 2);
+
+    std::unordered_set<std::string> strings;
+    strings.reserve(count);
+
+    while(strings.size() < count) {
+        auto length = pick(rg);
+
+        std::string s;
+        s.reserve(length);
+
+        while (length--)
+            s += chrs[pick(rg)];
+
+        strings.emplace(s);
+    }
+
+    std::vector<std::string> ret(strings.begin(), strings.end());
+    std::shuffle(ret.begin(), ret.end(), rg);
+    return ret;
+}
+
+BOOST_AUTO_TEST_CASE(triehash_fuzzer_test)
+{
+    ClaimTrieChainFixture fixture;
+
+    auto envClaims = std::getenv("TRIEHASH_FUZZER_CLAIMS");
+    auto envBlocks = std::getenv("TRIEHASH_FUZZER_BLOCKS");
+
+    const int claimsPerBlock = envClaims ? atoi(envClaims) : 100;
+    const int blocks = envBlocks ? atoi(envBlocks) : 13;
+
+    auto names = random_strings(blocks * claimsPerBlock);
+
+    std::mt19937 rg(42);
+    std::uniform_int_distribution<int> pick4(0, 4);
+    std::uniform_int_distribution<std::size_t> pick;
+    std::unordered_map<std::string, std::vector<CMutableTransaction>> existingClaims;
+    std::vector<CMutableTransaction> existingSupports;
+    std::string value(1024, 'c');
+
+    std::vector<CTransaction> cb {fixture.GetCoinbase()};
+    for (int i = 0; i < blocks; ++i) {
+        for (int j = 0; j < claimsPerBlock; ++j) {
+            auto name = names[i * claimsPerBlock + j];
+            auto supportFront = pick4(rg) == 0;
+            auto supportBack = pick4(rg) == 0;
+            auto removeClaim = pick4(rg) == 0;
+            auto removeSupport = pick4(rg) == 0;
+            auto hit = existingClaims.find(name);
+            if (supportFront && hit != existingClaims.end() && hit->second.size()) {
+                auto tx = fixture.MakeSupport(cb.back(), hit->second[pick(rg) % hit->second.size()], name, 2);
+                existingSupports.push_back(tx);
+                cb.emplace_back(std::move(tx));
+            }
+            if (removeClaim && hit != existingClaims.end() && hit->second.size()) {
+                auto idx = pick(rg) % hit->second.size();
+                fixture.Spend(hit->second[idx]);
+                hit->second.erase(hit->second.begin() + idx);
+            }
+            else {
+                auto tx = fixture.MakeClaim(cb.back(), name, value, 2);
+                existingClaims[name].push_back(tx);
+                hit = existingClaims.find(name);
+                cb.emplace_back(std::move(tx));
+            }
+            if (supportBack && hit != existingClaims.end() && hit->second.size()) {
+                auto tx = fixture.MakeSupport(cb.back(), hit->second[pick(rg) % hit->second.size()], name, 2);
+                existingSupports.push_back(tx);
+                cb.emplace_back(std::move(tx));
+            }
+            if (removeSupport && (i & 7) == 7 && !existingSupports.empty()) {
+                const auto tidx = pick(rg) % existingSupports.size();
+                const auto tx = existingSupports[tidx];
+                fixture.Spend(tx);
+                existingSupports.erase(existingSupports.begin() + tidx);
+            }
+            if (cb.back().GetValueOut() < 10 || cb.size() > 40000) {
+                cb.clear();
+                cb.push_back(fixture.GetCoinbase());
+            }
+        }
+        std::cerr << "Block: " << i << std::endl;
+        fixture.IncrementBlocks(1);
+    }
+
+    std::cerr << "Hash: "  << pclaimTrie->getMerkleHash().GetHex() << std::endl;
+}
 
 /*
     claims
