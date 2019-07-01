@@ -462,15 +462,15 @@ UniValue getclaimsforname(const JSONRPCRequest& request)
     claimSupportMapType claimSupportMap;
     UniValue unmatchedSupports(UniValue::VARR);
 
-    for (std::vector<CClaimValue>::const_iterator itClaims = claimsForName.claims.begin(); itClaims != claimsForName.claims.end(); ++itClaims)
+    for (auto itClaims = claimsForName.claims.begin(); itClaims != claimsForName.claims.end(); ++itClaims)
     {
         claimAndSupportsType claimAndSupports = std::make_pair(*itClaims, std::vector<CSupportValue>());
-        claimSupportMap.insert(std::pair<uint160, claimAndSupportsType>(itClaims->claimId, claimAndSupports));
+        claimSupportMap.emplace(itClaims->claimId, claimAndSupports);
     }
 
-    for (std::vector<CSupportValue>::const_iterator itSupports = claimsForName.supports.begin(); itSupports != claimsForName.supports.end(); ++itSupports)
+    for (auto itSupports = claimsForName.supports.begin(); itSupports != claimsForName.supports.end(); ++itSupports)
     {
-        claimSupportMapType::iterator itClaimAndSupports = claimSupportMap.find(itSupports->supportedClaimId);
+        auto itClaimAndSupports = claimSupportMap.find(itSupports->supportedClaimId);
         if (itClaimAndSupports == claimSupportMap.end())
             unmatchedSupports.push_back(supportToJSON(coinsCache, *itSupports));
         else
@@ -481,8 +481,9 @@ UniValue getclaimsforname(const JSONRPCRequest& request)
     result.pushKV("nLastTakeoverHeight", claimsForName.nLastTakeoverHeight);
     result.pushKV("normalized_name", claimsForName.name);
 
-    for (claimSupportMapType::const_iterator itClaimsAndSupports = claimSupportMap.begin(); itClaimsAndSupports != claimSupportMap.end(); ++itClaimsAndSupports)
+    for (auto itClaims = claimsForName.claims.begin(); itClaims != claimsForName.claims.end(); ++itClaims)
     {
+        auto itClaimsAndSupports = claimSupportMap.find(itClaims->claimId);
         const auto nEffectiveAmount = trieCache.getEffectiveAmountForClaim(claimsForName, itClaimsAndSupports->first);
         UniValue claimObj = claimAndSupportsToJSON(coinsCache, nEffectiveAmount, itClaimsAndSupports);
         claimObjs.push_back(claimObj);

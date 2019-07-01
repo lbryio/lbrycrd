@@ -334,7 +334,7 @@ public:
         consensus.nPowTargetSpacing = 1;
         consensus.nOriginalClaimExpirationTime = 500;
         consensus.nExtendedClaimExpirationTime = 600;
-        consensus.nExtendedClaimExpirationForkHeight = 800;
+        consensus.nExtendedClaimExpirationForkHeight = 8000;
         consensus.nAllowMinDiffMinHeight = -1;
         consensus.nAllowMinDiffMaxHeight = -1;
         consensus.nNormalizedNameForkHeight = 250; // SDK depends upon this number
