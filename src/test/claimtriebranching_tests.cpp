@@ -282,11 +282,10 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheBase
         clear(); // clears the internal cache
         for (int i = 0; i < num_blocks; ++i)
         {
-            std::unique_ptr<CBlockTemplate> pblocktemplate;
             CScript coinbase_scriptpubkey;
             coinbase_scriptpubkey << CScriptNum(chainActive.Height());
             std::unique_ptr<CBlockTemplate> pblocktemplate = AssemblerForTest().CreateNewBlock(coinbase_scriptpubkey);
-            BOOST_CHECK_EQUAL(pblocktemplate != nullptr, true);
+            BOOST_CHECK(pblocktemplate != nullptr);
             if (!added_unchecked)
                 BOOST_CHECK_EQUAL(pblocktemplate->block.vtx.size(), num_txs_for_next_block + 1);
             BOOST_CHECK_EQUAL(CreateBlock(pblocktemplate), true);
@@ -596,29 +595,29 @@ BOOST_AUTO_TEST_CASE(claim_locktime_test)
     // the future, staged for automatic takeover if accepted.
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2, 10);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_false);
+    BOOST_CHECK(!fixture.is_best_claim("test", tx1));
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx2), predicate_true);
+    BOOST_CHECK(fixture.is_best_claim("test", tx2));
 
     // Forward to locktime expiration and takeover delay time.
     fixture.IncrementBlocks(25);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
+    BOOST_CHECK(fixture.is_best_claim("test", tx1));
 
     // Abandon/Spend tx1.
     fixture.Spend(tx1);
     fixture.IncrementBlocks(1);
 
     // Ensure tx2 is now best.
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx2), predicate_true);
+    BOOST_CHECK(fixture.is_best_claim("test", tx2));
 
     // Rewind and check tx1 is best again.
     fixture.DecrementBlocks(1);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
+    BOOST_CHECK(fixture.is_best_claim("test", tx1));
 
     // Rewind to before locktime and activation.
     fixture.DecrementBlocks(25);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx2), predicate_true);
+    BOOST_CHECK(fixture.is_best_claim("test", tx2));
 }
 
 /*
@@ -647,7 +646,7 @@ BOOST_AUTO_TEST_CASE(spend_claim_test)
     // spending winning claim will make inactive claim winner
     CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
     fixture.IncrementBlocks(10);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
+    BOOST_CHECK(fixture.is_best_claim("test",tx3));
     CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("test",tx3));
@@ -692,33 +691,32 @@ BOOST_AUTO_TEST_CASE(support_test)
     CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, "test", 1);
     CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(), tx2, "test", 10);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx2), predicate_true);
-    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 11), predicate_true);
+    BOOST_CHECK(fixture.is_best_claim("test", tx2));
+    BOOST_CHECK(fixture.best_claim_effective_amount_equals("test", 11));
     fixture.DecrementBlocks(1);
 
     // check support delay
     CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 1);
     CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "two", 2);
     fixture.IncrementBlocks(10);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
-    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 2), predicate_true);
+    BOOST_CHECK(fixture.is_best_claim("test", tx4));
+    BOOST_CHECK(fixture.best_claim_effective_amount_equals("test", 2));
     CMutableTransaction s4 = fixture.MakeSupport(fixture.GetCoinbase(), tx3, "test", 10); //10 delay
     fixture.IncrementBlocks(10);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
-    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 2), predicate_true);
+    BOOST_CHECK(fixture.is_best_claim("test", tx4));
+    BOOST_CHECK(fixture.best_claim_effective_amount_equals("test", 2));
     fixture.IncrementBlocks(1);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
-    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 11), predicate_true);
+    BOOST_CHECK(fixture.is_best_claim("test", tx3));
+    BOOST_CHECK(fixture.best_claim_effective_amount_equals("test", 11));
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
-    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 2), predicate_true);
+    BOOST_CHECK(fixture.is_best_claim("test", tx4));
+    BOOST_CHECK(fixture.best_claim_effective_amount_equals("test", 2));
     fixture.DecrementBlocks(10);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
-    BOOST_CHECK_EQUAL(best_claim_effective_amount_equals("test", 2), predicate_true);
+    BOOST_CHECK(fixture.is_best_claim("test", tx4));
+    BOOST_CHECK(fixture.best_claim_effective_amount_equals("test", 2));
     fixture.DecrementBlocks(10);
 }
-
 /*
     support on abandon
         supporting a claim the same block it gets abandoned,
@@ -970,27 +968,27 @@ BOOST_AUTO_TEST_CASE(claimtrie_expire_test)
     fixture.setExpirationForkHeight(1000000, 5, 1000000);
 
     // check claims expire and loses claim
-    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
-    fixture.IncrementBlocks(pclaimTrie->nExpirationTime);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx1), predicate_true);
-    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 1);
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(),"test", "one", 2);
+    fixture.IncrementBlocks(fixture.expirationTime());
+    BOOST_CHECK(fixture.is_best_claim("test", tx1));
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test", "one", 1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(fixture.is_best_claim("test",tx2));
+    BOOST_CHECK(fixture.is_best_claim("test", tx2));
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(fixture.is_best_claim("test",tx1));
+    BOOST_CHECK(fixture.is_best_claim("test", tx1));
     fixture.DecrementBlocks(fixture.expirationTime());
 
     // check claims expire and is not updateable (may be changed in future soft fork)
-    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
+    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"test", "one", 2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx3), predicate_true);
-    fixture.IncrementBlocks(pclaimTrie->nExpirationTime);
-    CMutableTransaction u1 = fixture.MakeUpdate(tx3, "test", "two",ClaimIdHash(tx3.GetHash(),0), 2);
-    BOOST_CHECK_EQUAL(is_best_claim("test", u1), predicate_false);
+    BOOST_CHECK(fixture.is_best_claim("test", tx3));
+    fixture.IncrementBlocks(fixture.expirationTime());
+    CMutableTransaction u1 = fixture.MakeUpdate(tx3, "test", "two", ClaimIdHash(tx3.GetHash(), 0), 2);
+    BOOST_CHECK(!fixture.is_best_claim("test",u1));
 
     fixture.DecrementBlocks(fixture.expirationTime());
-    BOOST_CHECK(fixture.is_best_claim("test",tx3));
+    BOOST_CHECK(fixture.is_best_claim("test", tx3));
     fixture.DecrementBlocks(1);
 
     // check supports expire and can cause supported bid to lose claim
@@ -998,32 +996,31 @@ BOOST_AUTO_TEST_CASE(claimtrie_expire_test)
     CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
     CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx4, "test", 2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
-    CMutableTransaction u2 = fixture.MakeUpdate(tx4, "test", "two",ClaimIdHash(tx4.GetHash(),0) , 1);
-    CMutableTransaction u3 = fixture.MakeUpdate(tx5, "test", "two",ClaimIdHash(tx5.GetHash(),0) , 2);
-    fixture.IncrementBlocks(pclaimTrie->nExpirationTime);
-    BOOST_CHECK_EQUAL(is_best_claim("test", u3), predicate_true);
-    fixture.DecrementBlocks(pclaimTrie->nExpirationTime);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx4), predicate_true);
+    BOOST_CHECK(fixture.is_best_claim("test",tx4));
+    CMutableTransaction u2 = fixture.MakeUpdate(tx4, "test", "two", ClaimIdHash(tx4.GetHash(),0), 1);
+    CMutableTransaction u3 = fixture.MakeUpdate(tx5, "test", "two", ClaimIdHash(tx5.GetHash(),0), 2);
+    fixture.IncrementBlocks(fixture.expirationTime());
+    BOOST_CHECK(fixture.is_best_claim("test", u3));
+    fixture.DecrementBlocks(fixture.expirationTime());
+    BOOST_CHECK(fixture.is_best_claim("test", tx4));
     fixture.DecrementBlocks(1);
 
     // check updated claims will extend expiration
     CMutableTransaction tx6 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK_EQUAL(is_best_claim("test", tx6), predicate_true);
-    CMutableTransaction u4 = fixture.MakeUpdate(tx6, "test", "two",ClaimIdHash(tx6.GetHash(),0) , 2);
+    BOOST_CHECK(fixture.is_best_claim("test", tx6));
+    CMutableTransaction u4 = fixture.MakeUpdate(tx6, "test", "two", ClaimIdHash(tx6.GetHash(), 0), 2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(fixture.is_best_claim("test",u4));
+    BOOST_CHECK(fixture.is_best_claim("test", u4));
     fixture.IncrementBlocks(fixture.expirationTime()-1);
-    BOOST_CHECK(fixture.is_best_claim("test",u4));
+    BOOST_CHECK(fixture.is_best_claim("test", u4));
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(!fixture.is_best_claim("test",u4));
+    BOOST_CHECK(!fixture.is_best_claim("test", u4));
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(fixture.is_best_claim("test",u4));
+    BOOST_CHECK(fixture.is_best_claim("test", u4));
     fixture.DecrementBlocks(fixture.expirationTime());
-    BOOST_CHECK(fixture.is_best_claim("test",tx6));
+    BOOST_CHECK(fixture.is_best_claim("test", tx6));
 }
-
 /*
  * tests for CClaimTrie::getEffectiveAmountForClaim
  */
