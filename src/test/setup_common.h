@@ -138,7 +138,10 @@ std::ostream& operator<<(std::ostream& os, const COutPoint& point);
 class CClaimValue;
 std::ostream& operator<<(std::ostream& os, const CClaimValue& claim);
 
-class CClaimTrieNode;
-std::ostream& operator<<(std::ostream& os, const CClaimTrieNode& node);
+class CSupportValue;
+std::ostream& operator<<(std::ostream& os, const CSupportValue& support);
+
+class CClaimTrieData;
+std::ostream& operator<<(std::ostream& os, const CClaimTrieData& data);
 
 #endif

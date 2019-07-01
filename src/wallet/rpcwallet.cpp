@@ -536,6 +536,7 @@ UniValue abandonclaim(const JSONRPCRequest& request)
 
 static void MaybePushAddress(UniValue& entry, const CTxDestination &dest);
 
+extern std::string escapeNonUtf8(const std::string&);
 
 void ListNameClaims(const CWalletTx& wtx, CWallet* const pwallet, const std::string& strAccount, int nMinDepth,
                     UniValue& ret, const bool include_supports, bool list_spent)
@@ -567,7 +568,7 @@ void ListNameClaims(const CWalletTx& wtx, CWallet* const pwallet, const std::str
                 continue;
             }
             std::string sName (vvchParams[0].begin(), vvchParams[0].end());
-            entry.pushKV("name", sName);
+            entry.pushKV("name", escapeNonUtf8(sName));
             if (op == OP_CLAIM_NAME)
             {
                 uint160 claimId = ClaimIdHash(wtx.GetHash(), s.vout);
@@ -597,6 +598,9 @@ void ListNameClaims(const CWalletTx& wtx, CWallet* const pwallet, const std::str
             entry.pushKV("amount", ValueFromAmount(s.amount));
             entry.pushKV("vout", s.vout);
             entry.pushKV("fee", ValueFromAmount(nFee));
+
+            CClaimTrieCache trieCache(pclaimTrie);
+
             auto it = mapBlockIndex.find(wtx.hashBlock);
             if (it != mapBlockIndex.end())
             {
@@ -604,11 +608,11 @@ void ListNameClaims(const CWalletTx& wtx, CWallet* const pwallet, const std::str
                 if (pindex)
                 {
                     entry.pushKV("height", pindex->nHeight);
-                    entry.pushKV("expiration height", pindex->nHeight + pclaimTrie->nExpirationTime);
-                    if (pindex->nHeight + pclaimTrie->nExpirationTime > chainActive.Height())
+                    entry.pushKV("expiration height", pindex->nHeight + trieCache.expirationTime());
+                    if (pindex->nHeight + trieCache.expirationTime() > chainActive.Height())
                     {
                         entry.pushKV("expired", false);
-                        entry.pushKV("blocks to expiration", pindex->nHeight + pclaimTrie->nExpirationTime - chainActive.Height());
+                        entry.pushKV("blocks to expiration", pindex->nHeight + trieCache.expirationTime() - chainActive.Height());
                     }
                     else
                     {
@@ -620,11 +624,11 @@ void ListNameClaims(const CWalletTx& wtx, CWallet* const pwallet, const std::str
             entry.pushKV("is spent", pwallet->IsSpent(wtx.GetHash(), s.vout));
             if (op == OP_CLAIM_NAME)
             {
-                entry.pushKV("is in name trie", pclaimTrie->haveClaim(sName, COutPoint(wtx.GetHash(), s.vout)));
+                entry.pushKV("is in name trie", trieCache.haveClaim(sName, COutPoint(wtx.GetHash(), s.vout)));
             }
             else if (op == OP_SUPPORT_CLAIM)
             {
-                entry.pushKV("is in support map", pclaimTrie->haveSupport(sName, COutPoint(wtx.GetHash(), s.vout)));
+                entry.pushKV("is in support map", trieCache.haveSupport(sName, COutPoint(wtx.GetHash(), s.vout)));
             }
             ret.push_back(entry);
         }
@@ -1995,7 +1999,7 @@ static UniValue listsinceblock(const JSONRPCRequest& request)
                 RPCResult{
             "{\n"
             "  \"transactions\": [\n"
-            "    \"address\":\"address\",    (string) The bitcoin address of the transaction.\n"
+            "    \"address\":\"address\",    (string) The lbry address of the transaction.\n"
             "    \"category\":               (string) The transaction category.\n"
             "                \"send\"                  Transactions sent.\n"
             "                \"receive\"               Non-coinbase transactions received.\n"

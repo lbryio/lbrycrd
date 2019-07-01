@@ -275,7 +275,7 @@ struct StringContentsSerializer {
 
 BOOST_AUTO_TEST_CASE(iterator_string_ordering)
 {
-    char buf[10];
+    char buf[12];
 
     fs::path ph = GetDataDir() / "iterator_string_ordering";
     CDBWrapper dbw(ph, (1 << 20), true, false, false);

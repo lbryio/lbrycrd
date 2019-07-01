@@ -54,9 +54,9 @@ std::ostream& operator<<(std::ostream& os, const COutPoint& point)
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const CClaimTrieNode& node)
+std::ostream& operator<<(std::ostream& os, const CClaimTrieData& data)
 {
-    os << node.hash.ToString();
+    os << data.hash.ToString();
     return os;
 }
 
@@ -68,6 +68,16 @@ std::ostream& operator<<(std::ostream& os, const CClaimValue& claim)
        << ", " << claim.nEffectiveAmount
        << ", " << claim.nHeight
        << ", " << claim.nValidAtHeight << ')';
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const CSupportValue& support)
+{
+    os << "support(" << support.outPoint.ToString()
+    << ", " << support.supportedClaimId.ToString()
+    << ", " << support.nAmount
+    << ", " << support.nHeight
+    << ", " << support.nValidAtHeight << ')';
     return os;
 }
 

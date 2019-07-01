@@ -100,8 +100,9 @@ static void SetMaxOpenFiles(leveldb::Options *options) {
 static leveldb::Options GetOptions(size_t nCacheSize)
 {
     leveldb::Options options;
-    options.block_cache = leveldb::NewLRUCache(nCacheSize / 2);
-    options.write_buffer_size = nCacheSize / 4; // up to two write buffers may be held in memory simultaneously
+    auto write_cache = std::min(nCacheSize / 4, size_t(16) << 20U); // cap write_cache at 16MB (4x default)
+    options.block_cache = leveldb::NewLRUCache(nCacheSize - write_cache * 2);
+    options.write_buffer_size = write_cache; // up to two write buffers may be held in memory simultaneously
     options.filter_policy = leveldb::NewBloomFilterPolicy(10);
     options.compression = leveldb::kNoCompression;
     options.info_log = new CBitcoinLevelDBLogger();
