@@ -3,7 +3,7 @@
 #include <coins.h>
 #include <hash.h>
 #include <logging.h>
-#include "util.h"
+#include <util.h>
 
 #include <algorithm>
 #include <memory>
@@ -41,6 +41,68 @@ uint256 getValueHash(const COutPoint& outPoint, int nHeightOfLastTakeover)
     return result;
 }
 
+template <typename T>
+bool equals(const T& value, const COutPoint& outPoint)
+{
+    return value.outPoint == outPoint;
+}
+
+template <typename T>
+bool equals(const T& value, const std::string& name, const COutPoint& outPoint)
+{
+    return value.name == name && value.outPoint == outPoint;
+}
+
+template <typename K, typename V>
+bool equals(const std::pair<K, V>& pair, const std::string& name, const COutPoint& outPoint)
+{
+    return pair.first == name && pair.second.outPoint == outPoint;
+}
+
+template <typename T>
+auto findOutPoint(T& cont, const COutPoint& outPoint) -> decltype(cont.begin())
+{
+    using type = typename T::value_type;
+    static_assert(std::is_same<typename std::remove_const<T>::type, std::vector<type>>::value, "T should be a vector type");
+    return std::find_if(cont.begin(), cont.end(), [&outPoint](const type& val) {
+        return equals(val, outPoint);
+    });
+}
+
+template <typename T>
+auto findOutPoint(T& cont, const std::string& name, const COutPoint& outPoint) -> decltype(cont.begin())
+{
+    using type = typename T::value_type;
+    static_assert(std::is_same<typename std::remove_const<T>::type, std::vector<type>>::value, "T should be a vector type");
+    return std::find_if(cont.begin(), cont.end(), [&name, &outPoint](const type& val) {
+        return equals(val, name, outPoint);
+    });
+}
+
+template <typename T>
+bool eraseOutPoint(std::vector<T>& cont, const COutPoint& outPoint, T* value = nullptr)
+{
+    auto it = findOutPoint(cont, outPoint);
+    if (it == cont.end())
+        return false;
+    if (value)
+        std::swap(*it, *value);
+    cont.erase(it);
+    return true;
+}
+
+template <typename T>
+bool eraseOutPoint(std::vector<T>& cont, const std::string& name, const COutPoint& outPoint, T* value = nullptr)
+{
+    auto it = findOutPoint(cont, name, outPoint);
+    if (it == cont.end())
+        return false;
+    if (value)
+        std::swap(*it, *value);
+    cont.erase(it);
+    return true;
+}
+
 bool CClaimTrieData::insertClaim(const CClaimValue& claim)
 {
     claims.push_back(claim);
@@ -49,13 +111,9 @@ bool CClaimTrieData::insertClaim(const CClaimValue& claim)
 
 bool CClaimTrieData::removeClaim(const COutPoint& outPoint, CClaimValue& claim)
 {
-    for (auto iClaim = claims.begin(); iClaim != claims.end(); ++iClaim) {
-        if (iClaim->outPoint == outPoint) {
-            std::swap(claim, *iClaim);
-            claims.erase(iClaim);
-            return true;
-        }
-    }
+    if (eraseOutPoint(claims, outPoint, &claim))
+        return true;
+
     LogPrintf("CClaimTrieData::%s() : asked to remove a claim that doesn't exist\n", __func__);
     LogPrintf("CClaimTrieData::%s() : claims that do exist:\n", __func__);
     for (auto& iClaim : claims)
@@ -73,8 +131,7 @@ bool CClaimTrieData::getBestClaim(CClaimValue& claim) const
 
 bool CClaimTrieData::haveClaim(const COutPoint& outPoint) const
 {
-    return std::any_of(claims.begin(), claims.end(),
-        [&outPoint](const CClaimValue& claim) { return claim.outPoint == outPoint; });
+    return findOutPoint(claims, outPoint) != claims.end();
 }
 
 void CClaimTrieData::reorderClaims(const supportEntryType& supports)
@@ -97,9 +154,7 @@ CClaimTrie::CClaimTrie(bool fMemory, bool fWipe, int proportionalDelayFactor)
 
 bool CClaimTrie::SyncToDisk()
 {
-    if (db)
-        return db->Sync();
-    return false;
+    return db && db->Sync();
 }
 
 template <typename Key, typename Container>
@@ -117,45 +172,80 @@ typename Container::value_type* getQueue(CDBWrapper& db, uint8_t dbkey, const Ke
     return nullptr;
 }
 
-uint256 computeHash(const std::vector<uint8_t>& vec)
+template <typename T>
+inline constexpr bool supportedType()
 {
-    return Hash(vec.begin(), vec.end());
+    static_assert(std::is_same<T, CClaimValue>::value || std::is_same<T, CSupportValue>::value, "T is unsupported type");
+    return true;
 }
 
-typename claimQueueType::value_type* CClaimTrieCacheBase::getQueueCacheRow(int nHeight, bool createIfNotExists)
+template <>
+std::pair<const int, std::vector<queueEntryType<CClaimValue>>>* CClaimTrieCacheBase::getQueueCacheRow(int nHeight, bool createIfNotExists)
 {
     return getQueue(*(base->db), CLAIM_QUEUE_ROW, nHeight, claimQueueCache, createIfNotExists);
 }
 
-typename queueNameType::value_type* CClaimTrieCacheBase::getQueueCacheNameRow(const std::string& name, bool createIfNotExists)
-{
-    return getQueue(*(base->db), CLAIM_QUEUE_NAME_ROW, name, claimQueueNameCache, createIfNotExists);
-}
-
-typename expirationQueueType::value_type* CClaimTrieCacheBase::getExpirationQueueCacheRow(int nHeight, bool createIfNotExists)
-{
-    return getQueue(*(base->db), EXP_QUEUE_ROW, nHeight, expirationQueueCache, createIfNotExists);
-}
-
-typename supportQueueType::value_type* CClaimTrieCacheBase::getSupportQueueCacheRow(int nHeight, bool createIfNotExists)
+template <>
+std::pair<const int, std::vector<queueEntryType<CSupportValue>>>* CClaimTrieCacheBase::getQueueCacheRow(int nHeight, bool createIfNotExists)
 {
     return getQueue(*(base->db), SUPPORT_QUEUE_ROW, nHeight, supportQueueCache, createIfNotExists);
 }
 
-typename queueNameType::value_type* CClaimTrieCacheBase::getSupportQueueCacheNameRow(const std::string& name, bool createIfNotExists)
+template <typename T>
+std::pair<const int, std::vector<queueEntryType<T>>>* CClaimTrieCacheBase::getQueueCacheRow(int, bool)
+{
+    supportedType<T>();
+    return nullptr;
+}
+
+template <>
+typename queueNameType::value_type* CClaimTrieCacheBase::getQueueCacheNameRow<CClaimValue>(const std::string& name, bool createIfNotExists)
+{
+    return getQueue(*(base->db), CLAIM_QUEUE_NAME_ROW, name, claimQueueNameCache, createIfNotExists);
+}
+
+template <>
+typename queueNameType::value_type* CClaimTrieCacheBase::getQueueCacheNameRow<CSupportValue>(const std::string& name, bool createIfNotExists)
 {
     return getQueue(*(base->db), SUPPORT_QUEUE_NAME_ROW, name, supportQueueNameCache, createIfNotExists);
 }
 
-typename expirationQueueType::value_type* CClaimTrieCacheBase::getSupportExpirationQueueCacheRow(int nHeight, bool createIfNotExists)
+template <typename T>
+typename queueNameType::value_type* CClaimTrieCacheBase::getQueueCacheNameRow(const std::string&, bool)
+{
+    supportedType<T>();
+    return nullptr;
+}
+
+template <>
+typename expirationQueueType::value_type* CClaimTrieCacheBase::getExpirationQueueCacheRow<CClaimValue>(int nHeight, bool createIfNotExists)
+{
+    return getQueue(*(base->db), EXP_QUEUE_ROW, nHeight, expirationQueueCache, createIfNotExists);
+}
+
+template <>
+typename expirationQueueType::value_type* CClaimTrieCacheBase::getExpirationQueueCacheRow<CSupportValue>(int nHeight, bool createIfNotExists)
 {
     return getQueue(*(base->db), SUPPORT_EXP_QUEUE_ROW, nHeight, supportExpirationQueueCache, createIfNotExists);
+}
+
+template <typename T>
+typename expirationQueueType::value_type* CClaimTrieCacheBase::getExpirationQueueCacheRow(int, bool)
+{
+    supportedType<T>();
+    return nullptr;
 }
 
 bool CClaimTrieCacheBase::haveClaim(const std::string& name, const COutPoint& outPoint) const
 {
     auto it = find(name);
     return it && it->haveClaim(outPoint);
+}
+
+bool CClaimTrieCacheBase::haveSupport(const std::string& name, const COutPoint& outPoint) const
+{
+    const auto supports = getSupportsForName(name);
+    return findOutPoint(supports, outPoint) != supports.end();
 }
 
 supportEntryType CClaimTrieCacheBase::getSupportsForName(const std::string& name) const
@@ -170,79 +260,51 @@ supportEntryType CClaimTrieCacheBase::getSupportsForName(const std::string& name
     return {};
 }
 
-bool CClaimTrieCacheBase::haveSupport(const std::string& name, const COutPoint& outPoint) const
+template <typename T>
+bool CClaimTrieCacheBase::haveInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight)
 {
-    auto supports = getSupportsForName(name);
-    return std::any_of(supports.begin(), supports.end(),
-        [&outPoint](const CSupportValue& support) { return support.outPoint == outPoint; });
+    supportedType<T>();
+    if (auto nameRow = getQueueCacheNameRow<T>(name)) {
+        auto itNameRow = findOutPoint(nameRow->second, outPoint);
+        if (itNameRow != nameRow->second.end()) {
+            nValidAtHeight = itNameRow->nHeight;
+            if (auto row = getQueueCacheRow<T>(nValidAtHeight)) {
+                auto iRow = findOutPoint(row->second, name, outPoint);
+                if (iRow != row->second.end()) {
+                    if (iRow->second.nValidAtHeight != nValidAtHeight)
+                        LogPrintf("%s: An inconsistency was found in the support queue. Please report this to the developers:\nDifferent nValidAtHeight between named queue and height queue\n: name: %s, txid: %s, nOut: %d, nValidAtHeight in named queue: %d, nValidAtHeight in height queue: %d current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, iRow->second.nValidAtHeight, nNextHeight);
+                    return true;
+                }
+            }
+        }
+        LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, nNextHeight);
+    }
+    return false;
 }
 
 bool CClaimTrieCacheBase::haveClaimInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight)
 {
-    auto nameRow = getQueueCacheNameRow(name);
-    if (!nameRow) {
-        return false;
-    }
-    for (const auto& iNameRow : nameRow->second) {
-        if (iNameRow.outPoint != outPoint)
-            continue;
-        nValidAtHeight = iNameRow.nHeight;
-        if (auto cacheRow = getQueueCacheRow(nValidAtHeight)) {
-            for (const auto& iRow : cacheRow->second) {
-                if (iRow.first == name && iRow.second.outPoint == outPoint) {
-                    if (iRow.second.nValidAtHeight != nValidAtHeight)
-                        LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nDifferent nValidAtHeight between named queue and height queue\n: name: %s, txid: %s, nOut: %d, nValidAtHeight in named queue: %d, nValidAtHeight in height queue: %d current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, iRow.second.nValidAtHeight, nNextHeight);
-                    return true;
-                }
-            }
-        }
-        break;
-    }
-    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, nNextHeight);
-    return false;
+    return haveInQueue<CClaimValue>(name, outPoint, nValidAtHeight);
 }
 
 bool CClaimTrieCacheBase::haveSupportInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight)
 {
-    auto nameRow = getSupportQueueCacheNameRow(name);
-    if (!nameRow) {
-        return false;
-    }
-    for (const auto& itNameRow : nameRow->second) {
-        if (itNameRow.outPoint != outPoint)
-            continue;
-        nValidAtHeight = itNameRow.nHeight;
-        if (auto row = getSupportQueueCacheRow(nValidAtHeight)) {
-            for (const auto& iRow : row->second) {
-                if (iRow.first == name && iRow.second.outPoint == outPoint) {
-                    if (iRow.second.nValidAtHeight != nValidAtHeight)
-                        LogPrintf("%s: An inconsistency was found in the support queue. Please report this to the developers:\nDifferent nValidAtHeight between named queue and height queue\n: name: %s, txid: %s, nOut: %d, nValidAtHeight in named queue: %d, nValidAtHeight in height queue: %d current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, iRow.second.nValidAtHeight, nNextHeight);
-                    return true;
-                }
-            }
-        }
-        break;
-    }
-    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, nNextHeight);
-    return false;
+    return haveInQueue<CSupportValue>(name, outPoint, nValidAtHeight);
 }
 
 std::size_t CClaimTrieCacheBase::getTotalNamesInTrie() const
 {
-    size_t count = 0;
-    for (auto it = base->cbegin(); it != base->cend(); ++it) {
-        if (!it->claims.empty())
-            ++count;
-    }
+    std::size_t count = 0;
+    for (auto it = base->cbegin(); it != base->cend(); ++it)
+        if (!it->empty()) ++count;
     return count;
 }
 
 std::size_t CClaimTrieCacheBase::getTotalClaimsInTrie() const
 {
     std::size_t count = 0;
-    for (auto it = base->cbegin(); it != base->cend(); ++it) {
+    for (auto it = base->cbegin(); it != base->cend(); ++it)
         count += it->claims.size();
-    }
     return count;
 }
 
@@ -311,57 +373,72 @@ void completeHash(uint256& partialHash, const std::string& key, std::size_t to)
             .Finalize(partialHash.begin());
 }
 
-bool recursiveCheckConsistency(CClaimTrie::const_iterator& it, int minimumHeight, std::string& failed)
+template <typename T>
+using iCbType = std::function<void(T&)>;
+
+template <typename TIterator>
+uint256 recursiveMerkleHash(TIterator& it, const iCbType<TIterator>& process, const iCbType<TIterator>& verify = {})
 {
     std::vector<uint8_t> vchToHash;
-
     const auto pos = it.key().size();
-    auto children = it.children();
-    for (auto& child : children) {
-        if (!recursiveCheckConsistency(child, minimumHeight, failed))
-            return false;
+    for (auto& child : it.children()) {
+        process(child);
         auto& key = child.key();
         auto hash = child->hash;
-        vchToHash.push_back(key[pos]);
         completeHash(hash, key, pos);
+        vchToHash.push_back(key[pos]);
         vchToHash.insert(vchToHash.end(), hash.begin(), hash.end());
     }
 
     CClaimValue claim;
     if (it->getBestClaim(claim)) {
-        if (it->nHeightOfLastTakeover < minimumHeight) {
-            LogPrintf("\nInvalid takeover height for %s\n", it.key());
-            failed = it.key();
-            return false;
-        }
         uint256 valueHash = getValueHash(claim.outPoint, it->nHeightOfLastTakeover);
         vchToHash.insert(vchToHash.end(), valueHash.begin(), valueHash.end());
-    } else if (children.empty()) {
-        // we don't allow a situation of no children and no claims; no empty leaf nodes allowed
-        LogPrintf("\nInvalid empty node for %s\n", it.key());
-        failed = it.key();
-        return false;
+    } else if (verify) {
+        verify(it);
     }
 
-    auto calculatedHash = computeHash(vchToHash);
-    auto matched = calculatedHash == it->hash;
-    if (!matched) {
-        LogPrintf("\nComputed hash doesn't match stored hash for %s\n", it.key());
-        failed = it.key();
-    }
-    return matched;
+    return Hash(vchToHash.begin(), vchToHash.end());
 }
 
-bool CClaimTrieCacheBase::checkConsistency(int minimumHeight) const
+bool recursiveCheckConsistency(CClaimTrie::const_iterator& it, std::string& failed)
+{
+    struct CRecursiveBreak{};
+
+    using iterator = CClaimTrie::const_iterator;
+    iCbType<iterator> verify = [&failed](iterator& it) {
+        if (!it.hasChildren()) {
+            // we don't allow a situation of no children and no claims; no empty leaf nodes allowed
+            failed = it.key();
+            throw CRecursiveBreak();
+        }
+    };
+
+    iCbType<iterator> process = [&failed, &process, &verify](iterator& it) {
+        if (it->hash != recursiveMerkleHash(it, process, verify)) {
+            failed = it.key();
+            throw CRecursiveBreak();
+        }
+    };
+
+    try {
+        process(it);
+    } catch (const CRecursiveBreak&) {
+        return false;
+    }
+    return true;
+}
+
+bool CClaimTrieCacheBase::checkConsistency() const
 {
     if (base->empty())
         return true;
 
     auto it = base->cbegin();
     std::string failed;
-    auto consistent = recursiveCheckConsistency(it, minimumHeight, failed);
+    auto consistent = recursiveCheckConsistency(it, failed);
     if (!consistent) {
-        LogPrintf("Printing base tree from its parent:\n", failed);
+        LogPrintf("\nPrinting base tree from its parent:\n");
         auto basePath = base->nodes(failed);
         if (basePath.size() > 1) basePath.pop_back();
         dumpToLog(basePath.back(), false);
@@ -536,27 +613,13 @@ int CClaimTrieCacheBase::expirationTime() const
 
 uint256 CClaimTrieCacheBase::recursiveComputeMerkleHash(CClaimTrie::iterator& it)
 {
-    if (!it->hash.IsNull())
-        return it->hash;
-
-    std::vector<uint8_t> vchToHash;
-    const auto pos = it.key().size();
-    for (auto& child : it.children()) {
-        auto& key = child.key();
-        vchToHash.push_back(key[pos]);
-        auto hash = recursiveComputeMerkleHash(child);
-        assert(!hash.IsNull());
-        completeHash(hash, key, pos);
-        vchToHash.insert(vchToHash.end(), hash.begin(), hash.end());
-    }
-
-    CClaimValue claim;
-    if (it->getBestClaim(claim)) {
-        uint256 valueHash = getValueHash(claim.outPoint, it->nHeightOfLastTakeover);
-        vchToHash.insert(vchToHash.end(), valueHash.begin(), valueHash.end());
-    }
-
-    return it->hash = computeHash(vchToHash);
+    using iterator = CClaimTrie::iterator;
+    iCbType<iterator> process = [&process](iterator& it) {
+        if (it->hash.IsNull())
+            it->hash = recursiveMerkleHash(it, process);
+    };
+    process(it);
+    return it->hash;
 }
 
 uint256 CClaimTrieCacheBase::getMerkleHash()
@@ -638,8 +701,7 @@ bool CClaimTrieCacheBase::getLastTakeoverForName(const std::string& name, uint16
     if (auto it = base->find(name)) {
         takeoverHeight = it->nHeightOfLastTakeover;
         CClaimValue claim;
-        if (it->getBestClaim(claim))
-        {
+        if (it->getBestClaim(claim)) {
             claimId = claim.claimId;
             return true;
         }
@@ -700,74 +762,122 @@ bool CClaimTrieCacheBase::removeClaimFromTrie(const std::string& name, const COu
     return true;
 }
 
+template <typename T>
+T CClaimTrieCacheBase::add(const std::string& name, const COutPoint& outPoint, const uint160& claimId, CAmount nAmount, int nHeight)
+{
+    supportedType<T>();
+    assert(nHeight == nNextHeight);
+    auto delay = getDelayForName(name, claimId);
+    T value(outPoint, claimId, nAmount, nHeight, nHeight + delay);
+    addToQueue(name, value);
+    return value;
+}
+
 bool CClaimTrieCacheBase::addClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId, CAmount nAmount, int nHeight)
 {
-    assert(nHeight == nNextHeight);
-    int delayForClaim = getDelayForName(name, claimId);
-    CClaimValue claim(outPoint, claimId, nAmount, nHeight, nHeight + delayForClaim);
+    auto claim = add<CClaimValue>(name, outPoint, claimId, nAmount, nHeight);
+    claimsToAdd.emplace_back(name, claim);
     LogPrintf("%s: name: %s, txhash: %s, nOut: %d, claimId: %s, nAmount: %d, nHeight: %d, nValidHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, claimId.GetHex(), nAmount, nHeight, claim.nValidAtHeight);
-    addClaimToQueues(name, claim);
-    CClaimIndexElement element = {name, claim};
-    claimsToAdd.push_back(element);
     return true;
+}
+
+bool CClaimTrieCacheBase::addSupport(const std::string& name, const COutPoint& outPoint, CAmount nAmount, const uint160& supportedClaimId, int nHeight)
+{
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedClaimId: %s, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nAmount, supportedClaimId.GetHex(), nHeight, nNextHeight);
+    add<CSupportValue>(name, outPoint, supportedClaimId, nAmount, nHeight);
+    return true;
+}
+
+template <typename T>
+bool CClaimTrieCacheBase::addToQueue(const std::string& name, const T& value)
+{
+    supportedType<T>();
+    const auto newName = adjustNameForValidHeight(name, value.nValidAtHeight);
+    auto itQueueCache = getQueueCacheRow<T>(value.nValidAtHeight, true);
+    itQueueCache->second.emplace_back(newName, value);
+    auto itQueueName = getQueueCacheNameRow<T>(newName, true);
+    itQueueName->second.emplace_back(value.outPoint, value.nValidAtHeight);
+    auto itQueueExpiration = getExpirationQueueCacheRow<T>(value.nHeight + expirationTime(), true);
+    itQueueExpiration->second.emplace_back(newName, value.outPoint);
+    return true;
+}
+
+template <>
+bool CClaimTrieCacheBase::addToCache(const std::string& name, const CClaimValue& value, bool fCheckTakeover)
+{
+    return insertClaimIntoTrie(name, value, fCheckTakeover);
+}
+
+template <>
+bool CClaimTrieCacheBase::addToCache(const std::string& name, const CSupportValue& value, bool fCheckTakeover)
+{
+    return insertSupportIntoMap(name, value, fCheckTakeover);
+}
+
+template <typename T>
+bool CClaimTrieCacheBase::addToCache(const std::string&, const T&, bool)
+{
+    supportedType<T>();
+    return false;
+}
+
+template <typename T>
+bool CClaimTrieCacheBase::undoSpend(const std::string& name, const T& value, int nValidAtHeight)
+{
+    supportedType<T>();
+    if (nValidAtHeight < nNextHeight) {
+        auto itQueueExpiration = getExpirationQueueCacheRow<T>(value.nHeight + expirationTime(), true);
+        itQueueExpiration->second.emplace_back(adjustNameForValidHeight(name, nValidAtHeight), value.outPoint);
+        return addToCache(name, value, false);
+    }
+    return addToQueue(name, value);
 }
 
 bool CClaimTrieCacheBase::undoSpendClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId, CAmount nAmount, int nHeight, int nValidAtHeight)
 {
     LogPrintf("%s: name: %s, txhash: %s, nOut: %d, claimId: %s, nAmount: %d, nHeight: %d, nValidAtHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, claimId.GetHex(), nAmount, nHeight, nValidAtHeight, nNextHeight);
     CClaimValue claim(outPoint, claimId, nAmount, nHeight, nValidAtHeight);
-    if (nValidAtHeight < nNextHeight) {
-        CNameOutPointType entry(adjustNameForValidHeight(name, nValidAtHeight), claim.outPoint);
-        addToExpirationQueue(claim.nHeight + expirationTime(), entry);
-        CClaimIndexElement element = {name, claim};
-        claimsToAdd.push_back(element);
-        return insertClaimIntoTrie(name, claim, false);
-    }
-    addClaimToQueues(name, claim);
-    CClaimIndexElement element = {name, claim};
-    claimsToAdd.push_back(element);
-    return true;
+    claimsToAdd.emplace_back(name, claim);
+    return undoSpend(name, claim, nValidAtHeight);
 }
 
-bool CClaimTrieCacheBase::addClaimToQueues(const std::string& name, const CClaimValue& claim)
+bool CClaimTrieCacheBase::undoSpendSupport(const std::string& name, const COutPoint& outPoint, const uint160& supportedClaimId, CAmount nAmount, int nHeight, int nValidAtHeight)
 {
-    claimQueueEntryType entry(name, claim);
-    auto itQueueRow = getQueueCacheRow(claim.nValidAtHeight, true);
-    auto itQueueNameRow = getQueueCacheNameRow(name, true);
-    itQueueRow->second.push_back(entry);
-    itQueueNameRow->second.emplace_back(claim.outPoint, claim.nValidAtHeight);
-    CNameOutPointType expireEntry(name, claim.outPoint);
-    addToExpirationQueue(claim.nHeight + expirationTime(), expireEntry);
-    return true;
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedClaimId: %s, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nAmount, supportedClaimId.GetHex(), nHeight, nNextHeight);
+    CSupportValue support(outPoint, supportedClaimId, nAmount, nHeight, nValidAtHeight);
+    return undoSpend(name, support, nValidAtHeight);
+}
+
+template <typename T>
+bool CClaimTrieCacheBase::removeFromQueue(const std::string& name, const COutPoint& outPoint, T& value)
+{
+    supportedType<T>();
+    if (auto itQueueNameRow = getQueueCacheNameRow<T>(name)) {
+        auto itQueueName = findOutPoint(itQueueNameRow->second, outPoint);
+        if (itQueueName != itQueueNameRow->second.end()) {
+            if (auto itQueueRow = getQueueCacheRow<T>(itQueueName->nHeight)) {
+                auto itQueue = findOutPoint(itQueueRow->second, name, outPoint);
+                if (itQueue != itQueueRow->second.end()) {
+                    std::swap(value, itQueue->second);
+                    itQueueNameRow->second.erase(itQueueName);
+                    itQueueRow->second.erase(itQueue);
+                    return true;
+                }
+            }
+            LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, itQueueName->nHeight, nNextHeight);
+        }
+    }
+    return false;
 }
 
 bool CClaimTrieCacheBase::removeClaimFromQueue(const std::string& name, const COutPoint& outPoint, CClaimValue& claim)
 {
-    auto itQueueNameRow = getQueueCacheNameRow(name);
-    if (!itQueueNameRow) {
-        return false;
-    }
+    return removeFromQueue(name, outPoint, claim);
+}
 
-    auto itQueueName = itQueueNameRow->second.cbegin();
-    for (; itQueueName != itQueueNameRow->second.cend(); ++itQueueName) {
-        if (itQueueName->outPoint == outPoint) {
-            if (auto itQueueRow = getQueueCacheRow(itQueueName->nHeight)) {
-                auto itQueue = itQueueRow->second.begin();
-                for (; itQueue != itQueueRow->second.end(); ++itQueue) {
-                    if (outPoint == itQueue->second.outPoint && name == itQueue->first) {
-                        std::swap(claim, itQueue->second);
-                        itQueueNameRow->second.erase(itQueueName);
-                        itQueueRow->second.erase(itQueue);
-                        return true;
-                    }
-                }
-            }
-            break;
-        }
-    }
-    if (itQueueName != itQueueNameRow->second.cend())
-        LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, itQueueName->nHeight, nNextHeight);
-    return false;
+bool CClaimTrieCacheBase::removeSupportFromQueue(const std::string& name, const COutPoint& outPoint, CSupportValue& support)
+{
+    return removeFromQueue(name, outPoint, support);
 }
 
 bool CClaimTrieCacheBase::undoAddClaim(const std::string& name, const COutPoint& outPoint, int nHeight)
@@ -776,56 +886,85 @@ bool CClaimTrieCacheBase::undoAddClaim(const std::string& name, const COutPoint&
     return removeClaim(name, outPoint, nHeight, throwaway, false);
 }
 
+bool CClaimTrieCacheBase::undoAddSupport(const std::string& name, const COutPoint& outPoint, int nHeight)
+{
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nHeight, nNextHeight);
+    int throwaway;
+    return removeSupport(name, outPoint, nHeight, throwaway, false);
+}
+
 bool CClaimTrieCacheBase::spendClaim(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight)
 {
     return removeClaim(name, outPoint, nHeight, nValidAtHeight, true);
 }
 
-bool CClaimTrieCacheBase::removeClaim(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight, bool fCheckTakeover)
+bool CClaimTrieCacheBase::spendSupport(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight)
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %u, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nNextHeight);
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nHeight, nNextHeight);
+    return removeSupport(name, outPoint, nHeight, nValidAtHeight, true);
+}
 
-    CClaimValue claim;
+template <>
+bool CClaimTrieCacheBase::removeFromCache(const std::string& name, const COutPoint& outPoint, CClaimValue& value, bool fCheckTakeover)
+{
+    return removeClaimFromTrie(name, outPoint, value, fCheckTakeover);
+}
+
+template <>
+bool CClaimTrieCacheBase::removeFromCache(const std::string& name, const COutPoint& outPoint, CSupportValue& value, bool fCheckTakeover)
+{
+    return removeSupportFromMap(name, outPoint, value, fCheckTakeover);
+}
+
+template <typename T>
+bool CClaimTrieCacheBase::removeFromCache(const std::string& name, const COutPoint& outPoint, T& value, bool fCheckTakeover)
+{
+    supportedType<T>();
+    return false;
+}
+
+template <typename T>
+bool CClaimTrieCacheBase::remove(T& value, const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight, bool fCheckTakeover)
+{
+    supportedType<T>();
     nValidAtHeight = nHeight + getDelayForName(name);
     std::string adjusted = adjustNameForValidHeight(name, nValidAtHeight);
 
-    if (removeClaimFromQueue(adjusted, outPoint, claim) || removeClaimFromTrie(name, outPoint, claim, fCheckTakeover)) {
-        int expirationHeight = claim.nHeight + expirationTime();
-        removeFromExpirationQueue(adjusted, outPoint, expirationHeight);
-        claimsToDelete.insert(claim);
-        nValidAtHeight = claim.nValidAtHeight;
+    if (removeFromQueue(adjusted, outPoint, value) || removeFromCache(name, outPoint, value, fCheckTakeover)) {
+        int expirationHeight = value.nHeight + expirationTime();
+        if (auto itQueueRow = getExpirationQueueCacheRow<T>(expirationHeight))
+            eraseOutPoint(itQueueRow->second, adjusted, outPoint);
+        nValidAtHeight = value.nValidAtHeight;
         return true;
     }
     return false;
 }
 
-void CClaimTrieCacheBase::addToExpirationQueue(int nExpirationHeight, CNameOutPointType& entry)
+bool CClaimTrieCacheBase::removeClaim(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight, bool fCheckTakeover)
 {
-    auto itQueueRow = getExpirationQueueCacheRow(nExpirationHeight, true);
-    itQueueRow->second.push_back(entry);
+    LogPrintf("%s: name: %s, txhash: %s, nOut: %s, nNextHeight: %s\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nNextHeight);
+
+    CClaimValue claim;
+    if (remove(claim, name, outPoint, nHeight, nValidAtHeight, fCheckTakeover)) {
+        claimsToDelete.insert(claim);
+        return true;
+    }
+    return false;
 }
 
-void CClaimTrieCacheBase::removeFromExpirationQueue(const std::string& name, const COutPoint& outPoint, int expirationHeight)
+bool CClaimTrieCacheBase::removeSupport(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight, bool fCheckTakeover)
 {
-    if (auto itQueueRow = getExpirationQueueCacheRow(expirationHeight)) {
-        auto itQueue = itQueueRow->second.cbegin();
-        for (; itQueue != itQueueRow->second.cend(); ++itQueue) {
-            if (name == itQueue->name && outPoint == itQueue->outPoint) {
-                itQueueRow->second.erase(itQueue);
-                break;
-            }
-        }
-    }
+    CSupportValue support;
+    return remove(support, name, outPoint, nHeight, nValidAtHeight, fCheckTakeover);
 }
 
 bool CClaimTrieCacheBase::insertSupportIntoMap(const std::string& name, const CSupportValue& support, bool fCheckTakeover)
 {
     auto sit = cacheSupports.find(name);
-    if (sit == cacheSupports.end()) {
+    if (sit == cacheSupports.end())
         sit = cacheSupports.emplace(name, getSupportsForName(name)).first;
-    }
-    sit->second.push_back(support);
 
+    sit->second.push_back(support);
     addTakeoverWorkaroundPotential(name);
 
     if (auto it = cacheData(name, false)) {
@@ -839,132 +978,24 @@ bool CClaimTrieCacheBase::insertSupportIntoMap(const std::string& name, const CS
 bool CClaimTrieCacheBase::removeSupportFromMap(const std::string& name, const COutPoint& outPoint, CSupportValue& support, bool fCheckTakeover)
 {
     auto sit = cacheSupports.find(name);
-    if (sit == cacheSupports.end()) {
+    if (sit == cacheSupports.end())
         sit = cacheSupports.emplace(name, getSupportsForName(name)).first;
-    }
 
-    for (auto it = sit->second.begin(); it != sit->second.end(); ++it) {
-        if (it->outPoint == outPoint) {
-            support = *it;
-            sit->second.erase(it);
+    if (eraseOutPoint(sit->second, outPoint, &support)) {
+        addTakeoverWorkaroundPotential(name);
 
-            addTakeoverWorkaroundPotential(name);
-
-            if (auto dit = cacheData(name, false)) {
-                markAsDirty(name, fCheckTakeover);
-                dit->reorderClaims(sit->second);
-            }
-            return true;
+        if (auto dit = cacheData(name, false)) {
+            markAsDirty(name, fCheckTakeover);
+            dit->reorderClaims(sit->second);
         }
-    }
-
-    LogPrintf("CClaimTrieCacheBase::%s() : asked to remove a support that doesn't exist for %s#%s\n",
-            __func__, name, outPoint.ToString());
-    return false;
-}
-
-bool CClaimTrieCacheBase::addSupportToQueues(const std::string& name, const CSupportValue& support)
-{
-    LogPrintf("%s: nValidAtHeight: %d\n", __func__, support.nValidAtHeight);
-    supportQueueEntryType entry(name, support);
-    auto itQueueRow = getSupportQueueCacheRow(support.nValidAtHeight, true);
-    auto itQueueNameRow = getSupportQueueCacheNameRow(name, true);
-    itQueueRow->second.push_back(entry);
-    itQueueNameRow->second.emplace_back(support.outPoint, support.nValidAtHeight);
-    CNameOutPointType expireEntry(name, support.outPoint);
-    addSupportToExpirationQueue(support.nHeight + expirationTime(), expireEntry);
-    return true;
-}
-
-bool CClaimTrieCacheBase::removeSupportFromQueue(const std::string& name, const COutPoint& outPoint, CSupportValue& support)
-{
-    auto itQueueNameRow = getSupportQueueCacheNameRow(name);
-    if (!itQueueNameRow) {
-        return false;
-    }
-
-    auto itQueueName = itQueueNameRow->second.cbegin();
-    for (; itQueueName != itQueueNameRow->second.cend(); ++itQueueName) {
-        if (itQueueName->outPoint == outPoint) {
-            if (auto itQueueRow = getSupportQueueCacheRow(itQueueName->nHeight)) {
-                auto itQueue = itQueueRow->second.begin();
-                for (; itQueue != itQueueRow->second.end(); ++itQueue) {
-                    if (outPoint == itQueue->second.outPoint && name == itQueue->first) {
-                        std::swap(support, itQueue->second);
-                        itQueueNameRow->second.erase(itQueueName);
-                        itQueueRow->second.erase(itQueue);
-                        return true;
-                    }
-                }
-            }
-            break;
-        }
-    }
-
-    if (itQueueName != itQueueNameRow->second.cend())
-        LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named support queue but not in height support queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, itQueueName->nHeight, nNextHeight);
-    return false;
-}
-
-bool CClaimTrieCacheBase::addSupport(const std::string& name, const COutPoint& outPoint, CAmount nAmount, const uint160& supportedClaimId, int nHeight)
-{
-    assert(nHeight == nNextHeight);
-    int delayForSupport = getDelayForName(name, supportedClaimId);
-    CSupportValue support(outPoint, supportedClaimId, nAmount, nHeight, nHeight + delayForSupport);
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedClaimId: %s, nHeight: %d, nValidHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nAmount, supportedClaimId.GetHex(), nHeight, support.nValidAtHeight);
-    return addSupportToQueues(name, support);
-}
-
-bool CClaimTrieCacheBase::undoSpendSupport(const std::string& name, const COutPoint& outPoint, const uint160& supportedClaimId, CAmount nAmount, int nHeight, int nValidAtHeight)
-{
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedClaimId: %s, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nAmount, supportedClaimId.GetHex(), nHeight, nNextHeight);
-    CSupportValue support(outPoint, supportedClaimId, nAmount, nHeight, nValidAtHeight);
-    if (nValidAtHeight < nNextHeight) {
-        CNameOutPointType entry(adjustNameForValidHeight(name, nValidAtHeight), support.outPoint);
-        addSupportToExpirationQueue(support.nHeight + expirationTime(), entry);
-        return insertSupportIntoMap(name, support, false);
-    } else {
-        return addSupportToQueues(name, support);
-    }
-}
-
-bool CClaimTrieCacheBase::removeSupport(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight, bool fCheckTakeover)
-{
-    CSupportValue support;
-    nValidAtHeight = nHeight + getDelayForName(name);
-    std::string adjusted = adjustNameForValidHeight(name, nValidAtHeight);
-
-    if (removeSupportFromQueue(adjusted, outPoint, support) || removeSupportFromMap(name, outPoint, support, fCheckTakeover)) {
-        int expirationHeight = support.nHeight + expirationTime();
-        removeSupportFromExpirationQueue(adjusted, outPoint, expirationHeight);
-        nValidAtHeight = support.nValidAtHeight;
         return true;
     }
+    LogPrintf("CClaimTrieCacheBase::%s() : asked to remove a support that doesn't exist\n", __func__);
     return false;
 }
 
-void CClaimTrieCacheBase::addSupportToExpirationQueue(int nExpirationHeight, CNameOutPointType& entry)
+void CClaimTrieCacheBase::dumpToLog(CClaimTrie::const_iterator it, bool diffFromBase) const
 {
-    auto itQueueRow = getSupportExpirationQueueCacheRow(nExpirationHeight, true);
-    itQueueRow->second.push_back(entry);
-}
-
-void CClaimTrieCacheBase::removeSupportFromExpirationQueue(const std::string& name, const COutPoint& outPoint, int expirationHeight)
-{
-    if (auto itQueueRow = getSupportExpirationQueueCacheRow(expirationHeight)) {
-        auto itQueue = itQueueRow->second.cbegin();
-        for (; itQueue != itQueueRow->second.end(); ++itQueue) {
-            if (name == itQueue->name && outPoint == itQueue->outPoint) {
-                itQueueRow->second.erase(itQueue);
-                break;
-            }
-        }
-        if (itQueue != itQueueRow->second.end())
-            itQueueRow->second.erase(itQueue);
-    }
-}
-
-void CClaimTrieCacheBase::dumpToLog(CClaimTrie::const_iterator it, bool diffFromBase) const {
     if (diffFromBase) {
         auto hit = base->find(it.key());
         if (hit && hit->hash == it->hash)
@@ -975,7 +1006,7 @@ void CClaimTrieCacheBase::dumpToLog(CClaimTrie::const_iterator it, bool diffFrom
     auto children = it.children();
     auto empty = children.size() == 0 && it->claims.size() == 0;
     LogPrintf("%s%s, %s, %zu = %s,%s take: %d, kids: %zu\n", indent, it.key(), HexStr(it.key().begin(), it.key().end()),
-            empty ? " empty," : "", it.depth(), it->hash.ToString(), it->nHeightOfLastTakeover, children.size());
+              empty ? " empty," : "", it.depth(), it->hash.ToString(), it->nHeightOfLastTakeover, children.size());
     for (auto& claim: it->claims)
         LogPrintf("%s   claim: %s, %ld, %ld, %d, %d\n", indent, claim.claimId.ToString(), claim.nAmount, claim.nEffectiveAmount, claim.nHeight, claim.nValidAtHeight);
     auto supports = getSupportsForName(it.key());
@@ -986,25 +1017,14 @@ void CClaimTrieCacheBase::dumpToLog(CClaimTrie::const_iterator it, bool diffFrom
         dumpToLog(child, diffFromBase);
 }
 
-bool CClaimTrieCacheBase::undoAddSupport(const std::string& name, const COutPoint& outPoint, int nHeight)
+bool CClaimTrieCacheBase::shouldUseTakeoverWorkaround(const std::string& key) const
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nHeight, nNextHeight);
-    int throwaway;
-    return removeSupport(name, outPoint, nHeight, throwaway, false);
-}
-
-bool CClaimTrieCacheBase::spendSupport(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight)
-{
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nHeight, nNextHeight);
-    return removeSupport(name, outPoint, nHeight, nValidAtHeight, true);
-}
-
-bool CClaimTrieCacheBase::shouldUseTakeoverWorkaround(const std::string& key) const {
     auto it = takeoverWorkaround.find(key);
     return it != takeoverWorkaround.end() && it->second;
 }
 
-void CClaimTrieCacheBase::addTakeoverWorkaroundPotential(const std::string& key) {
+void CClaimTrieCacheBase::addTakeoverWorkaroundPotential(const std::string& key)
+{
     // the old code would add to the cache using a shortcut in the add/removeSupport methods
     // this logic mimics the effects of that.
     // (and the shortcut would later lead to a miscalculation of the takeover height)
@@ -1013,7 +1033,9 @@ void CClaimTrieCacheBase::addTakeoverWorkaroundPotential(const std::string& key)
         && !cache.contains(key) && base->contains(key))
         takeoverWorkaround.emplace(key, false);
 }
-void CClaimTrieCacheBase::confirmTakeoverWorkaroundNeeded(const std::string& key) {
+
+void CClaimTrieCacheBase::confirmTakeoverWorkaroundNeeded(const std::string& key)
+{
     // This is a super ugly hack to work around bug in old code.
     // The bug: un/support a name then update it. This will cause its takeover height to be reset to current.
     // This is because the old code with add to the cache without setting block originals when dealing in supports.
@@ -1026,85 +1048,96 @@ void CClaimTrieCacheBase::confirmTakeoverWorkaroundNeeded(const std::string& key
     }
 }
 
-
-bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo, std::vector<std::pair<std::string, int>>& takeoverHeightUndo)
+template <typename T>
+inline void addTo(std::set<T>* set, const T& value)
 {
-    if (auto itQueueRow = getQueueCacheRow(nNextHeight)) {
+    set->insert(value);
+}
+
+template <>
+inline void addTo(std::set<CSupportValue>*, const CSupportValue&)
+{
+}
+
+template <typename T>
+void CClaimTrieCacheBase::undoIncrement(insertUndoType& insertUndo, std::vector<queueEntryType<T>>& expireUndo, std::set<T>* deleted)
+{
+    supportedType<T>();
+    if (auto itQueueRow = getQueueCacheRow<T>(nNextHeight)) {
         for (const auto& itEntry : itQueueRow->second) {
-            bool found = false;
-            if (auto itQueueNameRow = getQueueCacheNameRow(itEntry.first)) {
-                auto itQueueName = itQueueNameRow->second.cbegin();
-                for (; itQueueName != itQueueNameRow->second.cend(); ++itQueueName) {
-                    if (itQueueName->outPoint == itEntry.second.outPoint && itQueueName->nHeight == nNextHeight) {
-                        itQueueNameRow->second.erase(itQueueName);
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in height queue but not in named queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, itEntry.first, itEntry.second.outPoint.hash.GetHex(), itEntry.second.outPoint.n, itEntry.second.nValidAtHeight, nNextHeight);
-                    LogPrintf("Claims found for that name:\n");
+            if (auto itQueueNameRow = getQueueCacheNameRow<T>(itEntry.first)) {
+                auto& points = itQueueNameRow->second;
+                auto itQueueName = std::find_if(points.begin(), points.end(), [&itEntry, this](const COutPointHeightType& point) {
+                     return point.outPoint == itEntry.second.outPoint && point.nHeight == nNextHeight;
+                });
+                if (itQueueName != points.end()) {
+                    points.erase(itQueueName);
+                } else {
+                    LogPrintf("%s: An inconsistency was found in the queue. Please report this to the developers:\nFound in height queue but not in named queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, itEntry.first, itEntry.second.outPoint.hash.GetHex(), itEntry.second.outPoint.n, itEntry.second.nValidAtHeight, nNextHeight);
+                    LogPrintf("Elements found for that name:\n");
                     for (const auto& itQueueName : itQueueNameRow->second)
                         LogPrintf("\ttxid: %s, nOut: %d, nValidAtHeight: %d\n", itQueueName.outPoint.hash.GetHex(), itQueueName.outPoint.n, itQueueName.nHeight);
+                    assert(false);
                 }
             } else {
-                LogPrintf("No claims found for that name\n");
+                LogPrintf("Nothing found for %s\n", itEntry.first);
+                assert(false);
             }
-            assert(found);
-            insertClaimIntoTrie(itEntry.first, itEntry.second, true);
+            addToCache(itEntry.first, itEntry.second, true);
             insertUndo.emplace_back(itEntry.first, itEntry.second.outPoint, itEntry.second.nValidAtHeight);
         }
         itQueueRow->second.clear();
     }
 
-    if (auto itExpirationRow = getExpirationQueueCacheRow(nNextHeight)) {
+    if (auto itExpirationRow = getExpirationQueueCacheRow<T>(nNextHeight)) {
         for (const auto& itEntry : itExpirationRow->second) {
-            CClaimValue claim;
-            assert(removeClaimFromTrie(itEntry.name, itEntry.outPoint, claim, true));
-            claimsToDelete.insert(claim);
-            expireUndo.emplace_back(itEntry.name, claim);
-            LogPrintf("Expiring claim %s: %s, nHeight: %d, nValidAtHeight: %d\n", claim.claimId.GetHex(), itEntry.name, claim.nHeight, claim.nValidAtHeight);
+            T value;
+            assert(removeFromCache(itEntry.name, itEntry.outPoint, value, true));
+            expireUndo.emplace_back(itEntry.name, value);
+            addTo(deleted, value);
         }
         itExpirationRow->second.clear();
     }
+}
 
-    if (auto itSupportRow = getSupportQueueCacheRow(nNextHeight)) {
-        for (const auto& itSupport : itSupportRow->second) {
+template <typename T>
+void CClaimTrieCacheBase::undoIncrement(const std::string& name, insertUndoType& insertUndo, std::vector<queueEntryType<T>>& expireUndo)
+{
+    supportedType<T>();
+    if (auto itQueueNameRow = getQueueCacheNameRow<T>(name)) {
+        for (const auto& itQueueName : itQueueNameRow->second) {
             bool found = false;
-            if (auto itSupportNameRow = getSupportQueueCacheNameRow(itSupport.first)) {
-                auto itSupportName = itSupportNameRow->second.cbegin();
-                for (; itSupportName != itSupportNameRow->second.cend(); ++itSupportName) {
-                    if (itSupportName->outPoint == itSupport.second.outPoint && itSupportName->nHeight == itSupport.second.nValidAtHeight) {
-                        itSupportNameRow->second.erase(itSupportName);
-                        found = true;
-                        break;
-                    }
+            // Pull those claims out of the height-based queue
+            if (auto itQueueRow = getQueueCacheRow<T>(itQueueName.nHeight)) {
+                auto& points = itQueueRow->second;
+                auto itQueue = std::find_if(points.begin(), points.end(), [&name, &itQueueName](const queueEntryType<T>& point) {
+                    return name == point.first && point.second.outPoint == itQueueName.outPoint && point.second.nValidAtHeight == itQueueName.nHeight;
+                });
+                if (itQueue != points.end()) {
+                    // Insert them into the queue undo with their previous nValidAtHeight
+                    insertUndo.emplace_back(itQueue->first, itQueue->second.outPoint, itQueue->second.nValidAtHeight);
+                    // Insert them into the name trie with the new nValidAtHeight
+                    itQueue->second.nValidAtHeight = nNextHeight;
+                    addToCache(itQueue->first, itQueue->second, false);
+                    // Delete them from the height-based queue
+                    points.erase(itQueue);
+                    found = true;
                 }
-                if (!found) {
-                    LogPrintf("%s: An inconsistency was found in the support queue. Please report this to the developers:\nFound in height queue but not in named queue: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, itSupport.first, itSupport.second.outPoint.hash.GetHex(), itSupport.second.outPoint.n, itSupport.second.nValidAtHeight, nNextHeight);
-                    LogPrintf("Supports found for that name:\n");
-                    for (const auto& itSupportName : itSupportNameRow->second)
-                        LogPrintf("\ttxid: %s, nOut: %d, nValidAtHeight: %d\n", itSupportName.outPoint.hash.GetHex(), itSupportName.outPoint.n, itSupportName.nHeight);
-                }
-            } else {
-                LogPrintf("No support found for that name\n");
             }
+            if (!found)
+                LogPrintf("%s(): An inconsistency was found in the queue. Please report this to the developers:\nFound in name queue but not in height based queue:\nname: %s, txid: %s, nOut: %d, nValidAtHeight in name based queue: %d, current height: %d\n", __func__, name, itQueueName.outPoint.hash.GetHex(), itQueueName.outPoint.n, itQueueName.nHeight, nNextHeight);
             assert(found);
-            insertSupportIntoMap(itSupport.first, itSupport.second, true);
-            insertSupportUndo.emplace_back(itSupport.first, itSupport.second.outPoint, itSupport.second.nValidAtHeight);
         }
-        itSupportRow->second.clear();
+        // remove all claims from the queue for that name
+        itQueueNameRow->second.clear();
     }
+}
 
-    if (auto itSupportExpirationRow = getSupportExpirationQueueCacheRow(nNextHeight)) {
-        for (const auto& itEntry : itSupportExpirationRow->second) {
-            CSupportValue support;
-            assert(removeSupportFromMap(itEntry.name, itEntry.outPoint, support, true));
-            expireSupportUndo.emplace_back(itEntry.name, support);
-            LogPrintf("Expiring support %s: %s, nHeight: %d, nValidAtHeight: %d\n", support.supportedClaimId.GetHex(), itEntry.name, support.nHeight, support.nValidAtHeight);
-        }
-        itSupportExpirationRow->second.clear();
-    }
+bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo, std::vector<std::pair<std::string, int>>& takeoverHeightUndo)
+{
+    undoIncrement(insertUndo, expireUndo, &claimsToDelete);
+    undoIncrement(insertSupportUndo, expireSupportUndo);
+
     // check each potentially taken over name to see if a takeover occurred.
     // if it did, then check the claim and support insertion queues for
     // the names that have been taken over, immediately insert all claim and
@@ -1125,70 +1158,17 @@ bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimQueueR
         // if both exist, and the current best claim is not the same as or the parent to the new best
         // claim, then ownership has changed and the current height of last takeover should go into
         // the queue
-        CClaimValue claimInCache;
-        bool haveClaimInCache = itCachedNode && itCachedNode->getBestClaim(claimInCache);
         uint160 ownersClaimId;
+        CClaimValue claimInCache;
         int ownersTakeoverHeight = 0;
         bool haveClaimInTrie = getLastTakeoverForName(itNamesToCheck, ownersClaimId, ownersTakeoverHeight);
+        bool haveClaimInCache = itCachedNode && itCachedNode->getBestClaim(claimInCache);
         bool takeoverHappened = !haveClaimInCache || !haveClaimInTrie || claimInCache.claimId != ownersClaimId;
 
         if (takeoverHappened) {
             // Get all pending claims for that name and activate them all in the case that our winner is defunct.
-            if (auto itQueueNameRow = getQueueCacheNameRow(itNamesToCheck)) {
-                for (const auto& itQueueName : itQueueNameRow->second) {
-                    bool found = false;
-                    // Pull those claims out of the height-based queue
-                    if (auto itQueueRow = getQueueCacheRow(itQueueName.nHeight)) {
-                        auto itQueue = itQueueRow->second.begin();
-                        for (; itQueue != itQueueRow->second.end(); ++itQueue) {
-                            if (itNamesToCheck == itQueue->first && itQueue->second.outPoint == itQueueName.outPoint && itQueue->second.nValidAtHeight == itQueueName.nHeight) {
-                                // Insert them into the queue undo with their previous nValidAtHeight
-                                insertUndo.emplace_back(itQueue->first, itQueue->second.outPoint, itQueue->second.nValidAtHeight);
-                                // Insert them into the name trie with the new nValidAtHeight
-                                itQueue->second.nValidAtHeight = nNextHeight;
-                                insertClaimIntoTrie(itQueue->first, itQueue->second, false);
-                                // Delete them from the height-based queue
-                                itQueueRow->second.erase(itQueue);
-                                found = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (!found)
-                        LogPrintf("%s(): An inconsistency was found in the claim queue. Please report this to the developers:\nClaim found in name queue but not in height based queue:\nname: %s, txid: %s, nOut: %d, nValidAtHeight in name based queue: %d, current height: %d\n", __func__, itNamesToCheck, itQueueName.outPoint.hash.GetHex(), itQueueName.outPoint.n, itQueueName.nHeight, nNextHeight);
-                    assert(found);
-                }
-                // remove all claims from the queue for that name
-                itQueueNameRow->second.clear();
-            }
-
-            // Then, get all supports in the queue for that name
-            if (auto itSupportQueueNameRow = getSupportQueueCacheNameRow(itNamesToCheck)) {
-                for (const auto& itSupportQueueName : itSupportQueueNameRow->second) {
-                    // Pull those supports out of the height-based queue
-                    if (auto itSupportQueueRow = getSupportQueueCacheRow(itSupportQueueName.nHeight)) {
-                        auto itSupportQueue = itSupportQueueRow->second.begin();
-                        for (; itSupportQueue != itSupportQueueRow->second.end(); ++itSupportQueue) {
-                            if (itNamesToCheck == itSupportQueue->first && itSupportQueue->second.outPoint == itSupportQueueName.outPoint && itSupportQueue->second.nValidAtHeight == itSupportQueueName.nHeight) {
-                                // Insert them into the support queue undo with the previous nValidAtHeight
-                                insertSupportUndo.emplace_back(itSupportQueue->first, itSupportQueue->second.outPoint, itSupportQueue->second.nValidAtHeight);
-                                // Insert them into the support map with the new nValidAtHeight
-                                itSupportQueue->second.nValidAtHeight = nNextHeight;
-                                insertSupportIntoMap(itSupportQueue->first, itSupportQueue->second, false);
-                                // Delete them from the height-based queue
-                                itSupportQueueRow->second.erase(itSupportQueue);
-                                break;
-                            } else {
-                                // here be problems TODO: show error, assert false
-                            }
-                        }
-                    } else {
-                        // here be problems
-                    }
-                }
-                // remove all supports from the queue for that name
-                itSupportQueueNameRow->second.clear();
-            }
+            undoIncrement(itNamesToCheck, insertUndo, expireUndo);
+            undoIncrement(itNamesToCheck, insertSupportUndo, expireSupportUndo);
         }
 
         // not sure if this should happen above or below the above code:
@@ -1229,66 +1209,60 @@ bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimQueueR
     return true;
 }
 
-bool CClaimTrieCacheBase::decrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo)
+template <typename T>
+inline void addToIndex(std::vector<CClaimIndexElement>*, const std::string&, const T&)
 {
-    nNextHeight--;
+}
 
-    if (!expireSupportUndo.empty()) {
-        for (auto itSupportExpireUndo = expireSupportUndo.crbegin(); itSupportExpireUndo != expireSupportUndo.crend(); ++itSupportExpireUndo) {
-            insertSupportIntoMap(itSupportExpireUndo->first, itSupportExpireUndo->second, false);
-            if (nNextHeight == itSupportExpireUndo->second.nHeight + expirationTime()) {
-                auto itSupportExpireRow = getSupportExpirationQueueCacheRow(nNextHeight, true);
-                itSupportExpireRow->second.emplace_back(itSupportExpireUndo->first, itSupportExpireUndo->second.outPoint);
-            }
-        }
-    }
+template <>
+inline void addToIndex(std::vector<CClaimIndexElement>* index, const std::string& name, const CClaimValue& value)
+{
+    index->emplace_back(name, value);
+}
 
-    for (auto itSupportUndo = insertSupportUndo.crbegin(); itSupportUndo != insertSupportUndo.crend(); ++itSupportUndo) {
-        CSupportValue support;
-        assert(removeSupportFromMap(itSupportUndo->name, itSupportUndo->outPoint, support, false));
-        if (itSupportUndo->nHeight >= 0) {
-            // support.nValidHeight may have been changed if this was inserted before activation height
-            // due to a triggered takeover, change it back to original nValidAtHeight
-            support.nValidAtHeight = itSupportUndo->nHeight;
-            auto itSupportRow = getSupportQueueCacheRow(itSupportUndo->nHeight, true);
-            auto itSupportNameRow = getSupportQueueCacheNameRow(itSupportUndo->name, true);
-            itSupportRow->second.emplace_back(itSupportUndo->name, support);
-            itSupportNameRow->second.emplace_back(support.outPoint, support.nValidAtHeight);
-        }
-    }
-
+template <typename T>
+void CClaimTrieCacheBase::undoDecrement(insertUndoType& insertUndo, std::vector<queueEntryType<T>>& expireUndo, std::vector<CClaimIndexElement>* index, std::set<T>* deleted)
+{
+    supportedType<T>();
     if (!expireUndo.empty()) {
+        auto itExpireRow = getExpirationQueueCacheRow<T>(nNextHeight, true);
         for (auto itExpireUndo = expireUndo.crbegin(); itExpireUndo != expireUndo.crend(); ++itExpireUndo) {
-            insertClaimIntoTrie(itExpireUndo->first, itExpireUndo->second, false);
-            CClaimIndexElement element = {itExpireUndo->first, itExpireUndo->second};
-            claimsToAdd.push_back(element);
-            if (nNextHeight == itExpireUndo->second.nHeight + expirationTime()) {
-                auto itExpireRow = getExpirationQueueCacheRow(nNextHeight, true);
+            addToCache(itExpireUndo->first, itExpireUndo->second, false);
+            addToIndex(index, itExpireUndo->first, itExpireUndo->second);
+            if (nNextHeight == itExpireUndo->second.nHeight + expirationTime())
                 itExpireRow->second.emplace_back(itExpireUndo->first, itExpireUndo->second.outPoint);
-            }
         }
     }
 
     for (auto itInsertUndo = insertUndo.crbegin(); itInsertUndo != insertUndo.crend(); ++itInsertUndo) {
-        CClaimValue claim;
-        assert(removeClaimFromTrie(itInsertUndo->name, itInsertUndo->outPoint, claim, false));
+        T value;
+        assert(removeFromCache(itInsertUndo->name, itInsertUndo->outPoint, value, false));
         if (itInsertUndo->nHeight >= 0) { // aka it became valid at height rather than being rename/normalization
-            // claim.nValidHeight may have been changed if this was inserted before activation height
+            // value.nValidHeight may have been changed if this was inserted before activation height
             // due to a triggered takeover, change it back to original nValidAtHeight
-            claim.nValidAtHeight = itInsertUndo->nHeight;
-            auto itQueueRow = getQueueCacheRow(itInsertUndo->nHeight, true);
-            auto itQueueNameRow = getQueueCacheNameRow(itInsertUndo->name, true);
-            itQueueRow->second.emplace_back(itInsertUndo->name, claim);
-            itQueueNameRow->second.emplace_back(itInsertUndo->outPoint, claim.nValidAtHeight);
+            value.nValidAtHeight = itInsertUndo->nHeight;
+            auto itQueueRow = getQueueCacheRow<T>(itInsertUndo->nHeight, true);
+            auto itQueueNameRow = getQueueCacheNameRow<T>(itInsertUndo->name, true);
+            itQueueRow->second.emplace_back(itInsertUndo->name, value);
+            itQueueNameRow->second.emplace_back(itInsertUndo->outPoint, value.nValidAtHeight);
         } else {
-            claimsToDelete.insert(claim);
+            addTo(deleted, value);
         }
     }
+}
+
+bool CClaimTrieCacheBase::decrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo)
+{
+    nNextHeight--;
+
+    undoDecrement(insertSupportUndo, expireSupportUndo);
+    undoDecrement(insertUndo, expireUndo, &claimsToAdd, &claimsToDelete);
 
     return true;
 }
 
-bool CClaimTrieCacheBase::finalizeDecrement(std::vector<std::pair<std::string, int>>& takeoverHeightUndo) {
+bool CClaimTrieCacheBase::finalizeDecrement(std::vector<std::pair<std::string, int>>& takeoverHeightUndo)
+{
     for (auto itTakeoverHeightUndo = takeoverHeightUndo.crbegin(); itTakeoverHeightUndo != takeoverHeightUndo.crend(); ++itTakeoverHeightUndo) {
         auto it = cacheData(itTakeoverHeightUndo->first, false);
         if (it && itTakeoverHeightUndo->second) {
@@ -1304,19 +1278,38 @@ bool CClaimTrieCacheBase::finalizeDecrement(std::vector<std::pair<std::string, i
     return true;
 }
 
-int CClaimTrieCacheBase::getNumBlocksOfContinuousOwnership(const std::string& name)
+template <typename T>
+void CClaimTrieCacheBase::reactivate(const expirationQueueRowType& row, int height, bool increment)
 {
-    const auto hit = removalWorkaround.find(name);
+    supportedType<T>();
+    for (auto e = row.begin(); e != row.end(); ++e) {
+        // remove and insert with new expiration time
+        if (auto itQueueRow = getExpirationQueueCacheRow<T>(height))
+            eraseOutPoint(itQueueRow->second, e->name, e->outPoint);
+
+        int extend_expiration = Params().GetConsensus().nExtendedClaimExpirationTime - Params().GetConsensus().nOriginalClaimExpirationTime;
+        int new_expiration_height = increment ? height + extend_expiration : height - extend_expiration;
+        auto itQueueExpiration = getExpirationQueueCacheRow<T>(new_expiration_height, true);
+        itQueueExpiration->second.emplace_back(e->name, e->outPoint);
+    }
+}
+
+template void CClaimTrieCacheBase::reactivate<CClaimValue>(const expirationQueueRowType& row, int height, bool increment);
+template void CClaimTrieCacheBase::reactivate<CSupportValue>(const expirationQueueRowType& row, int height, bool increment);
+
+int CClaimTrieCacheBase::getNumBlocksOfContinuousOwnership(const std::string& name) const
+{
+    auto hit = removalWorkaround.find(name);
     if (hit != removalWorkaround.end()) {
-        removalWorkaround.erase(hit);
+        auto that = const_cast<CClaimTrieCacheBase*>(this);
+        that->removalWorkaround.erase(hit);
         return 0;
     }
-
     auto it = find(name);
     return it && !it->empty() ? nNextHeight - it->nHeightOfLastTakeover : 0;
 }
 
-int CClaimTrieCacheBase::getDelayForName(const std::string& name)
+int CClaimTrieCacheBase::getDelayForName(const std::string& name) const
 {
     if (!fRequireTakeoverHeights)
         return 0;
@@ -1324,16 +1317,15 @@ int CClaimTrieCacheBase::getDelayForName(const std::string& name)
     return std::min(nBlocksOfContinuousOwnership / base->nProportionalDelayFactor, 4032);
 }
 
-int CClaimTrieCacheBase::getDelayForName(const std::string& name, const uint160& claimId)
+int CClaimTrieCacheBase::getDelayForName(const std::string& name, const uint160& claimId) const
 {
     uint160 winningClaimId;
     int winningTakeoverHeight;
     if (getLastTakeoverForName(name, winningClaimId, winningTakeoverHeight) && winningClaimId == claimId) {
         assert(winningTakeoverHeight <= nNextHeight);
         return 0;
-    } else {
-        return getDelayForName(name);
     }
+    return getDelayForName(name);
 }
 
 std::string CClaimTrieCacheBase::adjustNameForValidHeight(const std::string& name, int validHeight) const
@@ -1376,9 +1368,9 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, CClaimTriePro
         const auto& key = it.key();
         bool fNodeHasValue = it->getBestClaim(claim);
         uint256 valueHash;
-        if (fNodeHasValue) {
+        if (fNodeHasValue)
             valueHash = getValueHash(claim.outPoint, it->nHeightOfLastTakeover);
-        }
+
         const auto pos = key.size();
         std::vector<std::pair<unsigned char, uint256>> children;
         for (const auto& child : it.children()) {
