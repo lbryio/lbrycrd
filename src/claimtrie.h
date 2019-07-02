@@ -268,6 +268,15 @@ struct CNameOutPointType
 
 struct CClaimIndexElement
 {
+    CClaimIndexElement()
+    {
+    }
+
+    CClaimIndexElement(const std::string& name, const CClaimValue& claim)
+        : name(name), claim(claim)
+    {
+    }
+
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
@@ -322,9 +331,8 @@ public:
     friend class CClaimTrieCacheNormalizationFork;
 };
 
-class CClaimTrieProofNode
+struct CClaimTrieProofNode
 {
-public:
     CClaimTrieProofNode(std::vector<std::pair<unsigned char, uint256>> children, bool hasValue, const uint256& valHash)
         : children(std::move(children)), hasValue(hasValue), valHash(valHash)
     {
@@ -340,9 +348,8 @@ public:
     uint256 valHash;
 };
 
-class CClaimTrieProof
+struct CClaimTrieProof
 {
-public:
     CClaimTrieProof()
     {
     }
@@ -363,12 +370,13 @@ public:
     int nHeightOfLastTakeover;
 };
 
-typedef std::pair<std::string, CClaimValue> claimQueueEntryType;
-typedef std::vector<claimQueueEntryType> claimQueueRowType;
+template <typename T>
+using queueEntryType = std::pair<std::string, T>;
+
+typedef std::vector<queueEntryType<CClaimValue>> claimQueueRowType;
 typedef std::map<int, claimQueueRowType> claimQueueType;
 
-typedef std::pair<std::string, CSupportValue> supportQueueEntryType;
-typedef std::vector<supportQueueEntryType> supportQueueRowType;
+typedef std::vector<queueEntryType<CSupportValue>> supportQueueRowType;
 typedef std::map<int, supportQueueRowType> supportQueueType;
 
 typedef std::vector<COutPointHeightType> queueNameRowType;
@@ -389,7 +397,7 @@ public:
     virtual ~CClaimTrieCacheBase() = default;
 
     uint256 getMerkleHash();
-    bool checkConsistency(int minimumHeight = 1) const;
+    bool checkConsistency() const;
 
     bool getClaimById(const uint160& claimId, std::string& name, CClaimValue& claim) const;
 
@@ -461,35 +469,29 @@ protected:
     virtual bool insertSupportIntoMap(const std::string& name, const CSupportValue& support, bool fCheckTakeover);
     virtual bool removeSupportFromMap(const std::string& name, const COutPoint& outPoint, CSupportValue& support, bool fCheckTakeover);
 
-    virtual bool addClaimToQueues(const std::string& name, const CClaimValue& claim);
-
-    virtual bool addSupportToQueues(const std::string& name, const CSupportValue& support);
     virtual bool removeSupportFromQueue(const std::string& name, const COutPoint& outPoint, CSupportValue& support);
 
     virtual std::string adjustNameForValidHeight(const std::string& name, int validHeight) const;
 
-    void addToExpirationQueue(int nExpirationHeight, CNameOutPointType& entry);
-    void removeFromExpirationQueue(const std::string& name, const COutPoint& outPoint, int nHeight);
-
-    void addSupportToExpirationQueue(int nExpirationHeight, CNameOutPointType& entry);
-    void removeSupportFromExpirationQueue(const std::string& name, const COutPoint& outPoint, int nHeight);
-
     supportEntryType getSupportsForName(const std::string& name) const;
 
-    int getDelayForName(const std::string& name);
-    virtual int getDelayForName(const std::string& name, const uint160& claimId);
+    int getDelayForName(const std::string& name) const;
+    virtual int getDelayForName(const std::string& name, const uint160& claimId) const;
 
     CClaimTrie::iterator cacheData(const std::string& name, bool create = true);
 
     bool getLastTakeoverForName(const std::string& name, uint160& claimId, int& takeoverHeight) const;
 
-    int getNumBlocksOfContinuousOwnership(const std::string& name);
+    int getNumBlocksOfContinuousOwnership(const std::string& name) const;
 
     expirationQueueType expirationQueueCache;
     expirationQueueType supportExpirationQueueCache;
 
     int nNextHeight; // Height of the block that is being worked on, which is
                      // one greater than the height of the chain's tip
+
+    template <typename T>
+    void reactivate(const expirationQueueRowType& row, int height, bool increment);
 
 private:
     uint256 hashBlock;
@@ -522,12 +524,47 @@ private:
     bool removeClaim(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight, bool fCheckTakeover);
     bool removeClaimFromQueue(const std::string& name, const COutPoint& outPoint, CClaimValue& claim);
 
-    typename claimQueueType::value_type* getQueueCacheRow(int nHeight, bool createIfNotExists = false);
+    template <typename T>
+    std::pair<const int, std::vector<queueEntryType<T>>>* getQueueCacheRow(int nHeight, bool createIfNotExists = false);
+
+    template <typename T>
     typename queueNameType::value_type* getQueueCacheNameRow(const std::string& name, bool createIfNotExists = false);
+
+    template <typename T>
     typename expirationQueueType::value_type* getExpirationQueueCacheRow(int nHeight, bool createIfNotExists = false);
-    typename supportQueueType::value_type* getSupportQueueCacheRow(int nHeight, bool createIfNotExists = false);
-    typename queueNameType::value_type* getSupportQueueCacheNameRow(const std::string& name, bool createIfNotExists = false);
-    typename expirationQueueType::value_type* getSupportExpirationQueueCacheRow(int nHeight, bool createIfNotExists = false);
+
+    template <typename T>
+    bool haveInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight);
+
+    template <typename T>
+    T add(const std::string& name, const COutPoint& outPoint, const uint160& claimId, CAmount nAmount, int nHeight);
+
+    template <typename T>
+    bool remove(T& value, const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight, bool fCheckTakeover = false);
+
+    template <typename T>
+    bool addToQueue(const std::string& name, const T& value);
+
+    template <typename T>
+    bool removeFromQueue(const std::string& name, const COutPoint& outPoint, T& value);
+
+    template <typename T>
+    bool addToCache(const std::string& name, const T& value, bool fCheckTakeover = false);
+
+    template <typename T>
+    bool removeFromCache(const std::string& name, const COutPoint& outPoint, T& value, bool fCheckTakeover = false);
+
+    template <typename T>
+    bool undoSpend(const std::string& name, const T& value, int nValidAtHeight);
+
+    template <typename T>
+    void undoIncrement(insertUndoType& insertUndo, std::vector<queueEntryType<T>>& expireUndo, std::set<T>* deleted = nullptr);
+
+    template <typename T>
+    void undoDecrement(insertUndoType& insertUndo, std::vector<queueEntryType<T>>& expireUndo, std::vector<CClaimIndexElement>* added = nullptr, std::set<T>* deleted = nullptr);
+
+    template <typename T>
+    void undoIncrement(const std::string& name, insertUndoType& insertUndo, std::vector<queueEntryType<T>>& expireUndo);
 
     // for unit test
     friend struct ClaimTrieChainFixture;
@@ -558,8 +595,6 @@ public:
 private:
     int nExpirationTime;
     bool forkForExpirationChange(bool increment);
-    void removeAndAddSupportToExpirationQueue(expirationQueueRowType& row, int height, bool increment);
-    void removeAndAddToExpirationQueue(expirationQueueRowType& row, int height, bool increment);
 };
 
 class CClaimTrieCacheNormalizationFork : public CClaimTrieCacheExpirationFork
@@ -598,10 +633,7 @@ protected:
     bool insertSupportIntoMap(const std::string& name, const CSupportValue& support, bool fCheckTakeover) override;
     bool removeSupportFromMap(const std::string& name, const COutPoint& outPoint, CSupportValue& support, bool fCheckTakeover) override;
 
-    int getDelayForName(const std::string& name, const uint160& claimId) override;
-
-    bool addClaimToQueues(const std::string& name, const CClaimValue& claim) override;
-    bool addSupportToQueues(const std::string& name, const CSupportValue& support) override;
+    int getDelayForName(const std::string& name, const uint160& claimId) const override;
 
     std::string adjustNameForValidHeight(const std::string& name, int validHeight) const override;
 

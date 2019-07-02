@@ -124,7 +124,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK_EQUAL(ntState.getMerkleHash(), hash2);
-    BOOST_CHECK(ntState.checkConsistency(0));
+    BOOST_CHECK(ntState.checkConsistency());
 
     CClaimTrieCacheTest ntState1(pclaimTrie);
     ntState1.removeClaimFromTrie(std::string("test"), tx1OutPoint, unused, true);
@@ -144,7 +144,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK_EQUAL(ntState2.getMerkleHash(), hash3);
-    BOOST_CHECK(ntState2.checkConsistency(0));
+    BOOST_CHECK(ntState2.checkConsistency());
 
     CClaimTrieCacheTest ntState3(pclaimTrie);
     ntState3.insertClaimIntoTrie(std::string("test"), CClaimValue(tx1OutPoint, hash160, 50, 100, 200), true);
@@ -152,7 +152,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     ntState3.flush();
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK_EQUAL(ntState3.getMerkleHash(), hash4);
-    BOOST_CHECK(ntState3.checkConsistency(0));
+    BOOST_CHECK(ntState3.checkConsistency());
 
     CClaimTrieCacheTest ntState4(pclaimTrie);
     ntState4.removeClaimFromTrie(std::string("abab"), tx6OutPoint, unused, true);
@@ -160,7 +160,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     ntState4.flush();
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK_EQUAL(ntState4.getMerkleHash(), hash2);
-    BOOST_CHECK(ntState4.checkConsistency(0));
+    BOOST_CHECK(ntState4.checkConsistency());
 
     CClaimTrieCacheTest ntState5(pclaimTrie);
     ntState5.removeClaimFromTrie(std::string("test"), tx3OutPoint, unused, true);
@@ -169,7 +169,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     ntState5.flush();
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK_EQUAL(ntState5.getMerkleHash(), hash2);
-    BOOST_CHECK(ntState5.checkConsistency(0));
+    BOOST_CHECK(ntState5.checkConsistency());
 
     CClaimTrieCacheTest ntState6(pclaimTrie);
     ntState6.insertClaimIntoTrie(std::string("test"), CClaimValue(tx3OutPoint, hash160, 50, 101, 201), true);
@@ -178,7 +178,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     ntState6.flush();
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK_EQUAL(ntState6.getMerkleHash(), hash2);
-    BOOST_CHECK(ntState6.checkConsistency(0));
+    BOOST_CHECK(ntState6.checkConsistency());
 
     CClaimTrieCacheTest ntState7(pclaimTrie);
     ntState7.removeClaimFromTrie(std::string("test"), tx3OutPoint, unused, true);
@@ -190,7 +190,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     ntState7.flush();
     BOOST_CHECK(pclaimTrie->empty());
     BOOST_CHECK_EQUAL(ntState7.getMerkleHash(), hash0);
-    BOOST_CHECK(ntState7.checkConsistency(0));
+    BOOST_CHECK(ntState7.checkConsistency());
 }
 
 BOOST_AUTO_TEST_CASE(basic_insertion_info_test)
@@ -337,13 +337,13 @@ BOOST_AUTO_TEST_CASE(trie_stays_consistent_test)
         BOOST_CHECK(cache.insertClaimIntoTrie(name, value, false));
 
     cache.flush();
-    BOOST_CHECK(cache.checkConsistency(0));
+    BOOST_CHECK(cache.checkConsistency());
 
     for (auto& name: names) {
         CClaimValue temp;
         BOOST_CHECK(cache.removeClaimFromTrie(name, COutPoint(), temp, false));
         cache.flush();
-        BOOST_CHECK(cache.checkConsistency(0));
+        BOOST_CHECK(cache.checkConsistency());
     }
     BOOST_CHECK_EQUAL(trie.height(), 0);
 }

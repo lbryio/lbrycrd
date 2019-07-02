@@ -49,30 +49,6 @@ void CClaimTrieCacheExpirationFork::expirationForkActive(int nHeight, bool incre
         forkForExpirationChange(increment);
 }
 
-void CClaimTrieCacheExpirationFork::removeAndAddToExpirationQueue(expirationQueueRowType& row, int height, bool increment)
-{
-    for (auto e = row.begin(); e != row.end(); ++e) {
-        // remove and insert with new expiration time
-        removeFromExpirationQueue(e->name, e->outPoint, height);
-        int extend_expiration = Params().GetConsensus().nExtendedClaimExpirationTime - Params().GetConsensus().nOriginalClaimExpirationTime;
-        int new_expiration_height = increment ? height + extend_expiration : height - extend_expiration;
-        CNameOutPointType entry(e->name, e->outPoint);
-        addToExpirationQueue(new_expiration_height, entry);
-    }
-}
-
-void CClaimTrieCacheExpirationFork::removeAndAddSupportToExpirationQueue(expirationQueueRowType& row, int height, bool increment)
-{
-    for (auto e = row.begin(); e != row.end(); ++e) {
-        // remove and insert with new expiration time
-        removeSupportFromExpirationQueue(e->name, e->outPoint, height);
-        int extend_expiration = Params().GetConsensus().nExtendedClaimExpirationTime - Params().GetConsensus().nOriginalClaimExpirationTime;
-        int new_expiration_height = increment ? height + extend_expiration : height - extend_expiration;
-        CNameOutPointType entry(e->name, e->outPoint);
-        addSupportToExpirationQueue(new_expiration_height, entry);
-    }
-}
-
 bool CClaimTrieCacheExpirationFork::forkForExpirationChange(bool increment)
 {
     /*
@@ -93,14 +69,14 @@ bool CClaimTrieCacheExpirationFork::forkForExpirationChange(bool increment)
         if (key.first == EXP_QUEUE_ROW) {
             expirationQueueRowType row;
             if (pcursor->GetValue(row)) {
-                removeAndAddToExpirationQueue(row, height, increment);
+                reactivate<CClaimValue>(row, height, increment);
             } else {
                 return error("%s(): error reading expiration queue rows from disk", __func__);
             }
         } else if (key.first == SUPPORT_EXP_QUEUE_ROW) {
             expirationQueueRowType row;
             if (pcursor->GetValue(row)) {
-                removeAndAddSupportToExpirationQueue(row, height, increment);
+                reactivate<CSupportValue>(row, height, increment);
             } else {
                 return error("%s(): error reading support expiration queue rows from disk", __func__);
             }
@@ -195,9 +171,8 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(insert
             if (support.nHeight + expirationTime() <= nNextHeight)
                 continue;
 
-            CSupportValue removed;
-            assert(removeSupportFromMap(it.key(), support.outPoint, removed, false));
-            expireSupportUndo.emplace_back(it.key(), removed);
+            assert(removeSupportFromMap(it.key(), support.outPoint, support, false));
+            expireSupportUndo.emplace_back(it.key(), support);
             assert(insertSupportIntoMap(normalized, support, false));
             insertSupportUndo.emplace_back(it.key(), support.outPoint, -1);
         }
@@ -205,17 +180,16 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(insert
         namesToCheckForTakeover.insert(normalized);
 
         auto cached = cacheData(it.key(), false);
-        if (!cached || cached->claims.empty())
+        if (!cached || cached->empty())
             continue;
 
         for (auto& claim : it->claims) {
             if (claim.nHeight + expirationTime() <= nNextHeight)
                 continue;
 
-            CClaimValue removed;
-            assert(removeClaimFromTrie(it.key(), claim.outPoint, removed, false));
-            removeUndo.emplace_back(it.key(), removed);
-            assert(insertClaimIntoTrie(normalized, claim, false));
+            assert(removeClaimFromTrie(it.key(), claim.outPoint, claim, false));
+            removeUndo.emplace_back(it.key(), claim);
+            assert(insertClaimIntoTrie(normalized, claim, true));
             insertUndo.emplace_back(it.key(), claim.outPoint, -1);
         }
 
@@ -255,19 +229,9 @@ CClaimsForNameType CClaimTrieCacheNormalizationFork::getClaimsForName(const std:
     return CClaimTrieCacheExpirationFork::getClaimsForName(normalizeClaimName(name));
 }
 
-int CClaimTrieCacheNormalizationFork::getDelayForName(const std::string& name, const uint160& claimId)
+int CClaimTrieCacheNormalizationFork::getDelayForName(const std::string& name, const uint160& claimId) const
 {
     return CClaimTrieCacheExpirationFork::getDelayForName(normalizeClaimName(name), claimId);
-}
-
-bool CClaimTrieCacheNormalizationFork::addClaimToQueues(const std::string& name, const CClaimValue& claim)
-{
-    return CClaimTrieCacheExpirationFork::addClaimToQueues(normalizeClaimName(name, claim.nValidAtHeight > Params().GetConsensus().nNormalizedNameForkHeight), claim);
-}
-
-bool CClaimTrieCacheNormalizationFork::addSupportToQueues(const std::string& name, const CSupportValue& support)
-{
-    return CClaimTrieCacheExpirationFork::addSupportToQueues(normalizeClaimName(name, support.nValidAtHeight > Params().GetConsensus().nNormalizedNameForkHeight), support);
 }
 
 std::string CClaimTrieCacheNormalizationFork::adjustNameForValidHeight(const std::string& name, int validHeight) const
