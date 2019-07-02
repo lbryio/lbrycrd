@@ -1,11 +1,11 @@
 #include <claimtrie.h>
 #include <prefixtrie.h>
+#include <random.h>
 
 #include <boost/test/unit_test.hpp>
 #include <test/test_bitcoin.h>
 
 #include <chrono>
-#include <random>
 
 std::vector<std::string> random_strings(std::size_t count)
 {
@@ -13,26 +13,25 @@ std::vector<std::string> random_strings(std::size_t count)
                         "abcdefghijklmnopqrstuvwxyz"
                         "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-    std::mt19937 rg(42);
-    std::uniform_int_distribution<std::string::size_type> pick(1, sizeof(chrs) - 2);
+    FastRandomContext frc(true);
 
     std::unordered_set<std::string> strings;
     strings.reserve(count);
 
     while(strings.size() < count) {
-        auto length = pick(rg);
+        auto length = frc.randrange(sizeof(chrs) - 2) + 1;
 
         std::string s;
         s.reserve(length);
 
         while (length--)
-            s += chrs[pick(rg)];
+            s += chrs[frc.randrange(sizeof(chrs) - 1)];
 
         strings.emplace(s);
     }
 
     std::vector<std::string> ret(strings.begin(), strings.end());
-    std::shuffle(ret.begin(), ret.end(), rg);
+    std::random_shuffle(ret.begin(), ret.end(), [&frc](std::size_t n) { return frc.randrange(n); });
     return ret;
 }
 

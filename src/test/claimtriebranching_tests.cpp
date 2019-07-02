@@ -12,6 +12,7 @@
 #include <policy/policy.h>
 #include <pow.h>
 #include <primitives/transaction.h>
+#include <random.h>
 #include <rpc/server.h>
 #include <streams.h>
 #include <test/test_bitcoin.h>
@@ -20,7 +21,6 @@
 
 #include <boost/test/unit_test.hpp>
 #include <iostream>
-#include <random>
 
 extern ::CChainState g_chainstate;
 extern ::ArgsManager gArgs;
@@ -447,9 +447,7 @@ BOOST_AUTO_TEST_CASE(triehash_fuzzer_test)
 
     auto names = random_strings(blocks * claimsPerBlock);
 
-    std::mt19937 rg(42);
-    std::uniform_int_distribution<int> pick4(0, 4);
-    std::uniform_int_distribution<std::size_t> pick;
+    FastRandomContext frc(true);
     std::unordered_map<std::string, std::vector<CMutableTransaction>> existingClaims;
     std::vector<CMutableTransaction> existingSupports;
     std::string value(1024, 'c');
@@ -458,18 +456,18 @@ BOOST_AUTO_TEST_CASE(triehash_fuzzer_test)
     for (int i = 0; i < blocks; ++i) {
         for (int j = 0; j < claimsPerBlock; ++j) {
             auto name = names[i * claimsPerBlock + j];
-            auto supportFront = pick4(rg) == 0;
-            auto supportBack = pick4(rg) == 0;
-            auto removeClaim = pick4(rg) == 0;
-            auto removeSupport = pick4(rg) == 0;
+            auto supportFront = frc.randrange(4) == 0;
+            auto supportBack = frc.randrange(4) == 0;
+            auto removeClaim = frc.randrange(4) == 0;
+            auto removeSupport = frc.randrange(4) == 0;
             auto hit = existingClaims.find(name);
             if (supportFront && hit != existingClaims.end() && hit->second.size()) {
-                auto tx = fixture.MakeSupport(cb.back(), hit->second[pick(rg) % hit->second.size()], name, 2);
+                auto tx = fixture.MakeSupport(cb.back(), hit->second[frc.rand64() % hit->second.size()], name, 2);
                 existingSupports.push_back(tx);
                 cb.emplace_back(std::move(tx));
             }
             if (removeClaim && hit != existingClaims.end() && hit->second.size()) {
-                auto idx = pick(rg) % hit->second.size();
+                auto idx = frc.rand64() % hit->second.size();
                 fixture.Spend(hit->second[idx]);
                 hit->second.erase(hit->second.begin() + idx);
             }
@@ -480,12 +478,12 @@ BOOST_AUTO_TEST_CASE(triehash_fuzzer_test)
                 cb.emplace_back(std::move(tx));
             }
             if (supportBack && hit != existingClaims.end() && hit->second.size()) {
-                auto tx = fixture.MakeSupport(cb.back(), hit->second[pick(rg) % hit->second.size()], name, 2);
+                auto tx = fixture.MakeSupport(cb.back(), hit->second[frc.rand64() % hit->second.size()], name, 2);
                 existingSupports.push_back(tx);
                 cb.emplace_back(std::move(tx));
             }
             if (removeSupport && (i & 7) == 7 && !existingSupports.empty()) {
-                const auto tidx = pick(rg) % existingSupports.size();
+                const auto tidx = frc.rand64() % existingSupports.size();
                 const auto tx = existingSupports[tidx];
                 fixture.Spend(tx);
                 existingSupports.erase(existingSupports.begin() + tidx);
@@ -499,9 +497,9 @@ BOOST_AUTO_TEST_CASE(triehash_fuzzer_test)
     }
 
     if (blocks == 1000 && claimsPerBlock == 100)
-        BOOST_CHECK_EQUAL(fixture.getMerkleHash().GetHex(), "2fa882317f6ce4a083d4a933c090f280294b13d772a340e3e4b53b77e313f4a6");
+        BOOST_CHECK_EQUAL(fixture.getMerkleHash().GetHex(), "c5df693adbe6b386a5d1e494e83a8f5745f32f6917a32b4f429e7c20b47171dd");
     else if (blocks == 13 && claimsPerBlock == 100)
-        BOOST_CHECK_EQUAL(fixture.getMerkleHash().GetHex(), "f487872e1aa9df2b1b94e16c98c93045f49edd274b355a4d5d2ce7c6e4fe183d");
+        BOOST_CHECK_EQUAL(fixture.getMerkleHash().GetHex(), "4e5984d6984f5f05d50e821e6228d56bcfbd16ca2093cd0308f6ff1c2bc8689a");
     else
         std::cerr << "Hash: "  << fixture.getMerkleHash().GetHex() << std::endl;
 }
