@@ -1401,16 +1401,15 @@ bool CWallet::IsChange(const CTxOut& txout) const
     // a better way of identifying which outputs are 'the send' and which are
     // 'the change' will need to be implemented (maybe extend CWalletTx to remember
     // which output, if any, was change).
-    if (::IsMine(*this, txout.scriptPubKey))
+    auto isMine = ::IsMine(*this, txout.scriptPubKey);
+    if (isMine && !(isMine & ISMINE_STAKE)) // stakes are never change
     {
         CTxDestination address;
-        const CScript& scriptPubKey = StripClaimScriptPrefix(txout.scriptPubKey);
-
-        if (!ExtractDestination(scriptPubKey, address))
+        if (!ExtractDestination(txout.scriptPubKey, address))
             return true;
 
         LOCK(cs_wallet);
-        if (!mapAddressBook.count(address) && (scriptPubKey == txout.scriptPubKey))
+        if (!mapAddressBook.count(address))
             return true;
     }
     return false;
@@ -1697,7 +1696,7 @@ void CWalletTx::GetAmounts(std::list<COutputEntry>& listReceived,
 
         if (!ExtractDestination(scriptPubKey, address) && !scriptPubKey.IsUnspendable())
         {
-            LogPrintf("CWalletTx::GetAmounts: Unknown transaction type found, txid %s\n",
+            pwallet->WalletLogPrintf("CWalletTx::GetAmounts: Unknown transaction type found, txid %s\n",
                      this->GetHash().ToString());
             address = CNoDestination();
         }
@@ -1705,7 +1704,7 @@ void CWalletTx::GetAmounts(std::list<COutputEntry>& listReceived,
         COutputEntry output = {address, txout.nValue, (int)i};
 
         // If we are debited by the transaction, add the output as a "sent" entry
-        if (nDebit > 0 || filter & ISMINE_CLAIM || filter & ISMINE_SUPPORT)
+        if (nDebit > 0)
             listSent.push_back(output);
 
         // If we are receiving the output, add it as a "received" entry
@@ -2081,7 +2080,7 @@ bool CWalletTx::IsTrusted() const
         if (parent == nullptr)
             return false;
         const CTxOut& parentOut = parent->tx->vout[txin.prevout.n];
-        if (pwallet->IsMine(parentOut) != ISMINE_SPENDABLE)
+        if (!(pwallet->IsMine(parentOut) & ISMINE_SPENDABLE))
             return false;
     }
     return true;
@@ -2375,15 +2374,15 @@ void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const
                 continue;
             }
 
+            bool solvable = IsSolvable(*this, pcoin->tx->vout[i].scriptPubKey);
+            bool spendable = (mine & ISMINE_SPENDABLE) || (((mine & ISMINE_WATCH_ONLY) != ISMINE_NO) && (coinControl && coinControl->fAllowWatchOnly && solvable));
+
             // spending claims or supports requires specific selection:
             auto isClaimCoin = (mine & ISMINE_CLAIM) || (mine & ISMINE_SUPPORT);
             auto claimSpendRequested = isClaimCoin && coinControl && coinControl->IsSelected(COutPoint(entry.first, i));
 
-            bool solvable = IsSolvable(*this, pcoin->tx->vout[i].scriptPubKey);
-            bool spendable = claimSpendRequested || ((mine & ISMINE_SPENDABLE) != ISMINE_NO) || (((mine & ISMINE_WATCH_ONLY) != ISMINE_NO) && (coinControl && coinControl->fAllowWatchOnly && solvable));
-
             if (spendable && isClaimCoin && !claimSpendRequested)
-                continue; // double check
+                continue;
 
             vCoins.push_back(COutput(pcoin, i, nDepth, spendable, solvable, safeTx, (coinControl && coinControl->fAllowWatchOnly)));
 
@@ -2437,7 +2436,7 @@ std::map<CTxDestination, std::vector<COutput>> CWallet::ListCoins() const
         if (it != mapWallet.end()) {
             int depth = it->second.GetDepthInMainChain();
             if (depth >= 0 && output.n < it->second.tx->vout.size() &&
-                IsMine(it->second.tx->vout[output.n]) == ISMINE_SPENDABLE) {
+                IsMine(it->second.tx->vout[output.n]) & ISMINE_SPENDABLE) {
                 CTxDestination address;
                 if (ExtractDestination(FindNonChangeParentOutput(*it->second.tx, output.n).scriptPubKey, address)) {
                     result[address].emplace_back(
@@ -2704,7 +2703,8 @@ OutputType CWallet::TransactionChangeType(OutputType change_type, const std::vec
         // Check if any destination contains a witness program:
         int witnessversion = 0;
         std::vector<unsigned char> witnessprogram;
-        if (recipient.scriptPubKey.IsWitnessProgram(witnessversion, witnessprogram)) {
+        const auto stripped = StripClaimScriptPrefix(recipient.scriptPubKey);
+        if (stripped.IsWitnessProgram(witnessversion, witnessprogram)) {
             return OutputType::BECH32;
         }
     }
