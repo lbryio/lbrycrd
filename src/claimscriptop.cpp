@@ -2,8 +2,9 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "claimscriptop.h"
-#include "nameclaim.h"
+#include <coins.h>
+#include <claimscriptop.h>
+#include <nameclaim.h>
 
 CClaimScriptAddOp::CClaimScriptAddOp(const COutPoint& point, CAmount nValue, int nHeight)
     : point(point), nValue(nValue), nHeight(nHeight)
@@ -153,59 +154,81 @@ bool ProcessClaim(CClaimScriptOp& claimOp, CClaimTrieCache& trieCache, const CSc
     throw std::runtime_error("Unimplemented OP handler.");
 }
 
-bool SpendClaim(CClaimTrieCache& trieCache, const CScript& scriptPubKey, const COutPoint& point, int nHeight, int& nValidHeight, spentClaimsType& spentClaims)
+void UpdateCache(const CTransaction& tx, CClaimTrieCache& trieCache, const CCoinsViewCache& view, int nHeight, const CUpdateCacheCallbacks& callbacks)
 {
     class CSpendClaimHistory : public CClaimScriptSpendOp
     {
     public:
-        CSpendClaimHistory(spentClaimsType& spentClaims, const COutPoint& point, int nHeight, int& nValidHeight)
-            : CClaimScriptSpendOp(point, nHeight, nValidHeight), spentClaims(spentClaims)
-        {
-        }
+        using CClaimScriptSpendOp::CClaimScriptSpendOp;
 
         bool spendClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override
         {
             if (CClaimScriptSpendOp::spendClaim(trieCache, name, claimId)) {
-                spentClaims.emplace_back(name, claimId);
+                callback(name, claimId);
                 return true;
             }
             return false;
         }
-
-    private:
-        spentClaimsType& spentClaims;
+        std::function<void(const std::string& name, const uint160& claimId)> callback;
     };
 
-    CSpendClaimHistory spendClaim(spentClaims, point, nHeight, nValidHeight);
-    return ProcessClaim(spendClaim, trieCache, scriptPubKey);
-}
+    spentClaimsType spentClaims;
 
-bool AddSpendClaim(CClaimTrieCache& trieCache, const CScript& scriptPubKey, const COutPoint& point, CAmount nValue, int nHeight, spentClaimsType& spentClaims)
-{
+    for (std::size_t j = 0; j < tx.vin.size(); j++) {
+        const CTxIn& txin = tx.vin[j];
+        const Coin& coin = view.AccessCoin(txin.prevout);
+
+        CScript scriptPubKey;
+        int scriptHeight = nHeight;
+        if (coin.out.IsNull() && callbacks.findScriptKey) {
+            scriptPubKey = callbacks.findScriptKey(txin.prevout);
+        } else {
+            scriptHeight = coin.nHeight;
+            scriptPubKey = coin.out.scriptPubKey;
+        }
+
+        if (scriptPubKey.empty())
+            continue;
+
+        int nValidAtHeight;
+        CSpendClaimHistory spendClaim(COutPoint(txin.prevout.hash, txin.prevout.n), scriptHeight, nValidAtHeight);
+        spendClaim.callback = [&spentClaims](const std::string& name, const uint160& claimId) {
+            spentClaims.emplace_back(name, claimId);
+        };
+        if (ProcessClaim(spendClaim, trieCache, scriptPubKey) && callbacks.claimUndoHeights)
+            callbacks.claimUndoHeights(j, nValidAtHeight);
+    }
+
     class CAddSpendClaim : public CClaimScriptAddOp
     {
     public:
-        CAddSpendClaim(spentClaimsType& spentClaims, const COutPoint& point, CAmount nValue, int nHeight)
-            : CClaimScriptAddOp(point, nValue, nHeight), spentClaims(spentClaims)
-        {
-        }
+        using CClaimScriptAddOp::CClaimScriptAddOp;
 
         bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override
         {
-            spentClaimsType::iterator itSpent = spentClaims.begin();
-            for (; itSpent != spentClaims.end(); ++itSpent) {
+            if (callback(name, claimId))
+                return CClaimScriptAddOp::updateClaim(trieCache, name, claimId);
+            return false;
+        }
+        std::function<bool(const std::string& name, const uint160& claimId)> callback;
+    };
+
+    for (std::size_t j = 0; j < tx.vout.size(); j++) {
+        const CTxOut& txout = tx.vout[j];
+
+        if (txout.scriptPubKey.empty())
+            continue;
+
+        CAddSpendClaim addClaim(COutPoint(tx.GetHash(), j), txout.nValue, nHeight);
+        addClaim.callback = [&trieCache, &spentClaims](const std::string& name, const uint160& claimId) -> bool {
+            for (auto itSpent = spentClaims.begin(); itSpent != spentClaims.end(); ++itSpent) {
                 if (itSpent->second == claimId && trieCache.normalizeClaimName(name) == trieCache.normalizeClaimName(itSpent->first)) {
                     spentClaims.erase(itSpent);
-                    return CClaimScriptAddOp::updateClaim(trieCache, name, claimId);
+                    return true;
                 }
             }
             return false;
-        }
-
-    private:
-        spentClaimsType& spentClaims;
-    };
-
-    CAddSpendClaim addClaim(spentClaims, point, nValue, nHeight);
-    return ProcessClaim(addClaim, trieCache, scriptPubKey);
+        };
+        ProcessClaim(addClaim, trieCache, txout.scriptPubKey);
+    }
 }

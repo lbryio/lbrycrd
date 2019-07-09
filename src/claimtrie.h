@@ -302,7 +302,6 @@ struct CClaimsForNameType
 class CClaimTrie : public CPrefixTrie<std::string, CClaimTrieData>
 {
     int nNextHeight = 0;
-    int nExpirationTime = 0;
     int nProportionalDelayFactor = 0;
     std::unique_ptr<CDBWrapper> db;
 
@@ -434,15 +433,14 @@ public:
     virtual bool getProofForName(const std::string& name, CClaimTrieProof& proof);
     virtual bool getInfoForName(const std::string& name, CClaimValue& claim) const;
 
+    virtual int expirationTime() const;
+
     bool finalizeDecrement(std::vector<std::pair<std::string, int>>& takeoverHeightUndo);
 
     virtual CClaimsForNameType getClaimsForName(const std::string& name) const;
 
     CAmount getEffectiveAmountForClaim(const std::string& name, const uint160& claimId, std::vector<CSupportValue>* supports = nullptr) const;
     CAmount getEffectiveAmountForClaim(const CClaimsForNameType& claims, const uint160& claimId, std::vector<CSupportValue>* supports = nullptr) const;
-
-    void setExpirationTime(int time);
-    int expirationTime();
 
     CClaimTrie::const_iterator begin() const;
     CClaimTrie::const_iterator end() const;
@@ -539,16 +537,27 @@ private:
 class CClaimTrieCacheExpirationFork : public CClaimTrieCacheBase
 {
 public:
-    explicit CClaimTrieCacheExpirationFork(CClaimTrie* base, bool fRequireTakeoverHeights = true)
-        : CClaimTrieCacheBase(base, fRequireTakeoverHeights)
-    {
-    }
+    explicit CClaimTrieCacheExpirationFork(CClaimTrie* base, bool fRequireTakeoverHeights = true);
 
-    bool forkForExpirationChange(bool increment);
+    void setExpirationTime(int time);
+    int expirationTime() const override;
 
-    // TODO: move the expiration fork code from main.cpp to overrides of increment/decrement block
+    void expirationForkActive(int height, bool increment);
+
+    bool incrementBlock(insertUndoType& insertUndo,
+        claimQueueRowType& expireUndo,
+        insertUndoType& insertSupportUndo,
+        supportQueueRowType& expireSupportUndo,
+        std::vector<std::pair<std::string, int>>& takeoverHeightUndo) override;
+
+    bool decrementBlock(insertUndoType& insertUndo,
+        claimQueueRowType& expireUndo,
+        insertUndoType& insertSupportUndo,
+        supportQueueRowType& expireSupportUndo) override;
 
 private:
+    int nExpirationTime;
+    bool forkForExpirationChange(bool increment);
     void removeAndAddSupportToExpirationQueue(expirationQueueRowType& row, int height, bool increment);
     void removeAndAddToExpirationQueue(expirationQueueRowType& row, int height, bool increment);
 };

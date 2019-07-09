@@ -225,26 +225,21 @@ typedef std::pair<std::string, uint160> spentClaimType;
 
 typedef std::vector<spentClaimType> spentClaimsType;
 
-/**
- * Function to spend claim from tie, keeping the successful list on
- * @param[in]  trieCache        trie to operate on
- * @param[in]  scriptPubKey     claim script to be decoded
- * @param[in]  point            pair of transaction hash and its index
- * @param[in]  nHeight          entry height of the claim
- * @param[out] nValidHeight     valid height of the claim
- * @param[out] spentClaims      inserts successfully spent claim
- */
-bool SpendClaim(CClaimTrieCache& trieCache, const CScript& scriptPubKey, const COutPoint& point, int nHeight, int& nValidHeight, spentClaimsType& spentClaims);
+struct CUpdateCacheCallbacks
+{
+    std::function<CScript(const COutPoint& point)> findScriptKey;
+    std::function<void(int, int)> claimUndoHeights;
+};
 
 /**
- * Function to add / update (that present in spent list) claim in trie
+ * Function to spend claim from tie, keeping the successful list on
+ * @param[in]  tx               transaction inputs/outputs
  * @param[in]  trieCache        trie to operate on
- * @param[in]  scriptPubKey     claim script to be decoded
+ * @param[in]  view             coins cache
  * @param[in]  point            pair of transaction hash and its index
- * @param[in]  nValue        `  value of the claim
  * @param[in]  nHeight          entry height of the claim
- * @param[out] spentClaims      erases successfully added claim
+ * @param[out] fallback         optional callbacks
  */
-bool AddSpendClaim(CClaimTrieCache& trieCache, const CScript& scriptPubKey, const COutPoint& point, CAmount nValue, int nHeight, spentClaimsType& spentClaims);
+void UpdateCache(const CTransaction& tx, CClaimTrieCache& trieCache, const CCoinsViewCache& view, int nHeight, const CUpdateCacheCallbacks& callbacks = {});
 
 #endif // CLAIMSCRIPTOP_H
