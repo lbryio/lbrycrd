@@ -1840,12 +1840,7 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
         assert(merkleHash == pindex->pprev->hashClaimTrie);
     }
 
-    if (pindex->nHeight == Params().GetConsensus().nExtendedClaimExpirationForkHeight)
-    {
-        LogPrintf("Decremented past the extended claim expiration hard fork height\n");
-        trieCache.setExpirationTime(Params().GetConsensus().GetExpirationTime(pindex->nHeight-1));
-        trieCache.forkForExpirationChange(false);
-    }
+    trieCache.expirationForkActive(pindex->nHeight, false);
 
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
@@ -2196,13 +2191,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     // Get the script flags for this block
     unsigned int flags = GetBlockScriptFlags(pindex, chainparams.GetConsensus());
 
-    // v 13 LBRYcrd hard fork to extend expiration time
-    if (pindex->nHeight == Params().GetConsensus().nExtendedClaimExpirationForkHeight)
-    {
-        LogPrintf("Incremented past the extended claim expiration hard fork height\n");
-        trieCache.setExpirationTime(chainparams.GetConsensus().GetExpirationTime(pindex->nHeight));
-        trieCache.forkForExpirationChange(true);
-    }
+    trieCache.expirationForkActive(pindex->nHeight, true);
 
     int64_t nTime2 = GetTimeMicros(); nTimeForks += nTime2 - nTime1;
     LogPrint(BCLog::BENCH, "    - Fork checks: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime2 - nTime1), nTimeForks * MICRO, nTimeForks * MILLI / nBlocksTotal);
@@ -2291,35 +2280,13 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                              tx.GetHash().ToString(), FormatStateMessage(state));
             }
             control.Add(vChecks);
-
-            // To handle claim updates, stick all claims found in the inputs into a map of
-            // name: (txhash, nOut). When running through the outputs, if any claim's
-            // name is found in the map, send the name's txhash and nOut to the trie cache,
-            // and then remove the name: (txhash, nOut) mapping from the map.
-            // If there are two or more claims in the inputs with the same name, only
-            // use the first.
-
-            spentClaimsType spentClaims;
-
-            for (unsigned int j = 0; j < tx.vin.size(); j++)
-            {
-                const CTxIn& txin = tx.vin[j];
-                const Coin& coin = view.AccessCoin(txin.prevout);
-
-                if (coin.out.scriptPubKey.empty())
-                    continue;
-
-                int nValidAtHeight;
-                if (SpendClaim(trieCache, coin.out.scriptPubKey, COutPoint(txin.prevout.hash, txin.prevout.n), coin.nHeight, nValidAtHeight, spentClaims))
-                    mClaimUndoHeights[j] = nValidAtHeight;
-            }
-
-            for (unsigned int j = 0; j < tx.vout.size(); j++) {
-                const CTxOut& txout = tx.vout[j];
-
-                if (!txout.scriptPubKey.empty())
-                    AddSpendClaim(trieCache, txout.scriptPubKey, COutPoint(tx.GetHash(), j), txout.nValue, pindex->nHeight, spentClaims);
-            }
+            CUpdateCacheCallbacks callbacks = {
+                .findScriptKey = {},
+                .claimUndoHeights = [&mClaimUndoHeights](int index, int nValidAtHeight) {
+                    mClaimUndoHeights.emplace(index, nValidAtHeight);
+                }
+            };
+            UpdateCache(tx, trieCache, view, pindex->nHeight, callbacks);
         }
 
         CTxUndo undoDummy;
@@ -2358,7 +2325,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
 
     if (trieCache.getMerkleHash() != block.hashClaimTrie)
     {
-        if (trieCache.checkConsistency())
+        if (!trieCache.empty() && trieCache.checkConsistency())
             trieCache.dumpToLog(trieCache.begin());
         return state.DoS(100, error("ConnectBlock() : the merkle root of the claim trie does not match "
                                "(actual=%s vs block=%s on height=%d)", trieCache.getMerkleHash().GetHex(),

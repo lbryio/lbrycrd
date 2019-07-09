@@ -43,6 +43,35 @@ int64_t UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParam
     return nNewTime - nOldTime;
 }
 
+void blockToCache(const CBlock* pblock, CClaimTrieCache& trieCache, int nHeight)
+{
+    insertUndoType dummyInsertUndo;
+    claimQueueRowType dummyExpireUndo;
+    insertUndoType dummyInsertSupportUndo;
+    supportQueueRowType dummyExpireSupportUndo;
+    std::vector<std::pair<std::string, int> > dummyTakeoverHeightUndo;
+
+    CUpdateCacheCallbacks callbacks = {
+        .findScriptKey = [&pblock](const COutPoint& point) {
+            for (auto& tx : pblock->vtx)
+                if (tx->GetHash() == point.hash && point.n < tx->vout.size())
+                    return tx->vout[point.n].scriptPubKey;
+            return CScript{};
+        },
+        .claimUndoHeights = {}
+    };
+
+    trieCache.expirationForkActive(nHeight, true);
+
+    CCoinsViewCache view(pcoinsTip.get());
+
+    for (auto& tx : pblock->vtx)
+        if (!tx->IsCoinBase())
+            UpdateCache(*tx, trieCache, view, nHeight, callbacks);
+
+    trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo, dummyInsertSupportUndo, dummyExpireSupportUndo, dummyTakeoverHeightUndo);
+}
+
 BlockAssembler::Options::Options() {
     blockMinFeeRate = CFeeRate(DEFAULT_BLOCK_MIN_TX_FEE);
     nBlockMaxWeight = DEFAULT_BLOCK_MAX_WEIGHT;
@@ -110,12 +139,6 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     CBlockIndex* pindexPrev = ::ChainActive().Tip();
     assert(pindexPrev != nullptr);
     nHeight = pindexPrev->nHeight + 1;
-    if (!pclaimTrie)
-    {
-        LogPrintf("CreateNewBlock(): pclaimTrie is invalid");
-        return NULL;
-    }
-    CClaimTrieCache trieCache(pclaimTrie);
     pblock->nVersion = ComputeBlockVersion(pindexPrev, chainparams.GetConsensus());
     // -regtest only: allow overriding block.nVersion with
     // -blockversion=N to test forking scenarios
@@ -142,7 +165,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     int nPackagesSelected = 0;
     int nDescendantsUpdated = 0;
-    addPackageTxs(nPackagesSelected, nDescendantsUpdated, trieCache);
+    addPackageTxs(nPackagesSelected, nDescendantsUpdated);
 
     int64_t nTime1 = GetTimeMicros();
 
@@ -170,20 +193,14 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     pblock->nNonce         = 0;
     pblocktemplate->vTxSigOpsCost[0] = WITNESS_SCALE_FACTOR * GetLegacySigOpCount(*pblock->vtx[0]);
 
-    insertUndoType dummyInsertUndo;
-    claimQueueRowType dummyExpireUndo;
-    insertUndoType dummyInsertSupportUndo;
-    supportQueueRowType dummyExpireSupportUndo;
-    std::vector<std::pair<std::string, int> > dummyTakeoverHeightUndo;
-
-    trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo, dummyInsertSupportUndo, dummyExpireSupportUndo, dummyTakeoverHeightUndo);
-
+    CClaimTrieCache trieCache(pclaimTrie);
+    blockToCache(pblock, trieCache, nHeight);
     pblock->hashClaimTrie = trieCache.getMerkleHash();
 
     CValidationState state;
     if (!TestBlockValidity(state, chainparams, *pblock, pindexPrev, false, false)) {
-        // if (trieCache.checkConsistency()) // TODO: bring back after prefixtrie merge
-        //     trieCache.dumpToLog(trieCache.begin());
+        if (!trieCache.empty() && trieCache.checkConsistency())
+            trieCache.dumpToLog(trieCache.begin());
         throw std::runtime_error(strprintf("%s: TestBlockValidity failed: %s", __func__, FormatStateMessage(state)));
     }
     int64_t nTime2 = GetTimeMicros();
@@ -303,42 +320,6 @@ void BlockAssembler::SortForBlock(const CTxMemPool::setEntries& package, std::ve
     std::sort(sortedEntries.begin(), sortedEntries.end(), CompareTxIterByAncestorCount());
 }
 
-void iterToTrieCache(CTxMemPool::txiter iter, CClaimTrieCache& trieCache, const CTxMemPool::setEntries& entries, int nHeight)
-{
-    spentClaimsType spentClaims;
-    auto& tx = iter->GetTx();
-
-    CCoinsViewCache view(pcoinsTip.get());
-    for (const CTxIn& txin: tx.vin) {
-        const Coin& coin = view.AccessCoin(txin.prevout);
-        CScript scriptPubKey;
-        int scriptHeight = nHeight;
-        if (coin.out.IsNull()) {
-            for (auto entry : entries) {
-                auto& e = entry->GetTx();
-                if (e.GetHash() != txin.prevout.hash || txin.prevout.n >= e.vout.size())
-                    continue;
-                scriptPubKey = e.vout[txin.prevout.n].scriptPubKey;
-                break;
-            }
-        } else {
-            scriptPubKey = coin.out.scriptPubKey;
-            scriptHeight = coin.nHeight;
-        }
-
-        if (!scriptPubKey.empty()) {
-            int throwaway;
-            SpendClaim(trieCache, scriptPubKey, COutPoint(txin.prevout.hash, txin.prevout.n), scriptHeight, throwaway, spentClaims);
-        }
-    }
-
-    for (unsigned int i = 0; i < tx.vout.size(); ++i) {
-        const CTxOut& txout = tx.vout[i];
-        if (!txout.scriptPubKey.empty())
-            AddSpendClaim(trieCache, txout.scriptPubKey, COutPoint(tx.GetHash(), i), txout.nValue, nHeight, spentClaims);
-    }
-}
-
 // This transaction selection algorithm orders the mempool based
 // on feerate of a transaction including all unconfirmed ancestors.
 // Since we don't remove transactions from the mempool as we select them
@@ -349,7 +330,7 @@ void iterToTrieCache(CTxMemPool::txiter iter, CClaimTrieCache& trieCache, const 
 // Each time through the loop, we compare the best transaction in
 // mapModifiedTxs with the next transaction in the mempool to decide what
 // transaction package to work on next.
-void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpdated, CClaimTrieCache& trieCache)
+void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpdated)
 {
     // mapModifiedTx will store sorted packages after they are modified
     // because some of their txs are already in the block
@@ -466,7 +447,6 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
         SortForBlock(ancestors, sortedEntries);
 
         for (size_t i=0; i<sortedEntries.size(); ++i) {
-            iterToTrieCache(sortedEntries[i], trieCache, inBlock, nHeight);
             AddToBlock(sortedEntries[i]);
             // Erase from the modified set, if present
             mapModifiedTx.erase(sortedEntries[i]);
