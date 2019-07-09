@@ -218,7 +218,7 @@ UniValue abortrescan(const JSONRPCRequest& request)
 static void ImportAddress(CWallet*, const CTxDestination& dest, const std::string& strLabel);
 static void ImportScript(CWallet* const pwallet, const CScript& script, const std::string& strLabel, bool isRedeemScript) EXCLUSIVE_LOCKS_REQUIRED(pwallet->cs_wallet)
 {
-    if (!isRedeemScript && ::IsMine(*pwallet, script) == ISMINE_SPENDABLE) {
+    if (!isRedeemScript && (::IsMine(*pwallet, script) & ISMINE_SPENDABLE)) {
         throw JSONRPCError(RPC_WALLET_ERROR, "The wallet already contains the private key for this address or script");
     }
 
@@ -902,7 +902,7 @@ static UniValue ProcessImport(CWallet * const pwallet, const UniValue& data, con
 
             CScript redeemDestination = GetScriptForDestination(redeem_id);
 
-            if (::IsMine(*pwallet, redeemDestination) == ISMINE_SPENDABLE) {
+            if (::IsMine(*pwallet, redeemDestination) & ISMINE_SPENDABLE) {
                 throw JSONRPCError(RPC_WALLET_ERROR, "The wallet already contains the private key for this address or script");
             }
 
@@ -986,7 +986,7 @@ static UniValue ProcessImport(CWallet * const pwallet, const UniValue& data, con
 
                 CScript pubKeyScript = GetScriptForDestination(pubkey_dest);
 
-                if (::IsMine(*pwallet, pubKeyScript) == ISMINE_SPENDABLE) {
+                if (::IsMine(*pwallet, pubKeyScript) & ISMINE_SPENDABLE) {
                     throw JSONRPCError(RPC_WALLET_ERROR, "The wallet already contains the private key for this address or script");
                 }
 
@@ -1005,7 +1005,7 @@ static UniValue ProcessImport(CWallet * const pwallet, const UniValue& data, con
                 // TODO Is this necessary?
                 CScript scriptRawPubKey = GetScriptForRawPubKey(pubKey);
 
-                if (::IsMine(*pwallet, scriptRawPubKey) == ISMINE_SPENDABLE) {
+                if (::IsMine(*pwallet, scriptRawPubKey) & ISMINE_SPENDABLE) {
                     throw JSONRPCError(RPC_WALLET_ERROR, "The wallet already contains the private key for this address or script");
                 }
 
@@ -1071,7 +1071,7 @@ static UniValue ProcessImport(CWallet * const pwallet, const UniValue& data, con
 
             // Import scriptPubKey only.
             if (pubKeys.size() == 0 && keys.size() == 0) {
-                if (::IsMine(*pwallet, script) == ISMINE_SPENDABLE) {
+                if (::IsMine(*pwallet, script) & ISMINE_SPENDABLE) {
                     throw JSONRPCError(RPC_WALLET_ERROR, "The wallet already contains the private key for this address or script");
                 }
 
