@@ -359,16 +359,17 @@ UniValue claimname(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() != 3)
+    if (request.fHelp || (request.params.size() != 3 && request.params.size() != 4))
         throw std::runtime_error(
             "claimname \"name\" \"value\" amount\n"
             "\nCreate a transaction which issues a claim assigning a value to a name. The claim will be authoritative if the transaction amount is greater than the transaction amount of all other unspent transactions which issue a claim over the same name, and it will remain au\
 thoritative as long as it remains unspent and there are no other greater unspent transactions issuing a claim over the same name. The amount is a real and is rounded to the nearest 0.00000001\n"
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
-            "1. \"name\"  (string, required) The name to be assigned the value.\n"
-            "2. \"value\"  (string, required) The value to assign to the name encoded in hexadecimal.\n"
-            "3. \"amount\"  (numeric, required) The amount in LBRYcrd to send. eg 0.1\n"
+            "1. \"name\"         (string, required) The name to be assigned the value.\n"
+            "2. \"value\"        (string, required) The value to assign to the name encoded in hexadecimal.\n"
+            "3. \"amount\"       (numeric, required) The amount in LBRYcrd to send. eg 0.1\n"
+            "4. \"address_type\" (string, optional) The address type to use. Options are \"legacy\", \"p2sh-segwit\", and \"bech32\". Default is set by -addresstype.\n"
             "\nResult:\n"
             "\"transactionid\"  (string) The transaction id.\n");
     auto sName = request.params[0].get_str();
@@ -391,9 +392,20 @@ thoritative as long as it remains unspent and there are no other greater unspent
     if (!pwallet->GetKeyFromPool(newKey))
         throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
 
+    OutputType output_type = pwallet->m_default_address_type;
+    if (request.params.size() > 3 && !request.params[3].isNull()) {
+        if (!ParseOutputType(request.params[3].get_str(), output_type)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strprintf("Unknown address type '%s'", request.params[3].get_str()));
+        }
+    }
+
+    // pwallet->m_default_address_type == 0 (LEGACY), pwallet->m_default_change_type == 3 (AUTO)
+    pwallet->LearnRelatedScripts(newKey, output_type);
+    CTxDestination dest = GetDestinationForKey(newKey, output_type);
+
     CCoinControl cc;
-    cc.m_change_type = DEFAULT_ADDRESS_TYPE;
-    auto tx = SendMoney(pwallet, CTxDestination(newKey.GetID()), nAmount, false, cc, {}, {}, claimScript);
+    cc.m_change_type = pwallet->m_default_change_type;
+    auto tx = SendMoney(pwallet, dest, nAmount, false, cc, {}, {}, claimScript);
     return tx->GetHash().GetHex();
 }
 
@@ -406,15 +418,16 @@ UniValue updateclaim(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() != 3)
+    if (request.fHelp || (request.params.size() != 3 && request.params.size() != 4))
         throw std::runtime_error(
             "updateclaim \"txid\" \"value\" amount\n"
             "Create a transaction which issues a claim assigning a value to a name, spending the previous txout which issued a claim over the same name and therefore superseding that claim. The claim will be authoritative if the transaction amount is greater than the transaction amount of all other unspent transactions which issue a claim over the same name, and it will remain authoritative as long as it remains unspent and there are no greater unspent transactions issuing a claim over the same name.\n"
             + HelpRequiringPassphrase(pwallet) + "\n"
             "Arguments:\n"
-            "1.  \"txid\"  (string, required) The transaction containing the unspent txout which should be spent.\n"
-            "2.  \"value\"  (string, required) The value to assign to the name encoded in hexadecimal.\n"
-            "3.  \"amount\"  (numeric, required) The amount in LBRYcrd to use to bid for the name. eg 0.1\n"
+            "1. \"txid\"         (string, required) The transaction containing the unspent txout which should be spent.\n"
+            "2. \"value\"        (string, required) The value to assign to the name encoded in hexadecimal.\n"
+            "3. \"amount\"       (numeric, required) The amount in LBRYcrd to use to bid for the name. eg 0.1\n"
+            "4. \"address_type\" (string, optional) The address type to use. Options are \"legacy\", \"p2sh-segwit\", and \"bech32\". Default is set by -addresstype.\n"
             "\nResult:\n"
             "\"transactionid\"  (string) The new transaction id.\n");
 
@@ -467,11 +480,20 @@ UniValue updateclaim(const JSONRPCRequest& request)
                 if (!pwallet->GetKeyFromPool(newKey))
                     throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
 
+                OutputType output_type = pwallet->m_default_address_type;
+                if (request.params.size() > 3 && !request.params[3].isNull()) {
+                    if (!ParseOutputType(request.params[3].get_str(), output_type)) {
+                        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strprintf("Unknown address type '%s'", request.params[3].get_str()));
+                    }
+                }
+                pwallet->LearnRelatedScripts(newKey, output_type);
+                CTxDestination dest = GetDestinationForKey(newKey, output_type);
+
                 CCoinControl cc;
-                cc.m_change_type = DEFAULT_ADDRESS_TYPE;
+                cc.m_change_type = pwallet->m_default_change_type;
                 cc.Select(COutPoint(wtx.tx->GetHash(), i));
-                cc.fAllowOtherInputs = true; // the doc comment on this parameter says it should be false; experience says otherwise
-                wtxNew = SendMoney(pwallet, CTxDestination(newKey.GetID()), nAmount, false, cc, {}, {}, updateScript);
+                cc.fAllowOtherInputs = true; // when selecting a coin, that's the only one used without this flag (and we need to cover the fee)
+                wtxNew = SendMoney(pwallet, dest, nAmount, false, cc, {}, {}, updateScript);
                 break;
             }
         }
@@ -523,7 +545,7 @@ UniValue abandonclaim(const JSONRPCRequest& request)
         {
             EnsureWalletIsUnlocked(pwallet);
             CCoinControl cc;
-            cc.m_change_type = DEFAULT_ADDRESS_TYPE;
+            cc.m_change_type = pwallet->m_default_change_type;
             cc.Select(COutPoint(wtx.tx->GetHash(), i));
             wtxNew = SendMoney(pwallet, address, wtx.tx->vout[i].nValue, true, cc, {}, {});
             break;
@@ -546,92 +568,93 @@ void ListNameClaims(const CWalletTx& wtx, CWallet* const pwallet, const std::str
     std::list<COutputEntry> listSent;
     std::list<COutputEntry> listReceived;
 
-    isminefilter filter = isminetype::ISMINE_CLAIM;
-    if (include_supports)
-        filter |= isminetype::ISMINE_SUPPORT;
-    wtx.GetAmounts(listReceived, listSent, nFee, strSentAccount, filter);
+    wtx.GetAmounts(listReceived, listSent, nFee, strSentAccount, isminetype::ISMINE_ALL);
 
     bool fAllAccounts = (strAccount == std::string("*"));
+    if (!fAllAccounts && wtx.strFromAccount != strAccount)
+        return;
 
-    if ((!listSent.empty() || nFee != 0) && (fAllAccounts || strAccount == strSentAccount))
+    for (const auto& s: listSent)
     {
-        for (const COutputEntry& s: listSent)
-        {
-            if (!list_spent && pwallet->IsSpent(wtx.GetHash(), s.vout))
-                continue;
+        if (!list_spent && pwallet->IsSpent(wtx.GetHash(), s.vout))
+            continue;
 
-            UniValue entry(UniValue::VOBJ);
-            const CScript& scriptPubKey = wtx.tx->vout[s.vout].scriptPubKey;
-            int op;
-            std::vector<std::vector<unsigned char>> vvchParams;
-            if (!DecodeClaimScript(scriptPubKey, op, vvchParams)) {
-                continue;
-            }
-            std::string sName (vvchParams[0].begin(), vvchParams[0].end());
-            entry.pushKV("name", escapeNonUtf8(sName));
-            if (op == OP_CLAIM_NAME)
-            {
-                uint160 claimId = ClaimIdHash(wtx.GetHash(), s.vout);
-                entry.pushKV("claimtype", "CLAIM");
-                entry.pushKV("claimId", claimId.GetHex());
-                entry.pushKV("value", HexStr(vvchParams[1].begin(), vvchParams[1].end()));
-            }
-            else if (op == OP_UPDATE_CLAIM)
-            {
-                uint160 claimId(vvchParams[1]);
-                entry.pushKV("claimtype", "CLAIM");
-                entry.pushKV("claimId", claimId.GetHex());
+        UniValue entry(UniValue::VOBJ);
+        const CScript& scriptPubKey = wtx.tx->vout[s.vout].scriptPubKey;
+        int op;
+        std::vector<std::vector<unsigned char>> vvchParams;
+        if (!DecodeClaimScript(scriptPubKey, op, vvchParams)) {
+            continue;
+        }
+        if (!include_supports && op == OP_SUPPORT_CLAIM)
+            continue;
+
+        std::string sName (vvchParams[0].begin(), vvchParams[0].end());
+        entry.pushKV("name", escapeNonUtf8(sName));
+        if (op == OP_CLAIM_NAME)
+        {
+            uint160 claimId = ClaimIdHash(wtx.GetHash(), s.vout);
+            entry.pushKV("claimtype", "CLAIM");
+            entry.pushKV("claimId", claimId.GetHex());
+            entry.pushKV("value", HexStr(vvchParams[1].begin(), vvchParams[1].end()));
+        }
+        else if (op == OP_UPDATE_CLAIM)
+        {
+            uint160 claimId(vvchParams[1]);
+            entry.pushKV("claimtype", "CLAIM");
+            entry.pushKV("claimId", claimId.GetHex());
+            entry.pushKV("value", HexStr(vvchParams[2].begin(), vvchParams[2].end()));
+        }
+        else if (op == OP_SUPPORT_CLAIM)
+        {
+            uint160 claimId(vvchParams[1]);
+            entry.pushKV("claimtype", "SUPPORT");
+            entry.pushKV("supported_claimid", claimId.GetHex());
+            if (vvchParams.size() > 2) {
                 entry.pushKV("value", HexStr(vvchParams[2].begin(), vvchParams[2].end()));
             }
-            else if (op == OP_SUPPORT_CLAIM)
-            {
-                uint160 claimId(vvchParams[1]);
-                entry.pushKV("claimtype", "SUPPORT");
-                entry.pushKV("supported_claimid", claimId.GetHex());
-                if (vvchParams.size() > 2) {
-                    entry.pushKV("value", HexStr(vvchParams[2].begin(), vvchParams[2].end()));
-                }
-            }
-            entry.pushKV("txid", wtx.GetHash().ToString());
-            entry.pushKV("account", strSentAccount);
-            MaybePushAddress(entry, s.destination);
-            entry.pushKV("amount", ValueFromAmount(s.amount));
-            entry.pushKV("vout", s.vout);
-            entry.pushKV("fee", ValueFromAmount(nFee));
-
-            CClaimTrieCache trieCache(pclaimTrie);
-
-            auto it = mapBlockIndex.find(wtx.hashBlock);
-            if (it != mapBlockIndex.end())
-            {
-                CBlockIndex* pindex = it->second;
-                if (pindex)
-                {
-                    entry.pushKV("height", pindex->nHeight);
-                    entry.pushKV("expiration height", pindex->nHeight + trieCache.expirationTime());
-                    if (pindex->nHeight + trieCache.expirationTime() > chainActive.Height())
-                    {
-                        entry.pushKV("expired", false);
-                        entry.pushKV("blocks to expiration", pindex->nHeight + trieCache.expirationTime() - chainActive.Height());
-                    }
-                    else
-                    {
-                        entry.pushKV("expired", true);
-                    }
-                }
-            }
-            entry.pushKV("confirmations", wtx.GetDepthInMainChain());
-            entry.pushKV("is spent", pwallet->IsSpent(wtx.GetHash(), s.vout));
-            if (op == OP_CLAIM_NAME)
-            {
-                entry.pushKV("is in name trie", trieCache.haveClaim(sName, COutPoint(wtx.GetHash(), s.vout)));
-            }
-            else if (op == OP_SUPPORT_CLAIM)
-            {
-                entry.pushKV("is in support map", trieCache.haveSupport(sName, COutPoint(wtx.GetHash(), s.vout)));
-            }
-            ret.push_back(entry);
         }
+        else
+            throw JSONRPCError(RPC_INTERNAL_ERROR, "Undefined claim operator.");
+        entry.pushKV("txid", wtx.GetHash().ToString());
+        entry.pushKV("account", strSentAccount);
+        MaybePushAddress(entry, s.destination);
+        entry.pushKV("amount", ValueFromAmount(s.amount));
+        entry.pushKV("vout", s.vout);
+        entry.pushKV("fee", ValueFromAmount(nFee));
+
+        CClaimTrieCache trieCache(pclaimTrie);
+
+        auto it = mapBlockIndex.find(wtx.hashBlock);
+        if (it != mapBlockIndex.end())
+        {
+            CBlockIndex* pindex = it->second;
+            if (pindex)
+            {
+                entry.pushKV("height", pindex->nHeight);
+                entry.pushKV("expiration height", pindex->nHeight + trieCache.expirationTime());
+                if (pindex->nHeight + trieCache.expirationTime() > chainActive.Height())
+                {
+                    entry.pushKV("expired", false);
+                    entry.pushKV("blocks to expiration", pindex->nHeight + trieCache.expirationTime() - chainActive.Height());
+                }
+                else
+                {
+                    entry.pushKV("expired", true);
+                }
+            }
+        }
+        entry.pushKV("confirmations", wtx.GetDepthInMainChain());
+        entry.pushKV("is spent", pwallet->IsSpent(wtx.GetHash(), s.vout));
+        if (op == OP_CLAIM_NAME)
+        {
+            entry.pushKV("is in name trie", trieCache.haveClaim(sName, COutPoint(wtx.GetHash(), s.vout)));
+        }
+        else if (op == OP_SUPPORT_CLAIM)
+        {
+            entry.pushKV("is in support map", trieCache.haveSupport(sName, COutPoint(wtx.GetHash(), s.vout)));
+        }
+        ret.push_back(entry);
     }
 }
 
@@ -650,8 +673,7 @@ UniValue listnameclaims(const JSONRPCRequest& request)
             "Return a list of all transactions claiming names.\n"
             "\nArguments\n"
             "1. includesupports  (bool, optional) Whether to also include claim supports. Default is true.\n"
-            "2. activeonly       (bool, optional, not implemented) Whether to only include transactions which are still active, i.e. have n\
-ot been spent. Default is false.\n"
+            "2. activeonly       (bool, optional) Whether to only include transactions which are still active, i.e. have not been spent. Default is true.\n"
             "3. minconf          (numeric, optional, default=1) Only include transactions confirmed at least this many times.\n"
             "\nResult:\n"
             "[\n"
@@ -681,7 +703,7 @@ ot been spent. Default is false.\n"
     std::string strAccount = "*";
 
     auto include_supports = request.params.size() < 1 || request.params[0].get_bool();
-    bool fListSpent = request.params.size() > 1 && request.params[1].get_bool();
+    bool fListSpent = request.params.size() > 1 && !request.params[1].get_bool();
 
     // Minimum confirmations
     int nMinDepth = 1;
@@ -719,7 +741,7 @@ UniValue supportclaim(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || (request.params.size() != 3 && request.params.size() != 4))
+    if (request.fHelp || request.params.size() < 3 || request.params.size() > 5)
         throw std::runtime_error(
             "supportclaim \"name\" \"claimid\" \"amount\" \"value\"\n"
             "Increase the value of a claim. Whichever claim has the greatest value, including all support values, will be the authoritative claim, according to the rest of the rules. The name is the name which is claimed by the claim that will be supported, the txid is the txid\
@@ -727,10 +749,11 @@ UniValue supportclaim(const JSONRPCRequest& request)
 . Otherwise, it will go into effect after 100 blocks. The support will be in effect until it is spent, and will lose its effect when the claim is spent or expires. The amount is a real and is rounded to the nearest .00000001\n"
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
-            "1. \"name\"  (string, required) The name claimed by the claim to support.\n"
-            "2. \"claimid\"  (string, required) The claimid of the claim to support. This can be obtained by TODO PUT IN PLACE THAT SHOWS THIS.\n"
-            "3. \"amount\"  (numeric, required) The amount in LBC to use to support the claim.\n"
-            "4. \"value\"  (string, optional) The metadata of the support encoded in hexadecimal.\n"
+            "1. \"name\"         (string, required) The name claimed by the claim to support.\n"
+            "2. \"claimid\"      (string, required) The claimid of the claim to support.\n"
+            "3. \"amount\"       (numeric, required) The amount in LBC to use to support the claim.\n"
+            "4. \"value\"        (string, optional) The metadata of the support encoded in hexadecimal.\n"
+            "5. \"address_type\" (string, optional) The address type to use. Options are \"legacy\", \"p2sh-segwit\", and \"bech32\". Default is set by -addresstype.\n"
             "\nResult:\n"
             "\"transactionid\"  (string) The transaction id of the support.\n");
 
@@ -757,10 +780,14 @@ UniValue supportclaim(const JSONRPCRequest& request)
     auto lastOp = OP_DROP;
     if (request.params.size() > 3) {
         auto hex = request.params[3].get_str();
-        if (!IsHex(hex))
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "value/metadata must be of hexadecimal data");
-        supportScript = supportScript << ParseHex(hex);
-        lastOp = OP_2DROP;
+        if (!hex.empty()) {
+            if (!IsHex(hex))
+                throw JSONRPCError(RPC_INVALID_PARAMETER, "value/metadata must be of hexadecimal data");
+            if (!IsWitnessEnabled(chainActive.Tip(), Params().GetConsensus()))
+                throw JSONRPCError(RPC_INVALID_PARAMETER, "value/metadata on supports is not enabled yet");
+            supportScript = supportScript << ParseHex(hex);
+            lastOp = OP_2DROP;
+        }
     }
 
     supportScript = supportScript << OP_2DROP << lastOp;
@@ -769,9 +796,18 @@ UniValue supportclaim(const JSONRPCRequest& request)
     if (!pwallet->GetKeyFromPool(newKey))
         throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
 
+    OutputType output_type = pwallet->m_default_address_type;
+    if (request.params.size() > 4 && !request.params[4].isNull()) {
+        if (!ParseOutputType(request.params[4].get_str(), output_type)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strprintf("Unknown address type '%s'", request.params[4].get_str()));
+        }
+    }
+    pwallet->LearnRelatedScripts(newKey, output_type);
+    CTxDestination dest = GetDestinationForKey(newKey, output_type);
+
     CCoinControl cc;
-    cc.m_change_type = DEFAULT_ADDRESS_TYPE;
-    auto tx = SendMoney(pwallet, CTxDestination(newKey.GetID()), nAmount, false, cc, {}, {}, supportScript);
+    cc.m_change_type = pwallet->m_default_change_type;
+    auto tx = SendMoney(pwallet, dest, nAmount, false, cc, {}, {}, supportScript);
     return tx->GetHash().GetHex();
 }
 
@@ -817,7 +853,7 @@ UniValue abandonsupport(const JSONRPCRequest& request)
         {
             EnsureWalletIsUnlocked(pwallet);
             CCoinControl cc;
-            cc.m_change_type = DEFAULT_ADDRESS_TYPE;
+            cc.m_change_type = pwallet->m_default_change_type;
             cc.Select(COutPoint(wtx.tx->GetHash(), i));
             wtxNew = SendMoney(pwallet, address, wtx.tx->vout[i].nValue, true, cc, {}, {});
             break;
@@ -4237,6 +4273,8 @@ UniValue getaddressinfo(const JSONRPCRequest& request)
        ret.pushKV("desc", InferDescriptor(scriptPubKey, *pwallet)->ToString());
     }
     ret.pushKV("iswatchonly", bool(mine & ISMINE_WATCH_ONLY));
+    ret.pushKV("isclaim", bool(mine & ISMINE_CLAIM));
+    ret.pushKV("issupport", bool(mine & ISMINE_SUPPORT));
     UniValue detail = DescribeWalletAddress(pwallet, dest);
     ret.pushKVs(detail);
     if (pwallet->mapAddressBook.count(dest)) {
@@ -4746,11 +4784,11 @@ static const CRPCCommand commands[] =
     { "wallet",             "walletpassphrasechange",           &walletpassphrasechange,        {"oldpassphrase","newpassphrase"} },
     { "wallet",             "walletprocesspsbt",                &walletprocesspsbt,             {"psbt","sign","sighashtype","bip32derivs"} },
 
-    { "Claimtrie",          "claimname",                        &claimname,                     {"name","value","amount"} },
-    { "Claimtrie",          "updateclaim",                      &updateclaim,                   {"txid","value","amount"} },
+    { "Claimtrie",          "claimname",                        &claimname,                     {"name","value","amount","address_type"} },
+    { "Claimtrie",          "updateclaim",                      &updateclaim,                   {"txid","value","amount","address_type"} },
     { "Claimtrie",          "abandonclaim",                     &abandonclaim,                  {"txid","address"} },
     { "Claimtrie",          "listnameclaims",                   &listnameclaims,                {"includesuppports","activeonly","minconf"} },
-    { "Claimtrie",          "supportclaim",                     &supportclaim,                  {"name","claimid","amount","value"} },
+    { "Claimtrie",          "supportclaim",                     &supportclaim,                  {"name","claimid","amount","value","address_type"} },
     { "Claimtrie",          "abandonsupport",                   &abandonsupport,                {"txid","address"} },
 };
 // clang-format on

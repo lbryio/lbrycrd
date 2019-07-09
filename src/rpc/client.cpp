@@ -169,6 +169,9 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "createwallet", 2, "blank"},
     { "createwallet", 4, "avoid_reuse"},
     { "getnodeaddresses", 0, "count"},
+    { "listnameclaims", 0, "includesupports"},
+    { "listnameclaims", 1, "activeonly"},
+    { "listnameclaims", 2, "minconf"},
     { "stop", 0, "wait" },
 };
 // clang-format on

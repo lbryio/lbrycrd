@@ -202,7 +202,7 @@ bool IsWitnessStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs)
         const CTxOut &prev = mapInputs.AccessCoin(tx.vin[i].prevout).out;
 
         // get the scriptPubKey corresponding to this input:
-        CScript prevScript = prev.scriptPubKey;
+        CScript prevScript = StripClaimScriptPrefix(prev.scriptPubKey);
 
         if (prevScript.IsPayToScriptHash()) {
             std::vector <std::vector<unsigned char> > stack;
