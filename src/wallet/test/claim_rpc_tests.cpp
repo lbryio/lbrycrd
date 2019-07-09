@@ -149,11 +149,10 @@ uint256 AbandonAClaim(const uint256& txid, bool isSupport = false) {
     }
 }
 
-BOOST_AUTO_TEST_CASE(claim_op_runthrough)
-{
+void AddClaimSupportThenRemove() {
     generateBlock(105);
 
-    BOOST_CHECK_GE(AvailableBalance(), 2.0);
+    BOOST_CHECK_EQUAL(AvailableBalance(), 5.0);
 
     // ops for test: claimname, updateclaim, abandonclaim, listnameclaims, supportclaim, abandonsupport
     // order of ops:
@@ -250,6 +249,31 @@ BOOST_AUTO_TEST_CASE(claim_op_runthrough)
     looked = LookupAllNames().get_array();
     BOOST_CHECK_EQUAL(looked.size(), 0);
     */
+}
+
+BOOST_AUTO_TEST_CASE(claim_op_runthrough_legacy)
+{
+    for (auto& wallet: GetWallets())
+        wallet->m_default_address_type = OutputType::LEGACY;
+    AddClaimSupportThenRemove();
+}
+
+BOOST_AUTO_TEST_CASE(claim_op_runthrough_p2sh)
+{
+    for (auto& wallet: GetWallets()) {
+        BOOST_CHECK(DEFAULT_ADDRESS_TYPE == wallet->m_default_address_type); // BOOST_CHECK_EQUAL no compile here
+        wallet->m_default_address_type = OutputType::P2SH_SEGWIT;
+    }
+    AddClaimSupportThenRemove();
+}
+
+BOOST_AUTO_TEST_CASE(claim_op_runthrough_bech32)
+{
+    for (auto& wallet: GetWallets()) {
+        BOOST_CHECK(DEFAULT_ADDRESS_TYPE == wallet->m_default_address_type); // BOOST_CHECK_EQUAL no compile here
+        wallet->m_default_address_type = OutputType::BECH32;
+    }
+    AddClaimSupportThenRemove();
 }
 
 BOOST_AUTO_TEST_SUITE_END()
