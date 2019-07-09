@@ -72,7 +72,7 @@ static BlockAssembler AssemblerForTest()
 }
 
 // Test Fixtures
-struct ClaimTrieChainFixture: public CClaimTrieCacheBase
+struct ClaimTrieChainFixture: public CClaimTrieCacheExpirationFork
 {
     std::vector<CTransaction> coinbase_txs;
     std::vector<int> marks;
@@ -86,9 +86,9 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheBase
     int64_t originalExpiration;
     int64_t extendedExpiration;
 
-    using CClaimTrieCacheBase::getSupportsForName;
+    using CClaimTrieCacheExpirationFork::getSupportsForName;
 
-    ClaimTrieChainFixture(): CClaimTrieCacheBase(pclaimTrie),
+    ClaimTrieChainFixture(): CClaimTrieCacheExpirationFork(pclaimTrie),
         unique_block_counter(0), normalization_original(-1), expirationForkHeight(-1)
     {
         fRequireStandard = false;
@@ -114,14 +114,12 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheBase
         DecrementBlocks(chainActive.Height());
         auto& consensus = const_cast<Consensus::Params&>(Params().GetConsensus());
         if (normalization_original >= 0)
-        {
             consensus.nNormalizedNameForkHeight = normalization_original;
-        }
+
         if (expirationForkHeight >= 0) {
             consensus.nExtendedClaimExpirationForkHeight = expirationForkHeight;
             consensus.nExtendedClaimExpirationTime = extendedExpiration;
             consensus.nOriginalClaimExpirationTime = originalExpiration;
-            base->nExpirationTime = originalExpiration;
         }
     }
 
@@ -136,7 +134,7 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheBase
         consensus.nExtendedClaimExpirationForkHeight = target;
         consensus.nExtendedClaimExpirationTime = postForkExpirationTime;
         consensus.nOriginalClaimExpirationTime = preForkExpirationTime;
-        base->nExpirationTime = targetMinusCurrent >= 0 ? preForkExpirationTime : postForkExpirationTime;
+        setExpirationTime(targetMinusCurrent >= 0 ? preForkExpirationTime : postForkExpirationTime);
     }
 
     void setNormalizationForkHeight(int targetMinusCurrent) {
@@ -292,6 +290,7 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheBase
             num_txs_for_next_block = 0;
             nNextHeight = chainActive.Height() + 1;
         }
+        setExpirationTime(Params().GetConsensus().GetExpirationTime(nNextHeight - 1));
     }
 
     //disconnect i blocks from tip
@@ -306,9 +305,10 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheBase
         }
         BOOST_CHECK_EQUAL(state.IsValid(), true);
         BOOST_CHECK_EQUAL(ActivateBestChain(state, Params()), true);
-        nNextHeight = chainActive.Height() + 1;
         mempool.clear();
         num_txs_for_next_block = 0;
+        nNextHeight = chainActive.Height() + 1;
+        setExpirationTime(Params().GetConsensus().GetExpirationTime(nNextHeight - 1));
     }
 
     // decrement back to last mark
@@ -1157,7 +1157,7 @@ BOOST_AUTO_TEST_CASE(hardfork_claim_test)
     // make sure decrementing to before the fork height will apppropriately set back the
     // expiration time to the original expiraiton time
     fixture.DecrementBlocks(1);
-    BOOST_CHECK_NE(fixture.expirationTime(), 6);
+    BOOST_CHECK_EQUAL(fixture.expirationTime(), 3);
     fixture.IncrementBlocks(1);
     BOOST_CHECK_EQUAL(fixture.expirationTime(), 6);
 
@@ -1723,7 +1723,7 @@ BOOST_AUTO_TEST_CASE(normalization_does_not_kill_sort_order)
 BOOST_AUTO_TEST_CASE(normalization_does_not_kill_expirations)
 {
     ClaimTrieChainFixture fixture;
-    fixture.setExpirationTime(3);
+    fixture.setExpirationForkHeight(800, 3, 800);
     fixture.setNormalizationForkHeight(4);
     // need to see that claims expiring on the frame when we normalize aren't kept
     // need to see that supports expiring on the frame when we normalize aren't kept

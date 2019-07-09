@@ -92,7 +92,6 @@ void CClaimTrieData::reorderClaims(const supportEntryType& supports)
 CClaimTrie::CClaimTrie(bool fMemory, bool fWipe, int proportionalDelayFactor)
 {
     nProportionalDelayFactor = proportionalDelayFactor;
-    nExpirationTime = Params().GetConsensus().nOriginalClaimExpirationTime;
     db.reset(new CDBWrapper(GetDataDir() / "claimtrie", 100 * 1024 * 1024, fMemory, fWipe, false));
 }
 
@@ -469,9 +468,7 @@ bool CClaimTrieCacheBase::ReadFromDisk(const CBlockIndex* tip)
 {
     LogPrintf("Loading the claim trie from disk...\n");
 
-    nNextHeight = tip ? tip->nHeight + 1 : 0;
-    base->nNextHeight = nNextHeight;
-    base->nExpirationTime = Params().GetConsensus().GetExpirationTime(nNextHeight - 1); // -1 okay
+    base->nNextHeight = nNextHeight = tip ? tip->nHeight + 1 : 0;
 
     clear();
     base->clear();
@@ -532,14 +529,9 @@ CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base, bool fRequireTakeover
     nNextHeight = base->nNextHeight;
 }
 
-void CClaimTrieCacheBase::setExpirationTime(int time)
+int CClaimTrieCacheBase::expirationTime() const
 {
-    base->nExpirationTime = time;
-}
-
-int CClaimTrieCacheBase::expirationTime()
-{
-    return base->nExpirationTime;
+    return Params().GetConsensus().nOriginalClaimExpirationTime;
 }
 
 uint256 CClaimTrieCacheBase::recursiveComputeMerkleHash(CClaimTrie::iterator& it)
@@ -726,7 +718,7 @@ bool CClaimTrieCacheBase::undoSpendClaim(const std::string& name, const COutPoin
     CClaimValue claim(outPoint, claimId, nAmount, nHeight, nValidAtHeight);
     if (nValidAtHeight < nNextHeight) {
         CNameOutPointType entry(adjustNameForValidHeight(name, nValidAtHeight), claim.outPoint);
-        addToExpirationQueue(claim.nHeight + base->nExpirationTime, entry);
+        addToExpirationQueue(claim.nHeight + expirationTime(), entry);
         CClaimIndexElement element = {name, claim};
         claimsToAdd.push_back(element);
         return insertClaimIntoTrie(name, claim, false);
@@ -745,7 +737,7 @@ bool CClaimTrieCacheBase::addClaimToQueues(const std::string& name, const CClaim
     itQueueRow->second.push_back(entry);
     itQueueNameRow->second.emplace_back(claim.outPoint, claim.nValidAtHeight);
     CNameOutPointType expireEntry(name, claim.outPoint);
-    addToExpirationQueue(claim.nHeight + base->nExpirationTime, expireEntry);
+    addToExpirationQueue(claim.nHeight + expirationTime(), expireEntry);
     return true;
 }
 
@@ -798,7 +790,7 @@ bool CClaimTrieCacheBase::removeClaim(const std::string& name, const COutPoint& 
     std::string adjusted = adjustNameForValidHeight(name, nValidAtHeight);
 
     if (removeClaimFromQueue(adjusted, outPoint, claim) || removeClaimFromTrie(name, outPoint, claim, fCheckTakeover)) {
-        int expirationHeight = claim.nHeight + base->nExpirationTime;
+        int expirationHeight = claim.nHeight + expirationTime();
         removeFromExpirationQueue(adjusted, outPoint, expirationHeight);
         claimsToDelete.insert(claim);
         nValidAtHeight = claim.nValidAtHeight;
@@ -880,7 +872,7 @@ bool CClaimTrieCacheBase::addSupportToQueues(const std::string& name, const CSup
     itQueueRow->second.push_back(entry);
     itQueueNameRow->second.emplace_back(support.outPoint, support.nValidAtHeight);
     CNameOutPointType expireEntry(name, support.outPoint);
-    addSupportToExpirationQueue(support.nHeight + base->nExpirationTime, expireEntry);
+    addSupportToExpirationQueue(support.nHeight + expirationTime(), expireEntry);
     return true;
 }
 
@@ -929,7 +921,7 @@ bool CClaimTrieCacheBase::undoSpendSupport(const std::string& name, const COutPo
     CSupportValue support(outPoint, supportedClaimId, nAmount, nHeight, nValidAtHeight);
     if (nValidAtHeight < nNextHeight) {
         CNameOutPointType entry(adjustNameForValidHeight(name, nValidAtHeight), support.outPoint);
-        addSupportToExpirationQueue(support.nHeight + base->nExpirationTime, entry);
+        addSupportToExpirationQueue(support.nHeight + expirationTime(), entry);
         return insertSupportIntoMap(name, support, false);
     } else {
         return addSupportToQueues(name, support);
@@ -943,7 +935,7 @@ bool CClaimTrieCacheBase::removeSupport(const std::string& name, const COutPoint
     std::string adjusted = adjustNameForValidHeight(name, nValidAtHeight);
 
     if (removeSupportFromQueue(adjusted, outPoint, support) || removeSupportFromMap(name, outPoint, support, fCheckTakeover)) {
-        int expirationHeight = support.nHeight + base->nExpirationTime;
+        int expirationHeight = support.nHeight + expirationTime();
         removeSupportFromExpirationQueue(adjusted, outPoint, expirationHeight);
         nValidAtHeight = support.nValidAtHeight;
         return true;
@@ -1244,7 +1236,7 @@ bool CClaimTrieCacheBase::decrementBlock(insertUndoType& insertUndo, claimQueueR
     if (!expireSupportUndo.empty()) {
         for (auto itSupportExpireUndo = expireSupportUndo.crbegin(); itSupportExpireUndo != expireSupportUndo.crend(); ++itSupportExpireUndo) {
             insertSupportIntoMap(itSupportExpireUndo->first, itSupportExpireUndo->second, false);
-            if (nNextHeight == itSupportExpireUndo->second.nHeight + base->nExpirationTime) {
+            if (nNextHeight == itSupportExpireUndo->second.nHeight + expirationTime()) {
                 auto itSupportExpireRow = getSupportExpirationQueueCacheRow(nNextHeight, true);
                 itSupportExpireRow->second.emplace_back(itSupportExpireUndo->first, itSupportExpireUndo->second.outPoint);
             }
@@ -1270,7 +1262,7 @@ bool CClaimTrieCacheBase::decrementBlock(insertUndoType& insertUndo, claimQueueR
             insertClaimIntoTrie(itExpireUndo->first, itExpireUndo->second, false);
             CClaimIndexElement element = {itExpireUndo->first, itExpireUndo->second};
             claimsToAdd.push_back(element);
-            if (nNextHeight == itExpireUndo->second.nHeight + base->nExpirationTime) {
+            if (nNextHeight == itExpireUndo->second.nHeight + expirationTime()) {
                 auto itExpireRow = getExpirationQueueCacheRow(nNextHeight, true);
                 itExpireRow->second.emplace_back(itExpireUndo->first, itExpireUndo->second.outPoint);
             }

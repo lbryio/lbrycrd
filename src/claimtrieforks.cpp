@@ -1,4 +1,6 @@
-#include "claimtrie.h"
+
+#include <chainparams.h>
+#include <claimtrie.h>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/foreach.hpp>
@@ -6,6 +8,46 @@
 #include <boost/locale/conversion.hpp>
 #include <boost/locale/localization_backend.hpp>
 #include <boost/scope_exit.hpp>
+
+CClaimTrieCacheExpirationFork::CClaimTrieCacheExpirationFork(CClaimTrie* base, bool fRequireTakeoverHeights)
+    : CClaimTrieCacheBase(base, fRequireTakeoverHeights)
+{
+    setExpirationTime(Params().GetConsensus().GetExpirationTime(nNextHeight));
+}
+
+void CClaimTrieCacheExpirationFork::setExpirationTime(int time)
+{
+    nExpirationTime = time;
+}
+
+int CClaimTrieCacheExpirationFork::expirationTime() const
+{
+    return nExpirationTime;
+}
+
+bool CClaimTrieCacheExpirationFork::incrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo, std::vector<std::pair<std::string, int>>& takeoverHeightUndo)
+{
+    if (CClaimTrieCacheBase::incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverHeightUndo)) {
+        setExpirationTime(Params().GetConsensus().GetExpirationTime(nNextHeight));
+        return true;
+    }
+    return false;
+}
+
+bool CClaimTrieCacheExpirationFork::decrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo)
+{
+    if (CClaimTrieCacheBase::decrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo)) {
+        setExpirationTime(Params().GetConsensus().GetExpirationTime(nNextHeight));
+        return true;
+    }
+    return false;
+}
+
+void CClaimTrieCacheExpirationFork::expirationForkActive(int nHeight, bool increment)
+{
+    if (nHeight == Params().GetConsensus().nExtendedClaimExpirationForkHeight)
+        forkForExpirationChange(increment);
+}
 
 void CClaimTrieCacheExpirationFork::removeAndAddToExpirationQueue(expirationQueueRowType& row, int height, bool increment)
 {
@@ -150,7 +192,7 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(insert
         auto supports = getSupportsForName(it.key());
         for (auto& support : supports) {
             // if it's already going to expire just skip it
-            if (support.nHeight + base->nExpirationTime <= nNextHeight)
+            if (support.nHeight + expirationTime() <= nNextHeight)
                 continue;
 
             CSupportValue removed;
@@ -167,7 +209,7 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(insert
             continue;
 
         for (auto& claim : it->claims) {
-            if (claim.nHeight + base->nExpirationTime <= nNextHeight)
+            if (claim.nHeight + expirationTime() <= nNextHeight)
                 continue;
 
             CClaimValue removed;

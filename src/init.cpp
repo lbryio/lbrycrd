@@ -1702,9 +1702,6 @@ bool AppInitMain()
     }
     LogPrintf("nBestHeight = %d\n", chain_active_height);
 
-    const Consensus::Params& consensusParams = Params().GetConsensus();
-    CClaimTrieCache(pclaimTrie).setExpirationTime(consensusParams.GetExpirationTime(chain_active_height));
-
     if (gArgs.GetBoolArg("-listenonion", DEFAULT_LISTEN_ONION))
         StartTorControl();
 
