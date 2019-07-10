@@ -498,7 +498,7 @@ BOOST_AUTO_TEST_CASE(triehash_fuzzer_test)
     }
 
     if (blocks == 1000 && claimsPerBlock == 100)
-        BOOST_CHECK_EQUAL(fixture.getMerkleHash().GetHex(), "c5df693adbe6b386a5d1e494e83a8f5745f32f6917a32b4f429e7c20b47171dd");
+        BOOST_CHECK_EQUAL(fixture.getMerkleHash().GetHex(), "21b25760f8e0f3e95514ff90b8ef3758b270e50fe17f747ba29f99dd1874bf41");
     else if (blocks == 13 && claimsPerBlock == 100)
         BOOST_CHECK_EQUAL(fixture.getMerkleHash().GetHex(), "4e5984d6984f5f05d50e821e6228d56bcfbd16ca2093cd0308f6ff1c2bc8689a");
     else
