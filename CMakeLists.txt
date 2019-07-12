@@ -10,6 +10,9 @@ include(ExternalProject)
 set(OPTIONS "" CACHE STRING "lbrycrdd configure options")
 set(CPPFLAGS "" CACHE STRING "lbrycrdd compiler options")
 set(LDFLAGS "" CACHE STRING "lbrycrdd linker options")
+set(DISABLE_TESTS OFF CACHE BOOL "compilation without tests")
+set(DISABLE_WALLET OFF CACHE BOOL "compilation without wallet support")
+set(DISABLE_BENCH OFF CACHE BOOL "compilation without bench support")
 
 if(NOT ${CPM_USE_LOCAL_PACKAGES})
     set(OPTIONS "${OPTIONS} --enable-static --disable-shared")
@@ -17,10 +20,21 @@ else()
     list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 endif()
 
-set(OPTIONS "--enable-cxx --without-gui ${OPTIONS} --with-pic")
+set(OPTIONS "--without-gui ${OPTIONS} --with-pic")
 
-string(FIND ${OPTIONS} "--disable-tests" TESTS_DISABLED)
-string(FIND ${OPTIONS} "--disable-wallet" WALLET_DISABLED)
+if (${DISABLE_TESTS})
+    set(OPTIONS "${OPTIONS} --disable-tests")
+endif()
+
+if (${DISABLE_WALLET})
+    set(OPTIONS "${OPTIONS} --disable-wallet")
+endif()
+
+if (${DISABLE_BENCH})
+    set(OPTIONS "${OPTIONS} --disable-bench")
+endif()
+
+string(TOLOWER ${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR} ARCH)
 
 CPMAddPackage(
     NAME OpenSSL
@@ -34,7 +48,7 @@ if(OpenSSL_ADDED)
     ExternalProject_Add(OpenSSL
         PREFIX openssl
         SOURCE_DIR ${OpenSSL_SOURCE_DIR}
-        CONFIGURE_COMMAND ${OpenSSL_SOURCE_DIR}/Configure linux-x86_64 no-shared no-dso no-engines -fPIC --prefix=<INSTALL_DIR>
+        CONFIGURE_COMMAND ${OpenSSL_SOURCE_DIR}/Configure ${ARCH} no-shared no-dso no-engines -fPIC --prefix=<INSTALL_DIR>
         BUILD_IN_SOURCE 1
     )
     set(DEPENDS ${DEPENDS} OpenSSL)
@@ -68,7 +82,7 @@ if(Libevent_ADDED)
     set(CPPFLAGS "${CPPFLAGS} -I${INSTALL_DIR}/include")
 endif(Libevent_ADDED)
 
-if(NOT ${WALLET_DISABLED} GREATER -1)
+if(NOT ${DISABLE_WALLET})
     CPMAddPackage(
         NAME BerkeleyDB
         VERSION 4.8.30
@@ -85,7 +99,7 @@ if(NOT ${WALLET_DISABLED} GREATER -1)
         ExternalProject_Add(BerkeleyDB
             PREFIX bdb
             SOURCE_DIR ${BerkeleyDB_SOURCE_DIR}
-            PATCH_COMMAND patch -d ${BerkeleyDB_SOURCE_DIR}/dbinc -i ${CMAKE_CURRENT_SOURCE_DIR}/contrib/patches/atomic.patch -f
+            PATCH_COMMAND patch -Nd ${BerkeleyDB_SOURCE_DIR}/dbinc -i ${CMAKE_CURRENT_SOURCE_DIR}/depends/patches/db/atomic.patch
             CONFIGURE_COMMAND ${BerkeleyDB_SOURCE_DIR}/dist/configure --enable-cxx --disable-shared --with-pic --prefix=<INSTALL_DIR>
         )
         set(DEPENDS ${DEPENDS} BerkeleyDB)
@@ -95,37 +109,14 @@ if(NOT ${WALLET_DISABLED} GREATER -1)
     endif(BerkeleyDB_ADDED)
 endif()
 
-CPMAddPackage(
-    NAME ICU
-    GITHUB_REPOSITORY unicode-org/icu
-    VERSION 63.1
-    GIT_TAG release-63-1
-    DOWNLOAD_ONLY TRUE
-)
-
-if(ICU_ADDED)
-    ExternalProject_Add(ICU
-        PREFIX icu
-        SOURCE_DIR ${ICU_SOURCE_DIR}
-        CONFIGURE_COMMAND ${ICU_SOURCE_DIR}/icu4c/source/configure --enable-draft --enable-tools
-                    --disable-shared --enable-static --disable-extras --disable-icuio --disable-dyload
-                    --disable-layout --disable-layoutex --disable-tests --disable-samples CFLAGS=-fPIC CPPFLAGS=-fPIC --prefix=<INSTALL_DIR>
-    )
-    set(DEPENDS ${DEPENDS} ICU)
-    ExternalProject_Get_Property(ICU INSTALL_DIR)
-    set(ICU_PATH ${INSTALL_DIR})
-    set(OPTIONS "${OPTIONS} --with-icu=${ICU_PATH}")
-    set(LDFLAGS "${LDFLAGS} -L${ICU_PATH}/lib")
-    set(CPPFLAGS "${CPPFLAGS} -I${ICU_PATH}/include")
-endif(ICU_ADDED)
-
 set(BOOST_LIBS chrono,filesystem,program_options,system,locale,regex,thread)
 
-if(NOT ${TESTS_DISABLED} GREATER -1)
-    set(BOOST_LIBS ${BOOST_LIBS},unit_test_framework)
-endif()
-
 string(REPLACE "," ";" BOOST_COMPONENTS ${BOOST_LIBS})
+
+if(NOT ${DISABLE_TESTS})
+    set(BOOST_LIBS ${BOOST_LIBS},test)
+    set(BOOST_COMPONENTS ${BOOST_COMPONENTS};unit_test_framework)
+endif()
 
 CPMAddPackage(
     NAME Boost
@@ -137,7 +128,33 @@ CPMAddPackage(
     DOWNLOAD_ONLY TRUE
 )
 
+# if boost is found system wide we expect to be compiled against icu, so we can skip it
 if(Boost_ADDED)
+
+    CPMAddPackage(
+        NAME ICU
+        GITHUB_REPOSITORY unicode-org/icu
+        VERSION 63.1
+        GIT_TAG release-63-1
+        DOWNLOAD_ONLY TRUE
+    )
+
+    if(ICU_ADDED)
+        ExternalProject_Add(ICU
+            PREFIX icu
+            SOURCE_DIR ${ICU_SOURCE_DIR}
+            CONFIGURE_COMMAND ${ICU_SOURCE_DIR}/icu4c/source/configure --enable-draft --enable-tools
+                    --disable-shared --enable-static --disable-extras --disable-icuio --disable-dyload --disable-layout
+                    --disable-layoutex --disable-tests --disable-samples CFLAGS=-fPIC CPPFLAGS=-fPIC --prefix=<INSTALL_DIR>
+        )
+        set(DEPENDS ${DEPENDS} ICU)
+        ExternalProject_Get_Property(ICU INSTALL_DIR)
+        set(ICU_PATH ${INSTALL_DIR})
+        set(OPTIONS "${OPTIONS} --with-icu=${ICU_PATH}")
+        set(LDFLAGS "${LDFLAGS} -L${ICU_PATH}/lib")
+        set(CPPFLAGS "${CPPFLAGS} -I${ICU_PATH}/include")
+    endif(ICU_ADDED)
+
     ExternalProject_Add(Boost
         PREFIX boost
         DEPENDS ${DEPENDS}
@@ -154,7 +171,7 @@ if(Boost_ADDED)
     set(CPPFLAGS "${CPPFLAGS} -I${INSTALL_DIR}/include")
 endif(Boost_ADDED)
 
-set(${CPPFLAGS} "${CPPFLAGS} -Wno-unused-local-typedefs -Wno-deprecated -Wno-implicit-fallthrough -Wno-unused-parameter")
+set(CPPFLAGS "${CPPFLAGS} -Wno-parentheses -Wno-unused-local-typedefs -Wno-deprecated -Wno-implicit-fallthrough -Wno-unused-parameter")
 
 separate_arguments(OPTIONS)
 
