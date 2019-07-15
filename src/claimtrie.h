@@ -256,6 +256,11 @@ struct CNameOutPointType
     {
     }
 
+    bool operator==(const CNameOutPointType& other) const
+    {
+        return name == other.name && outPoint == other.outPoint;
+    }
+
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
@@ -484,14 +489,14 @@ protected:
 
     int getNumBlocksOfContinuousOwnership(const std::string& name) const;
 
+    void reactivateClaim(const expirationQueueRowType& row, int height, bool increment);
+    void reactivateSupport(const expirationQueueRowType& row, int height, bool increment);
+
     expirationQueueType expirationQueueCache;
     expirationQueueType supportExpirationQueueCache;
 
     int nNextHeight; // Height of the block that is being worked on, which is
                      // one greater than the height of the chain's tip
-
-    template <typename T>
-    void reactivate(const expirationQueueRowType& row, int height, bool increment);
 
 private:
     uint256 hashBlock;
@@ -565,6 +570,9 @@ private:
 
     template <typename T>
     void undoIncrement(const std::string& name, insertUndoType& insertUndo, std::vector<queueEntryType<T>>& expireUndo);
+
+    template <typename T>
+    void reactivate(const expirationQueueRowType& row, int height, bool increment);
 
     // for unit test
     friend struct ClaimTrieChainFixture;

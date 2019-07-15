@@ -42,59 +42,37 @@ uint256 getValueHash(const COutPoint& outPoint, int nHeightOfLastTakeover)
 }
 
 template <typename T>
+bool equals(const T& lhs, const T& rhs)
+{
+    return lhs == rhs;
+}
+
+template <typename T>
 bool equals(const T& value, const COutPoint& outPoint)
 {
     return value.outPoint == outPoint;
 }
 
-template <typename T>
-bool equals(const T& value, const std::string& name, const COutPoint& outPoint)
-{
-    return value.name == name && value.outPoint == outPoint;
-}
-
 template <typename K, typename V>
-bool equals(const std::pair<K, V>& pair, const std::string& name, const COutPoint& outPoint)
+bool equals(const std::pair<K, V>& pair, const CNameOutPointType& point)
 {
-    return pair.first == name && pair.second.outPoint == outPoint;
+    return pair.first == point.name && pair.second.outPoint == point.outPoint;
 }
 
-template <typename T>
-auto findOutPoint(T& cont, const COutPoint& outPoint) -> decltype(cont.begin())
+template <typename T, typename C>
+auto findOutPoint(T& cont, const C& point) -> decltype(cont.begin())
 {
     using type = typename T::value_type;
     static_assert(std::is_same<typename std::remove_const<T>::type, std::vector<type>>::value, "T should be a vector type");
-    return std::find_if(cont.begin(), cont.end(), [&outPoint](const type& val) {
-        return equals(val, outPoint);
+    return std::find_if(cont.begin(), cont.end(), [&point](const type& val) {
+        return equals(val, point);
     });
 }
 
-template <typename T>
-auto findOutPoint(T& cont, const std::string& name, const COutPoint& outPoint) -> decltype(cont.begin())
+template <typename T, typename C>
+bool eraseOutPoint(std::vector<T>& cont, const C& point, T* value = nullptr)
 {
-    using type = typename T::value_type;
-    static_assert(std::is_same<typename std::remove_const<T>::type, std::vector<type>>::value, "T should be a vector type");
-    return std::find_if(cont.begin(), cont.end(), [&name, &outPoint](const type& val) {
-        return equals(val, name, outPoint);
-    });
-}
-
-template <typename T>
-bool eraseOutPoint(std::vector<T>& cont, const COutPoint& outPoint, T* value = nullptr)
-{
-    auto it = findOutPoint(cont, outPoint);
-    if (it == cont.end())
-        return false;
-    if (value)
-        std::swap(*it, *value);
-    cont.erase(it);
-    return true;
-}
-
-template <typename T>
-bool eraseOutPoint(std::vector<T>& cont, const std::string& name, const COutPoint& outPoint, T* value = nullptr)
-{
-    auto it = findOutPoint(cont, name, outPoint);
+    auto it = findOutPoint(cont, point);
     if (it == cont.end())
         return false;
     if (value)
@@ -269,7 +247,7 @@ bool CClaimTrieCacheBase::haveInQueue(const std::string& name, const COutPoint& 
         if (itNameRow != nameRow->second.end()) {
             nValidAtHeight = itNameRow->nHeight;
             if (auto row = getQueueCacheRow<T>(nValidAtHeight)) {
-                auto iRow = findOutPoint(row->second, name, outPoint);
+                auto iRow = findOutPoint(row->second, CNameOutPointType{name, outPoint});
                 if (iRow != row->second.end()) {
                     if (iRow->second.nValidAtHeight != nValidAtHeight)
                         LogPrintf("%s: An inconsistency was found in the support queue. Please report this to the developers:\nDifferent nValidAtHeight between named queue and height queue\n: name: %s, txid: %s, nOut: %d, nValidAtHeight in named queue: %d, nValidAtHeight in height queue: %d current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, iRow->second.nValidAtHeight, nNextHeight);
@@ -856,7 +834,7 @@ bool CClaimTrieCacheBase::removeFromQueue(const std::string& name, const COutPoi
         auto itQueueName = findOutPoint(itQueueNameRow->second, outPoint);
         if (itQueueName != itQueueNameRow->second.end()) {
             if (auto itQueueRow = getQueueCacheRow<T>(itQueueName->nHeight)) {
-                auto itQueue = findOutPoint(itQueueRow->second, name, outPoint);
+                auto itQueue = findOutPoint(itQueueRow->second, CNameOutPointType{name, outPoint});
                 if (itQueue != itQueueRow->second.end()) {
                     std::swap(value, itQueue->second);
                     itQueueNameRow->second.erase(itQueueName);
@@ -933,7 +911,7 @@ bool CClaimTrieCacheBase::remove(T& value, const std::string& name, const COutPo
     if (removeFromQueue(adjusted, outPoint, value) || removeFromCache(name, outPoint, value, fCheckTakeover)) {
         int expirationHeight = value.nHeight + expirationTime();
         if (auto itQueueRow = getExpirationQueueCacheRow<T>(expirationHeight))
-            eraseOutPoint(itQueueRow->second, adjusted, outPoint);
+            eraseOutPoint(itQueueRow->second, CNameOutPointType{adjusted, outPoint});
         nValidAtHeight = value.nValidAtHeight;
         return true;
     }
@@ -1285,7 +1263,7 @@ void CClaimTrieCacheBase::reactivate(const expirationQueueRowType& row, int heig
     for (auto e = row.begin(); e != row.end(); ++e) {
         // remove and insert with new expiration time
         if (auto itQueueRow = getExpirationQueueCacheRow<T>(height))
-            eraseOutPoint(itQueueRow->second, e->name, e->outPoint);
+            eraseOutPoint(itQueueRow->second, CNameOutPointType{e->name, e->outPoint});
 
         int extend_expiration = Params().GetConsensus().nExtendedClaimExpirationTime - Params().GetConsensus().nOriginalClaimExpirationTime;
         int new_expiration_height = increment ? height + extend_expiration : height - extend_expiration;
@@ -1294,8 +1272,15 @@ void CClaimTrieCacheBase::reactivate(const expirationQueueRowType& row, int heig
     }
 }
 
-template void CClaimTrieCacheBase::reactivate<CClaimValue>(const expirationQueueRowType& row, int height, bool increment);
-template void CClaimTrieCacheBase::reactivate<CSupportValue>(const expirationQueueRowType& row, int height, bool increment);
+void CClaimTrieCacheBase::reactivateClaim(const expirationQueueRowType& row, int height, bool increment)
+{
+    reactivate<CClaimValue>(row, height, increment);
+}
+
+void CClaimTrieCacheBase::reactivateSupport(const expirationQueueRowType& row, int height, bool increment)
+{
+    reactivate<CSupportValue>(row, height, increment);
+}
 
 int CClaimTrieCacheBase::getNumBlocksOfContinuousOwnership(const std::string& name) const
 {
