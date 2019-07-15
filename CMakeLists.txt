@@ -99,7 +99,7 @@ if(NOT ${DISABLE_WALLET})
         ExternalProject_Add(BerkeleyDB
             PREFIX bdb
             SOURCE_DIR ${BerkeleyDB_SOURCE_DIR}
-            PATCH_COMMAND patch -Nd ${BerkeleyDB_SOURCE_DIR}/dbinc -i ${CMAKE_CURRENT_SOURCE_DIR}/depends/patches/db/atomic.patch
+            PATCH_COMMAND patch -Nd ${BerkeleyDB_SOURCE_DIR}/dbinc -i ${CMAKE_CURRENT_SOURCE_DIR}/depends/patches/db/atomic.patch || true
             CONFIGURE_COMMAND ${BerkeleyDB_SOURCE_DIR}/dist/configure --enable-cxx --disable-shared --with-pic --prefix=<INSTALL_DIR>
         )
         set(DEPENDS ${DEPENDS} BerkeleyDB)
@@ -143,9 +143,8 @@ if(Boost_ADDED)
         ExternalProject_Add(ICU
             PREFIX icu
             SOURCE_DIR ${ICU_SOURCE_DIR}
-            CONFIGURE_COMMAND ${ICU_SOURCE_DIR}/icu4c/source/configure --enable-draft --enable-tools
-                    --disable-shared --enable-static --disable-extras --disable-icuio --disable-dyload --disable-layout
-                    --disable-layoutex --disable-tests --disable-samples CFLAGS=-fPIC CPPFLAGS=-fPIC --prefix=<INSTALL_DIR>
+            CONFIGURE_COMMAND ${ICU_SOURCE_DIR}/icu4c/source/configure --disable-extras --disable-strict --enable-static
+                --disable-shared --disable-tests --disable-samples --disable-dyload --disable-layoutex CFLAGS=-fPIC CPPFLAGS=-fPIC --prefix=<INSTALL_DIR>
         )
         set(DEPENDS ${DEPENDS} ICU)
         ExternalProject_Get_Property(ICU INSTALL_DIR)
@@ -160,7 +159,7 @@ if(Boost_ADDED)
         DEPENDS ${DEPENDS}
         SOURCE_DIR ${Boost_SOURCE_DIR}
         CONFIGURE_COMMAND ${Boost_SOURCE_DIR}/bootstrap.sh --with-icu=${ICU_PATH} --with-libraries=${BOOST_LIBS} && ${Boost_SOURCE_DIR}/b2 headers
-        BUILD_COMMAND ${Boost_SOURCE_DIR}/b2 install link=static cxxflags=-fPIC boost.locale.iconv=off boost.locale.posix=off -sICU_PATH=${ICU_PATH} --prefix=<INSTALL_DIR>
+        BUILD_COMMAND ${Boost_SOURCE_DIR}/b2 install threading=multi -sNO_BZIP2=1 -sNO_ZLIB=1 link=static linkflags="-L${ICU_PATH}/lib -licuio -licuuc -licudata -licui18n" cxxflags=-fPIC boost.locale.iconv=off boost.locale.posix=off boost.locale.icu=on boost.locale.std=off -sICU_PATH=${ICU_PATH} --prefix=<INSTALL_DIR>
         INSTALL_COMMAND ""
         BUILD_IN_SOURCE 1
     )
@@ -169,6 +168,7 @@ if(Boost_ADDED)
     set(OPTIONS "${OPTIONS} --with-boost=${INSTALL_DIR}")
     set(LDFLAGS "${LDFLAGS} -L${INSTALL_DIR}/lib")
     set(CPPFLAGS "${CPPFLAGS} -I${INSTALL_DIR}/include")
+    set_property(DIRECTORY PROPERTY ADDITIONAL_MAKE_CLEAN_FILES ${Boost_SOURCE_DIR}/bin.v2)
 endif(Boost_ADDED)
 
 set(CPPFLAGS "${CPPFLAGS} -Wno-parentheses -Wno-unused-local-typedefs -Wno-deprecated -Wno-implicit-fallthrough -Wno-unused-parameter")
