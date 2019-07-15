@@ -69,14 +69,14 @@ bool CClaimTrieCacheExpirationFork::forkForExpirationChange(bool increment)
         if (key.first == EXP_QUEUE_ROW) {
             expirationQueueRowType row;
             if (pcursor->GetValue(row)) {
-                reactivate<CClaimValue>(row, height, increment);
+                reactivateClaim(row, height, increment);
             } else {
                 return error("%s(): error reading expiration queue rows from disk", __func__);
             }
         } else if (key.first == SUPPORT_EXP_QUEUE_ROW) {
             expirationQueueRowType row;
             if (pcursor->GetValue(row)) {
-                reactivate<CSupportValue>(row, height, increment);
+                reactivateSupport(row, height, increment);
             } else {
                 return error("%s(): error reading support expiration queue rows from disk", __func__);
             }
