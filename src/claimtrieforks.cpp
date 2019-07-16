@@ -166,7 +166,7 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(insert
             continue;
 
         auto supports = getSupportsForName(it.key());
-        for (auto& support : supports) {
+        for (auto support : supports) {
             // if it's already going to expire just skip it
             if (support.nHeight + expirationTime() <= nNextHeight)
                 continue;
@@ -183,7 +183,7 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(insert
         if (!cached || cached->empty())
             continue;
 
-        for (auto& claim : it->claims) {
+        for (auto claim : it->claims) {
             if (claim.nHeight + expirationTime() <= nNextHeight)
                 continue;
 
