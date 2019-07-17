@@ -99,7 +99,7 @@ if(NOT ${DISABLE_WALLET})
         ExternalProject_Add(BerkeleyDB
             PREFIX bdb
             SOURCE_DIR ${BerkeleyDB_SOURCE_DIR}
-            PATCH_COMMAND patch -Nd ${BerkeleyDB_SOURCE_DIR}/dbinc -i ${CMAKE_CURRENT_SOURCE_DIR}/depends/patches/db/atomic.patch || true
+            PATCH_COMMAND sed -i "s/__atomic_compare_exchange/__atomic_compare_exchange_db/" ${BerkeleyDB_SOURCE_DIR}/dbinc/atomic.h
             CONFIGURE_COMMAND ${BerkeleyDB_SOURCE_DIR}/dist/configure --enable-cxx --disable-shared --with-pic --prefix=<INSTALL_DIR>
         )
         set(DEPENDS ${DEPENDS} BerkeleyDB)
