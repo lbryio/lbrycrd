@@ -43,7 +43,7 @@ set(CPM_VERSION ${CURRENT_CPM_VERSION} CACHE INTERNAL "")
 set(CPM_DIRECTORY ${CMAKE_CURRENT_LIST_DIR} CACHE INTERNAL "")
 set(CPM_PACKAGES "" CACHE INTERNAL "")
 
-option(CPM_USE_LOCAL_PACKAGES "Use locally installed packages (find_package)" OFF)
+option(CPM_USE_LOCAL_PACKAGES "Use locally installed packages (find_package)" ON)
 option(CPM_LOCAL_PACKAGES_ONLY "Use only locally installed packages" OFF)
 
 include(FetchContent)
