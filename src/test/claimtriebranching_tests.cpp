@@ -1723,7 +1723,8 @@ BOOST_AUTO_TEST_CASE(normalization_does_not_kill_sort_order)
 BOOST_AUTO_TEST_CASE(normalization_does_not_kill_expirations)
 {
     ClaimTrieChainFixture fixture;
-    fixture.setExpirationForkHeight(800, 3, 800);
+    auto& consensus = Params().GetConsensus();
+    fixture.setExpirationForkHeight(consensus.nExtendedClaimExpirationForkHeight, 3, consensus.nExtendedClaimExpirationTime);
     fixture.setNormalizationForkHeight(4);
     // need to see that claims expiring on the frame when we normalize aren't kept
     // need to see that supports expiring on the frame when we normalize aren't kept
