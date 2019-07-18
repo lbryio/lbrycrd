@@ -135,13 +135,13 @@ std::ostream& operator<<(std::ostream& os, const uint256& num);
 std::ostream& operator<<(std::ostream& os, const uint160& num);
 std::ostream& operator<<(std::ostream& os, const COutPoint& point);
 
-class CClaimValue;
+struct CClaimValue;
 std::ostream& operator<<(std::ostream& os, const CClaimValue& claim);
 
-class CSupportValue;
+struct CSupportValue;
 std::ostream& operator<<(std::ostream& os, const CSupportValue& support);
 
-class CClaimTrieData;
+struct CClaimTrieData;
 std::ostream& operator<<(std::ostream& os, const CClaimTrieData& data);
 
 #endif

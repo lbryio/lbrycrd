@@ -318,7 +318,7 @@ public:
     bool SyncToDisk();
 
     friend class CClaimTrieCacheBase;
-    friend class ClaimTrieChainFixture;
+    friend struct ClaimTrieChainFixture;
     friend class CClaimTrieCacheExpirationFork;
     friend class CClaimTrieCacheNormalizationFork;
 };
@@ -532,7 +532,7 @@ private:
     typename expirationQueueType::value_type* getSupportExpirationQueueCacheRow(int nHeight, bool createIfNotExists = false);
 
     // for unit test
-    friend class ClaimTrieChainFixture;
+    friend struct ClaimTrieChainFixture;
     friend class CClaimTrieCacheTest;
 };
 

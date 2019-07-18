@@ -1721,21 +1721,11 @@ int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CC
         } else {
             return DISCONNECT_FAILED; // adding output for transaction without known metadata
         }
-
-        // TODO: pick the above approach or this:
-        // what is more correct? the above AccessByTxid or this kind of lookup ?
-//        for (uint32_t i = index + 1; i < txUndo.vprevout.size(); ++i) {
-//            if (txUndo.vprevout[i].nHeight > 0) {
-//                assert(undo.nHeight == txUndo.vprevout[i].nHeight);
-//                assert(undo.fCoinBase == txUndo.vprevout[i].fCoinBase);
-//                break;
-//            }
-//        }
     }
 
     // restore claim if applicable
     if (undo.fIsClaim && !undo.txout.scriptPubKey.empty()) {
-        int nValidHeight = static_cast<int>(undo.nClaimValidHeight);
+        auto nValidHeight = undo.nClaimValidHeight;
         if (nValidHeight > 0 && nValidHeight >= undo.nHeight) {
             CClaimScriptUndoSpendOp undoSpend(COutPoint(out.hash, out.n), undo.txout.nValue, undo.nHeight, nValidHeight);
             ProcessClaim(undoSpend, trieCache, undo.txout.scriptPubKey);
@@ -2340,7 +2330,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
         if (i > 0 && !mClaimUndoHeights.empty())
         {
             auto& txinUndos = blockundo.vtxundo.back().vprevout;
-            for (std::map<unsigned int, unsigned int>::iterator itHeight = mClaimUndoHeights.begin(); itHeight != mClaimUndoHeights.end(); ++itHeight)
+            for (auto itHeight = mClaimUndoHeights.begin(); itHeight != mClaimUndoHeights.end(); ++itHeight)
             {
                 txinUndos[itHeight->first].nClaimValidHeight = itHeight->second;
                 txinUndos[itHeight->first].fIsClaim = true;
