@@ -137,18 +137,10 @@ bool validParams(const UniValue& params, uint8_t required, uint8_t optional)
 
 static UniValue getclaimsintrie(const JSONRPCRequest& request)
 {
-    if (!IsDeprecatedRPCEnabled("getclaimsintrie")) {
-        const auto msg = "getclaimsintrie is deprecated and will be removed in v0.18. To use this command, start with -deprecatedrpc=getclaimsintrie";
-        if (request.fHelp) {
-            throw std::runtime_error(msg);
-        }
-        throw JSONRPCError(RPC_METHOD_DEPRECATED, msg);
-    }
-
     if (request.fHelp || request.params.size() > 1)
         throw std::runtime_error(
             "getclaimsintrie\n"
-            "Return all claims in the name trie.\n"
+            "Return all claims in the name trie. Deprecated.\n"
             "Arguments:\n"
             "1. \"blockhash\"     (string, optional) get claims in the trie\n"
             "                                        at the block specified\n"
@@ -173,6 +165,14 @@ static UniValue getclaimsintrie(const JSONRPCRequest& request)
             "    ]\n"
             "  }\n"
             "]\n");
+
+    if (!IsDeprecatedRPCEnabled("getclaimsintrie")) {
+        const auto msg = "getclaimsintrie is deprecated and will be removed in v0.18. To use this command, start with -deprecatedrpc=getclaimsintrie";
+        if (request.fHelp) {
+            throw std::runtime_error(msg);
+        }
+        throw JSONRPCError(RPC_METHOD_DEPRECATED, msg);
+    }
 
     LOCK(cs_main);
 
@@ -899,7 +899,7 @@ static const CRPCCommand commands[] =
   //  --------------------- ------------------------        -----------------------     ----------
     { "Claimtrie",          "getclaimsintrie",              &getclaimsintrie,           { "blockhash" } },
     { "Claimtrie",          "getnamesintrie",               &getnamesintrie,            { "blockhash" } },
-    { "Claimtrie",          "getclaimtrie",                 &getclaimtrie,              { "" } },
+    { "hidden",             "getclaimtrie",                 &getclaimtrie,              { } },
     { "Claimtrie",          "getvalueforname",              &getvalueforname,           { "name","blockhash" } },
     { "Claimtrie",          "getclaimsforname",             &getclaimsforname,          { "name","blockhash" } },
     { "Claimtrie",          "gettotalclaimednames",         &gettotalclaimednames,      { "" } },
