@@ -459,8 +459,8 @@
         }
     ],
     [
-        "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
-        "0014751e76e8199196d454941c45d1b3a323f1433bd6",
+        "lbc1qxph5rn26f3ky6cxgkwgsz2x5uaga4muj4zfpvp",
+        "0014306f41cd5a4c6c4d60c8b3910128d4e751daef92",
         {
             "isPrivkey": false,
             "chain": "lbrycrd",
@@ -468,17 +468,8 @@
         }
     ],
     [
-        "bcrt1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt080",
-        "0014751e76e8199196d454941c45d1b3a323f1433bd6",
-        {
-            "isPrivkey": false,
-            "chain": "regtest",
-            "tryCaseFlip": true
-        }
-    ],
-    [
-        "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7",
-        "00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262",
+        "tlbc1q7h2lv2hwl26eywahnl7ceyqtfsn0dt2vkag95n",
+        "0014f5d5f62aeefab5923bb79ffd8c900b4c26f6ad4c",
         {
             "isPrivkey": false,
             "chain": "lbrycrdtest",
@@ -486,48 +477,13 @@
         }
     ],
     [
-        "bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx",
-        "5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6",
-        {
-            "isPrivkey": false,
-            "chain": "lbrycrd",
-            "tryCaseFlip": true
-        }
-    ],
-    [
-        "bc1sw50qa3jx3s",
-        "6002751e",
-        {
-            "isPrivkey": false,
-            "chain": "lbrycrd",
-            "tryCaseFlip": true
-        }
-    ],
-    [
-        "bc1zw508d6qejxtdg4y5r3zarvaryvg6kdaj",
-        "5210751e76e8199196d454941c45d1b3a323",
-        {
-            "isPrivkey": false,
-            "chain": "lbrycrd",
-            "tryCaseFlip": true
-        }
-    ],
-    [
-        "tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy",
-        "0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433",
-        {
-            "isPrivkey": false,
-            "chain": "lbrycrdtest",
-            "tryCaseFlip": true
-        }
-    ],
-    [
-        "bcrt1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvseswlauz7",
-        "0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433",
+        "rlbc1q9rjqlxnxnyag659jvp90wxchu9sxsskcvgtqju",
+        "001428e40f9a66993a8d50b2604af71b17e1606842d8",
         {
             "isPrivkey": false,
             "chain": "regtest",
             "tryCaseFlip": true
         }
     ]
+
 ]

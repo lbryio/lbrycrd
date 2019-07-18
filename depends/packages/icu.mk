@@ -22,6 +22,7 @@ define $(package)_preprocess_cmds
   PKG_CONFIG_SYSROOT_DIR=/ \
   PKG_CONFIG_LIBDIR=$(host_prefix)/lib/pkgconfig \
   PKG_CONFIG_PATH=$(host_prefix)/share/pkgconfig \
+  sed -i.old 's/^GEN_DEPS.cc.*/& $(CXXFLAGS)/' source/config/mh-mingw* && \
   mkdir -p build && cd build && \
   ../source/runConfigureICU Linux $($(package)_standard_opts) CXXFLAGS=-std=c++11 && \
   $(MAKE) && cd ..

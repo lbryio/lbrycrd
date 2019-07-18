@@ -477,7 +477,7 @@ bool CClaimTrieCacheBase::ReadFromDisk(const CBlockIndex* tip)
     base->clear();
     boost::scoped_ptr<CDBIterator> pcursor(base->db->NewIterator());
 
-    std::unordered_map<std::string, uint256> hashesOnEmptyNodes;
+    std::vector<std::pair<std::string, uint256>> hashesOnEmptyNodes;
 
     for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next()) {
         std::pair<uint8_t, std::string> key;
@@ -489,7 +489,7 @@ bool CClaimTrieCacheBase::ReadFromDisk(const CBlockIndex* tip)
             if (data.empty()) {
                 // we have a situation where our old trie had many empty nodes
                 // we don't want to automatically throw those all into our prefix trie
-                hashesOnEmptyNodes.emplace(key.second, data.hash);
+                hashesOnEmptyNodes.emplace_back(key.second, data.hash);
                 continue;
             }
 
@@ -513,7 +513,6 @@ bool CClaimTrieCacheBase::ReadFromDisk(const CBlockIndex* tip)
             batch.Erase(std::make_pair(TRIE_NODE, kvp.first));
         }
     }
-
 
     LogPrintf("Checking claim trie consistency... ");
     if (checkConsistency()) {

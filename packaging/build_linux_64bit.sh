@@ -16,6 +16,9 @@ if which ccache >/dev/null; then
     ccache -ps
 fi
 
+export CXXFLAGS="${CXXFLAGS:--O2 -frecord-gcc-switches}"
+echo "CXXFLAGS set to $CXXFLAGS"
+
 cd depends
 make -j`getconf _NPROCESSORS_ONLN` HOST=x86_64-pc-linux-gnu NO_QT=1 V=1
 cd ..
