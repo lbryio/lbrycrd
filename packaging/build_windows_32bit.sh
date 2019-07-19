@@ -20,7 +20,7 @@ if which ccache >/dev/null; then
     ccache -ps
 fi
 
-export CXXFLAGS="${CXXFLAGS:--O2 -frecord-gcc-switches}"
+export CXXFLAGS="${CXXFLAGS:--frecord-gcc-switches}"
 echo "CXXFLAGS set to $CXXFLAGS"
 
 pushd depends
