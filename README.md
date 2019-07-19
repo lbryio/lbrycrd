@@ -143,6 +143,15 @@ cd lbrycrd
 
 If you encounter any errors, please check `doc/build-*.md` for further instructions. If you're still stuck, [create an issue](https://github.com/lbryio/lbrycrd/issues/new) with the output of that command, your system info, and any other information you think might be helpful. The scripts in the packaging folder are simple and will grant extra light on the build process as needed.
 
+#### Use with CLion:
+CLion has not traditionally supported Autotools projects, although some progress on that is now in the works. We do include a cmake build file for compiling lbrycrd. See contrib/cmake. Alas, CLion doesn't support external projects in cmake, so that particular approach is also insufficient. CLion does support "compile_commands.json" projects. Fortunately, this can be easily generated for lbrycrd like so:
+```
+pip install --user compiledb
+./autogen.sh && ./configure --enable-static=no --enable-shared --with-pic --without-gui CXXFLAGS="-O0 -g" CFLAGS="-O0 -g" # or whatever normal lbrycrd config
+compiledb make -j10
+```
+Then open the newly generated compile_commands.json file as a project in CLion. Debugging is supported if you compiled with `-g`. To enable that you will need to create a target in CLion by going to File -> Settings -> Build -> Custom Build Targets. Add an empty target with your choice of name. From there you can go to "Edit Configurations", typically found in a drop-down at the top of the editor. Add a Custom Build Application, select your new target, select the compiled file (i.e. test_lbrycrd or lbrycrdd, etc), and then add any necessary command line parameters. Ensure that there is nothing in the "Before launch" section.
+
 ## Contributing
 
 Contributions to this project are welcome, encouraged, and compensated. For more details, see [https://lbry.tech/contribute](https://lbry.tech/contribute)
