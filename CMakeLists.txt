@@ -1,4 +1,3 @@
-
 cmake_minimum_required(VERSION 3.10)
 
 project(lbrycrd)
@@ -109,7 +108,7 @@ if(NOT ${DISABLE_WALLET})
     endif(BerkeleyDB_ADDED)
 endif()
 
-set(BOOST_LIBS chrono,filesystem,program_options,system,locale,regex,thread)
+set(BOOST_LIBS chrono,filesystem,system,locale,thread)
 
 string(REPLACE "," ";" BOOST_COMPONENTS ${BOOST_LIBS})
 
@@ -123,7 +122,7 @@ CPMAddPackage(
     GITHUB_REPOSITORY boostorg/boost
     VERSION 1.64.0
     COMPONENTS ${BOOST_COMPONENTS}
-    GIT_TAG boost-1.64.0
+    GIT_TAG boost-1.69.0
     GIT_SUBMODULES libs/* tools/*
     DOWNLOAD_ONLY TRUE
 )
@@ -134,8 +133,8 @@ if(Boost_ADDED)
     CPMAddPackage(
         NAME ICU
         GITHUB_REPOSITORY unicode-org/icu
-        VERSION 63.1
-        GIT_TAG release-63-1
+        VERSION 63.2
+        GIT_TAG release-63-2
         DOWNLOAD_ONLY TRUE
     )
 
