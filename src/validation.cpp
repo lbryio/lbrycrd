@@ -1837,8 +1837,6 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
         assert(merkleHash == pindex->pprev->hashClaimTrie);
     }
 
-    trieCache.expirationForkActive(pindex->nHeight, false);
-
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
 
@@ -2188,14 +2186,14 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     // Get the script flags for this block
     unsigned int flags = GetBlockScriptFlags(pindex, chainparams.GetConsensus());
 
-    trieCache.expirationForkActive(pindex->nHeight, true);
-
     int64_t nTime2 = GetTimeMicros(); nTimeForks += nTime2 - nTime1;
     LogPrint(BCLog::BENCH, "    - Fork checks: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime2 - nTime1), nTimeForks * MICRO, nTimeForks * MILLI / nBlocksTotal);
 
     CBlockUndo blockundo;
 
     CCheckQueueControl<CScriptCheck> control(fScriptChecks && nScriptCheckThreads ? &scriptcheckqueue : nullptr);
+
+    trieCache.initializeIncrement();
 
     std::vector<int> prevheights;
     CAmount nFees = 0;

@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <memory>
 
-static const uint256 one = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
+extern const uint256 one = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
 
 std::vector<unsigned char> heightToVch(int n)
 {
@@ -442,9 +442,6 @@ void completeHash(uint256& partialHash, const std::string& key, std::size_t to)
             .Finalize(partialHash.begin());
 }
 
-template <typename T>
-using iCbType = std::function<void(T&)>;
-
 bool CClaimTrie::checkConsistency(const uint256& rootHash) const
 {
     CClaimTrieDataNode node;
@@ -582,7 +579,7 @@ bool CClaimTrieCacheBase::flush()
     for (const auto& e : claimsToAddToByIdIndex)
         batch.Write(std::make_pair(CLAIM_BY_ID, e.claim.claimId), e);
 
-    auto rootHash = getMerkleHash();
+    getMerkleHash();
 
     for (auto it = nodesToAddOrUpdate.begin(); it != nodesToAddOrUpdate.end(); ++it) {
         bool removed = forDeleteFromBase.erase(it.key());
@@ -620,17 +617,6 @@ bool CClaimTrieCacheBase::flush()
                 nodesToAddOrUpdate.height(), nNextHeight, batch.SizeEstimate());
     }
     auto ret = base->db->WriteBatch(batch);
-
-    // for debugging:
-//    if (nNextHeight >= 235099)
-//    {
-//        g_logger->EnableCategory(BCLog::CLAIMS);
-//        if (!base->checkConsistency(rootHash)) {
-//            LogPrintf("Failure with consistency on block height %d\n", nNextHeight);
-//            dumpToLog(begin());
-//            assert(false);
-//        }
-//    }
 
     clear();
     return ret;
@@ -1337,7 +1323,6 @@ bool CClaimTrieCacheBase::decrementBlock(insertUndoType& insertUndo, claimQueueR
 
     undoDecrement(insertSupportUndo, expireSupportUndo);
     undoDecrement(insertUndo, expireUndo, &claimsToAddToByIdIndex, &claimsToDeleteFromByIdIndex);
-
     return true;
 }
 
@@ -1446,14 +1431,11 @@ bool CClaimTrieCacheBase::clear()
 
 bool CClaimTrieCacheBase::getProofForName(const std::string& name, CClaimTrieProof& proof)
 {
-    COutPoint outPoint;
     // cache the parent nodes
     cacheData(name, false);
     getMerkleHash();
-    bool fNameHasValue = false;
-    int nHeightOfLastTakeover = 0;
-    std::vector<CClaimTrieProofNode> nodes;
-    for (const auto& it : nodesToAddOrUpdate.nodes(name)) {
+    proof = CClaimTrieProof();
+    for (auto& it : static_cast<const CClaimPrefixTrie&>(nodesToAddOrUpdate).nodes(name)) {
         CClaimValue claim;
         const auto& key = it.key();
         bool fNodeHasValue = it->getBestClaim(claim);
@@ -1463,12 +1445,12 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, CClaimTriePro
 
         const auto pos = key.size();
         std::vector<std::pair<unsigned char, uint256>> children;
-        for (const auto& child : it.children()) {
-            auto childKey = child.key();
+        for (auto& child : it.children()) {
+            auto& childKey = child.key();
             if (name.find(childKey) == 0) {
                 for (auto i = pos; i + 1 < childKey.size(); ++i) {
                     children.emplace_back(childKey[i], uint256{});
-                    nodes.emplace_back(std::move(children), fNodeHasValue, valueHash);
+                    proof.nodes.emplace_back(children, fNodeHasValue, valueHash);
                     children.clear(); // move promises to leave it in a valid state only
                     valueHash.SetNull();
                     fNodeHasValue = false;
@@ -1481,16 +1463,15 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, CClaimTriePro
             children.emplace_back(childKey[pos], hash);
         }
         if (key == name) {
-            fNameHasValue = fNodeHasValue;
-            if (fNameHasValue) {
-                outPoint = claim.outPoint;
-                nHeightOfLastTakeover = it->nHeightOfLastTakeover;
+            proof.hasValue = fNodeHasValue;
+            if (proof.hasValue) {
+                proof.outPoint = claim.outPoint;
+                proof.nHeightOfLastTakeover = it->nHeightOfLastTakeover;
             }
             valueHash.SetNull();
         }
-        nodes.emplace_back(std::move(children), fNodeHasValue, valueHash);
+        proof.nodes.emplace_back(std::move(children), fNodeHasValue, valueHash);
     }
-    proof = CClaimTrieProof(std::move(nodes), fNameHasValue, outPoint, nHeightOfLastTakeover);
     return true;
 }
 

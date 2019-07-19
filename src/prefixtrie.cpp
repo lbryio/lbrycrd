@@ -206,6 +206,24 @@ bool CPrefixTrie<TKey, TData>::find(const TKey& key, TNode node, const callback<
 }
 
 template <typename TKey, typename TData>
+template <typename TIterator, typename TNode>
+std::vector<TIterator> CPrefixTrie<TKey, TData>::nodes(const TKey& key, TNode root)
+{
+    std::vector<TIterator> ret;
+    ret.reserve(1 + key.size());
+    ret.emplace_back(TKey{}, root);
+    if (key.empty()) return ret;
+    TKey name;
+    using CBType = callback<TNode>;
+    CBType cb = [&name, &ret](const TKey& key, TNode node) {
+        name.insert(name.end(), key.begin(), key.end());
+        ret.emplace_back(name, node);
+    };
+    find(key, root, cb);
+    return ret;
+}
+
+template <typename TKey, typename TData>
 std::shared_ptr<typename CPrefixTrie<TKey, TData>::Node>& CPrefixTrie<TKey, TData>::insert(const TKey& key, std::shared_ptr<typename CPrefixTrie<TKey, TData>::Node>& node)
 {
     std::size_t count = 0;
@@ -368,21 +386,17 @@ TData& CPrefixTrie<TKey, TData>::at(const TKey& key)
 }
 
 template <typename TKey, typename TData>
-std::vector<typename CPrefixTrie<TKey, TData>::iterator> CPrefixTrie<TKey, TData>::nodes(const TKey& key) const
+std::vector<typename CPrefixTrie<TKey, TData>::iterator> CPrefixTrie<TKey, TData>::nodes(const TKey& key)
 {
-    std::vector<iterator> ret;
-    if (empty()) return ret;
-    ret.reserve(1 + key.size());
-    ret.emplace_back(TKey{}, root);
-    if (key.empty()) return ret;
-    TKey name;
-    using CBType = callback<std::shared_ptr<Node>>;
-    CBType cb = [&name, &ret](const TKey& key, std::shared_ptr<Node> node) {
-        name.insert(name.end(), key.begin(), key.end());
-        ret.emplace_back(name, node);
-    };
-    find(key, root, cb);
-    return ret;
+    if (empty()) return {};
+    return nodes<iterator>(key, root);
+}
+
+template <typename TKey, typename TData>
+std::vector<typename CPrefixTrie<TKey, TData>::const_iterator> CPrefixTrie<TKey, TData>::nodes(const TKey& key) const
+{
+    if (empty()) return {};
+    return nodes<const_iterator>(key, root);
 }
 
 template <typename TKey, typename TData>
@@ -426,7 +440,7 @@ typename CPrefixTrie<TKey, TData>::iterator CPrefixTrie<TKey, TData>::begin()
 template <typename TKey, typename TData>
 typename CPrefixTrie<TKey, TData>::iterator CPrefixTrie<TKey, TData>::end()
 {
-    return iterator{TKey(), std::shared_ptr<Node>{}};
+    return {};
 }
 
 template <typename TKey, typename TData>
@@ -438,7 +452,7 @@ typename CPrefixTrie<TKey, TData>::const_iterator CPrefixTrie<TKey, TData>::cbeg
 template <typename TKey, typename TData>
 typename CPrefixTrie<TKey, TData>::const_iterator CPrefixTrie<TKey, TData>::cend()
 {
-    return const_iterator{TKey(), std::shared_ptr<Node>{}};
+    return {};
 }
 
 template <typename TKey, typename TData>
@@ -450,7 +464,7 @@ typename CPrefixTrie<TKey, TData>::const_iterator CPrefixTrie<TKey, TData>::begi
 template <typename TKey, typename TData>
 typename CPrefixTrie<TKey, TData>::const_iterator CPrefixTrie<TKey, TData>::end() const
 {
-    return const_iterator{TKey(), std::shared_ptr<Node>{}};
+    return {};
 }
 
 using Key = std::string;

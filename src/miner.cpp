@@ -61,7 +61,7 @@ void blockToCache(const CBlock* pblock, CClaimTrieCache& trieCache, int nHeight)
         .claimUndoHeights = {}
     };
 
-    trieCache.expirationForkActive(nHeight, true);
+    trieCache.initializeIncrement();
 
     CCoinsViewCache view(pcoinsTip.get());
 

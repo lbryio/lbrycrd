@@ -1490,7 +1490,7 @@ bool AppInitMain(InitInterfaces& interfaces)
                 pblocktree.reset();
                 pblocktree.reset(new CBlockTreeDB(nBlockTreeDBCache, false, fReset));
                 delete pclaimTrie;
-                pclaimTrie = new CClaimTrie(false, fReindex || fReindexChainState);
+                pclaimTrie = new CClaimTrieHashFork(false, fReindex || fReindexChainState);
 
                 if (fReset) {
                     pblocktree->WriteReindexing(true);

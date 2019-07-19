@@ -138,6 +138,7 @@ public:
         consensus.nMinTakeoverWorkaroundHeight = 496850;
         consensus.nMaxTakeoverWorkaroundHeight = 10000000;
         consensus.nWitnessForkHeight = 700000;
+        consensus.nAllClaimsInMerkleForkHeight = 10000000; // pick real height
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1916; // 95% of a  half week
@@ -248,6 +249,7 @@ public:
         consensus.nMinTakeoverWorkaroundHeight = 99;
         consensus.nMaxTakeoverWorkaroundHeight = 10000000;
         consensus.nWitnessForkHeight = 1600000;
+        consensus.nAllClaimsInMerkleForkHeight = 10000000; // pick real height
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1512; // 75% for testchains
@@ -346,6 +348,7 @@ public:
         consensus.nMinTakeoverWorkaroundHeight = -1;
         consensus.nMaxTakeoverWorkaroundHeight = -1;
         consensus.nWitnessForkHeight = 150;
+        consensus.nAllClaimsInMerkleForkHeight = 1000;
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 108; // 75% for testchains
