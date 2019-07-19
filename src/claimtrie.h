@@ -325,12 +325,9 @@ struct CClaimsForNameType
 
 class CClaimTrie
 {
-    int nNextHeight = 0;
-    int nProportionalDelayFactor = 0;
-    std::unique_ptr<CDBWrapper> db;
-
 public:
     CClaimTrie() = default;
+    virtual ~CClaimTrie() = default;
     CClaimTrie(CClaimTrie&&) = delete;
     CClaimTrie(const CClaimTrie&) = delete;
     CClaimTrie(bool fMemory, bool fWipe, int proportionalDelayFactor = 32);
@@ -347,8 +344,8 @@ public:
 
     std::size_t getTotalNamesInTrie() const;
     std::size_t getTotalClaimsInTrie() const;
+    virtual bool checkConsistency(const uint256& rootHash) const;
     CAmount getTotalValueOfClaimsInTrie(bool fControllingOnly) const;
-    bool checkConsistency(const uint256& rootHash) const;
 
     bool contains(const std::string& key) const;
     bool empty() const;
@@ -356,6 +353,11 @@ public:
     bool find(const std::string& key, CClaimTrieData& claims) const;
 
     std::vector<std::pair<std::string, CClaimTrieDataNode>> nodes(const std::string& key) const;
+
+protected:
+    int nNextHeight = 0;
+    int nProportionalDelayFactor = 0;
+    std::unique_ptr<CDBWrapper> db;
 
     using recurseNodesCB = void(const std::string&, const CClaimTrieData&, const std::vector<std::string>&);
     void recurseNodes(const std::string& name, const CClaimTrieDataNode& current, std::function<recurseNodesCB> function) const;
@@ -381,21 +383,16 @@ struct CClaimTrieProofNode
 struct CClaimTrieProof
 {
     CClaimTrieProof() = default;
-
-    CClaimTrieProof(std::vector<CClaimTrieProofNode> nodes, bool hasValue, const COutPoint& outPoint, int nHeightOfLastTakeover)
-        : nodes(std::move(nodes)), hasValue(hasValue), outPoint(outPoint), nHeightOfLastTakeover(nHeightOfLastTakeover)
-    {
-    }
-
     CClaimTrieProof(CClaimTrieProof&&) = default;
     CClaimTrieProof(const CClaimTrieProof&) = default;
     CClaimTrieProof& operator=(CClaimTrieProof&&) = default;
     CClaimTrieProof& operator=(const CClaimTrieProof&) = default;
 
+    std::vector<std::pair<bool, uint256>> pairs;
     std::vector<CClaimTrieProofNode> nodes;
-    bool hasValue;
+    int nHeightOfLastTakeover = 0;
+    bool hasValue = false;
     COutPoint outPoint;
-    int nHeightOfLastTakeover;
 };
 
 template <typename T>
@@ -518,7 +515,7 @@ public:
 
     virtual int expirationTime() const;
 
-    bool finalizeDecrement(std::vector<std::pair<std::string, int>>& takeoverHeightUndo);
+    virtual bool finalizeDecrement(std::vector<std::pair<std::string, int>>& takeoverHeightUndo);
 
     virtual CClaimsForNameType getClaimsForName(const std::string& name) const;
 
@@ -536,9 +533,10 @@ public:
     protected:
     CClaimTrie* base;
     CClaimPrefixTrie nodesToAddOrUpdate; // nodes pulled in from base (and possibly modified thereafter), written to base on flush
+    std::unordered_set<std::string> nodesAlreadyCached; // set of nodes already pulled into cache from base
     std::unordered_set<std::string> namesToCheckForTakeover; // takeover numbers are updated on increment
 
-    uint256 recursiveComputeMerkleHash(CClaimPrefixTrie::iterator& it);
+    virtual uint256 recursiveComputeMerkleHash(CClaimPrefixTrie::iterator& it);
 
     virtual bool insertClaimIntoTrie(const std::string& name, const CClaimValue& claim, bool fCheckTakeover);
     virtual bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint, CClaimValue& claim, bool fCheckTakeover);
@@ -580,7 +578,6 @@ private:
 
     std::unordered_map<std::string, supportEntryType> supportCache;  // to be added/updated to base (and disk) on flush
     std::unordered_set<std::string> nodesToDelete; // to be removed from base (and disk) on flush
-    std::unordered_set<std::string> nodesAlreadyCached; // set of nodes already pulled into cache from base
     std::unordered_map<std::string, bool> takeoverWorkaround;
     std::unordered_set<std::string> removalWorkaround;
     std::unordered_set<std::string> forDeleteFromBase;
@@ -661,7 +658,8 @@ public:
     void setExpirationTime(int time);
     int expirationTime() const override;
 
-    void expirationForkActive(int height, bool increment);
+    virtual void initializeIncrement();
+    bool finalizeDecrement(std::vector<std::pair<std::string, int>>& takeoverHeightUndo) override;
 
     bool incrementBlock(insertUndoType& insertUndo,
         claimQueueRowType& expireUndo,
@@ -729,6 +727,31 @@ private:
         std::vector<std::pair<std::string, int>>& takeoverHeightUndo);
 };
 
-typedef CClaimTrieCacheNormalizationFork CClaimTrieCache;
+class CClaimTrieCacheHashFork : public CClaimTrieCacheNormalizationFork
+{
+public:
+    explicit CClaimTrieCacheHashFork(CClaimTrie* base);
+
+    bool getProofForName(const std::string& name, CClaimTrieProof& proof) override;
+    bool getProofForName(const std::string& name, CClaimTrieProof& proof, const uint160& claimId);
+    void initializeIncrement() override;
+    bool finalizeDecrement(std::vector<std::pair<std::string, int>>& takeoverHeightUndo) override;
+
+protected:
+    uint256 recursiveComputeMerkleHash(CClaimPrefixTrie::iterator& it) override;
+
+private:
+    void copyAllBaseToCache();
+};
+
+class CClaimTrieHashFork : public CClaimTrie
+{
+public:
+    using CClaimTrie::CClaimTrie;
+protected:
+    bool checkConsistency(const uint256& rootHash) const override;
+};
+
+typedef CClaimTrieCacheHashFork CClaimTrieCache;
 
 #endif // BITCOIN_CLAIMTRIE_H

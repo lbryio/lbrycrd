@@ -65,7 +65,7 @@ class CPrefixTrie
         using difference_type = std::ptrdiff_t;
         using iterator_category = std::forward_iterator_tag;
 
-        Iterator() = delete;
+        Iterator() = default;
         Iterator(const Iterator&) = default;
         Iterator(Iterator&& o) noexcept = default;
         Iterator(const TKey& name, const std::shared_ptr<Node>& node) noexcept;
@@ -115,6 +115,9 @@ class CPrefixTrie
     template <typename TNode>
     static bool find(const TKey& key, TNode node, const callback<TNode>& cb);
 
+    template <typename TIterator, typename TNode>
+    static std::vector<TIterator> nodes(const TKey& key, TNode root);
+
     std::shared_ptr<Node>& insert(const TKey& key, std::shared_ptr<Node>& node);
     void erase(const TKey& key, std::shared_ptr<Node>& node);
 
@@ -140,7 +143,8 @@ public:
 
     TData& at(const TKey& key);
 
-    std::vector<iterator> nodes(const TKey& key) const;
+    std::vector<iterator> nodes(const TKey& key);
+    std::vector<const_iterator> nodes(const TKey& key) const;
 
     bool erase(const TKey& key);
 
