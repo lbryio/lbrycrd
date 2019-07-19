@@ -297,7 +297,6 @@ BOOST_AUTO_TEST_CASE(iteratetrie_test)
     ctc.insertClaimIntoTrie("test", claimVal, true);
     BOOST_CHECK(ctc.flush());
 
-    std::size_t count = 0;
     CClaimTrieDataNode node;
     BOOST_CHECK(pclaimTrie->find("", node));
     BOOST_CHECK_EQUAL(node.children.size(), 1U);

@@ -133,7 +133,7 @@ static bool getValueForOutPoint(const CCoinsViewCache& coinsCache, const COutPoi
 bool validParams(const UniValue& params, uint8_t required, uint8_t optional)
 {
     auto count = params.size();
-    return count == required || count == required + optional;
+    return count >= required && count <= required + optional;
 }
 
 static UniValue getclaimsintrie(const JSONRPCRequest& request)
@@ -761,30 +761,43 @@ UniValue proofToJSON(const CClaimTrieProof& proof)
 {
     UniValue result(UniValue::VOBJ);
     UniValue nodes(UniValue::VARR);
-    for (std::vector<CClaimTrieProofNode>::const_iterator itNode = proof.nodes.begin(); itNode != proof.nodes.end(); ++itNode)
-    {
+
+    for (const auto& itNode : proof.nodes) {
         UniValue node(UniValue::VOBJ);
         UniValue children(UniValue::VARR);
-        for (std::vector<std::pair<unsigned char, uint256> >::const_iterator itChildren = itNode->children.begin(); itChildren != itNode->children.end(); ++itChildren)
-        {
+
+        for (const auto& itChildren : itNode.children) {
             UniValue child(UniValue::VOBJ);
-            child.pushKV("character", itChildren->first);
-            if (!itChildren->second.IsNull())
-            {
-                child.pushKV("nodeHash", itChildren->second.GetHex());
-            }
+            child.pushKV("character", itChildren.first);
+            if (!itChildren.second.IsNull())
+                child.pushKV("nodeHash", itChildren.second.GetHex());
             children.push_back(child);
         }
+
         node.pushKV("children", children);
-        if (itNode->hasValue && !itNode->valHash.IsNull())
-        {
-            node.pushKV("valueHash", itNode->valHash.GetHex());
-        }
+
+        if (itNode.hasValue && !itNode.valHash.IsNull())
+            node.pushKV("valueHash", itNode.valHash.GetHex());
+
         nodes.push_back(node);
     }
-    result.pushKV("nodes", nodes);
-    if (proof.hasValue)
-    {
+
+    if (!nodes.empty())
+        result.push_back(Pair("nodes", nodes));
+
+    UniValue pairs(UniValue::VARR);
+
+    for (const auto& itPair : proof.pairs) {
+        UniValue child(UniValue::VOBJ);
+        child.push_back(Pair("odd", itPair.first));
+        child.push_back(Pair("hash", itPair.second.GetHex()));
+        pairs.push_back(child);
+    }
+
+    if (!pairs.empty())
+        result.push_back(Pair("pairs", pairs));
+
+    if (proof.hasValue) {
         result.pushKV("txhash", proof.outPoint.hash.GetHex());
         result.pushKV("nOut", (int)proof.outPoint.n);
         result.pushKV("last takeover height", (int)proof.nHeightOfLastTakeover);
@@ -794,7 +807,7 @@ UniValue proofToJSON(const CClaimTrieProof& proof)
 
 UniValue getnameproof(const JSONRPCRequest& request)
 {
-    if (request.fHelp || !validParams(request.params, 1, 1))
+    if (request.fHelp || !validParams(request.params, 1, 2))
         throw std::runtime_error(
             "getnameproof\n"
             "Return the cryptographic proof that a name maps to a value\n"
@@ -807,9 +820,10 @@ UniValue getnameproof(const JSONRPCRequest& request)
             "                                            none is given, \n"
             "                                            the latest block\n"
             "                                            will be used.\n"
+            "3. \"claimId\"        (string, optional, post-fork) for validating a specific claim\n"
             "Result: \n"
             "{\n"
-            "  \"nodes\" : [       (array of object) full nodes (i.e.\n"
+            "  \"nodes\" : [       (array of object, pre-fork) full nodes (i.e.\n"
             "                                        those which lead to\n"
             "                                        the requested name)\n"
             "    \"children\" : [  (array of object) the children of\n"
@@ -835,6 +849,13 @@ UniValue getnameproof(const JSONRPCRequest& request)
             "                                          the node has a\n"
             "                                          value or not\n"
             "    ]\n"
+            "  \"pairs\" : [       (array of pairs, post-fork) hash can be validated by \n"
+            "                                                  hashing claim from the bottom up\n"
+            "                {\n"
+            "                    \"odd\"      (boolean) this value goes on the right of hash\n"
+            "                    \"hash\"     (boolean) the hash to be mixed in\n"
+            "                }\n"
+            "              ]\n"
             "  \"txhash\" : \"hash\" (string, if exists) the txid of the\n"
             "                                            claim which controls\n"
             "                                            this name, if there\n"
@@ -855,14 +876,18 @@ UniValue getnameproof(const JSONRPCRequest& request)
     CCoinsViewCache coinsCache(pcoinsTip.get());
     CClaimTrieCache trieCache(pclaimTrie);
 
-    if (request.params.size() == 2) {
+    if (request.params.size() > 1) {
         CBlockIndex* pblockIndex = BlockHashIndex(ParseHashV(request.params[1], "blockhash (optional parameter 2)"));
         RollBackTo(pblockIndex, coinsCache, trieCache);
     }
 
+    uint160 claimId;
+    if (request.params.size() > 2)
+        claimId = ParseClaimtrieId(request.params[2], "claimId (optional parameter 3)");
+
     CClaimTrieProof proof;
     std::string name = request.params[0].get_str();
-    if (!trieCache.getProofForName(name, proof))
+    if (!trieCache.getProofForName(name, proof, claimId))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Failed to generate proof");
 
     return proofToJSON(proof);
@@ -898,7 +923,7 @@ static const CRPCCommand commands[] =
     { "Claimtrie",          "gettotalclaims",               &gettotalclaims,            { "" } },
     { "Claimtrie",          "gettotalvalueofclaims",        &gettotalvalueofclaims,     { "controlling_only" } },
     { "Claimtrie",          "getclaimsfortx",               &getclaimsfortx,            { "txid" } },
-    { "Claimtrie",          "getnameproof",                 &getnameproof,              { "name","blockhash"} },
+    { "Claimtrie",          "getnameproof",                 &getnameproof,              { "name","blockhash","claimId"} },
     { "Claimtrie",          "getclaimbyid",                 &getclaimbyid,              { "claimId" } },
     { "Claimtrie",          "checknormalization",           &checknormalization,        { "name" }},
 };
