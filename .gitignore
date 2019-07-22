@@ -129,8 +129,10 @@ contrib/devtools/split-debug.sh
 
 # Output from running db4 installation
 db4/
+.idea
+cmake-build-*/
 
-# clang-check
+compile_commands\.json
 *.plist
 
 osx_volname

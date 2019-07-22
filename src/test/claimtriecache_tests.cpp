@@ -23,22 +23,22 @@ public:
 
     void insert(const std::string& key, CClaimTrieData&& data)
     {
-        cache.insert(key, std::move(data));
+        nodesToAddOrUpdate.insert(key, std::move(data));
     }
 
     bool erase(const std::string& key)
     {
-        return cache.erase(key);
+        return nodesToAddOrUpdate.erase(key);
     }
 
     int cacheSize()
     {
-        return cache.height();
+        return nodesToAddOrUpdate.height();
     }
 
     CClaimTrie::iterator getCache(const std::string& key)
     {
-        return cache.find(key);
+        return nodesToAddOrUpdate.find(key);
     }
 };
 
