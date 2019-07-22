@@ -28,23 +28,11 @@ jobs:
         - docker run -v "$(pwd):/lbrycrd" -v "${HOME}/ccache:/ccache" -w /lbrycrd -e CCACHE_DIR=/ccache ${DOCKER_IMAGE} packaging/build_${NAME}_64bit.sh
       before_deploy:
         - mkdir -p dist
-        - sudo zip -j dist/lbrycrd-${NAME}.zip src/lbrycrdd${EXT} src/lbrycrd-cli${EXT} src/lbrycrd-tx${EXT}
-        - sudo zip -j dist/lbrycrd-${NAME}-test.zip src/test/test_lbrycrd${EXT} src/test/test_lbrycrd_fuzzy${EXT}
+        - sudo zip -Xj dist/lbrycrd-${NAME}.zip src/lbrycrdd${EXT} src/lbrycrd-cli${EXT} src/lbrycrd-tx${EXT}
+        - sudo zip -Xj dist/lbrycrd-${NAME}-test.zip src/test/test_lbrycrd${EXT} src/test/test_lbrycrd_fuzzy${EXT}
         - sha256sum dist/lbrycrd-${NAME}.zip
         - sha256sum dist/lbrycrd-${NAME}-test.zip
       deploy:
-        - provider: releases
-          name: $TRAVIS_BRANCH
-          target_commitish: $TRAVIS_COMMIT
-          tag_name: $TRAVIS_TAG
-          api_key:
-            secure: "Ni5WZNR5CefWXpyDUQLMQbQ2LH4Iot+0SqIoM9c4maW06al1M8vu57vWuj2cESsW7JsaBehCE45Cwmo5kWyEjAiZY8sIMmvixkMP/8uPWuLgNmnIbm7U+d0j652DmZshDYtt8EomqV2RhAx/rmBnzGkruLOw9WTp9ZdBN3WbTt/IpZ2gMgVbGWYGOx+uRw7/yGw8m4gShQheto/dycbyyR3XV2WP9wuLmNYkcQ6JumSoQdDWXcvVfbCwylGq2sLDKwhvfTr4iwYyYsWdmhfdEQl0WcIv5C8xgdiY2vzhi2LmLqFbS/fvKNC26Tfo4bOHFG/eOnvqc+yyEB8B/xqW9Gs+A0TUh/3N30vHYZGcpiDU35DwAN5bZ1+s+mr/ZrNzBJ5BgT8io3g0Ko8gykbDvFQVpg7kxFsqA1YCikEpG86lVGk6clTa5guJvAHse+DfnbWO1nfDxYQXW0md861m0txk8RpTC/TVNyH/lL/vsS7LB67EHhRdZY+O1+5sUGMdtvvhMoxJYCwQGpLkh43KRsKynkMUR94w2O9hc8cknXdV3wrndVz00XNdcur6y4D7HTll1tBrF68CA2yKUSY5hsjtPmdlN+DW8ou/rJiKOpQZ/Xzp69AQEheOFfDPItxQRYxWj0dMOk8eszf0wFvi1N7J/hT/IHnuX5ITfa/T4NE="
-          file: dist/lbrycrd-${NAME}.zip
-          skip_cleanup: true
-          overwrite: true
-          draft: true
-          on:
-            tags: true
         - provider: s3
           access_key_id: AKIAICKFHNTR5RITASAQ
           secret_access_key:
