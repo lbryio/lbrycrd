@@ -119,3 +119,5 @@ contrib/devtools/split-debug.sh
 
 .idea
 cmake-build-*/
+
+compile_commands\.json

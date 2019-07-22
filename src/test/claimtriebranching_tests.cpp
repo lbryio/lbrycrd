@@ -356,11 +356,11 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheExpirationFork
 
     bool supportEmpty()
     {
-        for (const auto& entry: cacheSupports) {
+        for (const auto& entry: supportCache) {
             if (!entry.second.empty())
                 return false;
         }
-        return cacheSupports.empty() && keyTypeEmpty<std::string>(SUPPORT);
+        return supportCache.empty() && keyTypeEmpty<std::string>(SUPPORT);
     }
 
     bool supportQueueEmpty()
