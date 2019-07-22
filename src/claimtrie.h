@@ -39,9 +39,7 @@ struct CClaimValue
     int nHeight;
     int nValidAtHeight;
 
-    CClaimValue()
-    {
-    }
+    CClaimValue() = default;
 
     CClaimValue(const COutPoint& outPoint, const uint160& claimId, CAmount nAmount, int nHeight, int nValidAtHeight)
         : outPoint(outPoint), claimId(claimId), nAmount(nAmount), nEffectiveAmount(nAmount), nHeight(nHeight), nValidAtHeight(nValidAtHeight)
@@ -97,9 +95,7 @@ struct CSupportValue
     int nHeight;
     int nValidAtHeight;
 
-    CSupportValue()
-    {
-    }
+    CSupportValue() = default;
 
     CSupportValue(const COutPoint& outPoint, const uint160& supportedClaimId, CAmount nAmount, int nHeight, int nValidAtHeight)
         : outPoint(outPoint), supportedClaimId(supportedClaimId), nAmount(nAmount), nHeight(nHeight), nValidAtHeight(nValidAtHeight)
@@ -197,9 +193,7 @@ struct COutPointHeightType
     COutPoint outPoint;
     int nHeight;
 
-    COutPointHeightType()
-    {
-    }
+    COutPointHeightType() = default;
 
     COutPointHeightType(const COutPoint& outPoint, int nHeight)
         : outPoint(outPoint), nHeight(nHeight)
@@ -222,9 +216,7 @@ struct CNameOutPointHeightType
     COutPoint outPoint;
     int nHeight;
 
-    CNameOutPointHeightType()
-    {
-    }
+    CNameOutPointHeightType() = default;
 
     CNameOutPointHeightType(std::string name, const COutPoint& outPoint, int nHeight)
         : name(std::move(name)), outPoint(outPoint), nHeight(nHeight)
@@ -247,9 +239,7 @@ struct CNameOutPointType
     std::string name;
     COutPoint outPoint;
 
-    CNameOutPointType()
-    {
-    }
+    CNameOutPointType() = default;
 
     CNameOutPointType(std::string name, const COutPoint& outPoint)
         : name(std::move(name)), outPoint(outPoint)
@@ -273,12 +263,10 @@ struct CNameOutPointType
 
 struct CClaimIndexElement
 {
-    CClaimIndexElement()
-    {
-    }
+    CClaimIndexElement() = default;
 
-    CClaimIndexElement(const std::string& name, const CClaimValue& claim)
-        : name(name), claim(claim)
+    CClaimIndexElement(std::string name, CClaimValue claim)
+        : name(std::move(name)), claim(std::move(claim))
     {
     }
 
@@ -302,8 +290,8 @@ struct CClaimsForNameType
     int nLastTakeoverHeight;
     std::string name;
 
-    CClaimsForNameType(claimEntryType claims, supportEntryType supports, int nLastTakeoverHeight, const std::string& name)
-        : claims(std::move(claims)), supports(std::move(supports)), nLastTakeoverHeight(nLastTakeoverHeight), name(name)
+    CClaimsForNameType(claimEntryType claims, supportEntryType supports, int nLastTakeoverHeight, std::string name)
+        : claims(std::move(claims)), supports(std::move(supports)), nLastTakeoverHeight(nLastTakeoverHeight), name(std::move(name))
     {
     }
 
@@ -355,9 +343,7 @@ struct CClaimTrieProofNode
 
 struct CClaimTrieProof
 {
-    CClaimTrieProof()
-    {
-    }
+    CClaimTrieProof() = default;
 
     CClaimTrieProof(std::vector<CClaimTrieProofNode> nodes, bool hasValue, const COutPoint& outPoint, int nHeightOfLastTakeover)
         : nodes(std::move(nodes)), hasValue(hasValue), outPoint(outPoint), nHeightOfLastTakeover(nHeightOfLastTakeover)
@@ -463,8 +449,8 @@ public:
 
 protected:
     CClaimTrie* base;
-    CClaimTrie cache;
-    std::unordered_set<std::string> namesToCheckForTakeover;
+    CClaimTrie nodesToAddOrUpdate; // nodes pulled in from base (and possibly modified thereafter), written to base on flush
+    std::unordered_set<std::string> namesToCheckForTakeover; // takeover numbers are updated on increment
 
     uint256 recursiveComputeMerkleHash(CClaimTrie::iterator& it);
 
@@ -473,8 +459,6 @@ protected:
 
     virtual bool insertSupportIntoMap(const std::string& name, const CSupportValue& support, bool fCheckTakeover);
     virtual bool removeSupportFromMap(const std::string& name, const COutPoint& outPoint, CSupportValue& support, bool fCheckTakeover);
-
-    virtual bool removeSupportFromQueue(const std::string& name, const COutPoint& outPoint, CSupportValue& support);
 
     virtual std::string adjustNameForValidHeight(const std::string& name, int validHeight) const;
 
@@ -505,16 +489,16 @@ private:
 
     bool fRequireTakeoverHeights;
 
-    claimQueueType claimQueueCache;
+    claimQueueType claimQueueCache; // claims not active yet: to be written to disk on flush
     queueNameType claimQueueNameCache;
-    supportQueueType supportQueueCache;
+    supportQueueType supportQueueCache; // supports not active yet: to be written to disk on flush
     queueNameType supportQueueNameCache;
-    claimIndexElementListType claimsToAdd;
-    claimIndexClaimListType claimsToDelete;
+    claimIndexElementListType claimsToAddToByIdIndex; // written to index on flush
+    claimIndexClaimListType claimsToDeleteFromByIdIndex;
 
-    std::unordered_map<std::string, supportEntryType> cacheSupports;
-    std::unordered_set<std::string> nodesToDelete;
-    std::unordered_set<std::string> alreadyCachedNodes;
+    std::unordered_map<std::string, supportEntryType> supportCache;  // to be added/updated to base (and disk) on flush
+    std::unordered_set<std::string> nodesToDelete; // to be removed from base (and disk) on flush
+    std::unordered_set<std::string> nodesAlreadyCached; // set of nodes already pulled into cache from base
     std::unordered_map<std::string, bool> takeoverWorkaround;
     std::unordered_set<std::string> removalWorkaround;
 
@@ -527,7 +511,6 @@ private:
     void markAsDirty(const std::string& name, bool fCheckTakeover);
     bool removeSupport(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight, bool fCheckTakeover);
     bool removeClaim(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight, bool fCheckTakeover);
-    bool removeClaimFromQueue(const std::string& name, const COutPoint& outPoint, CClaimValue& claim);
 
     template <typename T>
     std::pair<const int, std::vector<queueEntryType<T>>>* getQueueCacheRow(int nHeight, bool createIfNotExists = false);
@@ -635,8 +618,8 @@ public:
     CClaimsForNameType getClaimsForName(const std::string& name) const override;
 
 protected:
-    bool insertClaimIntoTrie(const std::string& name, const CClaimValue& claim, bool fCheckTakeover = false) override;
-    bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint, CClaimValue& claim, bool fCheckTakeover = false) override;
+    bool insertClaimIntoTrie(const std::string& name, const CClaimValue& claim, bool fCheckTakeover) override;
+    bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint, CClaimValue& claim, bool fCheckTakeover) override;
 
     bool insertSupportIntoMap(const std::string& name, const CSupportValue& support, bool fCheckTakeover) override;
     bool removeSupportFromMap(const std::string& name, const COutPoint& outPoint, CSupportValue& support, bool fCheckTakeover) override;
