@@ -19,7 +19,7 @@ the "--help" flag (e.g. `lbrycrdd --help`). Examples:
 
 Run `./lbrycrdd -server -daemon` to start lbrycrdd in the background.
 
-Run `./lbrycrd-cli getinfo` to check for some basic information about your LBRYcrd node.
+Run `./lbrycrd-cli -getinfo` to check for some basic information about your LBRYcrd node.
 
 The contribution workflow is described in [CONTRIBUTING.md](CONTRIBUTING.md)
 and useful hints for developers can be found in [doc/developer-notes.md](doc/developer-notes.md).
