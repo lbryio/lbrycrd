@@ -579,7 +579,7 @@ bool CClaimTrieCacheBase::ReadFromDisk(const CBlockIndex* tip)
     return false;
 }
 
-CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base, bool fRequireTakeoverHeights) : base(base), fRequireTakeoverHeights(fRequireTakeoverHeights)
+CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base) : base(base)
 {
     assert(base);
     nNextHeight = base->nNextHeight;
@@ -1287,8 +1287,6 @@ int CClaimTrieCacheBase::getNumBlocksOfContinuousOwnership(const std::string& na
 
 int CClaimTrieCacheBase::getDelayForName(const std::string& name) const
 {
-    if (!fRequireTakeoverHeights)
-        return 0;
     int nBlocksOfContinuousOwnership = getNumBlocksOfContinuousOwnership(name);
     return std::min(nBlocksOfContinuousOwnership / base->nProportionalDelayFactor, 4032);
 }
