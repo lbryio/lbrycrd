@@ -92,10 +92,12 @@ bool CClaimTrieData::removeClaim(const COutPoint& outPoint, CClaimValue& claim)
     if (eraseOutPoint(claims, outPoint, &claim))
         return true;
 
-    LogPrintf("CClaimTrieData::%s() : asked to remove a claim that doesn't exist\n", __func__);
-    LogPrintf("CClaimTrieData::%s() : claims that do exist:\n", __func__);
-    for (auto& iClaim : claims)
-        LogPrintf("\t%s\n", iClaim.outPoint.ToString());
+    if (LogAcceptCategory(BCLog::CLAIMS)) {
+        LogPrintf("CClaimTrieData::%s() : asked to remove a claim that doesn't exist\n", __func__);
+        LogPrintf("CClaimTrieData::%s() : claims that do exist:\n", __func__);
+        for (auto& iClaim : claims)
+            LogPrintf("\t%s\n", iClaim.outPoint.ToString());
+    }
     return false;
 }
 
@@ -445,7 +447,6 @@ bool CClaimTrieCacheBase::getClaimById(const uint160& claimId, std::string& name
         claim = element.claim;
         return true;
     }
-    LogPrintf("%s: ClaimIndex[%s] returned unmatched claimId %s when looking for %s\n", __func__, claimId.GetHex(), element.claim.claimId.GetHex(), name);
     return false;
 }
 
@@ -513,7 +514,7 @@ bool CClaimTrieCacheBase::flush()
 
     base->nNextHeight = nNextHeight;
     if (!nodesToAddOrUpdate.empty())
-        LogPrintf("Cache size: %zu from base size: %zu on block %d\n", nodesToAddOrUpdate.height(), base->height(), nNextHeight);
+        LogPrint(BCLog::CLAIMS, "Cache size: %zu from base size: %zu on block %d\n", nodesToAddOrUpdate.height(), base->height(), nNextHeight);
     auto ret = base->db->WriteBatch(batch);
     clear();
     return ret;
@@ -711,7 +712,7 @@ bool CClaimTrieCacheBase::removeClaimFromTrie(const std::string& name, const COu
     auto it = cacheData(name, false);
 
     if (!it || !it->removeClaim(outPoint, claim)) {
-        LogPrintf("%s: Removing a claim was unsuccessful. name = %s, txhash = %s, nOut = %d", __func__, name, outPoint.hash.GetHex(), outPoint.n);
+        LogPrint(BCLog::CLAIMS, "%s: Removing a claim was unsuccessful. name = %s, txhash = %s, nOut = %d", __func__, name, outPoint.hash.GetHex(), outPoint.n);
         return false;
     }
 
@@ -755,13 +756,13 @@ bool CClaimTrieCacheBase::addClaim(const std::string& name, const COutPoint& out
 {
     auto claim = add<CClaimValue>(name, outPoint, claimId, nAmount, nHeight);
     claimsToAddToByIdIndex.emplace_back(name, claim);
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, claimId: %s, nAmount: %d, nHeight: %d, nValidHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, claimId.GetHex(), nAmount, nHeight, claim.nValidAtHeight);
+    LogPrint(BCLog::CLAIMS, "%s: name: %s, txhash: %s, nOut: %d, claimId: %s, nAmount: %d, nHeight: %d, nValidHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, claimId.GetHex(), nAmount, nHeight, claim.nValidAtHeight);
     return true;
 }
 
 bool CClaimTrieCacheBase::addSupport(const std::string& name, const COutPoint& outPoint, CAmount nAmount, const uint160& supportedClaimId, int nHeight)
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedClaimId: %s, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nAmount, supportedClaimId.GetHex(), nHeight, nNextHeight);
+    LogPrint(BCLog::CLAIMS, "%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedClaimId: %s, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nAmount, supportedClaimId.GetHex(), nHeight, nNextHeight);
     add<CSupportValue>(name, outPoint, supportedClaimId, nAmount, nHeight);
     return true;
 }
@@ -813,7 +814,7 @@ bool CClaimTrieCacheBase::undoSpend(const std::string& name, const T& value, int
 
 bool CClaimTrieCacheBase::undoSpendClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId, CAmount nAmount, int nHeight, int nValidAtHeight)
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, claimId: %s, nAmount: %d, nHeight: %d, nValidAtHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, claimId.GetHex(), nAmount, nHeight, nValidAtHeight, nNextHeight);
+    LogPrint(BCLog::CLAIMS, "%s: name: %s, txhash: %s, nOut: %d, claimId: %s, nAmount: %d, nHeight: %d, nValidAtHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, claimId.GetHex(), nAmount, nHeight, nValidAtHeight, nNextHeight);
     CClaimValue claim(outPoint, claimId, nAmount, nHeight, nValidAtHeight);
     claimsToAddToByIdIndex.emplace_back(name, claim);
     return undoSpend(name, claim, nValidAtHeight);
@@ -821,7 +822,7 @@ bool CClaimTrieCacheBase::undoSpendClaim(const std::string& name, const COutPoin
 
 bool CClaimTrieCacheBase::undoSpendSupport(const std::string& name, const COutPoint& outPoint, const uint160& supportedClaimId, CAmount nAmount, int nHeight, int nValidAtHeight)
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedClaimId: %s, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nAmount, supportedClaimId.GetHex(), nHeight, nNextHeight);
+    LogPrint(BCLog::CLAIMS, "%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedClaimId: %s, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nAmount, supportedClaimId.GetHex(), nHeight, nNextHeight);
     CSupportValue support(outPoint, supportedClaimId, nAmount, nHeight, nValidAtHeight);
     return undoSpend(name, support, nValidAtHeight);
 }
@@ -856,7 +857,7 @@ bool CClaimTrieCacheBase::undoAddClaim(const std::string& name, const COutPoint&
 
 bool CClaimTrieCacheBase::undoAddSupport(const std::string& name, const COutPoint& outPoint, int nHeight)
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nHeight, nNextHeight);
+    LogPrint(BCLog::CLAIMS, "%s: name: %s, txhash: %s, nOut: %d, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nHeight, nNextHeight);
     int throwaway;
     return removeSupport(name, outPoint, nHeight, throwaway, false);
 }
@@ -868,7 +869,7 @@ bool CClaimTrieCacheBase::spendClaim(const std::string& name, const COutPoint& o
 
 bool CClaimTrieCacheBase::spendSupport(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight)
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %d, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nHeight, nNextHeight);
+    LogPrint(BCLog::CLAIMS, "%s: name: %s, txhash: %s, nOut: %d, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nHeight, nNextHeight);
     return removeSupport(name, outPoint, nHeight, nValidAtHeight, true);
 }
 
@@ -910,7 +911,7 @@ bool CClaimTrieCacheBase::remove(T& value, const std::string& name, const COutPo
 
 bool CClaimTrieCacheBase::removeClaim(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight, bool fCheckTakeover)
 {
-    LogPrintf("%s: name: %s, txhash: %s, nOut: %s, nNextHeight: %s\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nNextHeight);
+    LogPrint(BCLog::CLAIMS, "%s: name: %s, txhash: %s, nOut: %s, nNextHeight: %s\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nNextHeight);
 
     CClaimValue claim;
     if (remove(claim, name, outPoint, nHeight, nValidAtHeight, fCheckTakeover)) {
@@ -958,7 +959,7 @@ bool CClaimTrieCacheBase::removeSupportFromMap(const std::string& name, const CO
         }
         return true;
     }
-    LogPrintf("CClaimTrieCacheBase::%s() : asked to remove a support that doesn't exist\n", __func__);
+    LogPrint(BCLog::CLAIMS, "CClaimTrieCacheBase::%s() : asked to remove a support that doesn't exist\n", __func__);
     return false;
 }
 
@@ -1142,7 +1143,7 @@ bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimQueueR
         // not sure if this should happen above or below the above code:
         auto shouldUse = shouldUseTakeoverWorkaround(itNamesToCheck);
         if (!takeoverHappened && shouldUse)
-            LogPrintf("TakeoverHeight workaround affects block: %d, name: %s, th: %d\n", nNextHeight, itNamesToCheck, ownersTakeoverHeight);
+            LogPrint(BCLog::CLAIMS, "TakeoverHeight workaround affects block: %d, name: %s, th: %d\n", nNextHeight, itNamesToCheck, ownersTakeoverHeight);
         takeoverHappened |= shouldUse;
 
         if (haveClaimInTrie && takeoverHappened)
