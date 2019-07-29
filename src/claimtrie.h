@@ -384,7 +384,7 @@ typedef std::vector<CClaimIndexElement> claimIndexElementListType;
 class CClaimTrieCacheBase
 {
 public:
-    explicit CClaimTrieCacheBase(CClaimTrie* base, bool fRequireTakeoverHeights = true);
+    explicit CClaimTrieCacheBase(CClaimTrie* base);
     virtual ~CClaimTrieCacheBase() = default;
 
     uint256 getMerkleHash();
@@ -487,8 +487,6 @@ private:
 
     std::unordered_map<std::string, std::pair<uint160, int>> takeoverCache;
 
-    bool fRequireTakeoverHeights;
-
     claimQueueType claimQueueCache; // claims not active yet: to be written to disk on flush
     queueNameType claimQueueNameCache;
     supportQueueType supportQueueCache; // supports not active yet: to be written to disk on flush
@@ -565,7 +563,7 @@ private:
 class CClaimTrieCacheExpirationFork : public CClaimTrieCacheBase
 {
 public:
-    explicit CClaimTrieCacheExpirationFork(CClaimTrie* base, bool fRequireTakeoverHeights = true);
+    explicit CClaimTrieCacheExpirationFork(CClaimTrie* base);
 
     void setExpirationTime(int time);
     int expirationTime() const override;
@@ -591,8 +589,8 @@ private:
 class CClaimTrieCacheNormalizationFork : public CClaimTrieCacheExpirationFork
 {
 public:
-    explicit CClaimTrieCacheNormalizationFork(CClaimTrie* base, bool fRequireTakeoverHeights = true)
-        : CClaimTrieCacheExpirationFork(base, fRequireTakeoverHeights), overrideInsertNormalization(false), overrideRemoveNormalization(false)
+    explicit CClaimTrieCacheNormalizationFork(CClaimTrie* base)
+        : CClaimTrieCacheExpirationFork(base), overrideInsertNormalization(false), overrideRemoveNormalization(false)
     {
     }
 

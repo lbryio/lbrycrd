@@ -12,7 +12,7 @@ using namespace std;
 class CClaimTrieCacheTest : public CClaimTrieCacheBase
 {
 public:
-    explicit CClaimTrieCacheTest(CClaimTrie* base): CClaimTrieCacheBase(base, false)
+    explicit CClaimTrieCacheTest(CClaimTrie* base): CClaimTrieCacheBase(base)
     {
     }
 

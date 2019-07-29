@@ -9,8 +9,8 @@
 #include <boost/locale/localization_backend.hpp>
 #include <boost/scope_exit.hpp>
 
-CClaimTrieCacheExpirationFork::CClaimTrieCacheExpirationFork(CClaimTrie* base, bool fRequireTakeoverHeights)
-    : CClaimTrieCacheBase(base, fRequireTakeoverHeights)
+CClaimTrieCacheExpirationFork::CClaimTrieCacheExpirationFork(CClaimTrie* base)
+    : CClaimTrieCacheBase(base)
 {
     setExpirationTime(Params().GetConsensus().GetExpirationTime(nNextHeight));
 }
