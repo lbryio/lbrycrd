@@ -1811,7 +1811,6 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
             }
             for (unsigned int j = tx.vin.size(); j-- > 0;) {
                 const COutPoint &out = tx.vin[j].prevout;
-                /* int res = ApplyTxInUndo(std::move(txundo.vprevout[j]), txundo, view, trieCache, out); */
                 int res = ApplyTxInUndo(j, txundo, view, trieCache, out);
                 if (res == DISCONNECT_FAILED) return DISCONNECT_FAILED;
                 fClean = fClean && res != DISCONNECT_UNCLEAN;
@@ -2160,7 +2159,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     // post BIP34 before approximately height 486,000,000 and presumably will
     // be reset before it reaches block 1,983,702 and starts doing unnecessary
     // BIP30 checking again.
-    /* assert(pindex->pprev); */
+
     if (pindex->pprev)
     {
         CBlockIndex *pindexBIP34height = pindex->pprev->GetAncestor(chainparams.GetConsensus().BIP34Height);
@@ -2480,6 +2479,7 @@ bool CChainState::FlushStateToDisk(
     if (full_flush_completed) {
         // Update best block in wallet (so we can detect restored wallets).
         GetMainSignals().ChainStateFlushed(m_chain.GetLocator());
+        LogPrint(BCLog::BENCH, "Finished full disk flush in %.2fms\n", (GetTimeMicros() - nLastFlush) * MILLI);
     }
     } catch (const std::runtime_error& e) {
         return AbortNode(state, std::string("System error while flushing: ") + e.what());
@@ -2563,12 +2563,22 @@ void static UpdateTip(const CBlockIndex* pindexNew, const CChainParams& chainPar
         if (nUpgraded > 0)
             AppendWarning(warningMessages, strprintf(_("%d of last 100 blocks have unexpected version").translated, nUpgraded));
     }
-    LogPrintf("%s: new best=%s height=%d version=0x%08x log2_work=%.8g tx=%lu date='%s' progress=%f cache=%.1fMiB(%utxo)%s\n", __func__,
-      pindexNew->GetBlockHash().ToString(), pindexNew->nHeight, pindexNew->nVersion,
-      log(pindexNew->nChainWork.getdouble())/log(2.0), (unsigned long)pindexNew->nChainTx,
-      FormatISO8601DateTime(pindexNew->GetBlockTime()),
-      GuessVerificationProgress(chainParams.TxData(), pindexNew), ::ChainstateActive().CoinsTip().DynamicMemoryUsage() * (1.0 / (1<<20)), ::ChainstateActive().CoinsTip().GetCacheSize(),
-      !warningMessages.empty() ? strprintf(" warning='%s'", warningMessages) : "");
+    static int64_t lastBlockPrintTime = 0;
+    auto currentTime = GetAdjustedTime();
+    auto oldBlock = pindexNew->nTime + MAX_FUTURE_BLOCK_TIME < currentTime;
+    if (!warningMessages.empty() || !oldBlock || lastBlockPrintTime < currentTime - 15 || LogAcceptCategory(BCLog::CLAIMS)) {
+        lastBlockPrintTime = currentTime;
+        LogPrintf("%s: new best=%s height=%d version=0x%08x log2_work=%.8g txb=%lu tx=%lu date='%s' progress=%f cache=%.1fMiB(%utxo) trie nodes=%zu%s",
+                __func__, pindexNew->GetBlockHash().ToString(), pindexNew->nHeight, pindexNew->nVersion,
+                log(pindexNew->nChainWork.getdouble()) / log(2.0), (unsigned long) pindexNew->nTx,
+                (unsigned long) pindexNew->nChainTx, FormatISO8601DateTime(pindexNew->GetBlockTime()),
+                GuessVerificationProgress(chainParams.TxData(), pindexNew),
+                pcoinsTip->DynamicMemoryUsage() * (1.0 / (1U << 20U)), pcoinsTip->GetCacheSize(),
+                pclaimTrie->height(), oldBlock ? " (synchronizing)" : "");
+        if (!warningMessages.empty())
+            LogPrintf(" warning='%s'", warningMessages); /* Continued */
+        LogPrintf("\n");
+    }
 
 }
 
@@ -3050,12 +3060,14 @@ bool CChainState::ActivateBestChain(CValidationState &state, const CChainParams&
     } while (pindexNewTip != pindexMostWork);
     CheckBlockIndex(chainparams.GetConsensus());
 
-    // Write changes periodically to disk, after relay.
-    if (!FlushStateToDisk(chainparams, state, FlushStateMode::PERIODIC)) {
-        return false;
+    auto flushMode = FlushStateMode::PERIODIC;
+    if (pindexNewTip && pindexNewTip->nTime + chainparams.GetConsensus().nPowTargetSpacing > GetAdjustedTime()) {
+        // trying to ensure that we flush to disk after new blocks when we're caught up to the chain
+        // they're technically allowed to be two hours late, but experience says one minute is more likely
+        // LogPrintf("Added tip with time %d but it is now %ll\n", pindexNewTip->nTime, GetAdjustedTime());
+        flushMode = FlushStateMode::ALWAYS;
     }
-
-    return true;
+    return FlushStateToDisk(chainparams, state, flushMode);
 }
 
 bool ActivateBestChain(CValidationState &state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock) {

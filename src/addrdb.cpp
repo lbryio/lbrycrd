@@ -110,7 +110,7 @@ bool DeserializeFileDB(const fs::path& path, Data& data)
     FILE *file = fsbridge::fopen(path, "rb");
     CAutoFile filein(file, SER_DISK, CLIENT_VERSION);
     if (filein.IsNull())
-        return error("%s: Failed to open file %s", __func__, path.string());
+        return false;
 
     return DeserializeDB(filein, data);
 }
