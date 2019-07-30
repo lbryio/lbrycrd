@@ -445,6 +445,8 @@ public:
     CClaimTrie::const_iterator end() const;
     CClaimTrie::const_iterator find(const std::string& name) const;
 
+    void mergeTrieIntoCache();
+
     void dumpToLog(CClaimTrie::const_iterator it, bool diffFromBase = true) const;
 
 protected:

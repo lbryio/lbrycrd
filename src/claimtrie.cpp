@@ -579,6 +579,13 @@ bool CClaimTrieCacheBase::ReadFromDisk(const CBlockIndex* tip)
     return false;
 }
 
+void CClaimTrieCacheBase::mergeTrieIntoCache()
+{
+    for (auto it = base->cbegin(); it != base->cend(); ++it)
+        if (!nodesAlreadyCached.count(it.key()))
+            nodesToAddOrUpdate.copy(it);
+}
+
 CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base) : base(base)
 {
     assert(base);
@@ -721,11 +728,9 @@ bool CClaimTrieCacheBase::removeClaimFromTrie(const std::string& name, const COu
         it->reorderClaims(supports);
     } else {
         // in case we pull a child into our spot; we will then need their kids for hash
-        bool hasChild = false;
-        for (auto& child: it.children()) {
-            hasChild = true;
+        bool hasChild = it.hasChildren();
+        for (auto& child: it.children())
             cacheData(child.key(), false);
-        }
 
         nodesToAddOrUpdate.erase(name);
         nodesToDelete.insert(name);

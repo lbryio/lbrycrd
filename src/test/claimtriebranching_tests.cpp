@@ -3908,11 +3908,17 @@ BOOST_AUTO_TEST_CASE(getnamesintrie_test)
 {
     ClaimTrieChainFixture fixture;
     std::string sName1("test");
+    std::string sName2("test2");
+    std::string sName3("guest");
     std::string sValue1("test");
+
+    fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue1, 42);
+    fixture.MakeClaim(fixture.GetCoinbase(), sName2, sValue1, 42);
+    fixture.IncrementBlocks(1);
 
     uint256 blockHash = chainActive.Tip()->GetBlockHash();
 
-    fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue1, 42);
+    fixture.MakeClaim(fixture.GetCoinbase(), sName3, sValue1, 42);
     fixture.IncrementBlocks(1);
 
     rpcfn_type getnamesintrie = tableRPC["getnamesintrie"]->actor;
@@ -3920,12 +3926,17 @@ BOOST_AUTO_TEST_CASE(getnamesintrie_test)
     req.params = UniValue(UniValue::VARR);
 
     UniValue results = getnamesintrie(req);
-    BOOST_CHECK_EQUAL(results.size(), 1U);
+    BOOST_CHECK_EQUAL(results.size(), 3U);
+    BOOST_CHECK_EQUAL(results[0].get_str(), sName3);
+    BOOST_CHECK_EQUAL(results[1].get_str(), sName1);
+    BOOST_CHECK_EQUAL(results[2].get_str(), sName2);
 
     req.params.push_back(blockHash.GetHex());
 
     results = getnamesintrie(req);
-    BOOST_CHECK_EQUAL(results.size(), 0U);
+    BOOST_CHECK_EQUAL(results.size(), 2U);
+    BOOST_CHECK_EQUAL(results[0].get_str(), sName1);
+    BOOST_CHECK_EQUAL(results[1].get_str(), sName2);
 }
 
 BOOST_AUTO_TEST_CASE(getvalueforname_test)

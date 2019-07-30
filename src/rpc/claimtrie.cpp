@@ -182,6 +182,7 @@ static UniValue getclaimsintrie(const JSONRPCRequest& request)
     if (!request.params.empty()) {
         CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(request.params[0], "blockhash (optional parameter 1)"));
         RollBackTo(blockIndex, coinsCache, trieCache);
+        trieCache.mergeTrieIntoCache();
     }
 
     UniValue ret(UniValue::VARR);
@@ -266,6 +267,7 @@ static UniValue getnamesintrie(const JSONRPCRequest& request)
     if (!request.params.empty()) {
         CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(request.params[0], "blockhash (optional parameter 1)"));
         RollBackTo(blockIndex, coinsCache, trieCache);
+        trieCache.mergeTrieIntoCache();
     }
 
     UniValue ret(UniValue::VARR);
