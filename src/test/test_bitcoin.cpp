@@ -20,6 +20,8 @@
 #include <script/sigcache.h>
 
 #include "claimtrie.h"
+#include <boost/test/unit_test.hpp>
+#include <boost/test/unit_test_parameters.hpp>
 
 void CConnmanTest::AddNode(CNode& node)
 {
@@ -39,7 +41,6 @@ void CConnmanTest::ClearNodes()
 uint256 insecure_rand_seed = GetRandHash();
 FastRandomContext insecure_rand_ctx(insecure_rand_seed);
 
-extern bool fPrintToConsole;
 extern void noui_connect();
 
 std::ostream& operator<<(std::ostream& os, const uint256& num)
@@ -90,6 +91,14 @@ std::ostream& operator<<(std::ostream& os, const CSupportValue& support)
 BasicTestingSetup::BasicTestingSetup(const std::string& chainName)
     : m_path_root(fs::temp_directory_path() / "test_bitcoin" / strprintf("%lu_%i", (unsigned long)GetTime(), (int)(InsecureRandRange(1 << 30))))
 {
+    // for debugging:
+    if (boost::unit_test::runtime_config::get<boost::unit_test::log_level>(boost::unit_test::runtime_config::btrt_log_level)
+            <= boost::unit_test::log_level::log_messages) {
+        g_logger->m_print_to_console = true;
+        g_logger->m_log_time_micros = true;
+        g_logger->EnableCategory(BCLog::ALL);
+    }
+
     SHA256AutoDetect();
     RandomInit();
     ECC_Start();

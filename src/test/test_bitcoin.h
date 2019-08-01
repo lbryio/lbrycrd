@@ -44,7 +44,7 @@ struct BasicTestingSetup {
     ECCVerifyHandle globalVerifyHandle;
 
     explicit BasicTestingSetup(const std::string& chainName = CBaseChainParams::MAIN);
-    ~BasicTestingSetup();
+    virtual ~BasicTestingSetup();
 
     fs::path SetDataDir(const std::string& name);
 
@@ -70,7 +70,7 @@ struct TestingSetup: public BasicTestingSetup {
     std::unique_ptr<PeerLogicValidation> peerLogic;
 
     explicit TestingSetup(const std::string& chainName = CBaseChainParams::MAIN);
-    ~TestingSetup();
+    ~TestingSetup() override;
 };
 
 class CBlock;
@@ -89,7 +89,7 @@ struct TestChain100Setup : public TestingSetup {
     CBlock CreateAndProcessBlock(const std::vector<CMutableTransaction>& txns,
                                  const CScript& scriptPubKey);
 
-    ~TestChain100Setup();
+    ~TestChain100Setup() override;
 
     std::vector<CTransactionRef> m_coinbase_txns; // For convenience, coinbase transactions
     CKey coinbaseKey; // private/public key needed to spend coinbase transactions
@@ -97,7 +97,7 @@ struct TestChain100Setup : public TestingSetup {
 
 struct RegTestingSetup: public TestingSetup {
     RegTestingSetup();
-    ~RegTestingSetup();
+    ~RegTestingSetup() override;
 };
 
 class CTxMemPoolEntry;
