@@ -607,6 +607,7 @@ BerkeleyBatch::BerkeleyBatch(BerkeleyDatabase& database, const char* pszMode, bo
 
 void BerkeleyBatch::Flush()
 {
+    LOCK(cs_db);
     if (activeTxn)
         return;
 
@@ -615,8 +616,9 @@ void BerkeleyBatch::Flush()
     if (fReadOnly)
         nMinutes = 1;
 
-    if (env) { // env is nullptr for dummy databases (i.e. in tests). Don't actually flush if env is nullptr so we don't segfault
+    if (env && env->dbenv) { // env is nullptr for dummy databases (i.e. in tests). Don't actually flush if env is nullptr so we don't segfault
         env->dbenv->txn_checkpoint(nMinutes ? gArgs.GetArg("-dblogsize", DEFAULT_WALLET_DBLOGSIZE) * 1024 : 0, nMinutes, 0);
+    }
     }
 }
 

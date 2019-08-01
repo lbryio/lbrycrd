@@ -28,11 +28,11 @@ struct CatchWalletTestSetup: public TestingSetup {
         UniValue results = rpc_method(req);
         BOOST_CHECK_EQUAL(results["name"].get_str(), "tester_wallet");
     }
-    ~CatchWalletTestSetup() {
+    ~CatchWalletTestSetup() override {
         rpcfn_type rpc_method = tableRPC["unloadwallet"]->actor;
         JSONRPCRequest req;
+        req.URI = "/wallet/tester_wallet";
         req.params = UniValue(UniValue::VARR);
-        req.params.push_back("tester_wallet");
         rpc_method(req);
     }
 };
@@ -42,6 +42,7 @@ BOOST_FIXTURE_TEST_SUITE(claim_rpc_tests, CatchWalletTestSetup)
 double AvailableBalance() {
     rpcfn_type rpc_method = tableRPC["getbalance"]->actor;
     JSONRPCRequest req;
+    req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
     UniValue results = rpc_method(req);
     return results.get_real();
@@ -51,6 +52,7 @@ uint256 ClaimAName(const std::string& name, const std::string& data, const std::
     // pass a txid as name for update
     rpcfn_type rpc_method = tableRPC[isUpdate ? "updateclaim" : "claimname"]->actor;
     JSONRPCRequest req;
+    req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
     req.params.push_back(name);
     req.params.push_back(data);
@@ -67,6 +69,7 @@ uint256 SupportAName(const std::string& name, const std::string& claimId, const 
     // pass a txid as name for update
     rpcfn_type rpc_method = tableRPC["supportclaim"]->actor;
     JSONRPCRequest req;
+    req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
     req.params.push_back(name);
     req.params.push_back(claimId);
@@ -82,6 +85,7 @@ uint256 SupportAName(const std::string& name, const std::string& claimId, const 
 UniValue LookupAllNames() {
     rpcfn_type rpc_method = tableRPC["listnameclaims"]->actor;
     JSONRPCRequest req;
+    req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
     return rpc_method(req);
 }
@@ -89,6 +93,7 @@ UniValue LookupAllNames() {
 std::vector<uint256> generateBlock(int blocks = 1) {
     rpcfn_type rpc_method = tableRPC["generate"]->actor;
     JSONRPCRequest req;
+    req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
     req.params.push_back(blocks);
     UniValue results = rpc_method(req);
@@ -107,6 +112,7 @@ void rollbackBlock(const std::vector<uint256>& ids) {
     rpcfn_type rpc_method = tableRPC["invalidateblock"]->actor;
     for (auto it = ids.rbegin(); it != ids.rend(); ++it) {
         JSONRPCRequest req;
+        req.URI = "/wallet/tester_wallet";
         req.params = UniValue(UniValue::VARR);
         req.params.push_back(it->GetHex());
         rpc_method(req);
@@ -119,6 +125,7 @@ void rollbackBlock(const std::vector<uint256>& ids) {
 uint256 AbandonAClaim(const uint256& txid, bool isSupport = false) {
     rpcfn_type pre_rpc_method = tableRPC["getrawchangeaddress"]->actor;
     JSONRPCRequest pre_req;
+    pre_req.URI = "/wallet/tester_wallet";
     pre_req.params = UniValue(UniValue::VARR);
     pre_req.params.push_back("legacy");
     UniValue adr_hash = pre_rpc_method(pre_req);
@@ -126,6 +133,7 @@ uint256 AbandonAClaim(const uint256& txid, bool isSupport = false) {
     // pass a txid as name for update
     rpcfn_type rpc_method = tableRPC[isSupport ? "abandonsupport" : "abandonclaim"]->actor;
     JSONRPCRequest req;
+    req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
     req.params.push_back(txid.GetHex());
     req.params.push_back(adr_hash.get_str());
