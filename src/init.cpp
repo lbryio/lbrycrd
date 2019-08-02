@@ -1461,7 +1461,7 @@ bool AppInitMain()
                 pblocktree.reset();
                 pblocktree.reset(new CBlockTreeDB(nBlockTreeDBCache, false, fReset));
                 delete pclaimTrie;
-                pclaimTrie = new CClaimTrie(false, fReindex);
+                pclaimTrie = new CClaimTrie(false, fReindex || fReindexChainState);
 
                 if (fReset) {
                     pblocktree->WriteReindexing(true);

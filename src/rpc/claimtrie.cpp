@@ -174,48 +174,52 @@ static UniValue getclaimsintrie(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_METHOD_DEPRECATED, msg);
     }
 
+    UniValue ret(UniValue::VARR);
+    uint256 rootHash;
     LOCK(cs_main);
 
     CCoinsViewCache coinsCache(pcoinsTip.get());
     CClaimTrieCache trieCache(pclaimTrie);
 
     if (!request.params.empty()) {
-        CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(request.params[0], "blockhash (optional parameter 1)"));
+        CBlockIndex *blockIndex = BlockHashIndex(ParseHashV(request.params[0], "blockhash (optional parameter 1)"));
         RollBackTo(blockIndex, coinsCache, trieCache);
     }
+    rootHash = trieCache.getMerkleHash();
 
-    UniValue ret(UniValue::VARR);
-    for (auto it = trieCache.begin(); it != trieCache.end(); ++it)
-    {
+    CClaimTrieDataNode rootNode;
+    if (!pclaimTrie->find(rootHash, rootNode))
+        return ret;
+
+    pclaimTrie->recurseAllHashedNodes("", rootNode, [&ret, &trieCache, &coinsCache](const std::string &name,
+                                                                                    const CClaimTrieDataNode &node) {
         if (ShutdownRequested())
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Shutdown requested");
 
         boost::this_thread::interruption_point();
 
-        if (it->empty())
-            continue;
+        if (node.data.empty())
+            return;
 
         UniValue claims(UniValue::VARR);
-        for (auto itClaims = it->claims.cbegin(); itClaims != it->claims.cend(); ++itClaims) {
+        for (auto itClaims = node.data.claims.cbegin(); itClaims != node.data.claims.cend(); ++itClaims) {
             UniValue claim(UniValue::VOBJ);
             claim.pushKV("claimId", itClaims->claimId.GetHex());
             claim.pushKV("txid", itClaims->outPoint.hash.GetHex());
-            claim.pushKV("n", (int)itClaims->outPoint.n);
+            claim.pushKV("n", (int) itClaims->outPoint.n);
             claim.pushKV("amount", ValueFromAmount(itClaims->nAmount));
             claim.pushKV("height", itClaims->nHeight);
-            const Coin& coin = coinsCache.AccessCoin(itClaims->outPoint);
-            if (coin.IsSpent())
-            {
-                LogPrintf("%s: the specified txout of %s appears to have been spent\n", __func__, itClaims->outPoint.hash.GetHex());
+            const Coin &coin = coinsCache.AccessCoin(itClaims->outPoint);
+            if (coin.IsSpent()) {
+                LogPrintf("%s: the specified txout of %s appears to have been spent\n", __func__,
+                          itClaims->outPoint.hash.GetHex());
                 claim.pushKV("error", "Txout spent");
-            }
-            else
-            {
+            } else {
                 int op;
                 std::vector<std::vector<unsigned char> > vvchParams;
-                if (!DecodeClaimScript(coin.out.scriptPubKey, op, vvchParams))
-                {
-                    LogPrintf("%s: the specified txout of %s does not have an claim command\n", __func__, itClaims->outPoint.hash.GetHex());
+                if (!DecodeClaimScript(coin.out.scriptPubKey, op, vvchParams)) {
+                    LogPrintf("%s: the specified txout of %s does not have an claim command\n", __func__,
+                              itClaims->outPoint.hash.GetHex());
                 }
                 claim.pushKV("value", HexStr(vvchParams[1].begin(), vvchParams[1].end()));
             }
@@ -228,11 +232,10 @@ static UniValue getclaimsintrie(const JSONRPCRequest& request)
         }
 
         UniValue nodeObj(UniValue::VOBJ);
-        nodeObj.pushKV("normalized_name", escapeNonUtf8(it.key()));
+        nodeObj.pushKV("normalized_name", escapeNonUtf8(name));
         nodeObj.pushKV("claims", claims);
         ret.push_back(nodeObj);
-    }
-
+    });
     return ret;
 }
 
@@ -258,27 +261,33 @@ static UniValue getnamesintrie(const JSONRPCRequest& request)
             "Result: \n"
             "\"names\"            (array) all names in the trie that have claims\n");
 
-    LOCK(cs_main);
+    uint256 rootHash;
+    {
+        LOCK(cs_main);
 
-    CCoinsViewCache coinsCache(pcoinsTip.get());
-    CClaimTrieCache trieCache(pclaimTrie);
+        CCoinsViewCache coinsCache(pcoinsTip.get());
+        CClaimTrieCache trieCache(pclaimTrie);
 
-    if (!request.params.empty()) {
-        CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(request.params[0], "blockhash (optional parameter 1)"));
-        RollBackTo(blockIndex, coinsCache, trieCache);
+        if (!request.params.empty()) {
+            CBlockIndex *blockIndex = BlockHashIndex(ParseHashV(request.params[0], "blockhash (optional parameter 1)"));
+            RollBackTo(blockIndex, coinsCache, trieCache);
+        }
+        rootHash = trieCache.getMerkleHash();
     }
-
     UniValue ret(UniValue::VARR);
 
-    for (auto it = trieCache.begin(); it != trieCache.end(); ++it) {
+    CClaimTrieDataNode rootNode;
+    if (!pclaimTrie->find(rootHash, rootNode))
+        return ret;
+
+    pclaimTrie->recurseAllHashedNodes("", rootNode, [&ret](const std::string& name, const CClaimTrieDataNode& node) {
+        if (!node.data.empty())
+            ret.push_back(escapeNonUtf8(name));
         if (ShutdownRequested())
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Shutdown requested");
 
         boost::this_thread::interruption_point();
-
-        if (!it->empty())
-            ret.push_back(escapeNonUtf8(it.key()));
-    }
+    });
 
     return ret;
 }
@@ -580,8 +589,7 @@ UniValue gettotalclaimednames(const JSONRPCRequest& request)
             "                                         names in the trie\n"
         );
     LOCK(cs_main);
-    CClaimTrieCache trieCache(pclaimTrie);
-    auto num_names = trieCache.getTotalNamesInTrie();
+    auto num_names = pclaimTrie->getTotalNamesInTrie();
     return int(num_names);
 }
 
@@ -597,8 +605,7 @@ UniValue gettotalclaims(const JSONRPCRequest& request)
             "                                       of active claims\n"
         );
     LOCK(cs_main);
-    CClaimTrieCache trieCache(pclaimTrie);
-    auto num_claims = trieCache.getTotalClaimsInTrie();
+    auto num_claims = pclaimTrie->getTotalClaimsInTrie();
     return int(num_claims);
 }
 
@@ -619,8 +626,7 @@ UniValue gettotalvalueofclaims(const JSONRPCRequest& request)
     bool controlling_only = false;
     if (request.params.size() == 1)
         controlling_only = request.params[0].get_bool();
-    CClaimTrieCache trieCache(pclaimTrie);
-    auto total_amount = trieCache.getTotalValueOfClaimsInTrie(controlling_only);
+    auto total_amount = pclaimTrie->getTotalValueOfClaimsInTrie(controlling_only);
     return ValueFromAmount(total_amount);
 }
 
