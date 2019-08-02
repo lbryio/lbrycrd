@@ -160,17 +160,6 @@ struct CClaimTrieData
     inline void SerializationOp(Stream& s, Operation ser_action)
     {
         READWRITE(hash);
-
-        if (ser_action.ForRead()) {
-            if (s.eof()) {
-                claims.clear();
-                nHeightOfLastTakeover = 0;
-                return;
-            }
-        }
-        else if (claims.empty())
-            return;
-
         READWRITE(claims);
         READWRITE(nHeightOfLastTakeover);
     }
@@ -193,7 +182,10 @@ struct CClaimTrieData
 
 struct CClaimTrieDataNode {
     CClaimTrieData data;
-    std::map<std::string, uint256> children;
+    // we're using a vector to avoid RAM thrashing and for faster serialization ops.
+    // We're assuming its data is inserted in order and never modified.
+    std::vector<std::pair<std::string, uint256>> children;
+    bool childrenSerialization = true;
 
     CClaimTrieDataNode() = default;
     CClaimTrieDataNode(CClaimTrieDataNode&&) = default;
@@ -206,8 +198,9 @@ struct CClaimTrieDataNode {
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action)
     {
-        READWRITE(children);
-        READWRITE(data); // keep item using "s.eof" last
+        READWRITE(data);
+        if (childrenSerialization) // wanting constexpr but hoping the compiler is smart enough anyway
+            READWRITE(children);
     }
 };
 
