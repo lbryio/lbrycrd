@@ -351,7 +351,7 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheExpirationFork
             if (!expirationQueue.second.empty())
                 return false;
         }
-        return keyTypeEmpty<int>(EXP_QUEUE_ROW);
+        return keyTypeEmpty<int>(CLAIM_EXP_QUEUE_ROW);
     }
 
     bool supportEmpty()
@@ -431,6 +431,8 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheExpirationFork
             }
         }
     }
+
+    std::size_t getTotalNamesInTrie() const { return base->getTotalNamesInTrie(); }
 };
 
 BOOST_FIXTURE_TEST_SUITE(claimtriebranching_tests, RegTestingSetup)
@@ -495,6 +497,8 @@ BOOST_AUTO_TEST_CASE(triehash_fuzzer_test)
             }
         }
         fixture.IncrementBlocks(1);
+        if (blocks > 13 && i % 50 == 0) // travisCI needs some periodic output
+            std::cerr << "In triehash_fuzzer_test with " << fixture.getTotalNamesInTrie() << " names at block " << i << std::endl;
     }
 
     if (blocks == 1000 && claimsPerBlock == 100)
@@ -1021,7 +1025,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_expire_test)
     BOOST_CHECK(fixture.is_best_claim("test", tx6));
 }
 /*
- * tests for CClaimTrie::getEffectiveAmountForClaim
+ * tests for CClaimPrefixTrie::getEffectiveAmountForClaim
  */
 BOOST_AUTO_TEST_CASE(claimtriebranching_get_effective_amount_for_claim)
 {
@@ -1066,7 +1070,7 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_get_effective_amount_for_claim)
 }
 
 /*
- * tests for CClaimTrie::getClaimById basic consistency checks
+ * tests for CClaimPrefixTrie::getClaimById basic consistency checks
  */
 BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
 {
@@ -1544,10 +1548,8 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
     BOOST_CHECK(trieCache.incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverHeightUndo));
     BOOST_CHECK(trieCache.shouldNormalize());
 
-    // we cannot use getXXXForName cause they will normalized name
-    for (auto it = pclaimTrie->begin(); it != pclaimTrie->end(); ++it) {
-        BOOST_CHECK(it.key() != name);
-    }
+    CClaimTrieDataNode node;
+    BOOST_CHECK(!pclaimTrie->find(name, node));
 }
 
 BOOST_AUTO_TEST_CASE(undo_normalization_does_not_kill_claim_order)
@@ -2183,7 +2185,7 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
                                          << std::vector<unsigned char>(sName1.begin(), sName1.end())
                                          << std::vector<unsigned char>(tx1ClaimId.begin(), tx1ClaimId.end())
                                          << std::vector<unsigned char>(sValue1.begin(), sValue1.end()) << OP_2DROP << OP_2DROP << OP_TRUE;
-    tx8.vout[0].nValue = tx8.vout[0].nValue - 1;
+    tx8.vout[0].nValue -= 1;
     tx8.vout[1].scriptPubKey = CScript() << OP_CLAIM_NAME
                                          << std::vector<unsigned char>(sName1.begin(), sName1.end())
                                          << std::vector<unsigned char>(sValue2.begin(), sValue2.end()) << OP_2DROP << OP_DROP << OP_TRUE;
@@ -3817,7 +3819,7 @@ BOOST_AUTO_TEST_CASE(bogus_claimtrie_hash_test)
 }
 
 /*
- * tests for CClaimTrie::getClaimById basic consistency checks
+ * tests for CClaimPrefixTrie::getClaimById basic consistency checks
  */
 BOOST_AUTO_TEST_CASE(get_claim_by_id_test_2)
 {
@@ -4099,14 +4101,17 @@ BOOST_AUTO_TEST_CASE(update_on_support2_test)
     CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, name, 1);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK_EQUAL(pclaimTrie->find(name)->nHeightOfLastTakeover, height + 1);
+    CClaimTrieDataNode node;
+    BOOST_CHECK(pclaimTrie->find(name, node));
+    BOOST_CHECK_EQUAL(node.data.nHeightOfLastTakeover, height + 1);
 
     fixture.Spend(s1);
     fixture.Spend(s2);
     CMutableTransaction u1 = fixture.MakeUpdate(tx1, name, value, ClaimIdHash(tx1.GetHash(), 0), 3);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK_EQUAL(pclaimTrie->find(name)->nHeightOfLastTakeover, height + 1);
+    BOOST_CHECK(pclaimTrie->find(name, node));
+    BOOST_CHECK_EQUAL(node.data.nHeightOfLastTakeover, height + 1);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

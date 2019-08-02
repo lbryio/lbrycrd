@@ -18,11 +18,13 @@
 #include <unordered_set>
 
 // leveldb keys
-#define TRIE_NODE 'n'
+#define TRIE_NODE 'n' // deprecated
+#define TRIE_NODE_BY_HASH 'h'
+#define TRIE_NODE_BY_NAME 'g'
 #define CLAIM_BY_ID 'i'
 #define CLAIM_QUEUE_ROW 'r'
 #define CLAIM_QUEUE_NAME_ROW 'm'
-#define EXP_QUEUE_ROW 'e'
+#define CLAIM_EXP_QUEUE_ROW 'e'
 #define SUPPORT 's'
 #define SUPPORT_QUEUE_ROW 'u'
 #define SUPPORT_QUEUE_NAME_ROW 'p'
@@ -61,6 +63,7 @@ struct CClaimValue
         READWRITE(nAmount);
         READWRITE(nHeight);
         READWRITE(nValidAtHeight);
+        READWRITE(nEffectiveAmount);
     }
 
     bool operator<(const CClaimValue& other) const
@@ -188,6 +191,26 @@ struct CClaimTrieData
     }
 };
 
+struct CClaimTrieDataNode {
+    CClaimTrieData data;
+    std::map<std::string, uint256> children;
+
+    CClaimTrieDataNode() = default;
+    CClaimTrieDataNode(CClaimTrieDataNode&&) = default;
+    CClaimTrieDataNode(const CClaimTrieDataNode&) = default;
+    CClaimTrieDataNode& operator=(CClaimTrieDataNode&&) = default;
+    CClaimTrieDataNode& operator=(const CClaimTrieDataNode& d) = default;
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action)
+    {
+        READWRITE(children);
+        READWRITE(data); // keep item using "s.eof" last
+    }
+};
+
 struct COutPointHeightType
 {
     COutPoint outPoint;
@@ -301,7 +324,7 @@ struct CClaimsForNameType
     CClaimsForNameType& operator=(const CClaimsForNameType&) = default;
 };
 
-class CClaimTrie : public CPrefixTrie<std::string, CClaimTrieData>
+class CClaimTrie
 {
     int nNextHeight = 0;
     int nProportionalDelayFactor = 0;
@@ -322,6 +345,19 @@ public:
     friend struct ClaimTrieChainFixture;
     friend class CClaimTrieCacheExpirationFork;
     friend class CClaimTrieCacheNormalizationFork;
+
+    std::size_t getTotalNamesInTrie() const;
+    std::size_t getTotalClaimsInTrie() const;
+    CAmount getTotalValueOfClaimsInTrie(bool fControllingOnly) const;
+    bool checkConsistency(const uint256& rootHash) const;
+
+    bool contains(const std::string& key) const;
+    bool empty() const;
+    bool find(const uint256& key, CClaimTrieDataNode& node) const;
+    bool find(const std::string& key, CClaimTrieDataNode& node) const;
+
+    std::vector<std::pair<std::string, CClaimTrieDataNode>> nodes(const std::string& key) const;
+    void recurseAllHashedNodes(const std::string& name, const CClaimTrieDataNode& current, std::function<void(const std::string&, const CClaimTrieDataNode&)> function) const;
 };
 
 struct CClaimTrieProofNode
@@ -381,6 +417,8 @@ typedef std::map<int, expirationQueueRowType> expirationQueueType;
 typedef std::set<CClaimValue> claimIndexClaimListType;
 typedef std::vector<CClaimIndexElement> claimIndexElementListType;
 
+typedef CPrefixTrie<std::string, CClaimTrieData> CClaimPrefixTrie;
+
 class CClaimTrieCacheBase
 {
 public:
@@ -388,7 +426,6 @@ public:
     virtual ~CClaimTrieCacheBase() = default;
 
     uint256 getMerkleHash();
-    bool checkConsistency() const;
 
     bool getClaimById(const uint160& claimId, std::string& name, CClaimValue& claim) const;
 
@@ -401,10 +438,6 @@ public:
 
     bool haveSupport(const std::string& name, const COutPoint& outPoint) const;
     bool haveSupportInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight);
-
-    std::size_t getTotalNamesInTrie() const;
-    std::size_t getTotalClaimsInTrie() const;
-    CAmount getTotalValueOfClaimsInTrie(bool fControllingOnly) const;
 
     bool addClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId, CAmount nAmount, int nHeight);
     bool undoAddClaim(const std::string& name, const COutPoint& outPoint, int nHeight);
@@ -441,18 +474,18 @@ public:
     CAmount getEffectiveAmountForClaim(const std::string& name, const uint160& claimId, std::vector<CSupportValue>* supports = nullptr) const;
     CAmount getEffectiveAmountForClaim(const CClaimsForNameType& claims, const uint160& claimId, std::vector<CSupportValue>* supports = nullptr) const;
 
-    CClaimTrie::const_iterator begin() const;
-    CClaimTrie::const_iterator end() const;
-    CClaimTrie::const_iterator find(const std::string& name) const;
+    CClaimPrefixTrie::const_iterator begin() const;
+    CClaimPrefixTrie::const_iterator end() const;
 
-    void dumpToLog(CClaimTrie::const_iterator it, bool diffFromBase = true) const;
+    void dumpToLog(CClaimPrefixTrie::const_iterator it, bool diffFromBase = true) const;
+    virtual std::string adjustNameForValidHeight(const std::string& name, int validHeight) const;
 
 protected:
     CClaimTrie* base;
-    CClaimTrie nodesToAddOrUpdate; // nodes pulled in from base (and possibly modified thereafter), written to base on flush
+    CClaimPrefixTrie nodesToAddOrUpdate; // nodes pulled in from base (and possibly modified thereafter), written to base on flush
     std::unordered_set<std::string> namesToCheckForTakeover; // takeover numbers are updated on increment
 
-    uint256 recursiveComputeMerkleHash(CClaimTrie::iterator& it);
+    uint256 recursiveComputeMerkleHash(CClaimPrefixTrie::iterator& it);
 
     virtual bool insertClaimIntoTrie(const std::string& name, const CClaimValue& claim, bool fCheckTakeover);
     virtual bool removeClaimFromTrie(const std::string& name, const COutPoint& outPoint, CClaimValue& claim, bool fCheckTakeover);
@@ -460,14 +493,12 @@ protected:
     virtual bool insertSupportIntoMap(const std::string& name, const CSupportValue& support, bool fCheckTakeover);
     virtual bool removeSupportFromMap(const std::string& name, const COutPoint& outPoint, CSupportValue& support, bool fCheckTakeover);
 
-    virtual std::string adjustNameForValidHeight(const std::string& name, int validHeight) const;
-
     supportEntryType getSupportsForName(const std::string& name) const;
 
     int getDelayForName(const std::string& name) const;
     virtual int getDelayForName(const std::string& name, const uint160& claimId) const;
 
-    CClaimTrie::iterator cacheData(const std::string& name, bool create = true);
+    CClaimPrefixTrie::iterator cacheData(const std::string& name, bool create = true);
 
     bool getLastTakeoverForName(const std::string& name, uint160& claimId, int& takeoverHeight) const;
 
@@ -499,6 +530,7 @@ private:
     std::unordered_set<std::string> nodesAlreadyCached; // set of nodes already pulled into cache from base
     std::unordered_map<std::string, bool> takeoverWorkaround;
     std::unordered_set<std::string> removalWorkaround;
+    std::unordered_set<std::string> dirtyNodes;
 
     bool shouldUseTakeoverWorkaround(const std::string& key) const;
     void addTakeoverWorkaroundPotential(const std::string& key);
@@ -509,6 +541,8 @@ private:
     void markAsDirty(const std::string& name, bool fCheckTakeover);
     bool removeSupport(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight, bool fCheckTakeover);
     bool removeClaim(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight, bool fCheckTakeover);
+
+    bool validateTrieConsistency(const CBlockIndex* tip);
 
     template <typename T>
     std::pair<const int, std::vector<queueEntryType<T>>>* getQueueCacheRow(int nHeight, bool createIfNotExists = false);
@@ -614,6 +648,7 @@ public:
     bool getProofForName(const std::string& name, CClaimTrieProof& proof) override;
     bool getInfoForName(const std::string& name, CClaimValue& claim) const override;
     CClaimsForNameType getClaimsForName(const std::string& name) const override;
+    std::string adjustNameForValidHeight(const std::string& name, int validHeight) const override;
 
 protected:
     bool insertClaimIntoTrie(const std::string& name, const CClaimValue& claim, bool fCheckTakeover) override;
@@ -623,8 +658,6 @@ protected:
     bool removeSupportFromMap(const std::string& name, const COutPoint& outPoint, CSupportValue& support, bool fCheckTakeover) override;
 
     int getDelayForName(const std::string& name, const uint160& claimId) const override;
-
-    std::string adjustNameForValidHeight(const std::string& name, int validHeight) const override;
 
 private:
     bool overrideInsertNormalization;

@@ -193,4 +193,19 @@ inline bool operator!=(const std::reference_wrapper<std::unique_ptr<T>>& ref, co
     return !(ref == obj);
 }
 
+template <typename TKey>
+static std::size_t match(const TKey& a, const TKey& b)
+{
+    std::size_t count = 0;
+    auto ait = a.cbegin(), aend = a.cend();
+    auto bit = b.cbegin(), bend = b.cend();
+    while (ait != aend && bit != bend) {
+        if (*ait != *bit) break;
+        ++count;
+        ++ait;
+        ++bit;
+    }
+    return count;
+}
+
 #endif // BITCOIN_PREFIXTRIE_H

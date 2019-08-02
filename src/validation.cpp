@@ -1827,13 +1827,11 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
     assert(trieCache.finalizeDecrement(blockUndo.takeoverHeightUndo));
     auto merkleHash = trieCache.getMerkleHash();
     if (merkleHash != pindex->pprev->hashClaimTrie) {
-        if (trieCache.checkConsistency()) {
-            for (auto cit = trieCache.begin(); cit != trieCache.end(); ++cit) {
-                if (cit->claims.size() && cit->nHeightOfLastTakeover <= 0)
-                    LogPrintf("Invalid takeover height discovered in cache for %s\n", cit.key());
-                if (cit->hash.IsNull())
-                    LogPrintf("Invalid hash discovered in cache for %s\n", cit.key());
-            }
+        for (auto cit = trieCache.begin(); cit != trieCache.end(); ++cit) {
+            if (cit->claims.size() && cit->nHeightOfLastTakeover <= 0)
+                LogPrintf("Invalid takeover height discovered in cache for %s\n", cit.key());
+            if (cit->hash.IsNull())
+                LogPrintf("Invalid hash discovered in cache for %s\n", cit.key());
         }
         LogPrintf("Hash comparison failure at block %d\n", pindex->nHeight);
         assert(merkleHash == pindex->pprev->hashClaimTrie);
@@ -2324,7 +2322,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
 
     if (trieCache.getMerkleHash() != block.hashClaimTrie)
     {
-        if (!trieCache.empty() && trieCache.checkConsistency())
+        if (!trieCache.empty()) // we could run checkConsistency here, but it would take a while
             trieCache.dumpToLog(trieCache.begin());
         return state.DoS(100, error("ConnectBlock() : the merkle root of the claim trie does not match "
                                "(actual=%s vs block=%s on height=%d)", trieCache.getMerkleHash().GetHex(),
@@ -2568,13 +2566,13 @@ void static UpdateTip(const CBlockIndex* pindexNew, const CChainParams& chainPar
     auto oldBlock = pindexNew->nTime + MAX_FUTURE_BLOCK_TIME < currentTime;
     if (!warningMessages.empty() || !oldBlock || lastBlockPrintTime < currentTime - 15 || LogAcceptCategory(BCLog::CLAIMS)) {
         lastBlockPrintTime = currentTime;
-        LogPrintf("%s: new best=%s height=%d version=0x%08x log2_work=%.8g txb=%lu tx=%lu date='%s' progress=%f cache=%.1fMiB(%utxo) trie nodes=%zu%s",
+        LogPrintf("%s: new best=%s height=%d version=0x%08x log2_work=%.8g txb=%lu tx=%lu date='%s' progress=%f cache=%.1fMiB(%utxo)%s",
                 __func__, pindexNew->GetBlockHash().ToString(), pindexNew->nHeight, pindexNew->nVersion,
                 log(pindexNew->nChainWork.getdouble()) / log(2.0), (unsigned long) pindexNew->nTx,
                 (unsigned long) pindexNew->nChainTx, FormatISO8601DateTime(pindexNew->GetBlockTime()),
                 GuessVerificationProgress(chainParams.TxData(), pindexNew),
                 pcoinsTip->DynamicMemoryUsage() * (1.0 / (1U << 20U)), pcoinsTip->GetCacheSize(),
-                pclaimTrie->height(), oldBlock ? " (synchronizing)" : "");
+                oldBlock ? " (synchronizing)" : "");
         if (!warningMessages.empty())
             LogPrintf(" warning='%s'", warningMessages); /* Continued */
         LogPrintf("\n");

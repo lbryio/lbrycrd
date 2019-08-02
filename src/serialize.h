@@ -571,8 +571,8 @@ template<typename Stream, typename K, typename T> void Unserialize(Stream& is, s
 /**
  * map
  */
-template<typename Stream, typename K, typename T, typename Pred, typename A> void Serialize(Stream& os, const std::map<K, T, Pred, A>& m);
-template<typename Stream, typename K, typename T, typename Pred, typename A> void Unserialize(Stream& is, std::map<K, T, Pred, A>& m);
+template<typename Stream, typename K, typename T, typename ... Z> void Serialize(Stream& os, const std::map<K, T, Z...>& m);
+template<typename Stream, typename K, typename T, typename ... Z> void Unserialize(Stream& is, std::map<K, T, Z...>& m);
 
 /**
  * set
@@ -805,20 +805,20 @@ void Unserialize(Stream& is, std::pair<K, T>& item)
 /**
  * map
  */
-template<typename Stream, typename K, typename T, typename Pred, typename A>
-void Serialize(Stream& os, const std::map<K, T, Pred, A>& m)
+template<typename Stream, typename K, typename T, typename ... Z>
+void Serialize(Stream& os, const std::map<K, T, Z...>& m)
 {
     WriteCompactSize(os, m.size());
     for (const auto& entry : m)
         Serialize(os, entry);
 }
 
-template<typename Stream, typename K, typename T, typename Pred, typename A>
-void Unserialize(Stream& is, std::map<K, T, Pred, A>& m)
+template<typename Stream, typename K, typename T, typename ... Z>
+void Unserialize(Stream& is, std::map<K, T, Z...>& m)
 {
     m.clear();
     unsigned int nSize = ReadCompactSize(is);
-    typename std::map<K, T, Pred, A>::iterator mi = m.begin();
+    typename std::map<K, T, Z...>::iterator mi = m.begin();
     for (unsigned int i = 0; i < nSize; i++)
     {
         std::pair<K, T> item;
