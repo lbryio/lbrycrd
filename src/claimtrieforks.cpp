@@ -8,6 +8,7 @@
 #include <boost/locale/conversion.hpp>
 #include <boost/locale/localization_backend.hpp>
 #include <boost/scope_exit.hpp>
+#include <boost/scoped_ptr.hpp>
 
 CClaimTrieCacheExpirationFork::CClaimTrieCacheExpirationFork(CClaimTrie* base)
     : CClaimTrieCacheBase(base)
@@ -66,7 +67,7 @@ bool CClaimTrieCacheExpirationFork::forkForExpirationChange(bool increment)
         if (!pcursor->GetKey(key))
             continue;
         int height = key.second;
-        if (key.first == EXP_QUEUE_ROW) {
+        if (key.first == CLAIM_EXP_QUEUE_ROW) {
             expirationQueueRowType row;
             if (pcursor->GetValue(row)) {
                 reactivateClaim(row, height, increment);
@@ -160,40 +161,48 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(insert
     // run the one-time upgrade of all names that need to change
     // it modifies the (cache) trie as it goes, so we need to grab everything to be modified first
 
-    for (auto it = base->begin(); it != base->end(); ++it) {
-        const std::string normalized = normalizeClaimName(it.key(), true);
-        if (normalized == it.key())
+    boost::scoped_ptr<CDBIterator> pcursor(base->db->NewIterator());
+    for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next()) {
+        std::pair<uint8_t, std::string> key;
+        if (!pcursor->GetKey(key) || key.first != TRIE_NODE_BY_NAME)
             continue;
 
-        auto supports = getSupportsForName(it.key());
+        const auto& name = key.second;
+        const std::string normalized = normalizeClaimName(name, true);
+        if (normalized == key.second)
+            continue;
+
+        auto supports = getSupportsForName(name);
         for (auto support : supports) {
             // if it's already going to expire just skip it
             if (support.nHeight + expirationTime() <= nNextHeight)
                 continue;
 
-            assert(removeSupportFromMap(it.key(), support.outPoint, support, false));
-            expireSupportUndo.emplace_back(it.key(), support);
+            assert(removeSupportFromMap(name, support.outPoint, support, false));
+            expireSupportUndo.emplace_back(name, support);
             assert(insertSupportIntoMap(normalized, support, false));
-            insertSupportUndo.emplace_back(it.key(), support.outPoint, -1);
+            insertSupportUndo.emplace_back(name, support.outPoint, -1);
         }
 
         namesToCheckForTakeover.insert(normalized);
 
-        auto cached = cacheData(it.key(), false);
+        auto cached = cacheData(name, false);
         if (!cached || cached->empty())
             continue;
 
-        for (auto claim : it->claims) {
+        auto claimsCopy = cached->claims;
+        auto takeoverHeightCopy = cached->nHeightOfLastTakeover;
+        for (auto claim : claimsCopy) {
             if (claim.nHeight + expirationTime() <= nNextHeight)
                 continue;
 
-            assert(removeClaimFromTrie(it.key(), claim.outPoint, claim, false));
-            removeUndo.emplace_back(it.key(), claim);
+            assert(removeClaimFromTrie(name, claim.outPoint, claim, false));
+            removeUndo.emplace_back(name, claim);
             assert(insertClaimIntoTrie(normalized, claim, true));
-            insertUndo.emplace_back(it.key(), claim.outPoint, -1);
+            insertUndo.emplace_back(name, claim.outPoint, -1);
         }
 
-        takeoverHeightUndo.emplace_back(it.key(), it->nHeightOfLastTakeover);
+        takeoverHeightUndo.emplace_back(name, takeoverHeightCopy);
     }
     return true;
 }

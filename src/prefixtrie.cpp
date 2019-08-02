@@ -174,21 +174,6 @@ std::vector<typename CPrefixTrie<TKey, TData>::template Iterator<IsConst>> CPref
     return ret;
 }
 
-template <typename TKey>
-static std::size_t match(const TKey& a, const TKey& b)
-{
-    std::size_t count = 0;
-    auto ait = a.cbegin(), aend = a.cend();
-    auto bit = b.cbegin(), bend = b.cend();
-    while (ait != aend && bit != bend) {
-        if (*ait != *bit) break;
-        ++count;
-        ++ait;
-        ++bit;
-    }
-    return count;
-}
-
 template <typename TKey, typename TData>
 template <typename TIterator, typename TNode>
 TIterator CPrefixTrie<TKey, TData>::find(const TKey& key, TNode node, TIterator end)
