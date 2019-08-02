@@ -222,6 +222,7 @@ bool CClaimTrieCacheBase::haveClaim(const std::string& name, const COutPoint& ou
     if (it || nodesToDelete.count(name))
         return false;
     CClaimTrieDataNode node;
+    node.childrenSerialization = false;
     return base->find(name, node) && node.data.haveClaim(outPoint);
 }
 
@@ -330,6 +331,7 @@ bool CClaimTrieCacheBase::getInfoForName(const std::string& name, CClaimValue& c
     if (it || nodesToDelete.count(name))
         return false;
     CClaimTrieDataNode node;
+    node.childrenSerialization = false;
     return base->find(name, node) && node.data.getBestClaim(claim);
 }
 
@@ -340,6 +342,7 @@ CClaimsForNameType CClaimTrieCacheBase::getClaimsForName(const std::string& name
     auto supports = getSupportsForName(name);
 
     CClaimTrieDataNode node;
+    node.childrenSerialization = false;
     if (auto it = nodesToAddOrUpdate.find(name)) {
         claims = it->claims;
         nLastTakeoverHeight = it->nHeightOfLastTakeover;
@@ -423,7 +426,11 @@ bool CClaimTrie::checkConsistency(const uint256& rootHash) const
     }
 
     bool success = true;
-    recurseAllHashedNodes("", node, [&success](const std::string& name, const CClaimTrieDataNode& node) {
+    recurseAllHashedNodes("", node, [&success, this](const std::string& name, const CClaimTrieDataNode& node) {
+        if (!success) return;
+
+        success &= contains(name);
+
         std::vector<uint8_t> vchToHash;
         const auto pos = name.size();
         for (auto& child : node.children) {
@@ -459,7 +466,8 @@ std::vector<std::pair<std::string, CClaimTrieDataNode>> CClaimTrie::nodes(const 
     std::string partialKey = key;
 
     while (!node.children.empty()) {
-        auto it = node.children.lower_bound(partialKey);
+        // auto it = node.children.lower_bound(partialKey); // for using a std::map
+        auto it = std::lower_bound(node.children.begin(), node.children.end(), std::make_pair(partialKey, uint256()));
         if (it != node.children.end() && it->first == partialKey) {
             // we're completely done
             if (find(it->second, node))
@@ -565,8 +573,8 @@ bool CClaimTrieCacheBase::flush()
 
         CClaimTrieDataNode node;
         node.data = it.data();
-        for (auto &child: it.children())
-            node.children.emplace(child.key().substr(it.key().size()), child->hash);
+        for (auto &child: it.children()) // ordering here is important
+            node.children.emplace_back(child.key().substr(it.key().size()), child->hash);
 
         batch.Write(std::make_pair(TRIE_NODE_BY_HASH, it->hash), node);
         batch.Write(std::make_pair(TRIE_NODE_BY_NAME, it.key()), it->hash);
@@ -651,6 +659,7 @@ uint256 CClaimTrieCacheBase::getMerkleHash()
         return recursiveComputeMerkleHash(it);
     if (nodesToDelete.empty() && nodesAlreadyCached.empty()) {
         CClaimTrieDataNode node;
+        node.childrenSerialization = false;
         if (base->find("", node))
             return node.data.hash; // it may be valuable to have base cache its current root hash
     }
@@ -678,15 +687,15 @@ CClaimPrefixTrie::iterator CClaimTrieCacheBase::cacheData(const std::string& nam
     // to calculate merkle hash
     auto nodes = base->nodes(name);
     for (auto& node: nodes) {
-        if (!nodesAlreadyCached.count(node.first)) {
+        if (nodesAlreadyCached.insert(node.first).second) {
             // do not insert nodes that are already present
-            nodesAlreadyCached.insert(node.first);
             nodesToAddOrUpdate.insert(node.first, node.second.data);
         }
         for (auto& child : node.second.children) {
             auto childKey = node.first + child.first;
-            if (!nodesAlreadyCached.count(childKey)) {
+            if (nodesAlreadyCached.insert(childKey).second) {
                 CClaimTrieDataNode childNode;
+                childNode.childrenSerialization = false;
                 if (base->find(child.second, childNode)) {
                     nodesToAddOrUpdate.insert(childKey, childNode.data);
                 }
@@ -718,6 +727,7 @@ bool CClaimTrieCacheBase::getLastTakeoverForName(const std::string& name, uint16
         return true;
     }
     CClaimTrieDataNode data;
+    data.childrenSerialization = false;
     if (base->find(name, data)) {
         takeoverHeight = data.data.nHeightOfLastTakeover;
         CClaimValue claim;
@@ -1012,6 +1022,7 @@ void CClaimTrieCacheBase::dumpToLog(CClaimPrefixTrie::const_iterator it, bool di
 
     if (diffFromBase) {
         CClaimTrieDataNode node;
+        node.childrenSerialization = false;
         if (base->find(it.key(), node) && node.data.hash == it->hash)
             return;
     }
@@ -1332,6 +1343,7 @@ int CClaimTrieCacheBase::getNumBlocksOfContinuousOwnership(const std::string& na
     if (it) // we specifically ignore deleted nodes here to allow this to fall into the base lookup in that scenario
         return 0;
     CClaimTrieDataNode node;
+    node.childrenSerialization = false;
     if (base->find(name, node) && !node.data.empty())
         return nNextHeight - node.data.nHeightOfLastTakeover;
     return 0;
