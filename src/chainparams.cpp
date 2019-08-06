@@ -137,6 +137,7 @@ public:
         consensus.nNormalizedNameForkHeight = 539940; // targeting 21 March 2019
         consensus.nMinTakeoverWorkaroundHeight = 496850;
         consensus.nMaxTakeoverWorkaroundHeight = 10000000;
+        consensus.nWitnessForkHeight = 700000;
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1916; // 95% of a  half week
@@ -247,6 +248,7 @@ public:
         consensus.nNormalizedNameForkHeight = 993380;   // targeting, 21 Feb 2019
         consensus.nMinTakeoverWorkaroundHeight = 99;
         consensus.nMaxTakeoverWorkaroundHeight = 10000000;
+        consensus.nWitnessForkHeight = 1600000;
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1512; // 75% for testchains
@@ -344,6 +346,7 @@ public:
         consensus.nNormalizedNameForkHeight = 250; // SDK depends upon this number
         consensus.nMinTakeoverWorkaroundHeight = -1;
         consensus.nMaxTakeoverWorkaroundHeight = -1;
+        consensus.nWitnessForkHeight = 150;
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 108; // 75% for testchains

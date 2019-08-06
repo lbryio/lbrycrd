@@ -6,6 +6,7 @@
 #include <script/standard.h>
 
 #include <crypto/sha256.h>
+#include <nameclaim.h>
 #include <pubkey.h>
 #include <script/script.h>
 
@@ -30,6 +31,7 @@ const char* GetTxnOutputType(txnouttype t)
     switch (t)
     {
     case TX_NONSTANDARD: return "nonstandard";
+    case TX_CLAIM: return "claim";
     case TX_PUBKEY: return "pubkey";
     case TX_PUBKEYHASH: return "pubkeyhash";
     case TX_SCRIPTHASH: return "scripthash";
@@ -150,7 +152,10 @@ txnouttype Solver(const CScript& scriptPubKey, std::vector<std::vector<unsigned 
     }
 
     vSolutionsRet.clear();
-    return TX_NONSTANDARD;
+
+    int op;
+    std::vector<std::vector<unsigned char> > vvchParams;
+    return (DecodeClaimScript(scriptPubKey, op, vvchParams)) ? TX_CLAIM : TX_NONSTANDARD;
 }
 
 bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)

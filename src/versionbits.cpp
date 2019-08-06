@@ -187,6 +187,11 @@ public:
 
 ThresholdState VersionBitsState(const CBlockIndex* pindexPrev, const Consensus::Params& params, Consensus::DeploymentPos pos, VersionBitsCache& cache)
 {
+    // Check if we've past a hardfork state for segwit.
+    if ((pos == Consensus::DEPLOYMENT_SEGWIT) && (pindexPrev != nullptr) &&
+        (pindexPrev->nHeight + 1 >= params.nWitnessForkHeight))
+        return ThresholdState::ACTIVE;
+
     return VersionBitsConditionChecker(pos).GetStateFor(pindexPrev, params, cache.caches[pos]);
 }
 

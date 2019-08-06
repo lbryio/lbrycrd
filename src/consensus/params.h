@@ -88,6 +88,8 @@ struct Params {
     int nMinTakeoverWorkaroundHeight;
     int nMaxTakeoverWorkaroundHeight;
 
+    int nWitnessForkHeight;
+
     int64_t nPowTargetSpacing;
     int64_t nPowTargetTimespan;
     /** how long it took claims to expire before the hard fork */

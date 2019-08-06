@@ -327,7 +327,7 @@ static CTransactionRef SendMoney(interfaces::Chain::Lock& locked_chain, CWallet 
         throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Insufficient funds");
 
     // Parse Bitcoin address
-    CScript scriptPubKey = prefix + GetScriptForDestination(address);
+    const CScript scriptPubKey = prefix + GetScriptForDestination(address);
 
     // Create and send the transaction
     CAmount nFeeRequired;
@@ -369,7 +369,6 @@ thoritative as long as it remains unspent and there are no other greater unspent
             "1. \"name\"         (string, required) The name to be assigned the value.\n"
             "2. \"value\"        (string, required) The value to assign to the name encoded in hexadecimal.\n"
             "3. \"amount\"       (numeric, required) The amount in LBRYcrd to send. eg 0.1\n"
-            "4. \"address_type\" (string, optional) The address type to use. Options are \"legacy\", \"p2sh-segwit\", and \"bech32\". Default is set by -addresstype.\n"
             "\nResult:\n"
             "\"transactionid\"  (string) The transaction id.\n");
     auto sName = request.params[0].get_str();
@@ -393,13 +392,6 @@ thoritative as long as it remains unspent and there are no other greater unspent
         throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
 
     OutputType output_type = pwallet->m_default_address_type;
-    if (request.params.size() > 3 && !request.params[3].isNull()) {
-        if (!ParseOutputType(request.params[3].get_str(), output_type)) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strprintf("Unknown address type '%s'", request.params[3].get_str()));
-        }
-    }
-
-    // pwallet->m_default_address_type == 0 (LEGACY), pwallet->m_default_change_type == 3 (AUTO)
     pwallet->LearnRelatedScripts(newKey, output_type);
     CTxDestination dest = GetDestinationForKey(newKey, output_type);
 
@@ -427,7 +419,6 @@ UniValue updateclaim(const JSONRPCRequest& request)
             "1. \"txid\"         (string, required) The transaction containing the unspent txout which should be spent.\n"
             "2. \"value\"        (string, required) The value to assign to the name encoded in hexadecimal.\n"
             "3. \"amount\"       (numeric, required) The amount in LBRYcrd to use to bid for the name. eg 0.1\n"
-            "4. \"address_type\" (string, optional) The address type to use. Options are \"legacy\", \"p2sh-segwit\", and \"bech32\". Default is set by -addresstype.\n"
             "\nResult:\n"
             "\"transactionid\"  (string) The new transaction id.\n");
 
@@ -481,11 +472,6 @@ UniValue updateclaim(const JSONRPCRequest& request)
                     throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
 
                 OutputType output_type = pwallet->m_default_address_type;
-                if (request.params.size() > 3 && !request.params[3].isNull()) {
-                    if (!ParseOutputType(request.params[3].get_str(), output_type)) {
-                        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strprintf("Unknown address type '%s'", request.params[3].get_str()));
-                    }
-                }
                 pwallet->LearnRelatedScripts(newKey, output_type);
                 CTxDestination dest = GetDestinationForKey(newKey, output_type);
 
@@ -526,8 +512,7 @@ UniValue abandonclaim(const JSONRPCRequest& request)
     uint256 hash;
     hash.SetHex(request.params[0].get_str());
 
-    CKeyID address;
-    address.SetHex(request.params[1].get_str());
+    CTxDestination address = DecodeDestination(request.params[1].get_str());
 
     pwallet->BlockUntilSyncedToCurrentChain();
     LOCK2(cs_main, pwallet->cs_wallet);
@@ -753,7 +738,6 @@ UniValue supportclaim(const JSONRPCRequest& request)
             "2. \"claimid\"      (string, required) The claimid of the claim to support.\n"
             "3. \"amount\"       (numeric, required) The amount in LBC to use to support the claim.\n"
             "4. \"value\"        (string, optional) The metadata of the support encoded in hexadecimal.\n"
-            "5. \"address_type\" (string, optional) The address type to use. Options are \"legacy\", \"p2sh-segwit\", and \"bech32\". Default is set by -addresstype.\n"
             "\nResult:\n"
             "\"transactionid\"  (string) The transaction id of the support.\n");
 
@@ -797,11 +781,6 @@ UniValue supportclaim(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
 
     OutputType output_type = pwallet->m_default_address_type;
-    if (request.params.size() > 4 && !request.params[4].isNull()) {
-        if (!ParseOutputType(request.params[4].get_str(), output_type)) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strprintf("Unknown address type '%s'", request.params[4].get_str()));
-        }
-    }
     pwallet->LearnRelatedScripts(newKey, output_type);
     CTxDestination dest = GetDestinationForKey(newKey, output_type);
 
@@ -834,8 +813,7 @@ UniValue abandonsupport(const JSONRPCRequest& request)
     uint256 hash;
     hash.SetHex(request.params[0].get_str());
 
-    CKeyID address;
-    address.SetHex(request.params[1].get_str());
+    CTxDestination address = DecodeDestination(request.params[1].get_str());
 
     pwallet->BlockUntilSyncedToCurrentChain();
     LOCK2(cs_main, pwallet->cs_wallet);
