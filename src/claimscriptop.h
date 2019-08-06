@@ -59,17 +59,17 @@ public:
      */
     CClaimScriptAddOp(const COutPoint& point, CAmount nValue, int nHeight);
     /**
-     * Implamention of OP_CLAIM_NAME handler
+     * Implementation of OP_CLAIM_NAME handler
      * @see CClaimScriptOp::claimName
      */
     bool claimName(CClaimTrieCache& trieCache, const std::string& name) override;
     /**
-     * Implamention of OP_UPDATE_CLAIM handler
+     * Implementation of OP_UPDATE_CLAIM handler
      * @see CClaimScriptOp::updateClaim
      */
     bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override;
     /**
-     * Implamention of OP_SUPPORT_CLAIM handler
+     * Implementation of OP_SUPPORT_CLAIM handler
      * @see CClaimScriptOp::supportClaim
      */
     bool supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override;
@@ -100,17 +100,17 @@ public:
      */
     CClaimScriptUndoAddOp(const COutPoint& point, int nHeight);
     /**
-     * Implamention of OP_CLAIM_NAME handler
+     * Implementation of OP_CLAIM_NAME handler
      * @see CClaimScriptOp::claimName
      */
     bool claimName(CClaimTrieCache& trieCache, const std::string& name) override;
     /**
-     * Implamention of OP_UPDATE_CLAIM handler
+     * Implementation of OP_UPDATE_CLAIM handler
      * @see CClaimScriptOp::updateClaim
      */
     bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override;
     /**
-     * Implamention of OP_SUPPORT_CLAIM handler
+     * Implementation of OP_SUPPORT_CLAIM handler
      * @see CClaimScriptOp::supportClaim
      */
     bool supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override;
@@ -141,17 +141,17 @@ public:
      */
     CClaimScriptSpendOp(const COutPoint& point, int nHeight, int& nValidHeight);
     /**
-     * Implamention of OP_CLAIM_NAME handler
+     * Implementation of OP_CLAIM_NAME handler
      * @see CClaimScriptOp::claimName
      */
     bool claimName(CClaimTrieCache& trieCache, const std::string& name) override;
     /**
-     * Implamention of OP_UPDATE_CLAIM handler
+     * Implementation of OP_UPDATE_CLAIM handler
      * @see CClaimScriptOp::updateClaim
      */
     bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override;
     /**
-     * Implamention of OP_SUPPORT_CLAIM handler
+     * Implementation of OP_SUPPORT_CLAIM handler
      * @see CClaimScriptOp::supportClaim
      */
     bool supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override;
@@ -184,17 +184,17 @@ public:
      */
     CClaimScriptUndoSpendOp(const COutPoint& point, CAmount nValue, int nHeight, int nValidHeight);
     /**
-     * Implamention of OP_CLAIM_NAME handler
+     * Implementation of OP_CLAIM_NAME handler
      * @see CClaimScriptOp::claimName
      */
     bool claimName(CClaimTrieCache& trieCache, const std::string& name) override;
     /**
-     * Implamention of OP_UPDATE_CLAIM handler
+     * Implementation of OP_UPDATE_CLAIM handler
      * @see CClaimScriptOp::updateClaim
      */
     bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override;
     /**
-     * Implamention of OP_SUPPORT_CLAIM handler
+     * Implementation of OP_SUPPORT_CLAIM handler
      * @see CClaimScriptOp::supportClaim
      */
     bool supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override;

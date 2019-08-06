@@ -145,6 +145,7 @@ public:
         consensus.nNormalizedNameForkHeight = 539940; // targeting 21 March 2019
         consensus.nMinTakeoverWorkaroundHeight = 496850;
         consensus.nMaxTakeoverWorkaroundHeight = 10000000;
+        consensus.nWitnessForkHeight = 700000;
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1916; // 95% of a  half week
@@ -158,7 +159,7 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_CSV].nStartTime = 1462060800; // May 1st, 2016
         consensus.vDeployments[Consensus::DEPLOYMENT_CSV].nTimeout = 1493596800; // May 1st, 2017
 
-        // Deployment of SegWit (BIP141, BIP143, and BIP147)
+        // Deployment of SegWit (BIP141, BIP143, and BIP147) -- Unused (see nWitnessForkHeight).
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].bit = 1;
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].nStartTime = 1547942400; // Jan 20, 2019
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].nTimeout = 1548288000; // Jan 24, 2019
@@ -262,6 +263,7 @@ public:
         consensus.nNormalizedNameForkHeight = 993380;   // targeting, 21 Feb 2019
         consensus.nMinTakeoverWorkaroundHeight = 99;
         consensus.nMaxTakeoverWorkaroundHeight = 10000000;
+        consensus.nWitnessForkHeight = 1600000;
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1512; // 75% for testchains
@@ -275,7 +277,7 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_CSV].nStartTime = 1456790400; // March 1st, 2016
         consensus.vDeployments[Consensus::DEPLOYMENT_CSV].nTimeout = 1493596800; // May 1st, 2017
 
-        // Deployment of SegWit (BIP141, BIP143, and BIP147)
+        // Deployment of SegWit (BIP141, BIP143, and BIP147) -- Unused (see nWitnessForkHeight).
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].bit = 1;
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].nStartTime = 1462060800; // May 1st 2016
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].nTimeout = 1493596800; // May 1st 2017
@@ -367,6 +369,7 @@ public:
         consensus.nNormalizedNameForkHeight = 250; // SDK depends upon this number
         consensus.nMinTakeoverWorkaroundHeight = -1;
         consensus.nMaxTakeoverWorkaroundHeight = -1;
+        consensus.nWitnessForkHeight = 150;
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 108; // 75% for testchains

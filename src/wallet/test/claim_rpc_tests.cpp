@@ -150,9 +150,8 @@ uint256 AbandonAClaim(const uint256& txid, bool isSupport = false) {
 }
 
 void AddClaimSupportThenRemove() {
-    generateBlock(105);
-
-    BOOST_CHECK_EQUAL(AvailableBalance(), 5.0);
+    generateBlock(155);
+    BOOST_CHECK_EQUAL(AvailableBalance(), 55.0);
 
     // ops for test: claimname, updateclaim, abandonclaim, listnameclaims, supportclaim, abandonsupport
     // order of ops:
@@ -170,7 +169,7 @@ void AddClaimSupportThenRemove() {
     BOOST_CHECK_EQUAL(looked[0]["value"].get_str(), "deadbeef");
     BOOST_CHECK_EQUAL(looked[0]["txid"].get_str(), txid.GetHex());
 
-    // udpate it
+    // update it
     auto txid2 = ClaimAName(txid.GetHex(), "deadbeef02", "1.0", true);
     auto g2 = generateBlock();
     looked = LookupAllNames().get_array();

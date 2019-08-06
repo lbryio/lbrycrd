@@ -7,6 +7,7 @@
 #include <consensus/consensus.h>
 #include <consensus/validation.h>
 #include <key_io.h>
+#include <nameclaim.h>
 #include <script/script.h>
 #include <script/standard.h>
 #include <serialize.h>
