@@ -222,8 +222,8 @@ std::shared_ptr<typename CPrefixTrie<TKey, TData>::Node>& CPrefixTrie<TKey, TDat
     }
     if (count == 0) {
         ++size;
-        it = children.emplace(key, std::make_shared<Node>()).first;
-        it->second->data = std::make_shared<TData>();
+        it = children.emplace(key, std::allocate_shared<Node>(nodePool)).first;
+        it->second->data = std::allocate_shared<TData>(dataPool);
         return it->second;
     }
     if (count < it->first.size()) {
@@ -232,9 +232,9 @@ std::shared_ptr<typename CPrefixTrie<TKey, TData>::Node>& CPrefixTrie<TKey, TDat
         auto nodes = std::move(it->second);
         children.erase(it);
         ++size;
-        it = children.emplace(prefix, std::make_shared<Node>()).first;
+        it = children.emplace(prefix, std::allocate_shared<Node>(nodePool)).first;
         it->second->children.emplace(postfix, std::move(nodes));
-        it->second->data = std::make_shared<TData>();
+        it->second->data = std::allocate_shared<TData>(dataPool);
         if (key.size() == count)
             return it->second;
     }
@@ -253,7 +253,7 @@ void CPrefixTrie<TKey, TData>::erase(const TKey& key, std::shared_ptr<Node>& nod
     if (!find(key, node, cb))
         return;
 
-    nodes.back().second->data = std::make_shared<TData>();
+    nodes.back().second->data = std::allocate_shared<TData>(dataPool);
     for (; nodes.size() > 1; nodes.pop_back()) {
         // if we have only one child and no data ourselves, bring them up to our level
         auto& cNode = nodes.back().second;
@@ -284,9 +284,9 @@ void CPrefixTrie<TKey, TData>::erase(const TKey& key, std::shared_ptr<Node>& nod
 }
 
 template <typename TKey, typename TData>
-CPrefixTrie<TKey, TData>::CPrefixTrie() : size(0), root(std::make_shared<Node>())
+CPrefixTrie<TKey, TData>::CPrefixTrie() : size(0), root(std::allocate_shared<Node>(nodePool))
 {
-    root->data = std::make_shared<TData>();
+    root->data = std::allocate_shared<TData>(dataPool);
 }
 
 template <typename TKey, typename TData>
@@ -294,7 +294,7 @@ template <typename TDataUni>
 typename CPrefixTrie<TKey, TData>::iterator CPrefixTrie<TKey, TData>::insert(const TKey& key, TDataUni&& data)
 {
     auto& node = key.empty() ? root : insert(key, root);
-    node->data = std::make_shared<TData>(std::forward<TDataUni>(data));
+    node->data = std::allocate_shared<TData>(dataPool, std::forward<TDataUni>(data));
     return key.empty() ? begin() : iterator{key, node};
 }
 
@@ -320,7 +320,7 @@ typename CPrefixTrie<TKey, TData>::iterator CPrefixTrie<TKey, TData>::insert(CPr
         auto& node = insert(key, shared);
         copy = iterator{name, node};
     }
-    copy.node.lock()->data = std::make_shared<TData>(std::forward<TDataUni>(data));
+    copy.node.lock()->data = std::allocate_shared<TData>(dataPool, std::forward<TDataUni>(data));
     return copy;
 }
 
@@ -393,7 +393,7 @@ bool CPrefixTrie<TKey, TData>::erase(const TKey& key)
 {
     auto size_was = height();
     if (key.empty()) {
-        root->data = std::make_shared<TData>();
+        root->data = std::allocate_shared<TData>(dataPool);
     } else {
         erase(key, root);
     }
@@ -404,7 +404,7 @@ template <typename TKey, typename TData>
 void CPrefixTrie<TKey, TData>::clear()
 {
     size = 0;
-    root->data = std::make_shared<TData>();
+    root->data = std::allocate_shared<TData>(dataPool);
     root->children.clear();
 }
 

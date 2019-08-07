@@ -9,18 +9,21 @@
 #include <type_traits>
 #include <vector>
 
+#include <boost/pool/pool_alloc.hpp>
+
 template <typename TKey, typename TData>
 class CPrefixTrie
 {
     class Node
     {
+        static boost::pool_allocator<std::pair<const TKey, std::shared_ptr<Node>>> selfPool;
         template <bool>
         friend class Iterator;
         friend class CPrefixTrie<TKey, TData>;
-        std::map<TKey, std::shared_ptr<Node>> children;
+        std::map<TKey, std::shared_ptr<Node>, std::less<TKey>, decltype(selfPool)> children;
 
     public:
-        Node() = default;
+        Node() : children(selfPool) {}
         Node(const Node&) = delete;
         Node(Node&& o) noexcept = default;
         Node& operator=(Node&& o) noexcept = default;
@@ -101,6 +104,9 @@ class CPrefixTrie
 
     size_t size;
     std::shared_ptr<Node> root;
+
+    static boost::pool_allocator<Node> nodePool;
+    static boost::pool_allocator<TData> dataPool;
 
     template <typename TNode>
     using callback = std::function<void(const TKey&, TNode)>;
