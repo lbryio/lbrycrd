@@ -127,7 +127,7 @@ void CClaimTrieData::reorderClaims(const supportEntryType& supports)
 CClaimTrie::CClaimTrie(bool fMemory, bool fWipe, int proportionalDelayFactor)
 {
     nProportionalDelayFactor = proportionalDelayFactor;
-    db.reset(new CDBWrapper(GetDataDir() / "claimtrie", 200 * 1024 * 1024, fMemory, fWipe, false));
+    db.reset(new CSqlWrapper(GetDataDir() / "claimtrie.sqlite3.db", 200 * 1024 * 1024, fMemory, fWipe));
 }
 
 bool CClaimTrie::SyncToDisk()
@@ -136,7 +136,7 @@ bool CClaimTrie::SyncToDisk()
 }
 
 template <typename Key, typename Container>
-typename Container::value_type* getQueue(CDBWrapper& db, uint8_t dbkey, const Key& key, Container& queue, bool create)
+typename Container::value_type* getQueue(CSqlWrapper& db, uint8_t dbkey, const Key& key, Container& queue, bool create)
 {
     auto itQueue = queue.find(key);
     if (itQueue != queue.end())
@@ -522,7 +522,7 @@ bool CClaimTrieCacheBase::getClaimById(const uint160& claimId, std::string& name
 }
 
 template <typename K, typename T>
-void BatchWrite(CDBBatch& batch, uint8_t dbkey, const K& key, const std::vector<T>& value)
+void BatchWrite(CSqlBatch& batch, uint8_t dbkey, const K& key, const std::vector<T>& value)
 {
     if (value.empty()) {
         batch.Erase(std::make_pair(dbkey, key));
@@ -532,7 +532,7 @@ void BatchWrite(CDBBatch& batch, uint8_t dbkey, const K& key, const std::vector<
 }
 
 template <typename Container>
-void BatchWriteQueue(CDBBatch& batch, uint8_t dbkey, const Container& queue)
+void BatchWriteQueue(CSqlBatch& batch, uint8_t dbkey, const Container& queue)
 {
     for (auto& itQueue : queue)
         BatchWrite(batch, dbkey, itQueue.first, itQueue.second);
@@ -540,7 +540,7 @@ void BatchWriteQueue(CDBBatch& batch, uint8_t dbkey, const Container& queue)
 
 bool CClaimTrieCacheBase::flush()
 {
-    CDBBatch batch(*(base->db));
+    CSqlBatch batch(*(base->db));
 
     for (const auto& claim : claimsToDeleteFromByIdIndex) {
         auto it = std::find_if(claimsToAddToByIdIndex.begin(), claimsToAddToByIdIndex.end(),
@@ -596,8 +596,8 @@ bool CClaimTrieCacheBase::flush()
 
     base->nNextHeight = nNextHeight;
     if (!nodesToAddOrUpdate.empty() && (LogAcceptCategory(BCLog::CLAIMS) || LogAcceptCategory(BCLog::BENCH))) {
-        LogPrintf("TrieCache size: %zu nodes on block %d, batch writes %zu bytes.\n",
-                nodesToAddOrUpdate.height(), nNextHeight, batch.SizeEstimate());
+        LogPrintf("TrieCache size: %zu nodes on block %d.\n",
+                nodesToAddOrUpdate.height(), nNextHeight);
     }
     auto ret = base->db->WriteBatch(batch);
     clear();

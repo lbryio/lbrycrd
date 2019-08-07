@@ -4,7 +4,7 @@
 #include <amount.h>
 #include <chain.h>
 #include <chainparams.h>
-#include <dbwrapper.h>
+#include <sqlwrapper.h>
 #include <prefixtrie.h>
 #include <primitives/transaction.h>
 #include <serialize.h>
@@ -321,7 +321,7 @@ class CClaimTrie
 {
     int nNextHeight = 0;
     int nProportionalDelayFactor = 0;
-    std::unique_ptr<CDBWrapper> db;
+    std::unique_ptr<CSqlWrapper> db;
 
 public:
     CClaimTrie() = default;

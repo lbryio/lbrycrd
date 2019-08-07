@@ -322,16 +322,16 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheExpirationFork
     template <typename K>
     bool keyTypeEmpty(uint8_t keyType)
     {
-        boost::scoped_ptr<CDBIterator> pcursor(base->db->NewIterator());
-        pcursor->SeekToFirst();
+        CSqlIterator pcursor(*(base->db));
+        pcursor.SeekToFirst();
 
-        while (pcursor->Valid()) {
+        while (pcursor.Valid()) {
             std::pair<uint8_t, K> key;
-            if (pcursor->GetKey(key)) {
+            if (pcursor.GetKey(key)) {
                 if (key.first == keyType)
                     return false;
             }
-            pcursor->Next();
+            pcursor.Next();
         }
         return true;
     }
