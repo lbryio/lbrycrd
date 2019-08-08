@@ -391,7 +391,7 @@ bool CClaimTrieCacheBase::getInfoForName(const std::string& name, CClaimValue& c
     return base->find(name, claims) && claims.getBestClaim(claim);
 }
 
-CClaimsForNameType CClaimTrieCacheBase::getClaimsForName(const std::string& name) const
+CClaimSupportToName CClaimTrieCacheBase::getClaimsForName(const std::string& name) const
 {
     claimEntryType claims;
     int nLastTakeoverHeight = 0;
@@ -406,30 +406,24 @@ CClaimsForNameType CClaimTrieCacheBase::getClaimsForName(const std::string& name
         claims = data.claims;
         nLastTakeoverHeight = data.nHeightOfLastTakeover;
     }
-    return {std::move(claims), std::move(supports), nLastTakeoverHeight, name};
-}
-
-CAmount CClaimTrieCacheBase::getEffectiveAmountForClaim(const std::string& name, const uint160& claimId, std::vector<CSupportValue>* supports) const
-{
-    return getEffectiveAmountForClaim(getClaimsForName(name), claimId, supports);
-}
-
-CAmount CClaimTrieCacheBase::getEffectiveAmountForClaim(const CClaimsForNameType& claims, const uint160& claimId, std::vector<CSupportValue>* supports) const
-{
-    CAmount effectiveAmount = 0;
-    for (const auto& claim : claims.claims) {
-        if (claim.claimId == claimId && claim.nValidAtHeight < nNextHeight) {
-            effectiveAmount += claim.nAmount;
-            for (const auto& support : claims.supports) {
-                if (support.supportedClaimId == claimId && support.nValidAtHeight < nNextHeight) {
-                    effectiveAmount += support.nAmount;
-                    if (supports) supports->push_back(support);
-                }
-            }
-            break;
+    auto find = [&supports](decltype(supports)::iterator& it, const CClaimValue& claim) {
+        it = std::find_if(it, supports.end(), [&claim](const CSupportValue& support) {
+            return claim.claimId == support.supportedClaimId;
+        });
+        return it != supports.end();
+    };
+    // match support to claim
+    std::vector<CClaimNsupports> claimsNsupports;
+    for (const auto& claim : claims) {
+        CAmount nAmount = claim.nValidAtHeight < nNextHeight ? claim.nAmount : 0;
+        auto ic = claimsNsupports.emplace(claimsNsupports.end(), claim, nAmount);
+        for (auto it = supports.begin(); find(it, claim); it = supports.erase(it)) {
+            if (it->nValidAtHeight < nNextHeight)
+                ic->effectiveAmount += it->nAmount;
+            ic->supports.emplace_back(std::move(*it));
         }
     }
-    return effectiveAmount;
+    return {name, nLastTakeoverHeight, std::move(claimsNsupports), std::move(supports)};
 }
 
 void completeHash(uint256& partialHash, const std::string& key, std::size_t to)
@@ -530,19 +524,6 @@ bool CClaimTrie::find(const std::string& key, CClaimTrieDataNode &node) const {
 
 bool CClaimTrie::find(const std::string& key, CClaimTrieData &data) const {
     return db->Read(std::make_pair(TRIE_NODE_CLAIMS, key), data);
-}
-
-bool CClaimTrieCacheBase::getClaimById(const uint160& claimId, std::string& name, CClaimValue& claim) const
-{
-    CClaimIndexElement element;
-    if (!base->db->Read(std::make_pair(CLAIM_BY_ID, claimId), element))
-        return false;
-    if (element.claim.claimId == claimId) {
-        name = element.name;
-        claim = element.claim;
-        return true;
-    }
-    return false;
 }
 
 template <typename K, typename T>

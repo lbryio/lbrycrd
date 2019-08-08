@@ -25,6 +25,7 @@
 extern ::CChainState g_chainstate;
 extern ::ArgsManager gArgs;
 extern std::vector<std::string> random_strings(std::size_t count);
+extern bool getClaimById(const uint160&, std::string&, CClaimValue*);
 
 using namespace std;
 
@@ -434,7 +435,7 @@ struct ClaimTrieChainFixture: public CClaimTrieCache
             res.message() << "No claim found";
             return res;
         } else {
-            CAmount effective_amount = getEffectiveAmountForClaim(name, val.claimId);
+            CAmount effective_amount = getClaimsForName(name).find(val.claimId).effectiveAmount;
             if (effective_amount != amount) {
                 boost::test_tools::predicate_result res(false);
                 res.message() << amount << " != " << effective_amount;
@@ -566,12 +567,12 @@ BOOST_AUTO_TEST_CASE(claim_test)
     CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",2);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("test",tx3));
-    BOOST_CHECK_EQUAL(2U, fixture.getClaimsForName("test").claims.size());
+    BOOST_CHECK_EQUAL(2U, fixture.getClaimsForName("test").claimsNsupports.size());
 
     fixture.DecrementBlocks(1);
     BOOST_CHECK(!fixture.is_best_claim("test",tx2));
     BOOST_CHECK(!fixture.is_best_claim("test",tx3));
-    BOOST_CHECK_EQUAL(0U, fixture.getClaimsForName("test").claims.size());
+    BOOST_CHECK_EQUAL(0U, fixture.getClaimsForName("test").claimsNsupports.size());
 
     // make two claims , one older
     CMutableTransaction tx4 = fixture.MakeClaim(fixture.GetCoinbase(),"test","one",1);
@@ -583,7 +584,7 @@ BOOST_AUTO_TEST_CASE(claim_test)
     BOOST_CHECK(fixture.is_best_claim("test", tx4));
     fixture.IncrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("test",tx4));
-    BOOST_CHECK_EQUAL(2U, fixture.getClaimsForName("test").claims.size());
+    BOOST_CHECK_EQUAL(2U, fixture.getClaimsForName("test").claimsNsupports.size());
 
     fixture.DecrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("test", tx4));
@@ -603,7 +604,7 @@ BOOST_AUTO_TEST_CASE(claim_test)
     BOOST_CHECK(fixture.is_best_claim("test", tx6));
     fixture.IncrementBlocks(10);
     BOOST_CHECK(fixture.is_best_claim("test",tx7));
-    BOOST_CHECK_EQUAL(2U, fixture.getClaimsForName("test").claims.size());
+    BOOST_CHECK_EQUAL(2U, fixture.getClaimsForName("test").claimsNsupports.size());
 
     fixture.DecrementBlocks(10);
     BOOST_CHECK(fixture.is_claim_in_queue("test",tx7));
@@ -873,7 +874,7 @@ BOOST_AUTO_TEST_CASE(support_spend_test)
     CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(),tx5,"test",2);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("test",tx5));
-    BOOST_CHECK_EQUAL(2U, fixture.getClaimsForName("test").claims.size());
+    BOOST_CHECK_EQUAL(2U, fixture.getClaimsForName("test").claimsNsupports.size());
 
     // build the spend where s2 is sppent on txin[1] and tx3 is  spent on txin[0]
     uint32_t prevout = 0;
@@ -938,7 +939,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     CMutableTransaction u3 = fixture.MakeUpdate(tx3, "test", "one", ClaimIdHash(tx3.GetHash(), 0), 2);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("test",u3));
-    BOOST_CHECK_EQUAL(2U, fixture.getClaimsForName("test").claims.size());
+    BOOST_CHECK_EQUAL(2U, fixture.getClaimsForName("test").claimsNsupports.size());
     fixture.DecrementBlocks(11);
 
     // losing update on winning claim happens without delay
@@ -946,7 +947,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
     CMutableTransaction tx6 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 2);
     fixture.IncrementBlocks(10);
     BOOST_CHECK(fixture.is_best_claim("test", tx5));
-    BOOST_CHECK_EQUAL(2U, fixture.getClaimsForName("test").claims.size());
+    BOOST_CHECK_EQUAL(2U, fixture.getClaimsForName("test").claimsNsupports.size());
     CMutableTransaction u4 = fixture.MakeUpdate(tx5, "test", "one", ClaimIdHash(tx5.GetHash(), 0), 1);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("test",tx6));
@@ -1054,7 +1055,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_expire_test)
     BOOST_CHECK(fixture.is_best_claim("test", tx6));
 }
 /*
- * tests for CClaimPrefixTrie::getEffectiveAmountForClaim
+ * tests for effectiveAmount
  */
 BOOST_AUTO_TEST_CASE(claimtriebranching_get_effective_amount_for_claim)
 {
@@ -1064,42 +1065,42 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_get_effective_amount_for_claim)
     uint160 claimId = ClaimIdHash(claimtx.GetHash(), 0);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK_EQUAL(fixture.getEffectiveAmountForClaim("test", claimId), 2);
-    BOOST_CHECK_EQUAL(fixture.getEffectiveAmountForClaim("inexistent", claimId), 0); //not found returns 0
+    BOOST_CHECK_EQUAL(fixture.getClaimsForName("test").find(claimId).effectiveAmount, 2);
+    BOOST_CHECK_EQUAL(fixture.getClaimsForName("inexistent").find(claimId).effectiveAmount, 0); //not found returns 0
 
     // one claim, one support
     fixture.MakeSupport(fixture.GetCoinbase(), claimtx, "test", 40);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK_EQUAL(fixture.getEffectiveAmountForClaim("test", claimId), 42);
+    BOOST_CHECK_EQUAL(fixture.getClaimsForName("test").find(claimId).effectiveAmount, 42);
 
     // Two claims, first one with supports
     CMutableTransaction claimtx2 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "two", 1);
     uint160 claimId2 = ClaimIdHash(claimtx2.GetHash(), 0);
     fixture.IncrementBlocks(10);
 
-    BOOST_CHECK_EQUAL(fixture.getEffectiveAmountForClaim("test", claimId), 42);
-    BOOST_CHECK_EQUAL(fixture.getEffectiveAmountForClaim("test", claimId2), 1);
-    BOOST_CHECK_EQUAL(fixture.getEffectiveAmountForClaim("inexistent", claimId), 0);
-    BOOST_CHECK_EQUAL(fixture.getEffectiveAmountForClaim("inexistent", claimId2), 0);
+    BOOST_CHECK_EQUAL(fixture.getClaimsForName("test").find(claimId).effectiveAmount, 42);
+    BOOST_CHECK_EQUAL(fixture.getClaimsForName("test").find(claimId2).effectiveAmount, 1);
+    BOOST_CHECK_EQUAL(fixture.getClaimsForName("inexistent").find(claimId).effectiveAmount, 0);
+    BOOST_CHECK_EQUAL(fixture.getClaimsForName("inexistent").find(claimId2).effectiveAmount, 0);
 
     // Two claims, both with supports, second claim effective amount being less than first claim
     fixture.MakeSupport(fixture.GetCoinbase(), claimtx2, "test", 6);
     fixture.IncrementBlocks(13); //delay
 
-    BOOST_CHECK_EQUAL(fixture.getEffectiveAmountForClaim("test", claimId), 42);
-    BOOST_CHECK_EQUAL(fixture.getEffectiveAmountForClaim("test", claimId2), 7);
+    BOOST_CHECK_EQUAL(fixture.getClaimsForName("test").find(claimId).effectiveAmount, 42);
+    BOOST_CHECK_EQUAL(fixture.getClaimsForName("test").find(claimId2).effectiveAmount, 7);
 
     // Two claims, both with supports, second one taking over
     fixture.MakeSupport(fixture.GetCoinbase(), claimtx2, "test", 1330);
     fixture.IncrementBlocks(26); //delay
 
-    BOOST_CHECK_EQUAL(fixture.getEffectiveAmountForClaim("test", claimId), 42);
-    BOOST_CHECK_EQUAL(fixture.getEffectiveAmountForClaim("test", claimId2), 1337);
+    BOOST_CHECK_EQUAL(fixture.getClaimsForName("test").find(claimId).effectiveAmount, 42);
+    BOOST_CHECK_EQUAL(fixture.getClaimsForName("test").find(claimId2).effectiveAmount, 1337);
 }
 
 /*
- * tests for CClaimPrefixTrie::getClaimById basic consistency checks
+ * tests for getClaimById basic consistency checks
  */
 BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
 {
@@ -1111,7 +1112,7 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
 
     CClaimValue claimValue;
     std::string claimName;
-    fixture.getClaimById(claimId, claimName, claimValue);
+    BOOST_CHECK(getClaimById(claimId, claimName, &claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId);
 
@@ -1122,14 +1123,14 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
     uint160 claimId2 = ClaimIdHash(tx2.GetHash(), 0);
     fixture.IncrementBlocks(1);
 
-    fixture.getClaimById(claimId2, claimName, claimValue);
+    BOOST_CHECK(getClaimById(claimId2, claimName, &claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId2);
 
 
     CMutableTransaction u1 = fixture.MakeUpdate(tx1, name, "updated one", claimId, 1);
     fixture.IncrementBlocks(1);
-    fixture.getClaimById(claimId, claimName, claimValue);
+    BOOST_CHECK(getClaimById(claimId, claimName, &claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId);
     BOOST_CHECK_EQUAL(claimValue.nAmount, 1);
@@ -1137,24 +1138,24 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
 
     fixture.Spend(u1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(!fixture.getClaimById(claimId, claimName, claimValue));
+    BOOST_CHECK(!getClaimById(claimId, claimName, &claimValue));
 
     fixture.DecrementBlocks(3);
 
     CClaimValue claimValue2;
     claimName = "";
-    fixture.getClaimById(claimId2, claimName, claimValue2);
+    BOOST_CHECK(!getClaimById(claimId2, claimName, &claimValue2));
     BOOST_CHECK(claimName != name);
     BOOST_CHECK(claimValue2.claimId != claimId2);
 
-    fixture.getClaimById(claimId, claimName, claimValue);
+    BOOST_CHECK(getClaimById(claimId, claimName, &claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId);
 
     fixture.DecrementBlocks(2);
 
     claimName = "";
-    fixture.getClaimById(claimId, claimName, claimValue2);
+    BOOST_CHECK(!getClaimById(claimId, claimName, &claimValue2));
     BOOST_CHECK(claimName != name);
     BOOST_CHECK(claimValue2.claimId != claimId);
 }
@@ -1535,7 +1536,7 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
 
     CClaimValue lookupClaim;
     std::string lookupName;
-    BOOST_CHECK(fixture.getClaimById(ClaimIdHash(tx2.GetHash(), 0), lookupName, lookupClaim));
+    BOOST_CHECK(getClaimById(ClaimIdHash(tx2.GetHash(), 0), lookupName, &lookupClaim));
     CClaimValue nval1;
     BOOST_CHECK(fixture.getInfoForName("amelie1", nval1));
     // amélie is not found cause normalization still not appear
@@ -1614,13 +1615,13 @@ BOOST_AUTO_TEST_CASE(normalized_activations_fall_through)
     BOOST_CHECK(fixture.is_best_claim("AB", tx1));
     fixture.IncrementBlocks(3);
     BOOST_CHECK(fixture.is_best_claim("ab", tx2));
-    BOOST_CHECK(fixture.getClaimsForName("ab").claims.size() == 4U);
+    BOOST_CHECK(fixture.getClaimsForName("ab").claimsNsupports.size() == 4U);
     fixture.DecrementBlocks(3);
     fixture.Spend(tx1);
     fixture.Spend(tx2);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("ab", tx3));
-    BOOST_CHECK(fixture.getClaimsForName("ab").claims.size() == 2U);
+    BOOST_CHECK(fixture.getClaimsForName("ab").claimsNsupports.size() == 2U);
     fixture.DecrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("AB", tx1));
     fixture.Spend(tx1);
@@ -1666,8 +1667,10 @@ BOOST_AUTO_TEST_CASE(normalization_removal_test)
     supportQueueRowType expireSupportUndo;
     std::vector<std::pair<std::string, int> > takeoverHeightUndo;
     BOOST_CHECK(cache.incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverHeightUndo));
-    BOOST_CHECK(cache.getClaimsForName("ab").claims.size() == 3U);
-    BOOST_CHECK(cache.getClaimsForName("ab").supports.size() == 2U);
+    BOOST_CHECK(cache.getClaimsForName("ab").claimsNsupports.size() == 3U);
+    BOOST_CHECK(cache.getClaimsForName("ab").claimsNsupports[0].supports.size() == 1U);
+    BOOST_CHECK(cache.getClaimsForName("ab").claimsNsupports[1].supports.size() == 0U);
+    BOOST_CHECK(cache.getClaimsForName("ab").claimsNsupports[2].supports.size() == 1U);
     BOOST_CHECK(cache.decrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo));
     BOOST_CHECK(cache.finalizeDecrement(takeoverHeightUndo));
     BOOST_CHECK(cache.undoAddSupport("AB", COutPoint(sx1.GetHash(), 0), height));
@@ -1675,7 +1678,7 @@ BOOST_AUTO_TEST_CASE(normalization_removal_test)
     BOOST_CHECK(cache.undoAddClaim("AB", COutPoint(tx1.GetHash(), 0), height));
     BOOST_CHECK(cache.undoAddClaim("Ab", COutPoint(tx2.GetHash(), 0), height));
     BOOST_CHECK(cache.undoAddClaim("aB", COutPoint(tx3.GetHash(), 0), height));
-    BOOST_CHECK(cache.getClaimsForName("ab").claims.size() == 0U);
+    BOOST_CHECK(cache.getClaimsForName("ab").claimsNsupports.size() == 0U);
 }
 
 BOOST_AUTO_TEST_CASE(normalization_does_not_kill_supports)
@@ -1745,7 +1748,7 @@ BOOST_AUTO_TEST_CASE(normalization_does_not_kill_sort_order)
     fixture.IncrementBlocks(1);
     BOOST_CHECK(!fixture.is_best_claim("A", tx2));
     BOOST_CHECK(fixture.is_best_claim("a", tx3));
-    BOOST_CHECK(fixture.getClaimsForName("a").claims.size() == 3U);
+    BOOST_CHECK(fixture.getClaimsForName("a").claimsNsupports.size() == 3U);
 
     fixture.DecrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("A", tx2));
@@ -3837,7 +3840,7 @@ BOOST_AUTO_TEST_CASE(bogus_claimtrie_hash_test)
 }
 
 /*
- * tests for CClaimPrefixTrie::getClaimById basic consistency checks
+ * tests for getClaimById basic consistency checks
  */
 BOOST_AUTO_TEST_CASE(get_claim_by_id_test_2)
 {
@@ -3852,7 +3855,7 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test_2)
 
     CClaimValue claimValue;
     std::string claimName;
-    fixture.getClaimById(claimId, claimName, claimValue);
+    BOOST_CHECK(getClaimById(claimId, claimName, &claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId);
 
@@ -3860,16 +3863,16 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test_2)
     CMutableTransaction txb = fixture.Spend(txx);
 
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(!fixture.getClaimById(claimId, claimName, claimValue));
-    BOOST_CHECK(!fixture.getClaimById(claimIdx, claimName, claimValue));
+    BOOST_CHECK(!getClaimById(claimId, claimName, &claimValue));
+    BOOST_CHECK(!getClaimById(claimIdx, claimName, &claimValue));
 
     fixture.DecrementBlocks(1);
-    fixture.getClaimById(claimId, claimName, claimValue);
+    BOOST_CHECK(getClaimById(claimId, claimName, &claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId);
 
     // this test fails
-    fixture.getClaimById(claimIdx, claimName, claimValue);
+    BOOST_CHECK(getClaimById(claimIdx, claimName, &claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimIdx);
 }
@@ -3886,7 +3889,7 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test_3)
 
     CClaimValue claimValue;
     std::string claimName;
-    fixture.getClaimById(claimId, claimName, claimValue);
+    BOOST_CHECK(getClaimById(claimId, claimName, &claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId);
     // make second claim with activation delay 1
@@ -3896,14 +3899,14 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test_3)
     fixture.IncrementBlocks(1);
     // second claim is not activated yet, but can still access by claim id
     BOOST_CHECK(fixture.is_best_claim(name, tx1));
-    BOOST_CHECK(fixture.getClaimById(claimId2, claimName, claimValue));
+    BOOST_CHECK(getClaimById(claimId2, claimName, &claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId2);
 
     fixture.IncrementBlocks(1);
     // second claim has activated
     BOOST_CHECK(fixture.is_best_claim(name, tx2));
-    BOOST_CHECK(fixture.getClaimById(claimId2, claimName, claimValue));
+    BOOST_CHECK(getClaimById(claimId2, claimName, &claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId2);
 
@@ -3912,14 +3915,14 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test_3)
     // second claim has been deactivated via decrement
     // should still be accesible via claim id
     BOOST_CHECK(fixture.is_best_claim(name, tx1));
-    BOOST_CHECK(fixture.getClaimById(claimId2, claimName, claimValue));
+    BOOST_CHECK(getClaimById(claimId2, claimName, &claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId2);
 
     fixture.IncrementBlocks(1);
     // second claim should have been re activated via increment
     BOOST_CHECK(fixture.is_best_claim(name, tx2));
-    BOOST_CHECK(fixture.getClaimById(claimId2, claimName, claimValue));
+    BOOST_CHECK(getClaimById(claimId2, claimName, &claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId2);
 }
@@ -3970,13 +3973,13 @@ BOOST_AUTO_TEST_CASE(getvalueforname_test)
     UniValue results = getvalueforname(req);
     BOOST_CHECK_EQUAL(results["value"].get_str(), HexStr(sValue1));
     BOOST_CHECK_EQUAL(results["amount"].get_int(), 2);
-    BOOST_CHECK_EQUAL(results["effective amount"].get_int(), 5);
+    BOOST_CHECK_EQUAL(results["effectiveAmount"].get_int(), 5);
 
     req.params.push_back(blockHash.GetHex());
 
     results = getvalueforname(req);
     BOOST_CHECK_EQUAL(results["amount"].get_int(), 2);
-    BOOST_CHECK_EQUAL(results["effective amount"].get_int(), 2);
+    BOOST_CHECK_EQUAL(results["effectiveAmount"].get_int(), 2);
 }
 
 BOOST_AUTO_TEST_CASE(getclaimsforname_test)
@@ -4004,8 +4007,8 @@ BOOST_AUTO_TEST_CASE(getclaimsforname_test)
     UniValue results = getclaimsforname(req);
     UniValue claims = results["claims"];
     BOOST_CHECK_EQUAL(claims.size(), 1U);
-    BOOST_CHECK_EQUAL(results["nLastTakeoverHeight"].get_int(), height + 1);
-    BOOST_CHECK_EQUAL(claims[0]["nEffectiveAmount"].get_int(), 2);
+    BOOST_CHECK_EQUAL(results["lastTakeoverHeight"].get_int(), height + 1);
+    BOOST_CHECK_EQUAL(claims[0]["effectiveAmount"].get_int(), 2);
     BOOST_CHECK_EQUAL(claims[0]["supports"].size(), 0U);
 
     fixture.IncrementBlocks(1);
@@ -4013,9 +4016,9 @@ BOOST_AUTO_TEST_CASE(getclaimsforname_test)
     results = getclaimsforname(req);
     claims = results["claims"];
     BOOST_CHECK_EQUAL(claims.size(), 2U);
-    BOOST_CHECK_EQUAL(results["nLastTakeoverHeight"].get_int(), height + 3);
-    BOOST_CHECK_EQUAL(claims[0]["nEffectiveAmount"].get_int(), 3);
-    BOOST_CHECK_EQUAL(claims[1]["nEffectiveAmount"].get_int(), 2);
+    BOOST_CHECK_EQUAL(results["lastTakeoverHeight"].get_int(), height + 3);
+    BOOST_CHECK_EQUAL(claims[0]["effectiveAmount"].get_int(), 3);
+    BOOST_CHECK_EQUAL(claims[1]["effectiveAmount"].get_int(), 2);
     BOOST_CHECK_EQUAL(claims[0]["supports"].size(), 0U);
     BOOST_CHECK_EQUAL(claims[1]["supports"].size(), 0U);
 
@@ -4024,8 +4027,8 @@ BOOST_AUTO_TEST_CASE(getclaimsforname_test)
     results = getclaimsforname(req);
     claims = results["claims"];
     BOOST_CHECK_EQUAL(claims.size(), 1U);
-    BOOST_CHECK_EQUAL(results["nLastTakeoverHeight"].get_int(), height + 1);
-    BOOST_CHECK_EQUAL(claims[0]["nEffectiveAmount"].get_int(), 2);
+    BOOST_CHECK_EQUAL(results["lastTakeoverHeight"].get_int(), height + 1);
+    BOOST_CHECK_EQUAL(claims[0]["effectiveAmount"].get_int(), 2);
     BOOST_CHECK_EQUAL(claims[0]["supports"].size(), 0U);
 }
 
@@ -4056,7 +4059,7 @@ BOOST_AUTO_TEST_CASE(claim_rpcs_rollback2_test)
     req.params.push_back(blockHash.GetHex());
 
     UniValue claimsResults = getclaimsforname(req);
-    BOOST_CHECK_EQUAL(claimsResults["nLastTakeoverHeight"].get_int(), height + 5);
+    BOOST_CHECK_EQUAL(claimsResults["lastTakeoverHeight"].get_int(), height + 5);
     BOOST_CHECK_EQUAL(claimsResults["claims"][0]["supports"].size(), 0U);
     BOOST_CHECK_EQUAL(claimsResults["claims"][1]["supports"].size(), 0U);
 
@@ -4097,7 +4100,7 @@ BOOST_AUTO_TEST_CASE(claim_rpcs_rollback3_test)
     req.params.push_back(blockHash.GetHex());
 
     UniValue claimsResults = getclaimsforname(req);
-    BOOST_CHECK_EQUAL(claimsResults["nLastTakeoverHeight"].get_int(), height + 1);
+    BOOST_CHECK_EQUAL(claimsResults["lastTakeoverHeight"].get_int(), height + 1);
 
     UniValue valueResults = getvalueforname(req);
     BOOST_CHECK_EQUAL(valueResults["value"].get_str(), HexStr(sValue1));
@@ -4172,7 +4175,9 @@ BOOST_AUTO_TEST_CASE(hash_includes_all_claims_single_test)
     uint160 claimId = ClaimIdHash(tx1.GetHash(), 0);
 
     CClaimTrieProof proof;
-    BOOST_CHECK(fixture.getProofForName("test", proof, claimId));
+    BOOST_CHECK(fixture.getProofForName("test", proof, [&claimId](const CClaimValue& claim) {
+        return claim.claimId == claimId;
+    }));
     BOOST_CHECK(proof.hasValue);
     BOOST_CHECK_EQUAL(proof.outPoint, outPoint);
     auto claimHash = getValueHash(outPoint, proof.nHeightOfLastTakeover);
@@ -4197,9 +4202,12 @@ BOOST_AUTO_TEST_CASE(hash_includes_all_claims_triple_test)
     fixture.IncrementBlocks(1);
 
     for (const auto& name : names) {
-        for (auto& claim : fixture.getClaimsForName(name).claims) {
+        for (auto& claimSupports : fixture.getClaimsForName(name).claimsNsupports) {
             CClaimTrieProof proof;
-            BOOST_CHECK(fixture.getProofForName(name, proof, claim.claimId));
+            auto& claim = claimSupports.claim;
+            BOOST_CHECK(fixture.getProofForName(name, proof, [&claim](const CClaimValue& value) {
+                return claim.claimId == value.claimId;
+            }));
             BOOST_CHECK(proof.hasValue);
             BOOST_CHECK_EQUAL(proof.outPoint, claim.outPoint);
             uint256 claimHash = getValueHash(claim.outPoint, proof.nHeightOfLastTakeover);
@@ -4225,9 +4233,12 @@ BOOST_AUTO_TEST_CASE(hash_includes_all_claims_branched_test)
     fixture.IncrementBlocks(1);
 
     for (const auto& name : names) {
-        for (auto& claim : fixture.getClaimsForName(name).claims) {
+        for (auto& claimSupports : fixture.getClaimsForName(name).claimsNsupports) {
             CClaimTrieProof proof;
-            BOOST_CHECK(fixture.getProofForName(name, proof, claim.claimId));
+            auto& claim = claimSupports.claim;
+            BOOST_CHECK(fixture.getProofForName(name, proof, [&claim](const CClaimValue& value) {
+                return claim.claimId == value.claimId;
+            }));
             BOOST_CHECK(proof.hasValue);
             BOOST_CHECK_EQUAL(proof.outPoint, claim.outPoint);
             uint256 claimHash = getValueHash(claim.outPoint, proof.nHeightOfLastTakeover);
@@ -4257,9 +4268,12 @@ BOOST_AUTO_TEST_CASE(hash_claims_children_fuzzer_test)
     }
 
     for (const auto& name : names) {
-        for (auto& claim : fixture.getClaimsForName(name).claims) {
+        for (auto& claimSupports : fixture.getClaimsForName(name).claimsNsupports) {
             CClaimTrieProof proof;
-            BOOST_CHECK(fixture.getProofForName(name, proof, claim.claimId));
+            auto& claim = claimSupports.claim;
+            BOOST_CHECK(fixture.getProofForName(name, proof, [&claim](const CClaimValue& value) {
+                return claim.claimId == value.claimId;
+            }));
             BOOST_CHECK(proof.hasValue);
             BOOST_CHECK_EQUAL(proof.outPoint, claim.outPoint);
             uint256 claimHash = getValueHash(claim.outPoint, proof.nHeightOfLastTakeover);
