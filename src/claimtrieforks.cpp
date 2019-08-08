@@ -246,7 +246,7 @@ bool CClaimTrieCacheNormalizationFork::getInfoForName(const std::string& name, C
     return CClaimTrieCacheExpirationFork::getInfoForName(normalizeClaimName(name), claim);
 }
 
-CClaimsForNameType CClaimTrieCacheNormalizationFork::getClaimsForName(const std::string& name) const
+CClaimSupportToName CClaimTrieCacheNormalizationFork::getClaimsForName(const std::string& name) const
 {
     return CClaimTrieCacheExpirationFork::getClaimsForName(normalizeClaimName(name));
 }
@@ -408,10 +408,10 @@ std::vector<uint256> ComputeMerklePath(const std::vector<uint256>& hashes, uint3
 
 bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, CClaimTrieProof& proof)
 {
-    return getProofForName(name, proof, uint160());
+    return getProofForName(name, proof, nullptr);
 }
 
-bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, CClaimTrieProof& proof, const uint160& claimId)
+bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, CClaimTrieProof& proof, const std::function<bool(const CClaimValue&)>& comp)
 {
     if (nNextHeight < Params().GetConsensus().nAllClaimsInMerkleForkHeight)
         return CClaimTrieCacheNormalizationFork::getProofForName(name, proof);
@@ -445,10 +445,7 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, CClaimTri
         if (it.key() == name) {
             uint32_t nClaimIndex = 0;
             auto& claims = it->claims;
-            auto itClaim = claimId.IsNull() ? claims.begin() :
-                std::find_if(claims.begin(), claims.end(), [&claimId](const CClaimValue& claim) {
-                    return claim.claimId == claimId;
-                });
+            auto itClaim = !comp ? claims.begin() : std::find_if(claims.begin(), claims.end(), comp);
             if (itClaim != claims.end()) {
                 proof.hasValue = true;
                 proof.outPoint = itClaim->outPoint;
