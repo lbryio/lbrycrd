@@ -36,10 +36,10 @@ struct CClaimValue
 {
     COutPoint outPoint;
     uint160 claimId;
-    CAmount nAmount;
-    CAmount nEffectiveAmount;
-    int nHeight;
-    int nValidAtHeight;
+    CAmount nAmount = 0;
+    CAmount nEffectiveAmount = 0;
+    int nHeight = 0;
+    int nValidAtHeight = 0;
 
     CClaimValue() = default;
 
@@ -94,9 +94,9 @@ struct CSupportValue
 {
     COutPoint outPoint;
     uint160 supportedClaimId;
-    CAmount nAmount;
-    int nHeight;
-    int nValidAtHeight;
+    CAmount nAmount = 0;
+    int nHeight = 0;
+    int nValidAtHeight = 0;
 
     CSupportValue() = default;
 
@@ -213,7 +213,7 @@ struct CClaimTrieDataNode {
 struct COutPointHeightType
 {
     COutPoint outPoint;
-    int nHeight;
+    int nHeight = 0;
 
     COutPointHeightType() = default;
 
@@ -236,7 +236,7 @@ struct CNameOutPointHeightType
 {
     std::string name;
     COutPoint outPoint;
-    int nHeight;
+    int nHeight = 0;
 
     CNameOutPointHeightType() = default;
 
@@ -305,22 +305,59 @@ struct CClaimIndexElement
     CClaimValue claim;
 };
 
-struct CClaimsForNameType
+struct CClaimNsupports
 {
-    claimEntryType claims;
-    supportEntryType supports;
-    int nLastTakeoverHeight;
-    std::string name;
+    CClaimNsupports() = default;
+    CClaimNsupports(CClaimNsupports&&) = default;
+    CClaimNsupports(const CClaimNsupports&) = default;
 
-    CClaimsForNameType(claimEntryType claims, supportEntryType supports, int nLastTakeoverHeight, std::string name)
-        : claims(std::move(claims)), supports(std::move(supports)), nLastTakeoverHeight(nLastTakeoverHeight), name(std::move(name))
+    CClaimNsupports& operator=(CClaimNsupports&&) = default;
+    CClaimNsupports& operator=(const CClaimNsupports&) = default;
+
+    CClaimNsupports(const CClaimValue& claim, CAmount effectiveAmount, const std::vector<CSupportValue>& supports = {})
+        : claim(claim), effectiveAmount(effectiveAmount), supports(supports)
     {
     }
 
-    CClaimsForNameType(CClaimsForNameType&&) = default;
-    CClaimsForNameType(const CClaimsForNameType&) = default;
-    CClaimsForNameType& operator=(CClaimsForNameType&&) = default;
-    CClaimsForNameType& operator=(const CClaimsForNameType&) = default;
+    bool IsNull() const
+    {
+        return claim.claimId.IsNull();
+    }
+
+    CClaimValue claim;
+    CAmount effectiveAmount = 0;
+    std::vector<CSupportValue> supports;
+};
+
+static const CClaimNsupports invalid;
+
+struct CClaimSupportToName
+{
+    CClaimSupportToName(const std::string& name, int nLastTakeoverHeight, std::vector<CClaimNsupports> claimsNsupports, std::vector<CSupportValue> unmatchedSupports)
+        : name(name), nLastTakeoverHeight(nLastTakeoverHeight), claimsNsupports(std::move(claimsNsupports)), unmatchedSupports(std::move(unmatchedSupports))
+    {
+    }
+
+    const CClaimNsupports& find(const uint160& claimId) const
+    {
+        auto it = std::find_if(claimsNsupports.begin(), claimsNsupports.end(), [&claimId](const CClaimNsupports& value) {
+            return claimId == value.claim.claimId;
+        });
+        return it != claimsNsupports.end() ? *it : invalid;
+    }
+
+    const CClaimNsupports& find(const std::string& partialId) const
+    {
+        auto it = std::find_if(claimsNsupports.begin(), claimsNsupports.end(), [&partialId](const CClaimNsupports& value) {
+            return value.claim.claimId.GetHex().find(partialId) == 0;
+        });
+        return it != claimsNsupports.end() ? *it : invalid;
+    }
+
+    const std::string name;
+    const int nLastTakeoverHeight;
+    const std::vector<CClaimNsupports> claimsNsupports;
+    const std::vector<CSupportValue> unmatchedSupports;
 };
 
 class CClaimTrie
@@ -341,6 +378,8 @@ public:
     friend struct ClaimTrieChainFixture;
     friend class CClaimTrieCacheExpirationFork;
     friend class CClaimTrieCacheNormalizationFork;
+    friend bool getClaimById(const uint160&, std::string&, CClaimValue*);
+    friend bool getClaimById(const std::string&, std::string&, CClaimValue*);
 
     std::size_t getTotalNamesInTrie() const;
     std::size_t getTotalClaimsInTrie() const;
@@ -475,8 +514,6 @@ public:
 
     uint256 getMerkleHash();
 
-    bool getClaimById(const uint160& claimId, std::string& name, CClaimValue& claim) const;
-
     bool flush();
     bool empty() const;
     bool ReadFromDisk(const CBlockIndex* tip);
@@ -517,10 +554,7 @@ public:
 
     virtual bool finalizeDecrement(std::vector<std::pair<std::string, int>>& takeoverHeightUndo);
 
-    virtual CClaimsForNameType getClaimsForName(const std::string& name) const;
-
-    CAmount getEffectiveAmountForClaim(const std::string& name, const uint160& claimId, std::vector<CSupportValue>* supports = nullptr) const;
-    CAmount getEffectiveAmountForClaim(const CClaimsForNameType& claims, const uint160& claimId, std::vector<CSupportValue>* supports = nullptr) const;
+    virtual CClaimSupportToName getClaimsForName(const std::string& name) const;
 
     CClaimPrefixTrie::const_iterator begin() const;
     CClaimPrefixTrie::const_iterator end() const;
@@ -704,7 +738,7 @@ public:
 
     bool getProofForName(const std::string& name, CClaimTrieProof& proof) override;
     bool getInfoForName(const std::string& name, CClaimValue& claim) const override;
-    CClaimsForNameType getClaimsForName(const std::string& name) const override;
+    CClaimSupportToName getClaimsForName(const std::string& name) const override;
     std::string adjustNameForValidHeight(const std::string& name, int validHeight) const override;
 
 protected:
@@ -733,7 +767,7 @@ public:
     explicit CClaimTrieCacheHashFork(CClaimTrie* base);
 
     bool getProofForName(const std::string& name, CClaimTrieProof& proof) override;
-    bool getProofForName(const std::string& name, CClaimTrieProof& proof, const uint160& claimId);
+    bool getProofForName(const std::string& name, CClaimTrieProof& proof, const std::function<bool(const CClaimValue&)>& comp);
     void initializeIncrement() override;
     bool finalizeDecrement(std::vector<std::pair<std::string, int>>& takeoverHeightUndo) override;
 
