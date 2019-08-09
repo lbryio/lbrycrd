@@ -155,6 +155,7 @@ BITCOIN_CORE_H = \
   reverse_iterator.h \
   reverselock.h \
   rpc/blockchain.h \
+  rpc/claimrpchelp.h \
   rpc/client.h \
   rpc/mining.h \
   rpc/protocol.h \
