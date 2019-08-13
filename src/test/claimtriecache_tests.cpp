@@ -313,7 +313,7 @@ BOOST_AUTO_TEST_CASE(trie_stays_consistent_test)
         "goodness", "goodnight", "goodnatured", "goods", "go", "goody", "goo"
     };
 
-    CClaimTrie trie(true, false, 1);
+    CClaimTrie trie(true, true, 1);
     CClaimTrieCacheTest cache(&trie);
     CClaimValue value;
 

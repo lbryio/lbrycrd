@@ -127,7 +127,7 @@ void CClaimTrieData::reorderClaims(const supportEntryType& supports)
 CClaimTrie::CClaimTrie(bool fMemory, bool fWipe, int proportionalDelayFactor)
 {
     nProportionalDelayFactor = proportionalDelayFactor;
-    db.reset(new CDBWrapper(GetDataDir() / "claimtrie", 200 * 1024 * 1024, fMemory, fWipe, false));
+    db.reset(new CBdbWrapper(GetDataDir() / "claimtrie", 400 * 1024 * 1024, fMemory, fWipe));
 }
 
 bool CClaimTrie::SyncToDisk()
@@ -136,7 +136,7 @@ bool CClaimTrie::SyncToDisk()
 }
 
 template <typename Key, typename Container>
-typename Container::value_type* getQueue(CDBWrapper& db, uint8_t dbkey, const Key& key, Container& queue, bool create)
+typename Container::value_type* getQueue(CBdbWrapper& db, uint8_t dbkey, const Key& key, Container& queue, bool create)
 {
     auto itQueue = queue.find(key);
     if (itQueue != queue.end())
@@ -310,7 +310,6 @@ std::size_t CClaimTrie::getTotalClaimsInTrie() const
 CAmount CClaimTrie::getTotalValueOfClaimsInTrie(bool fControllingOnly) const
 {
     CAmount value_in_subtrie = 0;
-    std::size_t count = 0;
     CClaimTrieDataNode node;
     if (find("", node))
         recurseAllHashedNodes("", node, [&value_in_subtrie, fControllingOnly](const std::string&, const CClaimTrieDataNode& node) {
@@ -522,7 +521,7 @@ bool CClaimTrieCacheBase::getClaimById(const uint160& claimId, std::string& name
 }
 
 template <typename K, typename T>
-void BatchWrite(CDBBatch& batch, uint8_t dbkey, const K& key, const std::vector<T>& value)
+void BatchWrite(CBdbBatch& batch, uint8_t dbkey, const K& key, const std::vector<T>& value)
 {
     if (value.empty()) {
         batch.Erase(std::make_pair(dbkey, key));
@@ -532,7 +531,7 @@ void BatchWrite(CDBBatch& batch, uint8_t dbkey, const K& key, const std::vector<
 }
 
 template <typename Container>
-void BatchWriteQueue(CDBBatch& batch, uint8_t dbkey, const Container& queue)
+void BatchWriteQueue(CBdbBatch& batch, uint8_t dbkey, const Container& queue)
 {
     for (auto& itQueue : queue)
         BatchWrite(batch, dbkey, itQueue.first, itQueue.second);
@@ -540,7 +539,7 @@ void BatchWriteQueue(CDBBatch& batch, uint8_t dbkey, const Container& queue)
 
 bool CClaimTrieCacheBase::flush()
 {
-    CDBBatch batch(*(base->db));
+    CBdbBatch batch(*(base->db));
 
     for (const auto& claim : claimsToDeleteFromByIdIndex) {
         auto it = std::find_if(claimsToAddToByIdIndex.begin(), claimsToAddToByIdIndex.end(),
@@ -596,12 +595,12 @@ bool CClaimTrieCacheBase::flush()
 
     base->nNextHeight = nNextHeight;
     if (!nodesToAddOrUpdate.empty() && (LogAcceptCategory(BCLog::CLAIMS) || LogAcceptCategory(BCLog::BENCH))) {
-        LogPrintf("TrieCache size: %zu nodes on block %d, batch writes %zu bytes.\n",
-                nodesToAddOrUpdate.height(), nNextHeight, batch.SizeEstimate());
+        LogPrintf("TrieCache size: %zu nodes on block %d.\n",
+                nodesToAddOrUpdate.height(), nNextHeight);
     }
-    auto ret = base->db->WriteBatch(batch);
+    batch.Commit();
     clear();
-    return ret;
+    return true;
 }
 
 bool CClaimTrieCacheBase::validateTrieConsistency(const CBlockIndex* tip)
@@ -939,7 +938,7 @@ bool CClaimTrieCacheBase::removeFromCache(const std::string& name, const COutPoi
 }
 
 template <typename T>
-bool CClaimTrieCacheBase::removeFromCache(const std::string& name, const COutPoint& outPoint, T& value, bool fCheckTakeover)
+bool CClaimTrieCacheBase::removeFromCache(const std::string& name, const COutPoint& outPoint, T& value, bool)
 {
     supportedType<T>();
     return false;
