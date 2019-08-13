@@ -1351,36 +1351,7 @@ bool CheckInputs(const CTransaction& tx, CValidationState &state, const CCoinsVi
     return true;
 }
 
-namespace {
-
-bool UndoWriteToDisk(const CBlockUndo& blockundo, CDiskBlockPos& pos, const uint256& hashBlock, const CMessageHeader::MessageStartChars& messageStart)
-{
-    // Open history file to append
-    CAutoFile fileout(OpenUndoFile(pos), SER_DISK, CLIENT_VERSION);
-    if (fileout.IsNull())
-        return error("%s: OpenUndoFile failed", __func__);
-
-    // Write index header
-    unsigned int nSize = GetSerializeSize(fileout, blockundo);
-    fileout << messageStart << nSize;
-
-    // Write undo data
-    long fileOutPos = ftell(fileout.Get());
-    if (fileOutPos < 0)
-        return error("%s: ftell failed", __func__);
-    pos.nPos = (unsigned int)fileOutPos;
-    fileout << blockundo;
-
-    // calculate & write checksum
-    CHashWriter hasher(SER_GETHASH, PROTOCOL_VERSION);
-    hasher << hashBlock;
-    hasher << blockundo;
-    fileout << hasher.GetHash();
-
-    return true;
-}
-
-static bool UndoReadFromDisk(CBlockUndo& blockundo, const CBlockIndex *pindex)
+bool UndoReadFromDisk(CBlockUndo& blockundo, const CBlockIndex *pindex)
 {
     CDiskBlockPos pos = pindex->GetUndoPos();
     if (pos.IsNull()) {
@@ -1407,6 +1378,35 @@ static bool UndoReadFromDisk(CBlockUndo& blockundo, const CBlockIndex *pindex)
     // Verify checksum
     if (hashChecksum != verifier.GetHash())
         return error("%s: Checksum mismatch", __func__);
+
+    return true;
+}
+
+namespace {
+
+bool UndoWriteToDisk(const CBlockUndo& blockundo, CDiskBlockPos& pos, const uint256& hashBlock, const CMessageHeader::MessageStartChars& messageStart)
+{
+    // Open history file to append
+    CAutoFile fileout(OpenUndoFile(pos), SER_DISK, CLIENT_VERSION);
+    if (fileout.IsNull())
+        return error("%s: OpenUndoFile failed", __func__);
+
+    // Write index header
+    unsigned int nSize = GetSerializeSize(fileout, blockundo);
+    fileout << messageStart << nSize;
+
+    // Write undo data
+    long fileOutPos = ftell(fileout.Get());
+    if (fileOutPos < 0)
+        return error("%s: ftell failed", __func__);
+    pos.nPos = (unsigned int)fileOutPos;
+    fileout << blockundo;
+
+    // calculate & write checksum
+    CHashWriter hasher(SER_GETHASH, PROTOCOL_VERSION);
+    hasher << hashBlock;
+    hasher << blockundo;
+    fileout << hasher.GetHash();
 
     return true;
 }
