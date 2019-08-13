@@ -1,13 +1,16 @@
 #include <claimtrie.h>
 #include <coins.h>
 #include <core_io.h>
+#include <key_io.h>
 #include <logging.h>
 #include <nameclaim.h>
 #include <rpc/claimrpchelp.h>
 #include <rpc/server.h>
+#include <script/standard.h>
 #include <shutdown.h>
 #include <txdb.h>
 #include <txmempool.h>
+#include <undo.h>
 #include <univalue.h>
 #include <validation.h>
 
@@ -104,15 +107,11 @@ std::string escapeNonUtf8(const std::string& name)
     }
 }
 
-static bool getValueForOutPoint(const CCoinsViewCache& coinsCache, const COutPoint& out, std::string& sValue)
+static bool getValueForOutPoint(const CScript& scriptPubKey, std::string& sValue)
 {
-    const Coin& coin = coinsCache.AccessCoin(out);
-    if (coin.IsSpent())
-        return false;
-
     int op;
     std::vector<std::vector<unsigned char> > vvchParams;
-    if (!DecodeClaimScript(coin.out.scriptPubKey, op, vvchParams))
+    if (!DecodeClaimScript(scriptPubKey, op, vvchParams))
         return false;
 
     if (op == OP_CLAIM_NAME)
@@ -170,6 +169,30 @@ bool getClaimById(const std::string& partialId, std::string& name, CClaimValue* 
     return false;
 }
 
+std::vector<CClaimNsupports> seqSort(const std::vector<CClaimNsupports>& source)
+{
+    auto claimsNsupports = source;
+
+    std::sort(claimsNsupports.begin(), claimsNsupports.end(), [](const CClaimNsupports& lhs, const CClaimNsupports& rhs) {
+        if (lhs.claim.nHeight > rhs.claim.nHeight)
+            return true;
+        if (lhs.claim.nHeight != rhs.claim.nHeight)
+            return false;
+        return lhs.claim.outPoint.n > rhs.claim.outPoint.n;
+    });
+
+    return claimsNsupports;
+}
+
+std::size_t indexOf(const std::vector<CClaimNsupports>& source, const uint160& claimId)
+{
+    auto it = std::find_if(source.begin(), source.end(), [&claimId](const CClaimNsupports& claimNsupports) {
+        return claimNsupports.claim.claimId == claimId;
+    });
+    assert(it != source.end());
+    return std::distance(source.begin(), it);
+}
+
 UniValue claimToJSON(const CCoinsViewCache& coinsCache, const CClaimValue& claim)
 {
     UniValue result(UniValue::VOBJ);
@@ -178,9 +201,16 @@ UniValue claimToJSON(const CCoinsViewCache& coinsCache, const CClaimValue& claim
     if (getClaimById(claim.claimId, targetName))
         result.pushKV(T_NAME, escapeNonUtf8(targetName));
 
-    std::string sValue;
-    if (getValueForOutPoint(coinsCache, claim.outPoint, sValue))
-        result.pushKV(T_VALUE, sValue);
+    auto& coin = coinsCache.AccessCoin(claim.outPoint);
+    if (!coin.IsSpent()) {
+        std::string value;
+        if (getValueForOutPoint(coin.out.scriptPubKey, value))
+            result.pushKV(T_VALUE, value);
+
+        CTxDestination address;
+        if (ExtractDestination(coin.out.scriptPubKey, address))
+            result.pushKV(T_ADDRESS, EncodeDestination(address));
+    }
 
     result.pushKV(T_CLAIMID, claim.claimId.GetHex());
     result.pushKV(T_TXID, claim.outPoint.hash.GetHex());
@@ -196,9 +226,16 @@ UniValue supportToJSON(const CCoinsViewCache& coinsCache, const CSupportValue& s
 {
     UniValue ret(UniValue::VOBJ);
 
-    std::string value;
-    if (getValueForOutPoint(coinsCache, support.outPoint, value))
-        ret.pushKV(T_VALUE, value);
+    auto& coin = coinsCache.AccessCoin(support.outPoint);
+    if (!coin.IsSpent()) {
+        std::string value;
+        if (getValueForOutPoint(coin.out.scriptPubKey, value))
+            ret.pushKV(T_VALUE, value);
+
+        CTxDestination address;
+        if (ExtractDestination(coin.out.scriptPubKey, address))
+            ret.pushKV(T_ADDRESS, EncodeDestination(address));
+    }
 
     ret.pushKV(T_TXID, support.outPoint.hash.GetHex());
     ret.pushKV(T_N, (int)support.outPoint.n);
@@ -221,8 +258,7 @@ UniValue claimAndSupportsToJSON(const CCoinsViewCache& coinsCache, const CClaimN
     for (auto& support : supports)
         supportObjs.push_back(supportToJSON(coinsCache, support));
 
-    if (!supportObjs.empty())
-        result.pushKV(T_SUPPORTS, supportObjs);
+    result.pushKV(T_SUPPORTS, supportObjs);
 
     return result;
 }
@@ -256,7 +292,7 @@ static UniValue getclaimsintrie(const JSONRPCRequest& request)
     CClaimTrieCache trieCache(pclaimTrie);
 
     if (!request.params.empty()) {
-        CBlockIndex *blockIndex = BlockHashIndex(ParseHashV(request.params[0], "blockhash (optional parameter 1)"));
+        CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(request.params[0], T_BLOCKHASH " (optional parameter 1)"));
         RollBackTo(blockIndex, coinsCache, trieCache);
     }
 
@@ -296,7 +332,7 @@ static UniValue getnamesintrie(const JSONRPCRequest& request)
     CClaimTrieCache trieCache(pclaimTrie);
 
     if (!request.params.empty()) {
-        CBlockIndex *blockIndex = BlockHashIndex(ParseHashV(request.params[0], "blockhash (optional parameter 1)"));
+        CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(request.params[0], T_BLOCKHASH " (optional parameter 1)"));
         RollBackTo(blockIndex, coinsCache, trieCache);
     }
     UniValue ret(UniValue::VARR);
@@ -322,32 +358,42 @@ static UniValue getvalueforname(const JSONRPCRequest& request)
     CClaimTrieCache trieCache(pclaimTrie);
 
     if (request.params.size() > 1) {
-        CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(request.params[1], "blockhash (optional parameter 2)"));
+        CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(request.params[1], T_BLOCKHASH " (optional parameter 2)"));
         RollBackTo(blockIndex, coinsCache, trieCache);
     }
 
     uint160 claimId;
     std::string partialId;
     if (request.params.size() > 2)
-        ParseClaimtrieId(request.params[2], partialId, claimId, "claimId (optional parameter 3)");
+        ParseClaimtrieId(request.params[2], partialId, claimId, T_CLAIMID " (optional parameter 3)");
 
     const auto name = request.params[0].get_str();
     UniValue ret(UniValue::VOBJ);
 
-    auto res = trieCache.getClaimsForName(name);
-    if (res.claimsNsupports.empty())
+    auto csToName = trieCache.getClaimsForName(name);
+    if (csToName.claimsNsupports.empty())
         return ret;
 
     auto& claimNsupports =
-        !claimId.IsNull() ? res.find(claimId) :
-        !partialId.empty() ? res.find(partialId) : res.claimsNsupports[0];
+        !claimId.IsNull() ? csToName.find(claimId) :
+        !partialId.empty() ? csToName.find(partialId) : csToName.claimsNsupports[0];
 
     if (claimNsupports.IsNull())
         return ret;
 
-    ret.pushKV(T_NORMALIZEDNAME, escapeNonUtf8(res.name));
+    std::size_t seq = 0, bid = 0;
+    if (csToName.claimsNsupports.size() > 1) {
+        auto& claimId = claimNsupports.claim.claimId;
+        auto seqOrder = seqSort(csToName.claimsNsupports);
+        seq = indexOf(seqOrder, claimId);
+        bid = indexOf(csToName.claimsNsupports, claimId);
+    }
+
+    ret.pushKV(T_NORMALIZEDNAME, escapeNonUtf8(csToName.name));
     ret.pushKVs(claimAndSupportsToJSON(coinsCache, claimNsupports));
-    ret.pushKV(T_LASTTAKEOVERHEIGHT, res.nLastTakeoverHeight);
+    ret.pushKV(T_LASTTAKEOVERHEIGHT, csToName.nLastTakeoverHeight);
+    ret.pushKV(T_BID, (int)bid);
+    ret.pushKV(T_SEQUENCE, (int)seq);
 
     return ret;
 }
@@ -361,27 +407,122 @@ UniValue getclaimsforname(const JSONRPCRequest& request)
     CClaimTrieCache trieCache(pclaimTrie);
 
     if (request.params.size() > 1) {
-        CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(request.params[1], "blockhash (optional parameter 2)"));
+        CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(request.params[1], T_BLOCKHASH " (optional parameter 2)"));
         RollBackTo(blockIndex, coinsCache, trieCache);
     }
 
     std::string name = request.params[0].get_str();
-    auto claimsForName = trieCache.getClaimsForName(name);
+    auto csToName = trieCache.getClaimsForName(name);
 
     UniValue result(UniValue::VOBJ);
-    result.pushKV(T_NORMALIZEDNAME, escapeNonUtf8(claimsForName.name));
+    result.pushKV(T_NORMALIZEDNAME, escapeNonUtf8(csToName.name));
+
+    auto seqOrder = seqSort(csToName.claimsNsupports);
 
     UniValue claimObjs(UniValue::VARR);
-    for (auto& claim : claimsForName.claimsNsupports)
-        claimObjs.push_back(claimAndSupportsToJSON(coinsCache, claim));
+    for (std::size_t i = 0; i < csToName.claimsNsupports.size(); ++i) {
+        auto& claimNsupports = csToName.claimsNsupports[i];
+        auto claim = claimAndSupportsToJSON(coinsCache, claimNsupports);
+        claim.pushKV(T_BID, (int)i);
+        claim.pushKV(T_SEQUENCE, (int)indexOf(seqOrder, claimNsupports.claim.claimId));
+        claimObjs.push_back(claim);
+    }
 
     UniValue unmatchedSupports(UniValue::VARR);
-    for (auto& support : claimsForName.unmatchedSupports)
+    for (auto& support : csToName.unmatchedSupports)
         unmatchedSupports.push_back(supportToJSON(coinsCache, support));
 
     result.pushKV(T_CLAIMS, claimObjs);
-    result.pushKV(T_LASTTAKEOVERHEIGHT, claimsForName.nLastTakeoverHeight);
+    result.pushKV(T_LASTTAKEOVERHEIGHT, csToName.nLastTakeoverHeight);
     result.pushKV(T_SUPPORTSWITHOUTCLAIM, unmatchedSupports);
+    return result;
+}
+
+UniValue getclaimbybid(const JSONRPCRequest& request)
+{
+    validateRequest(request, GETCLAIMBYBID, 1, 2);
+
+    LOCK(cs_main);
+    CCoinsViewCache coinsCache(pcoinsTip.get());
+    CClaimTrieCache trieCache(pclaimTrie);
+
+    int bid = 0;
+    if (request.params.size() > 1)
+        bid = request.params[1].get_int();
+
+    if (bid < 0)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, T_BID " (parameter 2) should be greater than 0");
+
+    if (request.params.size() > 2) {
+        CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(request.params[2], T_BLOCKHASH " (optional parameter 3)"));
+        RollBackTo(blockIndex, coinsCache, trieCache);
+    }
+
+    std::string name = request.params[0].get_str();
+    auto csToName = trieCache.getClaimsForName(name);
+
+    UniValue result(UniValue::VOBJ);
+
+    if (uint32_t(bid) >= csToName.claimsNsupports.size())
+        return result;
+
+    auto& claimNsupports = csToName.claimsNsupports[bid];
+    std::size_t seq = 0;
+    if (csToName.claimsNsupports.size() > 1) {
+        auto seqOrder = seqSort(csToName.claimsNsupports);
+        seq = indexOf(seqOrder, claimNsupports.claim.claimId);
+    }
+
+    result.pushKV(T_NORMALIZEDNAME, escapeNonUtf8(csToName.name));
+    result.pushKVs(claimAndSupportsToJSON(coinsCache, claimNsupports));
+    result.pushKV(T_LASTTAKEOVERHEIGHT, csToName.nLastTakeoverHeight);
+    result.pushKV(T_BID, bid);
+    result.pushKV(T_SEQUENCE, (int)seq);
+    return result;
+}
+
+UniValue getclaimbyseq(const JSONRPCRequest& request)
+{
+    validateRequest(request, GETCLAIMBYSEQ, 1, 2);
+
+    LOCK(cs_main);
+    CCoinsViewCache coinsCache(pcoinsTip.get());
+    CClaimTrieCache trieCache(pclaimTrie);
+
+    int seq = 0;
+    if (request.params.size() > 1)
+        seq = request.params[1].get_int();
+
+    if (seq < 0)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, T_SEQUENCE " (parameter 2) should be greater than 0");
+
+    if (request.params.size() > 2) {
+        CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(request.params[2], T_BLOCKHASH " (optional parameter 3)"));
+        RollBackTo(blockIndex, coinsCache, trieCache);
+    }
+
+    std::string name = request.params[0].get_str();
+    auto csToName = trieCache.getClaimsForName(name);
+
+    UniValue result(UniValue::VOBJ);
+
+    if (uint32_t(seq) >= csToName.claimsNsupports.size())
+        return result;
+
+    std::size_t bid = 0;
+    const auto claimNsupports = [&bid, &seq, &csToName]() -> CClaimNsupports {
+        if (csToName.claimsNsupports.size() == 1)
+            return csToName.claimsNsupports[0];
+        auto claimNsupports = seqSort(csToName.claimsNsupports)[seq];
+        bid = indexOf(csToName.claimsNsupports, claimNsupports.claim.claimId);
+        return claimNsupports;
+    }();
+
+    result.pushKV(T_NORMALIZEDNAME, escapeNonUtf8(csToName.name));
+    result.pushKVs(claimAndSupportsToJSON(coinsCache, claimNsupports));
+    result.pushKV(T_LASTTAKEOVERHEIGHT, csToName.nLastTakeoverHeight);
+    result.pushKV(T_BID, (int)bid);
+    result.pushKV(T_SEQUENCE, seq);
     return result;
 }
 
@@ -395,21 +536,29 @@ UniValue getclaimbyid(const JSONRPCRequest& request)
 
     uint160 claimId;
     std::string partialId;
-    ParseClaimtrieId(request.params[0], partialId, claimId, "Claim-id (parameter 1)");
+    ParseClaimtrieId(request.params[0], partialId, claimId, T_CLAIMID " (parameter 1)");
 
     if (claimId.IsNull() && partialId.length() < 3)
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "Claim-id (parameter 1) should be at least 3 chars");
+        throw JSONRPCError(RPC_INVALID_PARAMETER, T_CLAIMID " (parameter 1) should be at least 3 chars");
 
     UniValue claim(UniValue::VOBJ);
     std::string name;
     CClaimValue claimValue;
     if (getClaimById(claimId, name, &claimValue) || getClaimById(partialId, name, &claimValue)) {
-        auto res = trieCache.getClaimsForName(name);
-        auto& claimNsupports = !claimId.IsNull() ? res.find(claimId) : res.find(partialId);
+        auto csToName = trieCache.getClaimsForName(name);
+        auto& claimNsupports = !claimId.IsNull() ? csToName.find(claimId) : csToName.find(partialId);
         if (!claimNsupports.IsNull()) {
-            claim.pushKV(T_NORMALIZEDNAME, escapeNonUtf8(res.name));
+            std::size_t seq = 0, bid = 0;
+            if (csToName.claimsNsupports.size() > 1) {
+                auto seqOrder = seqSort(csToName.claimsNsupports);
+                seq = indexOf(seqOrder, claimNsupports.claim.claimId);
+                bid = indexOf(csToName.claimsNsupports, claimNsupports.claim.claimId);
+            }
+            claim.pushKV(T_NORMALIZEDNAME, escapeNonUtf8(csToName.name));
             claim.pushKVs(claimAndSupportsToJSON(coinsCache, claimNsupports));
-            claim.pushKV(T_LASTTAKEOVERHEIGHT, res.nLastTakeoverHeight);
+            claim.pushKV(T_LASTTAKEOVERHEIGHT, csToName.nLastTakeoverHeight);
+            claim.pushKV(T_BID, (int)bid);
+            claim.pushKV(T_SEQUENCE, (int)seq);
         }
     }
     return claim;
@@ -450,7 +599,7 @@ UniValue getclaimsfortx(const JSONRPCRequest& request)
     validateRequest(request, GETCLAIMSFORTX, 1, 0);
 
     LOCK(cs_main);
-    uint256 hash = ParseHashV(request.params[0], "txid (parameter 1)");
+    uint256 hash = ParseHashV(request.params[0], T_TXID " (parameter 1)");
     UniValue ret(UniValue::VARR);
 
     int op;
@@ -581,14 +730,14 @@ UniValue getnameproof(const JSONRPCRequest& request)
     CClaimTrieCache trieCache(pclaimTrie);
 
     if (request.params.size() > 1) {
-        CBlockIndex* pblockIndex = BlockHashIndex(ParseHashV(request.params[1], "blockhash (optional parameter 2)"));
+        CBlockIndex* pblockIndex = BlockHashIndex(ParseHashV(request.params[1], T_BLOCKHASH " (optional parameter 2)"));
         RollBackTo(pblockIndex, coinsCache, trieCache);
     }
 
     uint160 claimId;
     std::string partialId;
     if (request.params.size() > 2)
-        ParseClaimtrieId(request.params[2], partialId, claimId, "claimId (optional parameter 3)");
+        ParseClaimtrieId(request.params[2], partialId, claimId, T_CLAIMID " (optional parameter 3)");
 
     std::function<bool(const CClaimValue&)> comp;
     if (!claimId.IsNull())
@@ -606,6 +755,132 @@ UniValue getnameproof(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Failed to generate proof");
 
     return proofToJSON(proof);
+}
+
+UniValue getclaimproofbybid(const JSONRPCRequest& request)
+{
+    validateRequest(request, GETCLAIMPROOFBYID, 1, 2);
+
+    LOCK(cs_main);
+    CCoinsViewCache coinsCache(pcoinsTip.get());
+    CClaimTrieCache trieCache(pclaimTrie);
+
+    int bid = 0;
+    if (request.params.size() > 1)
+        bid = request.params[1].get_int();
+
+    if (bid < 0)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, T_BID " (parameter 2) should be greater than 0");
+
+    if (request.params.size() > 2) {
+        CBlockIndex* pblockIndex = BlockHashIndex(ParseHashV(request.params[2], T_BLOCKHASH " (optional parameter 3)"));
+        RollBackTo(pblockIndex, coinsCache, trieCache);
+    }
+
+    std::string name = request.params[0].get_str();
+
+    std::function<bool(const CClaimValue&)> comp;
+    if (bid) {
+        auto csToName = trieCache.getClaimsForName(name);
+        if (uint32_t(bid) >= csToName.claimsNsupports.size())
+            return {UniValue::VARR};
+        auto claimId = csToName.claimsNsupports[bid].claim.claimId;
+        comp = [claimId](const CClaimValue& claim) {
+            return claim.claimId == claimId;
+        };
+    }
+
+    CClaimTrieProof proof;
+    if (!trieCache.getProofForName(name, proof, comp))
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Failed to generate proof");
+
+    return proofToJSON(proof);
+}
+
+UniValue getclaimproofbyseq(const JSONRPCRequest& request)
+{
+    validateRequest(request, GETCLAIMPROOFBYSEQ, 1, 2);
+
+    LOCK(cs_main);
+    CCoinsViewCache coinsCache(pcoinsTip.get());
+    CClaimTrieCache trieCache(pclaimTrie);
+
+    int seq = 0;
+    if (request.params.size() > 1)
+        seq = request.params[1].get_int();
+
+    if (seq < 0)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, T_SEQUENCE " (parameter 2) should be greater than 0");
+
+    if (request.params.size() > 2) {
+        CBlockIndex* pblockIndex = BlockHashIndex(ParseHashV(request.params[2], T_BLOCKHASH " (optional parameter 3"));
+        RollBackTo(pblockIndex, coinsCache, trieCache);
+    }
+
+    std::string name = request.params[0].get_str();
+    auto csToName = trieCache.getClaimsForName(name);
+    if (uint32_t(seq) >= csToName.claimsNsupports.size())
+        return {UniValue::VARR};
+
+    std::function<bool(const CClaimValue&)> comp;
+    auto claimId = (csToName.claimsNsupports.size() == 1 ?
+        csToName.claimsNsupports[0] : seqSort(csToName.claimsNsupports)[seq]).claim.claimId;
+    comp = [&claimId](const CClaimValue& claim) {
+        return claim.claimId == claimId;
+    };
+
+    CClaimTrieProof proof;
+    if (!trieCache.getProofForName(name, proof, comp))
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Failed to generate proof");
+
+    return proofToJSON(proof);
+}
+
+extern bool UndoReadFromDisk(CBlockUndo&, const CBlockIndex*);
+
+UniValue getchangesinblock(const JSONRPCRequest& request)
+{
+    validateRequest(request, GETCHANGESINBLOCK, 1, 0);
+
+    CBlockUndo undo;
+    {
+        LOCK(cs_main);
+        auto index = chainActive.Tip();
+        if (request.params.size() > 0)
+            index = BlockHashIndex(ParseHashV(request.params[0], T_BLOCKHASH " (optional parameter)"));
+
+        if (!UndoReadFromDisk(undo, index))
+            throw JSONRPCError(RPC_INTERNAL_ERROR,
+                                   "Unable to read the undo block for height " + std::to_string(index->nHeight));
+    }
+
+    auto addedUpdated = [](const insertUndoType& insertUndo) {
+        UniValue added(UniValue::VARR);
+        for (auto& a : insertUndo)
+            added.push_back(ClaimIdHash(a.outPoint.hash, a.outPoint.n).ToString());
+        return added;
+    };
+
+    auto removedClaims = [](const claimQueueRowType& expireUndo) {
+        UniValue removed(UniValue::VARR);
+        for (auto& r : expireUndo)
+            removed.push_back(r.second.claimId.ToString());
+        return removed;
+    };
+
+    auto removedSupports = [](const supportQueueRowType& expireUndo) {
+        UniValue removed(UniValue::VARR);
+        for (auto& r : expireUndo)
+            removed.push_back(r.second.supportedClaimId.ToString());
+        return removed;
+    };
+
+    UniValue result(UniValue::VOBJ);
+    result.pushKV(T_CLAIMSADDEDORUPDATED, addedUpdated(undo.insertUndo));
+    result.pushKV(T_CLAIMSREMOVED, removedClaims(undo.expireUndo));
+    result.pushKV(T_SUPPORTSADDEDORUPDATED, addedUpdated(undo.insertSupportUndo));
+    result.pushKV(T_SUPPORTSREMOVED, removedSupports(undo.expireSupportUndo));
+    return result;
 }
 
 UniValue checknormalization(const JSONRPCRequest& request)
@@ -631,9 +906,14 @@ static const CRPCCommand commands[] =
     { "Claimtrie",          "gettotalclaims",               &gettotalclaims,            { "" } },
     { "Claimtrie",          "gettotalvalueofclaims",        &gettotalvalueofclaims,     { T_CONTROLLINGONLY } },
     { "Claimtrie",          "getclaimsfortx",               &getclaimsfortx,            { T_TXID } },
-    { "Claimtrie",          "getnameproof",                 &getnameproof,              { T_NAME,T_BLOCKHASH,T_CLAIMID} },
+    { "Claimtrie",          "getnameproof",                 &getnameproof,              { T_NAME,T_BLOCKHASH,T_CLAIMID } },
+    { "Claimtrie",          "getclaimproofbybid",           &getclaimproofbybid,        { T_NAME,T_BID,T_BLOCKHASH } },
+    { "Claimtrie",          "getclaimproofbyseq",           &getclaimproofbyseq,        { T_NAME,T_SEQUENCE,T_BLOCKHASH } },
     { "Claimtrie",          "getclaimbyid",                 &getclaimbyid,              { T_CLAIMID } },
-    { "Claimtrie",          "checknormalization",           &checknormalization,        { T_NAME }},
+    { "Claimtrie",          "getclaimbybid",                &getclaimbybid,             { T_NAME,T_BID,T_BLOCKHASH } },
+    { "Claimtrie",          "getclaimbyseq",                &getclaimbyseq,             { T_NAME,T_SEQUENCE,T_BLOCKHASH } },
+    { "Claimtrie",          "getchangesinblock",            &getchangesinblock,         { T_BLOCKHASH } },
+    { "Claimtrie",          "checknormalization",           &checknormalization,        { T_NAME } },
 };
 
 void RegisterClaimTrieRPCCommands(CRPCTable &tableRPC)
