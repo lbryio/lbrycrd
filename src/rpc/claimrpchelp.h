@@ -100,7 +100,7 @@ S3("        ", T_AMOUNT, "             (numeric) the amount of the support") \
 S1("    ]") \
 S3("    ", T_LASTTAKEOVERHEIGHT, "     (numeric) the last height at which ownership of the name changed") \
 S3("    ", T_BID, "                    (numeric) lower value means a higher bid rate, ordered by effective amount") \
-S3("    ", T_SEQUENCE, "               (numeric) lower value means latest in sequence, ordered by height of insertion")
+S3("    ", T_SEQUENCE, "               (numeric) lower value means an older one in sequence, ordered by height of insertion")
 
 #define PROOF_OUTPUT \
 S3("    ", T_NODES, ": [               (array of object, pre-fork) full nodes\n" \
@@ -194,7 +194,7 @@ S3("            ", T_VALIDATHEIGHT, "  (numeric) the height at which the support
 S3("            ", T_AMOUNT, "         (numeric) the amount of the support")
 S1("        ]")
 S3("        ", T_BID, "                (numeric) lower value means a higher bid rate, ordered by effective amount")
-S3("        ", T_SEQUENCE, "           (numeric) lower value means latest in sequence, ordered by height of insertion")
+S3("        ", T_SEQUENCE, "           (numeric) lower value means an older one in sequence, ordered by height of insertion")
 S1("    ]")
 S3("    ", T_LASTTAKEOVERHEIGHT, "     (numeric) the last height at which ownership of the name changed")
 S3("    ", T_SUPPORTSWITHOUTCLAIM, ": [")
