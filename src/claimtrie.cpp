@@ -127,22 +127,45 @@ void CClaimTrieData::reorderClaims(const supportEntryType& supports)
 CClaimTrie::CClaimTrie(bool fMemory, bool fWipe, int proportionalDelayFactor)
 {
     nProportionalDelayFactor = proportionalDelayFactor;
-    db.reset(new CDBWrapper(GetDataDir() / "claimtrie", 200 * 1024 * 1024, fMemory, fWipe, false));
+    if (fWipe) {
+        fs::remove_all(GetDataDir() / "claimtrie"); // old folder
+    }
+    db_TRIE_NODE_BY_HASH.reset(new CDBWrapper(GetDataDir() / "claimtrie_TRIE_NODE_BY_HASH", 240 * 1024 * 1024, fMemory, fWipe, false));
+    db_TRIE_NODE_BY_NAME.reset(new CDBWrapper(GetDataDir() / "claimtrie_TRIE_NODE_BY_NAME", 120 * 1024 * 1024, fMemory, fWipe, false));
+    db_CLAIM_BY_ID.reset(new CDBWrapper(GetDataDir() / "claimtrie_CLAIM_BY_ID", 20 * 1024 * 1024, fMemory, fWipe, false));
+    db_CLAIM_EXP_QUEUE_ROW.reset(new CDBWrapper(GetDataDir() / "claimtrie_CLAIM_EXP_QUEUE_ROW", 16 * 1024 * 1024, fMemory, fWipe, false));
+    db_CLAIM_QUEUE_ROW.reset(new CDBWrapper(GetDataDir() / "claimtrie_CLAIM_QUEUE_ROW", 16 * 1024 * 1024, fMemory, fWipe, false));
+    db_CLAIM_QUEUE_NAME_ROW.reset(new CDBWrapper(GetDataDir() / "claimtrie_CLAIM_QUEUE_NAME_ROW", 32 * 1024 * 1024, fMemory, fWipe, false));
+    db_SUPPORT_EXP_QUEUE_ROW.reset(new CDBWrapper(GetDataDir() / "claimtrie_SUPPORT_EXP_QUEUE_ROW", 12 * 1024 * 1024, fMemory, fWipe, false));
+    db_SUPPORT_QUEUE_ROW.reset(new CDBWrapper(GetDataDir() / "claimtrie_SUPPORT_QUEUE_ROW", 12 * 1024 * 1024, fMemory, fWipe, false));
+    db_SUPPORT_QUEUE_NAME_ROW.reset(new CDBWrapper(GetDataDir() / "claimtrie_SUPPORT_QUEUE_NAME_ROW", 24 * 1024 * 1024, fMemory, fWipe, false));
+    db_SUPPORT.reset(new CDBWrapper(GetDataDir() / "claimtrie_SUPPORT", 24 * 1024 * 1024, fMemory, fWipe, false));
 }
 
 bool CClaimTrie::SyncToDisk()
 {
-    return db && db->Sync();
+    auto success = true;
+    success &= db_TRIE_NODE_BY_HASH->Sync();
+    success &= db_TRIE_NODE_BY_NAME->Sync();
+    success &= db_CLAIM_BY_ID->Sync();
+    success &= db_CLAIM_EXP_QUEUE_ROW->Sync();
+    success &= db_CLAIM_QUEUE_ROW->Sync();
+    success &= db_CLAIM_QUEUE_NAME_ROW->Sync();
+    success &= db_SUPPORT_EXP_QUEUE_ROW->Sync();
+    success &= db_SUPPORT_QUEUE_ROW->Sync();
+    success &= db_SUPPORT_QUEUE_NAME_ROW->Sync();
+    success &= db_SUPPORT->Sync();
+    return success;
 }
 
 template <typename Key, typename Container>
-typename Container::value_type* getQueue(CDBWrapper& db, uint8_t dbkey, const Key& key, Container& queue, bool create)
+typename Container::value_type* getQueue(CDBWrapper& db, const Key& key, Container& queue, bool create)
 {
     auto itQueue = queue.find(key);
     if (itQueue != queue.end())
         return &(*itQueue);
     typename Container::mapped_type row;
-    if (db.Read(std::make_pair(dbkey, key), row) || create) {
+    if (db.Read(key, row) || create) {
         auto ret = queue.insert(std::make_pair(key, row));
         assert(ret.second);
         return &(*ret.first);
@@ -160,13 +183,13 @@ inline constexpr bool supportedType()
 template <>
 std::pair<const int, std::vector<queueEntryType<CClaimValue>>>* CClaimTrieCacheBase::getQueueCacheRow(int nHeight, bool createIfNotExists)
 {
-    return getQueue(*(base->db), CLAIM_QUEUE_ROW, nHeight, claimQueueCache, createIfNotExists);
+    return getQueue(*(base->db_CLAIM_QUEUE_ROW), nHeight, claimQueueCache, createIfNotExists);
 }
 
 template <>
 std::pair<const int, std::vector<queueEntryType<CSupportValue>>>* CClaimTrieCacheBase::getQueueCacheRow(int nHeight, bool createIfNotExists)
 {
-    return getQueue(*(base->db), SUPPORT_QUEUE_ROW, nHeight, supportQueueCache, createIfNotExists);
+    return getQueue(*(base->db_SUPPORT_QUEUE_ROW), nHeight, supportQueueCache, createIfNotExists);
 }
 
 template <typename T>
@@ -179,13 +202,13 @@ std::pair<const int, std::vector<queueEntryType<T>>>* CClaimTrieCacheBase::getQu
 template <>
 typename queueNameType::value_type* CClaimTrieCacheBase::getQueueCacheNameRow<CClaimValue>(const std::string& name, bool createIfNotExists)
 {
-    return getQueue(*(base->db), CLAIM_QUEUE_NAME_ROW, name, claimQueueNameCache, createIfNotExists);
+    return getQueue(*(base->db_CLAIM_QUEUE_NAME_ROW), name, claimQueueNameCache, createIfNotExists);
 }
 
 template <>
 typename queueNameType::value_type* CClaimTrieCacheBase::getQueueCacheNameRow<CSupportValue>(const std::string& name, bool createIfNotExists)
 {
-    return getQueue(*(base->db), SUPPORT_QUEUE_NAME_ROW, name, supportQueueNameCache, createIfNotExists);
+    return getQueue(*(base->db_SUPPORT_QUEUE_NAME_ROW), name, supportQueueNameCache, createIfNotExists);
 }
 
 template <typename T>
@@ -198,13 +221,13 @@ typename queueNameType::value_type* CClaimTrieCacheBase::getQueueCacheNameRow(co
 template <>
 typename expirationQueueType::value_type* CClaimTrieCacheBase::getExpirationQueueCacheRow<CClaimValue>(int nHeight, bool createIfNotExists)
 {
-    return getQueue(*(base->db), CLAIM_EXP_QUEUE_ROW, nHeight, expirationQueueCache, createIfNotExists);
+    return getQueue(*(base->db_CLAIM_EXP_QUEUE_ROW), nHeight, expirationQueueCache, createIfNotExists);
 }
 
 template <>
 typename expirationQueueType::value_type* CClaimTrieCacheBase::getExpirationQueueCacheRow<CSupportValue>(int nHeight, bool createIfNotExists)
 {
-    return getQueue(*(base->db), SUPPORT_EXP_QUEUE_ROW, nHeight, supportExpirationQueueCache, createIfNotExists);
+    return getQueue(*(base->db_SUPPORT_EXP_QUEUE_ROW), nHeight, supportExpirationQueueCache, createIfNotExists);
 }
 
 template <typename T>
@@ -239,7 +262,7 @@ supportEntryType CClaimTrieCacheBase::getSupportsForName(const std::string& name
         return sit->second;
 
     supportEntryType supports;
-    if (base->db->Read(std::make_pair(SUPPORT, name), supports)) // don't trust the try/catch in here
+    if (base->db_SUPPORT->Read(name, supports)) // don't trust the try/catch in here
         return supports;
     return {};
 }
@@ -489,7 +512,7 @@ std::vector<std::pair<std::string, CClaimTrieDataNode>> CClaimTrie::nodes(const 
 }
 
 bool CClaimTrie::contains(const std::string &key) const {
-    return db->Exists(std::make_pair(TRIE_NODE_BY_NAME, key));
+    return db_TRIE_NODE_BY_NAME->Exists(key);
 }
 
 bool CClaimTrie::empty() const {
@@ -498,20 +521,20 @@ bool CClaimTrie::empty() const {
 
 bool CClaimTrie::find(const std::string &key, CClaimTrieDataNode &node) const {
     uint256 hash;
-    if (!db->Read(std::make_pair(TRIE_NODE_BY_NAME, key), hash))
+    if (!db_TRIE_NODE_BY_NAME->Read(key, hash))
         return false;
     auto found = find(hash, node);
     return found;
 }
 
 bool CClaimTrie::find(const uint256 &key, CClaimTrieDataNode &node) const {
-    return db->Read(std::make_pair(TRIE_NODE_BY_HASH, key), node);
+    return db_TRIE_NODE_BY_HASH->Read(key, node);
 }
 
 bool CClaimTrieCacheBase::getClaimById(const uint160& claimId, std::string& name, CClaimValue& claim) const
 {
     CClaimIndexElement element;
-    if (!base->db->Read(std::make_pair(CLAIM_BY_ID, claimId), element))
+    if (!base->db_CLAIM_BY_ID->Read(claimId, element))
         return false;
     if (element.claim.claimId == claimId) {
         name = element.name;
@@ -522,25 +545,27 @@ bool CClaimTrieCacheBase::getClaimById(const uint160& claimId, std::string& name
 }
 
 template <typename K, typename T>
-void BatchWrite(CDBBatch& batch, uint8_t dbkey, const K& key, const std::vector<T>& value)
+void BatchWrite(CDBBatch& batch, const K& key, const std::vector<T>& value)
 {
     if (value.empty()) {
-        batch.Erase(std::make_pair(dbkey, key));
+        batch.Erase(key);
     } else {
-        batch.Write(std::make_pair(dbkey, key), value);
+        batch.Write(key, value);
     }
 }
 
 template <typename Container>
-void BatchWriteQueue(CDBBatch& batch, uint8_t dbkey, const Container& queue)
+bool BatchWriteQueue(CDBWrapper& db, const Container& queue)
 {
+    CDBBatch batch(db);
     for (auto& itQueue : queue)
-        BatchWrite(batch, dbkey, itQueue.first, itQueue.second);
+        BatchWrite(batch, itQueue.first, itQueue.second);
+    return db.WriteBatch(batch);
 }
 
 bool CClaimTrieCacheBase::flush()
 {
-    CDBBatch batch(*(base->db));
+    CDBBatch batch_CLAIM_BY_ID(*(base->db_CLAIM_BY_ID));
 
     for (const auto& claim : claimsToDeleteFromByIdIndex) {
         auto it = std::find_if(claimsToAddToByIdIndex.begin(), claimsToAddToByIdIndex.end(),
@@ -549,11 +574,13 @@ bool CClaimTrieCacheBase::flush()
             }
         );
         if (it == claimsToAddToByIdIndex.end())
-            batch.Erase(std::make_pair(CLAIM_BY_ID, claim.claimId));
+            batch_CLAIM_BY_ID.Erase(claim.claimId);
     }
 
     for (const auto& e : claimsToAddToByIdIndex)
-        batch.Write(std::make_pair(CLAIM_BY_ID, e.claim.claimId), e);
+        batch_CLAIM_BY_ID.Write(e.claim.claimId, e);
+
+    auto success = base->db_CLAIM_BY_ID->WriteBatch(batch_CLAIM_BY_ID);
 
     getMerkleHash();
 
@@ -566,6 +593,8 @@ bool CClaimTrieCacheBase::flush()
             forDeletion.insert(node.first);
     }
 
+    CDBBatch batch_TRIE_NODE_BY_HASH(*(base->db_TRIE_NODE_BY_HASH));
+    CDBBatch batch_TRIE_NODE_BY_NAME(*(base->db_TRIE_NODE_BY_NAME));
     for (auto it = nodesToAddOrUpdate.begin(); it != nodesToAddOrUpdate.end(); ++it) {
         forDeletion.erase(it.key());
         if (!dirtyNodes.count(it.key()))
@@ -576,32 +605,35 @@ bool CClaimTrieCacheBase::flush()
         for (auto &child: it.children()) // ordering here is important
             node.children.emplace_back(child.key().substr(it.key().size()), child->hash);
 
-        batch.Write(std::make_pair(TRIE_NODE_BY_HASH, it->hash), node);
-        batch.Write(std::make_pair(TRIE_NODE_BY_NAME, it.key()), it->hash);
+        batch_TRIE_NODE_BY_HASH.Write(it->hash, node);
+        batch_TRIE_NODE_BY_NAME.Write(it.key(), it->hash);
     }
+
+    success &= base->db_TRIE_NODE_BY_HASH->WriteBatch(batch_TRIE_NODE_BY_HASH);
 
     for (auto& name: forDeletion) {
-        batch.Erase(std::make_pair(TRIE_NODE_BY_NAME, name));
+        batch_TRIE_NODE_BY_NAME.Erase(name);
     }
 
-    BatchWriteQueue(batch, SUPPORT, supportCache);
+    success &= base->db_TRIE_NODE_BY_NAME->WriteBatch(batch_TRIE_NODE_BY_NAME);
 
-    BatchWriteQueue(batch, CLAIM_QUEUE_ROW, claimQueueCache);
-    BatchWriteQueue(batch, CLAIM_QUEUE_NAME_ROW, claimQueueNameCache);
-    BatchWriteQueue(batch, CLAIM_EXP_QUEUE_ROW, expirationQueueCache);
+    success &= BatchWriteQueue(*(base->db_SUPPORT), supportCache);
 
-    BatchWriteQueue(batch, SUPPORT_QUEUE_ROW, supportQueueCache);
-    BatchWriteQueue(batch, SUPPORT_QUEUE_NAME_ROW, supportQueueNameCache);
-    BatchWriteQueue(batch, SUPPORT_EXP_QUEUE_ROW, supportExpirationQueueCache);
+    success &= BatchWriteQueue(*(base->db_CLAIM_QUEUE_ROW), claimQueueCache);
+    success &= BatchWriteQueue(*(base->db_CLAIM_QUEUE_NAME_ROW), claimQueueNameCache);
+    success &= BatchWriteQueue(*(base->db_CLAIM_EXP_QUEUE_ROW), expirationQueueCache);
+
+    success &= BatchWriteQueue(*(base->db_SUPPORT_QUEUE_ROW), supportQueueCache);
+    success &= BatchWriteQueue(*(base->db_SUPPORT_QUEUE_NAME_ROW), supportQueueNameCache);
+    success &= BatchWriteQueue(*(base->db_SUPPORT_EXP_QUEUE_ROW), supportExpirationQueueCache);
 
     base->nNextHeight = nNextHeight;
     if (!nodesToAddOrUpdate.empty() && (LogAcceptCategory(BCLog::CLAIMS) || LogAcceptCategory(BCLog::BENCH))) {
-        LogPrintf("TrieCache size: %zu nodes on block %d, batch writes %zu bytes.\n",
-                nodesToAddOrUpdate.height(), nNextHeight, batch.SizeEstimate());
+        LogPrintf("TrieCache size: %zu nodes on block %d.\n",
+                nodesToAddOrUpdate.height(), nNextHeight);
     }
-    auto ret = base->db->WriteBatch(batch);
     clear();
-    return ret;
+    return success;
 }
 
 bool CClaimTrieCacheBase::validateTrieConsistency(const CBlockIndex* tip)
@@ -623,7 +655,7 @@ bool CClaimTrieCacheBase::ReadFromDisk(const CBlockIndex* tip)
     base->nNextHeight = nNextHeight = tip ? tip->nHeight + 1 : 0;
     clear();
 
-    if (tip && (base->db->Exists(std::make_pair(TRIE_NODE, std::string())) || !base->db->Exists(std::make_pair(TRIE_NODE_BY_HASH, tip->hashClaimTrie)))) {
+    if (tip && fs::is_directory(GetDataDir() / "claimtrie")) {
         LogPrintf("The claim trie database contains deprecated data and will need to be rebuilt");
         return false;
     }

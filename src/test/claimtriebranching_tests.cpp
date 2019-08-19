@@ -319,30 +319,13 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheExpirationFork
         DecrementBlocks(chainActive.Height() - mark);
     }
 
-    template <typename K>
-    bool keyTypeEmpty(uint8_t keyType)
-    {
-        boost::scoped_ptr<CDBIterator> pcursor(base->db->NewIterator());
-        pcursor->SeekToFirst();
-
-        while (pcursor->Valid()) {
-            std::pair<uint8_t, K> key;
-            if (pcursor->GetKey(key)) {
-                if (key.first == keyType)
-                    return false;
-            }
-            pcursor->Next();
-        }
-        return true;
-    }
-
     bool queueEmpty()
     {
         for (const auto& claimQueue: claimQueueCache) {
             if (!claimQueue.second.empty())
                 return false;
         }
-        return keyTypeEmpty<int>(CLAIM_QUEUE_ROW);
+        return base->db_CLAIM_QUEUE_ROW->IsEmpty();
     }
 
     bool expirationQueueEmpty()
@@ -351,7 +334,7 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheExpirationFork
             if (!expirationQueue.second.empty())
                 return false;
         }
-        return keyTypeEmpty<int>(CLAIM_EXP_QUEUE_ROW);
+        return base->db_CLAIM_EXP_QUEUE_ROW->IsEmpty();
     }
 
     bool supportEmpty()
@@ -360,7 +343,7 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheExpirationFork
             if (!entry.second.empty())
                 return false;
         }
-        return supportCache.empty() && keyTypeEmpty<std::string>(SUPPORT);
+        return supportCache.empty() && base->db_SUPPORT->IsEmpty();
     }
 
     bool supportQueueEmpty()
@@ -369,7 +352,7 @@ struct ClaimTrieChainFixture: public CClaimTrieCacheExpirationFork
             if (!support.second.empty())
                 return false;
         }
-        return keyTypeEmpty<int>(SUPPORT_QUEUE_ROW);
+        return base->db_SUPPORT_QUEUE_ROW->IsEmpty();
     }
 
     int proportionalDelayFactor()

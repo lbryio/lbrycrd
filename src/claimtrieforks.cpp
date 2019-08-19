@@ -61,29 +61,31 @@ bool CClaimTrieCacheExpirationFork::forkForExpirationChange(bool increment)
     */
 
     //look through db for expiration queues, if we haven't already found it in dirty expiration queue
-    boost::scoped_ptr<CDBIterator> pcursor(base->db->NewIterator());
-    for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next()) {
-        std::pair<uint8_t, int> key;
-        if (!pcursor->GetKey(key))
+    boost::scoped_ptr<CDBIterator> pcursor_ceqr(base->db_CLAIM_EXP_QUEUE_ROW->NewIterator());
+    for (pcursor_ceqr->SeekToFirst(); pcursor_ceqr->Valid(); pcursor_ceqr->Next()) {
+        int height;
+        if (!pcursor_ceqr->GetKey(height))
             continue;
-        int height = key.second;
-        if (key.first == CLAIM_EXP_QUEUE_ROW) {
-            expirationQueueRowType row;
-            if (pcursor->GetValue(row)) {
-                reactivateClaim(row, height, increment);
-            } else {
-                return error("%s(): error reading expiration queue rows from disk", __func__);
-            }
-        } else if (key.first == SUPPORT_EXP_QUEUE_ROW) {
-            expirationQueueRowType row;
-            if (pcursor->GetValue(row)) {
-                reactivateSupport(row, height, increment);
-            } else {
-                return error("%s(): error reading support expiration queue rows from disk", __func__);
-            }
+        expirationQueueRowType row;
+        if (pcursor_ceqr->GetValue(row)) {
+            reactivateClaim(row, height, increment);
+        } else {
+            return error("%s(): error reading expiration queue rows from disk", __func__);
         }
     }
 
+    boost::scoped_ptr<CDBIterator> pcursor_seqr(base->db_SUPPORT_EXP_QUEUE_ROW->NewIterator());
+    for (pcursor_seqr->SeekToFirst(); pcursor_seqr->Valid(); pcursor_seqr->Next()) {
+        int height;
+        if (!pcursor_seqr->GetKey(height))
+            continue;
+        expirationQueueRowType row;
+        if (pcursor_seqr->GetValue(row)) {
+            reactivateSupport(row, height, increment);
+        } else {
+            return error("%s(): error reading support expiration queue rows from disk", __func__);
+        }
+    }
     return true;
 }
 
@@ -161,15 +163,14 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(insert
     // run the one-time upgrade of all names that need to change
     // it modifies the (cache) trie as it goes, so we need to grab everything to be modified first
 
-    boost::scoped_ptr<CDBIterator> pcursor(base->db->NewIterator());
+    boost::scoped_ptr<CDBIterator> pcursor(base->db_TRIE_NODE_BY_NAME->NewIterator());
     for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next()) {
-        std::pair<uint8_t, std::string> key;
-        if (!pcursor->GetKey(key) || key.first != TRIE_NODE_BY_NAME)
+        std::string name;
+        if (!pcursor->GetKey(name))
             continue;
 
-        const auto& name = key.second;
         const std::string normalized = normalizeClaimName(name, true);
-        if (normalized == key.second)
+        if (normalized == name)
             continue;
 
         auto supports = getSupportsForName(name);

@@ -17,19 +17,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-// leveldb keys
-#define TRIE_NODE 'n' // deprecated
-#define TRIE_NODE_BY_HASH 'h'
-#define TRIE_NODE_BY_NAME 'g'
-#define CLAIM_BY_ID 'i'
-#define CLAIM_QUEUE_ROW 'r'
-#define CLAIM_QUEUE_NAME_ROW 'm'
-#define CLAIM_EXP_QUEUE_ROW 'e'
-#define SUPPORT 's'
-#define SUPPORT_QUEUE_ROW 'u'
-#define SUPPORT_QUEUE_NAME_ROW 'p'
-#define SUPPORT_EXP_QUEUE_ROW 'x'
-
 uint256 getValueHash(const COutPoint& outPoint, int nHeightOfLastTakeover);
 
 struct CClaimValue
@@ -321,7 +308,16 @@ class CClaimTrie
 {
     int nNextHeight = 0;
     int nProportionalDelayFactor = 0;
-    std::unique_ptr<CDBWrapper> db;
+    std::unique_ptr<CDBWrapper> db_TRIE_NODE_BY_HASH;
+    std::unique_ptr<CDBWrapper> db_TRIE_NODE_BY_NAME;
+    std::unique_ptr<CDBWrapper> db_CLAIM_BY_ID;
+    std::unique_ptr<CDBWrapper> db_CLAIM_EXP_QUEUE_ROW;
+    std::unique_ptr<CDBWrapper> db_CLAIM_QUEUE_ROW;
+    std::unique_ptr<CDBWrapper> db_CLAIM_QUEUE_NAME_ROW;
+    std::unique_ptr<CDBWrapper> db_SUPPORT_EXP_QUEUE_ROW;
+    std::unique_ptr<CDBWrapper> db_SUPPORT_QUEUE_ROW;
+    std::unique_ptr<CDBWrapper> db_SUPPORT_QUEUE_NAME_ROW;
+    std::unique_ptr<CDBWrapper> db_SUPPORT;
 
 public:
     CClaimTrie() = default;

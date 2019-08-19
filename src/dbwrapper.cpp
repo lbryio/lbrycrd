@@ -116,7 +116,7 @@ static leveldb::Options GetOptions(size_t nCacheSize)
 }
 
 CDBWrapper::CDBWrapper(const fs::path& path, size_t nCacheSize, bool fMemory, bool fWipe, bool obfuscate)
-    : m_name(fs::basename(path))
+    : m_name(fs::basename(path)), ssKey(SER_DISK, CLIENT_VERSION), ssValue(SER_DISK, CLIENT_VERSION)
 {
     penv = nullptr;
     readoptions.verify_checksums = true;
@@ -238,6 +238,11 @@ CDBIterator::~CDBIterator() { delete piter; }
 bool CDBIterator::Valid() const { return piter->Valid(); }
 void CDBIterator::SeekToFirst() { piter->SeekToFirst(); }
 void CDBIterator::Next() { piter->Next(); }
+
+bool CDBWrapper::Sync() {
+    CDBBatch batch(*this);
+    return WriteBatch(batch, true);
+}
 
 namespace dbwrapper_private {
 
