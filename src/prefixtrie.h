@@ -9,6 +9,8 @@
 #include <type_traits>
 #include <vector>
 
+#include <boost/container/flat_map.hpp>
+
 template <typename TKey, typename TData>
 class CPrefixTrie
 {
@@ -17,7 +19,7 @@ class CPrefixTrie
         template <bool>
         friend class Iterator;
         friend class CPrefixTrie<TKey, TData>;
-        std::map<TKey, std::shared_ptr<Node>> children;
+        boost::container::flat_map<TKey, std::shared_ptr<Node>> children;
 
     public:
         Node() = default;
@@ -46,7 +48,6 @@ class CPrefixTrie
 
         struct Bookmark {
             TKey name;
-            std::weak_ptr<Node> parent;
             typename TChildren::iterator it;
             typename TChildren::iterator end;
         };
