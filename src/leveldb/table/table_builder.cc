@@ -5,15 +5,19 @@
 #include "leveldb/table_builder.h"
 
 #include <assert.h>
+#include "db/dbformat.h"
 #include "leveldb/comparator.h"
 #include "leveldb/env.h"
+#include "leveldb/expiry.h"
 #include "leveldb/filter_policy.h"
 #include "leveldb/options.h"
+#include "leveldb/perf_count.h"
 #include "table/block_builder.h"
 #include "table/filter_block.h"
 #include "table/format.h"
 #include "util/coding.h"
 #include "util/crc32c.h"
+#include "util/lz4.h"
 
 namespace leveldb {
 
@@ -29,6 +33,7 @@ struct TableBuilder::Rep {
   int64_t num_entries;
   bool closed;          // Either Finish() or Abandon() has been called.
   FilterBlockBuilder* filter_block;
+  SstCounters sst_counters;
 
   // We do not emit the index entry for a block until we have seen the
   // first key for the next data block.  This allows us to use shorter
@@ -104,6 +109,7 @@ void TableBuilder::Add(const Slice& key, const Slice& value) {
     r->pending_handle.EncodeTo(&handle_encoding);
     r->index_block.Add(r->last_key, Slice(handle_encoding));
     r->pending_index_entry = false;
+    r->sst_counters.Inc(eSstCountIndexKeys);
   }
 
   if (r->filter_block != NULL) {
@@ -113,6 +119,38 @@ void TableBuilder::Add(const Slice& key, const Slice& value) {
   r->last_key.assign(key.data(), key.size());
   r->num_entries++;
   r->data_block.Add(key, value);
+
+  // statistics
+  r->sst_counters.Inc(eSstCountKeys);
+  r->sst_counters.Add(eSstCountKeySize, key.size());
+  r->sst_counters.Add(eSstCountValueSize, value.size());
+
+  if (key.size() < r->sst_counters.Value(eSstCountKeySmallest))
+      r->sst_counters.Set(eSstCountKeySmallest, key.size());
+  if (r->sst_counters.Value(eSstCountKeyLargest) < key.size())
+      r->sst_counters.Set(eSstCountKeyLargest, key.size());
+
+  if (value.size() < r->sst_counters.Value(eSstCountValueSmallest))
+      r->sst_counters.Set(eSstCountValueSmallest, value.size());
+  if (r->sst_counters.Value(eSstCountValueLargest) < value.size())
+      r->sst_counters.Set(eSstCountValueLargest, value.size());
+
+  // unit tests use non-standard keys ... must ignore the short ones
+  if (8 < key.size() && kTypeDeletion==ExtractValueType(key))
+      r->sst_counters.Inc(eSstCountDeleteKey);
+
+  // again ignore short keys, save high sequence number for abbreviated repair
+  if (8 <= key.size()
+      && r->sst_counters.Value(eSstCountSequence)<ExtractSequenceNumber(key))
+      r->sst_counters.Set(eSstCountSequence,ExtractSequenceNumber(key));
+
+  // statistics if an expiry key
+  //  Note: not using ExpiryActivated().  Forcing expiry statistics which
+  //  are upgrade / downgrade safe.
+  if (NULL!=r->options.expiry_module.get())
+  {
+      r->options.expiry_module->TableBuilderCallback(key, r->sst_counters);
+  } // if
 
   const size_t estimated_block_size = r->data_block.CurrentSizeEstimate();
   if (estimated_block_size >= r->options.block_size) {
@@ -145,16 +183,28 @@ void TableBuilder::WriteBlock(BlockBuilder* block, BlockHandle* handle) {
   Rep* r = rep_;
   Slice raw = block->Finish();
 
+  r->sst_counters.Inc(eSstCountBlocks);
+  r->sst_counters.Add(eSstCountBlockSize, raw.size());
+
   Slice block_contents;
   CompressionType type = r->options.compression;
   // TODO(postrelease): Support more compression options: zlib?
+  std::string * compressed;
+
   switch (type) {
+    case kNoCompressionAutomated:
+      // automation disabled compression
+      type=kNoCompression;
+      r->sst_counters.Inc(eSstCountCompressAborted);
+      block_contents = raw;
+      break;
+
     case kNoCompression:
       block_contents = raw;
       break;
 
-    case kSnappyCompression: {
-      std::string* compressed = &r->compressed_output;
+    case kSnappyCompression:
+      compressed = &r->compressed_output;
       if (port::Snappy_Compress(raw.data(), raw.size(), compressed) &&
           compressed->size() < raw.size() - (raw.size() / 8u)) {
         block_contents = *compressed;
@@ -163,11 +213,36 @@ void TableBuilder::WriteBlock(BlockBuilder* block, BlockHandle* handle) {
         // store uncompressed form
         block_contents = raw;
         type = kNoCompression;
+        r->sst_counters.Inc(eSstCountCompressAborted);
       }
       break;
-    }
+
+    case kLZ4Compression:
+      compressed = &r->compressed_output;
+      int limit, result_size;
+      limit=raw.size() - (raw.size() / 8u);
+
+      compressed->resize(limit+4);
+      result_size=LZ4_compress_default(raw.data(), (char *)(compressed->data())+4, raw.size(), limit);
+      if (result_size)
+      {
+          EncodeFixed32((char *)compressed->data(), raw.size());
+          compressed->resize(result_size+4);
+          block_contents = *compressed;
+      }
+      else {
+        // Snappy not supported, or compressed less than 12.5%, so just
+        // store uncompressed form
+        block_contents = raw;
+        type = kNoCompression;
+        r->sst_counters.Inc(eSstCountCompressAborted);
+      }
+      break;
+
+
   }
   WriteRawBlock(block_contents, type, handle);
+  r->sst_counters.Add(eSstCountBlockWriteSize, block_contents.size());
   r->compressed_output.clear();
   block->Reset();
 }
@@ -202,7 +277,12 @@ Status TableBuilder::Finish() {
   assert(!r->closed);
   r->closed = true;
 
-  BlockHandle filter_block_handle, metaindex_block_handle, index_block_handle;
+  BlockHandle filter_block_handle, metaindex_block_handle, index_block_handle,
+      sst_stats_block_handle;
+
+  // pass hint to Linux fadvise management
+  r->sst_counters.Set(eSstCountUserDataSize, r->offset);
+  r->file->SetMetadataOffset(r->offset);
 
   // Write filter block
   if (ok() && r->filter_block != NULL) {
@@ -210,17 +290,41 @@ Status TableBuilder::Finish() {
                   &filter_block_handle);
   }
 
+  // Write sst statistic counters
+  if (ok())
+  {
+      std::string encoded_stats;
+
+      r->sst_counters.Set(eSstCountBlockSizeUsed, r->options.block_size);
+
+      if (r->pending_index_entry)
+          r->sst_counters.Inc(eSstCountIndexKeys);
+
+      r->sst_counters.EncodeTo(encoded_stats);
+      WriteRawBlock(Slice(encoded_stats), kNoCompression,
+                    &sst_stats_block_handle);
+  }   // if
+
   // Write metaindex block
   if (ok()) {
     BlockBuilder meta_index_block(&r->options);
+    std::string key, handle_encoding;
+
     if (r->filter_block != NULL) {
       // Add mapping from "filter.Name" to location of filter data
-      std::string key = "filter.";
+      key = "filter.";
       key.append(r->options.filter_policy->Name());
-      std::string handle_encoding;
+      handle_encoding.clear();
       filter_block_handle.EncodeTo(&handle_encoding);
       meta_index_block.Add(key, handle_encoding);
+
     }
+
+    // Add mapping for "stats.sst1"
+    key = "stats.sst1";
+    handle_encoding.clear();
+    sst_stats_block_handle.EncodeTo(&handle_encoding);
+    meta_index_block.Add(key, handle_encoding);
 
     // TODO(postrelease): Add stats and other meta blocks
     WriteBlock(&meta_index_block, &metaindex_block_handle);
@@ -265,6 +369,22 @@ uint64_t TableBuilder::NumEntries() const {
 
 uint64_t TableBuilder::FileSize() const {
   return rep_->offset;
+}
+
+uint64_t TableBuilder::NumDeletes() const {
+  return rep_->sst_counters.Value(eSstCountDeleteKey);
+}
+
+uint64_t TableBuilder::GetExpiryWriteLow() const {
+  return rep_->sst_counters.Value(eSstCountExpiry1);
+}
+
+uint64_t TableBuilder::GetExpiryWriteHigh() const {
+  return rep_->sst_counters.Value(eSstCountExpiry2);
+}
+
+uint64_t TableBuilder::GetExpiryExplicitHigh() const {
+  return rep_->sst_counters.Value(eSstCountExpiry3);
 }
 
 }  // namespace leveldb

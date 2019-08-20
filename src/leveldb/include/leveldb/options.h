@@ -6,15 +6,23 @@
 #define STORAGE_LEVELDB_INCLUDE_OPTIONS_H_
 
 #include <stddef.h>
+#include <stdint.h>
+#include <string>
+#include <memory>
 
 namespace leveldb {
 
 class Cache;
 class Comparator;
 class Env;
+class ExpiryModule;
 class FilterPolicy;
 class Logger;
 class Snapshot;
+namespace log
+{
+    class Writer;
+}  // namespace log
 
 // DB contents are stored in a set of blocks, each of which holds a
 // sequence of key,value pairs.  Each block may be compressed before
@@ -24,8 +32,33 @@ enum CompressionType {
   // NOTE: do not change the values of existing entries, as these are
   // part of the persistent format on disk.
   kNoCompression     = 0x0,
-  kSnappyCompression = 0x1
+  kSnappyCompression = 0x1,
+  kLZ4Compression    = 0x2,
+  kNoCompressionAutomated = 0x3
 };
+
+//  Originally located in db/dbformat.h.  Now available publically.
+// Value types encoded as the last component of internal keys.
+// DO NOT CHANGE THESE ENUM VALUES: they are embedded in the on-disk
+// data structures.
+enum ValueType {
+  kTypeDeletion = 0x0,
+  kTypeValue = 0x1,
+  kTypeValueWriteTime = 0x2,
+  kTypeValueExplicitExpiry = 0x3
+};
+
+//  Originally located in db/dbformat.h
+typedef uint64_t SequenceNumber;
+typedef uint64_t ExpiryTimeMicros;
+
+};  // namespace leveldb
+
+//
+// must follow ValueType declaration
+#include "leveldb/expiry.h"
+
+namespace leveldb {
 
 // Options to control the behavior of a database (passed to DB::Open)
 struct Options {
@@ -56,6 +89,14 @@ struct Options {
   // Default: false
   bool paranoid_checks;
 
+  // Riak specific: this variable replaces paranoid_checks at one
+  // one place in the code.  This variable alone controls whether or not
+  // compaction read operations check CRC values.  Riak needs
+  // the compaction CRC check, but not other paranoid_checks ... so
+  // this independent control.
+  // Default: true
+  bool verify_compactions;
+
   // Use the specified object to interact with the environment,
   // e.g. to read/write files, schedule background work, etc.
   // Default: Env::Default()
@@ -85,7 +126,7 @@ struct Options {
   // Number of open files that can be used by the DB.  You may need to
   // increase this if your database has a large working set (budget
   // one open file per 2MB of working set).
-  //
+  // RIAK: NO LONGER USED
   // Default: 1000
   int max_open_files;
 
@@ -105,24 +146,21 @@ struct Options {
   // Default: 4K
   size_t block_size;
 
+  // Riak specific:  non-zero value activates code to automatically
+  // increase block_size as needed to ensure maximum number of files
+  // are available in the file cache.  The value indicates how many
+  // incremental increases to use between the original block_size
+  // and largest, reasonable block_size.
+  //
+  // Default: 16
+  int block_size_steps;
+
   // Number of keys between restart points for delta encoding of keys.
   // This parameter can be changed dynamically.  Most clients should
   // leave this parameter alone.
   //
   // Default: 16
   int block_restart_interval;
-
-  // Leveldb will write up to this amount of bytes to a file before
-  // switching to a new one.
-  // Most clients should leave this parameter alone.  However if your
-  // filesystem is more efficient with larger files, you could
-  // consider increasing the value.  The downside will be longer
-  // compactions and hence longer latency/performance hiccups.
-  // Another reason to increase this parameter might be when you are
-  // initially populating a large database.
-  //
-  // Default: 2MB
-  size_t max_file_size;
 
   // Compress blocks using the specified compression algorithm.  This
   // parameter can be changed dynamically.
@@ -140,12 +178,6 @@ struct Options {
   // efficiently detect that and will switch to uncompressed mode.
   CompressionType compression;
 
-  // EXPERIMENTAL: If true, append to existing MANIFEST and log files
-  // when a database is opened.  This can significantly speed up open.
-  //
-  // Default: currently false, but may become true later.
-  bool reuse_logs;
-
   // If non-NULL, use the specified filter policy to reduce disk reads.
   // Many applications will benefit from passing the result of
   // NewBloomFilterPolicy() here.
@@ -153,8 +185,84 @@ struct Options {
   // Default: NULL
   const FilterPolicy* filter_policy;
 
+  // Riak specific flag used to indicate when database is open
+  // as part of a Repair operation.  Default is false
+  bool is_repair;
+
+  // Riak specific flag to mark Riak internal database versus
+  //  user database.  (User database gets larger cache resources.)
+  bool is_internal_db;
+
+  // Riak replacement for max_open_files and block_cache.  This is
+  //  TOTAL memory to be used by leveldb across ALL DATABASES.
+  //  Most recent value seen upon database open, wins.  Zero for default.
+  uint64_t total_leveldb_mem;
+
+  // Riak specific option specifying block cache space that cannot
+  //  be released for page cache use.  The space may still be
+  //  released for file cache.
+  uint64_t block_cache_threshold;
+
+  // Riak option to override most memory modeling and create
+  //  smaller memory footprint for developers.  Helps when
+  //  running large number of databases and multiple VMs. Do
+  //  NOT use this option if making performance measurements.
+  // Default: false
+  bool limited_developer_mem;
+
+  // The size of each MMAped file, choose 0 for the default (20M)
+  uint64_t mmap_size;
+
+  // Riak option to adjust aggressive delete behavior.
+  //  - zero disables aggressive delete
+  //  - positive value indicates how many deletes must exist
+  //     in a file for it to be compacted due to deletes
+  uint64_t delete_threshold;
+
+  // Riak specific flag used to indicate when fadvise() management
+  // should default to WILLNEED instead of DONTNEED.  Default is false
+  bool fadvise_willneed;
+
+  // *****
+  // Riak specific options for establishing two tiers of disk arrays.
+  // All three tier options must be valid for the option to activate.
+  // When active, leveldb directories are constructed using either
+  // the fast or slow prefix followed by the database name given
+  // in the DB::Open call.  (a synonym for "prefix" is "mount")
+  // *****
+
+  // Riak specific option setting the level number at which the
+  // "tiered_slow_prefix" should be used.  Default is zero which
+  // disables the option.  Valid values are 1 to 6.  3 or 4 recommended.
+  unsigned tiered_slow_level;
+
+  // Riak specific option with the path prefix used for "fast" disk
+  // array.  levels 0 to tiered_slow_level-1 use this path prefix
+  std::string tiered_fast_prefix;
+
+  // Riak specific option with the path prefix used for "slow" disk
+  // array.  levels tiered_slow_level through 6 use this path prefix
+  std::string tiered_slow_prefix;
+
+  // Riak specific option that writes a list of open table files
+  // to disk on close then automatically opens same files again
+  // upon restart.
+  bool cache_object_warming;
+
+  // Riak specific object that defines expiry policy for data
+  // written to leveldb.
+  ExpiryPtr_t expiry_module;
+
   // Create an Options object with default values for all fields.
   Options();
+
+  void Dump(Logger * log) const;
+
+  bool ExpiryActivated() const
+        {return(NULL!=expiry_module.get() && expiry_module->ExpiryActivated());};
+
+private:
+
 };
 
 // Options that control read operations
@@ -171,16 +279,57 @@ struct ReadOptions {
 
   // If "snapshot" is non-NULL, read as of the supplied snapshot
   // (which must belong to the DB that is being read and which must
-  // not have been released).  If "snapshot" is NULL, use an implicit
+  // not have been released).  If "snapshot" is NULL, use an impliicit
   // snapshot of the state at the beginning of this read operation.
   // Default: NULL
   const Snapshot* snapshot;
 
+  // Riak specific flag, currently used within Erlang adaptor
+  //  to enable automatic delete and new of fresh snapshot
+  //  and database iterator objects for long running iterations
+  //  (only supports iterator NEXT operations).
+  // Default: false
+  bool iterator_refresh;
+
   ReadOptions()
-      : verify_checksums(false),
-        fill_cache(true),
-        snapshot(NULL) {
+  : verify_checksums(true),
+      fill_cache(true),
+      snapshot(NULL),
+      iterator_refresh(false),
+      is_compaction(false),
+      env(NULL),
+      info_log(NULL)
+  {
   }
+
+
+  // accessors to the private data
+  bool IsCompaction() const {return(is_compaction);};
+
+  Logger * GetInfoLog() const {return(info_log);};
+
+  const std::string & GetDBName() const {return(dbname);};
+
+  Env * GetEnv() const {return(env);};
+
+  // The items below are internal options, not for external manipulation.
+  //  They are populated by VersionSet::MakeInputIterator only during compaction operations
+private:
+  friend class VersionSet;
+
+  // true when used on background compaction
+  bool is_compaction;
+
+  // Database name for potential creation of bad blocks file
+  std::string dbname;
+
+  // Needed for file operations if creating bad blocks file
+  Env * env;
+
+  // Open log file for error notifications
+  // Only valid when is_compation==true
+  Logger* info_log;
+
 };
 
 // Options that control write operations
@@ -207,6 +356,22 @@ struct WriteOptions {
       : sync(false) {
   }
 };
+
+
+// Riak specific object that can return key metadata
+//  during get or iterate operation
+struct KeyMetaData
+{
+    ValueType m_Type;          // see above
+    SequenceNumber m_Sequence; // output only, leveldb internal
+    ExpiryTimeMicros m_Expiry; // microseconds since Epoch, UTC
+
+    KeyMetaData()
+    : m_Type(kTypeValue), m_Sequence(0), m_Expiry(0)
+    {};
+};  // struct KeyMetaData
+
+const char * CompileOptionsString();
 
 }  // namespace leveldb
 

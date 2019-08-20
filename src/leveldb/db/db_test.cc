@@ -33,11 +33,8 @@ class AtomicCounter {
  public:
   AtomicCounter() : count_(0) { }
   void Increment() {
-    IncrementBy(1);
-  }
-  void IncrementBy(int count) {
     MutexLock l(&mu_);
-    count_ += count;
+    count_++;
   }
   int Read() {
     MutexLock l(&mu_);
@@ -48,20 +45,13 @@ class AtomicCounter {
     count_ = 0;
   }
 };
-
-void DelayMilliseconds(int millis) {
-  Env::Default()->SleepForMicroseconds(millis * 1000);
-}
 }
 
 // Special Env used to delay background operations
 class SpecialEnv : public EnvWrapper {
  public:
-  // sstable/log Sync() calls are blocked while this pointer is non-NULL.
-  port::AtomicPointer delay_data_sync_;
-
-  // sstable/log Sync() calls return an error.
-  port::AtomicPointer data_sync_error_;
+  // sstable Sync() calls are blocked while this pointer is non-NULL.
+  port::AtomicPointer delay_sstable_sync_;
 
   // Simulate no-space errors while this pointer is non-NULL.
   port::AtomicPointer no_space_;
@@ -69,37 +59,30 @@ class SpecialEnv : public EnvWrapper {
   // Simulate non-writable file system while this pointer is non-NULL
   port::AtomicPointer non_writable_;
 
-  // Force sync of manifest files to fail while this pointer is non-NULL
-  port::AtomicPointer manifest_sync_error_;
-
-  // Force write to manifest files to fail while this pointer is non-NULL
-  port::AtomicPointer manifest_write_error_;
-
   bool count_random_reads_;
   AtomicCounter random_read_counter_;
 
+  AtomicCounter sleep_counter_;
+
   explicit SpecialEnv(Env* base) : EnvWrapper(base) {
-    delay_data_sync_.Release_Store(NULL);
-    data_sync_error_.Release_Store(NULL);
+    delay_sstable_sync_.Release_Store(NULL);
     no_space_.Release_Store(NULL);
     non_writable_.Release_Store(NULL);
     count_random_reads_ = false;
-    manifest_sync_error_.Release_Store(NULL);
-    manifest_write_error_.Release_Store(NULL);
   }
 
-  Status NewWritableFile(const std::string& f, WritableFile** r) {
-    class DataFile : public WritableFile {
+  Status NewWritableFile(const std::string& f, WritableFile** r, size_t map_size) {
+    class SSTableFile : public WritableFile {
      private:
       SpecialEnv* env_;
       WritableFile* base_;
 
      public:
-      DataFile(SpecialEnv* env, WritableFile* base)
+      SSTableFile(SpecialEnv* env, WritableFile* base)
           : env_(env),
             base_(base) {
       }
-      ~DataFile() { delete base_; }
+      ~SSTableFile() { delete base_; }
       Status Append(const Slice& data) {
         if (env_->no_space_.Acquire_Load() != NULL) {
           // Drop writes on the floor
@@ -111,37 +94,10 @@ class SpecialEnv : public EnvWrapper {
       Status Close() { return base_->Close(); }
       Status Flush() { return base_->Flush(); }
       Status Sync() {
-        if (env_->data_sync_error_.Acquire_Load() != NULL) {
-          return Status::IOError("simulated data sync error");
-        }
-        while (env_->delay_data_sync_.Acquire_Load() != NULL) {
-          DelayMilliseconds(100);
+        while (env_->delay_sstable_sync_.Acquire_Load() != NULL) {
+          env_->SleepForMicroseconds(100000);
         }
         return base_->Sync();
-      }
-    };
-    class ManifestFile : public WritableFile {
-     private:
-      SpecialEnv* env_;
-      WritableFile* base_;
-     public:
-      ManifestFile(SpecialEnv* env, WritableFile* b) : env_(env), base_(b) { }
-      ~ManifestFile() { delete base_; }
-      Status Append(const Slice& data) {
-        if (env_->manifest_write_error_.Acquire_Load() != NULL) {
-          return Status::IOError("simulated writer error");
-        } else {
-          return base_->Append(data);
-        }
-      }
-      Status Close() { return base_->Close(); }
-      Status Flush() { return base_->Flush(); }
-      Status Sync() {
-        if (env_->manifest_sync_error_.Acquire_Load() != NULL) {
-          return Status::IOError("simulated sync error");
-        } else {
-          return base_->Sync();
-        }
       }
     };
 
@@ -149,13 +105,10 @@ class SpecialEnv : public EnvWrapper {
       return Status::IOError("simulated write error");
     }
 
-    Status s = target()->NewWritableFile(f, r);
+    Status s = target()->NewWritableFile(f, r, 2<<20);
     if (s.ok()) {
-      if (strstr(f.c_str(), ".ldb") != NULL ||
-          strstr(f.c_str(), ".log") != NULL) {
-        *r = new DataFile(this, *r);
-      } else if (strstr(f.c_str(), "MANIFEST") != NULL) {
-        *r = new ManifestFile(this, *r);
+      if (strstr(f.c_str(), ".sst") != NULL) {
+        *r = new SSTableFile(this, *r);
       }
     }
     return s;
@@ -184,6 +137,11 @@ class SpecialEnv : public EnvWrapper {
     }
     return s;
   }
+
+  virtual void SleepForMicroseconds(int micros) {
+    sleep_counter_.Increment();
+    target()->SleepForMicroseconds(micros);
+  }
 };
 
 class DBTest {
@@ -193,7 +151,6 @@ class DBTest {
   // Sequence of option configurations to try
   enum OptionConfig {
     kDefault,
-    kReuse,
     kFilter,
     kUncompressed,
     kEnd
@@ -209,7 +166,7 @@ class DBTest {
 
   DBTest() : option_config_(kDefault),
              env_(new SpecialEnv(Env::Default())) {
-    filter_policy_ = NewBloomFilterPolicy(10);
+    filter_policy_ = NewBloomFilterPolicy2(16);
     dbname_ = test::TmpDir() + "/db_test";
     DestroyDB(dbname_, Options());
     db_ = NULL;
@@ -238,11 +195,7 @@ class DBTest {
   // Return the current option configuration.
   Options CurrentOptions() {
     Options options;
-    options.reuse_logs = false;
     switch (option_config_) {
-      case kReuse:
-        options.reuse_logs = true;
-        break;
       case kFilter:
         options.filter_policy = filter_policy_;
         break;
@@ -290,6 +243,23 @@ class DBTest {
     return DB::Open(opts, dbname_, &db_);
   }
 
+  Status DoubleOpen(Options* options = NULL) {
+    DB * db_fail;
+    delete db_;
+    db_ = NULL;
+    Options opts, opts2;
+    if (options != NULL) {
+      opts = *options;
+    } else {
+      opts = CurrentOptions();
+      opts.create_if_missing = true;
+    }
+    last_options_ = opts;
+
+    DB::Open(opts, dbname_, &db_);
+    return DB::Open(opts2, dbname_, &db_fail);
+  }
+
   Status Put(const std::string& k, const std::string& v) {
     return db_->Put(WriteOptions(), k, v);
   }
@@ -301,6 +271,20 @@ class DBTest {
   std::string Get(const std::string& k, const Snapshot* snapshot = NULL) {
     ReadOptions options;
     options.snapshot = snapshot;
+    std::string result;
+    Status s = db_->Get(options, k, &result);
+    if (s.IsNotFound()) {
+      result = "NOT_FOUND";
+    } else if (!s.ok()) {
+      result = s.ToString();
+    }
+    return result;
+  }
+
+  std::string GetNoCache(const std::string& k, const Snapshot* snapshot = NULL) {
+    ReadOptions options;
+    options.snapshot = snapshot;
+    options.fill_cache=false;
     std::string result;
     Status s = db_->Get(options, k, &result);
     if (s.IsNotFound()) {
@@ -326,7 +310,7 @@ class DBTest {
     }
 
     // Check reverse iteration results are the reverse of forward results
-    size_t matched = 0;
+    int matched = 0;
     for (iter->SeekToLast(); iter->Valid(); iter->Prev()) {
       ASSERT_LT(matched, forward.size());
       ASSERT_EQ(IterStatus(iter), forward[forward.size() - matched - 1]);
@@ -340,7 +324,7 @@ class DBTest {
 
   std::string AllEntriesFor(const Slice& user_key) {
     Iterator* iter = dbfull()->TEST_NewInternalIterator();
-    InternalKey target(user_key, kMaxSequenceNumber, kTypeValue);
+    InternalKey target(user_key, 0, kMaxSequenceNumber, kTypeValue);
     iter->Seek(target.Encode());
     std::string result;
     if (!iter->status().ok()) {
@@ -361,6 +345,8 @@ class DBTest {
           }
           first = false;
           switch (ikey.type) {
+            case kTypeValueWriteTime:
+            case kTypeValueExplicitExpiry:
             case kTypeValue:
               result += iter->value().ToString();
               break;
@@ -474,38 +460,6 @@ class DBTest {
     }
     return result;
   }
-
-  bool DeleteAnSSTFile() {
-    std::vector<std::string> filenames;
-    ASSERT_OK(env_->GetChildren(dbname_, &filenames));
-    uint64_t number;
-    FileType type;
-    for (size_t i = 0; i < filenames.size(); i++) {
-      if (ParseFileName(filenames[i], &number, &type) && type == kTableFile) {
-        ASSERT_OK(env_->DeleteFile(TableFileName(dbname_, number)));
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // Returns number of files renamed.
-  int RenameLDBToSST() {
-    std::vector<std::string> filenames;
-    ASSERT_OK(env_->GetChildren(dbname_, &filenames));
-    uint64_t number;
-    FileType type;
-    int files_renamed = 0;
-    for (size_t i = 0; i < filenames.size(); i++) {
-      if (ParseFileName(filenames[i], &number, &type) && type == kTableFile) {
-        const std::string from = TableFileName(dbname_, number);
-        const std::string to = SSTTableFileName(dbname_, number);
-        ASSERT_OK(env_->RenameFile(from, to));
-        files_renamed++;
-      }
-    }
-    return files_renamed;
-  }
 };
 
 TEST(DBTest, Empty) {
@@ -513,6 +467,11 @@ TEST(DBTest, Empty) {
     ASSERT_TRUE(db_ != NULL);
     ASSERT_EQ("NOT_FOUND", Get("foo"));
   } while (ChangeOptions());
+}
+
+TEST(DBTest, DoubleOpen)
+{
+    ASSERT_NOTOK(DoubleOpen());
 }
 
 TEST(DBTest, ReadWrite) {
@@ -547,11 +506,11 @@ TEST(DBTest, GetFromImmutableLayer) {
     ASSERT_OK(Put("foo", "v1"));
     ASSERT_EQ("v1", Get("foo"));
 
-    env_->delay_data_sync_.Release_Store(env_);      // Block sync calls
+    env_->delay_sstable_sync_.Release_Store(env_);   // Block sync calls
     Put("k1", std::string(100000, 'x'));             // Fill memtable
     Put("k2", std::string(100000, 'y'));             // Trigger compaction
     ASSERT_EQ("v1", Get("foo"));
-    env_->delay_data_sync_.Release_Store(NULL);      // Release sync calls
+    env_->delay_sstable_sync_.Release_Store(NULL);   // Release sync calls
   } while (ChangeOptions());
 }
 
@@ -560,17 +519,6 @@ TEST(DBTest, GetFromVersions) {
     ASSERT_OK(Put("foo", "v1"));
     dbfull()->TEST_CompactMemTable();
     ASSERT_EQ("v1", Get("foo"));
-  } while (ChangeOptions());
-}
-
-TEST(DBTest, GetMemUsage) {
-  do {
-    ASSERT_OK(Put("foo", "v1"));
-    std::string val;
-    ASSERT_TRUE(db_->GetProperty("leveldb.approximate-memory-usage", &val));
-    int mem_usage = atoi(val.c_str());
-    ASSERT_GT(mem_usage, 0);
-    ASSERT_LT(mem_usage, 5*1024*1024);
   } while (ChangeOptions());
 }
 
@@ -634,6 +582,9 @@ TEST(DBTest, GetPicksCorrectFile) {
   } while (ChangeOptions());
 }
 
+#if 0
+// riak does not execute compaction due to reads
+
 TEST(DBTest, GetEncountersEmptyLevel) {
   do {
     // Arrange for the following to happen:
@@ -642,7 +593,7 @@ TEST(DBTest, GetEncountersEmptyLevel) {
     //   * sstable B in level 2
     // Then do enough Get() calls to arrange for an automatic compaction
     // of sstable A.  A bug would cause the compaction to be marked as
-    // occurring at level 1 (instead of the correct level 0).
+    // occuring at level 1 (instead of the correct level 0).
 
     // Step 1: First place sstables in levels 0 and 2
     int compaction_count = 0;
@@ -667,11 +618,12 @@ TEST(DBTest, GetEncountersEmptyLevel) {
     }
 
     // Step 4: Wait for compaction to finish
-    DelayMilliseconds(1000);
+    env_->SleepForMicroseconds(1000000);
 
     ASSERT_EQ(NumTableFilesAtLevel(0), 0);
   } while (ChangeOptions());
 }
+#endif
 
 TEST(DBTest, IterEmpty) {
   Iterator* iter = db_->NewIterator(ReadOptions());
@@ -996,7 +948,8 @@ TEST(DBTest, CompactionsGenerateMultipleFiles) {
   dbfull()->TEST_CompactRange(0, NULL, NULL);
 
   ASSERT_EQ(NumTableFilesAtLevel(0), 0);
-  ASSERT_GT(NumTableFilesAtLevel(1), 1);
+// not riak  ASSERT_GT(NumTableFilesAtLevel(1), 1);
+  ASSERT_EQ(NumTableFilesAtLevel(1), 1);  // yes riak
   for (int i = 0; i < 80; i++) {
     ASSERT_EQ(Get(Key(i)), values[i]);
   }
@@ -1010,7 +963,8 @@ TEST(DBTest, RepeatedWritesToSameKey) {
 
   // We must have at most one file per level except for level-0,
   // which may have up to kL0_StopWritesTrigger files.
-  const int kMaxFiles = config::kNumLevels + config::kL0_StopWritesTrigger;
+  //  ... basho adds *2 since level-1 is now overlapped too
+  const int kMaxFiles = config::kNumLevels + config::kL0_StopWritesTrigger*2;
 
   Random rnd(301);
   std::string value = RandomString(&rnd, 2 * options.write_buffer_size);
@@ -1054,11 +1008,13 @@ TEST(DBTest, SparseMerge) {
 
   // Compactions should not cause us to create a situation where
   // a file overlaps too much data at the next level.
-  ASSERT_LE(dbfull()->TEST_MaxNextLevelOverlappingBytes(), 20*1048576);
+  // 07/10/14 matthewv - we overlap first two levels.  sparse test not appropriate there,
+  //                     and we set overlaps into 100s of megabytes as "normal"
+//  ASSERT_LE(dbfull()->TEST_MaxNextLevelOverlappingBytes(), 20*1048576);
   dbfull()->TEST_CompactRange(0, NULL, NULL);
-  ASSERT_LE(dbfull()->TEST_MaxNextLevelOverlappingBytes(), 20*1048576);
+//  ASSERT_LE(dbfull()->TEST_MaxNextLevelOverlappingBytes(), 20*1048576);
   dbfull()->TEST_CompactRange(1, NULL, NULL);
-  ASSERT_LE(dbfull()->TEST_MaxNextLevelOverlappingBytes(), 20*1048576);
+//  ASSERT_LE(dbfull()->TEST_MaxNextLevelOverlappingBytes(), 20*1048576);
 }
 
 static bool Between(uint64_t val, uint64_t low, uint64_t high) {
@@ -1095,14 +1051,6 @@ TEST(DBTest, ApproximateSizes) {
 
     // 0 because GetApproximateSizes() does not account for memtable space
     ASSERT_TRUE(Between(Size("", Key(50)), 0, 0));
-
-    if (options.reuse_logs) {
-      // Recovery will reuse memtable, and GetApproximateSizes() does not
-      // account for memtable usage;
-      Reopen(&options);
-      ASSERT_TRUE(Between(Size("", Key(50)), 0, 0));
-      continue;
-    }
 
     // Check sizes across recovery by reopening a few times
     for (int run = 0; run < 3; run++) {
@@ -1146,11 +1094,6 @@ TEST(DBTest, ApproximateSizes_MixOfSmallAndLarge) {
     ASSERT_OK(Put(Key(5), RandomString(&rnd, 10000)));
     ASSERT_OK(Put(Key(6), RandomString(&rnd, 300000)));
     ASSERT_OK(Put(Key(7), RandomString(&rnd, 10000)));
-
-    if (options.reuse_logs) {
-      // Need to force a memtable compaction since recovery does not do so.
-      ASSERT_OK(dbfull()->TEST_CompactMemTable());
-    }
 
     // Check sizes across recovery by reopening a few times
     for (int run = 0; run < 3; run++) {
@@ -1223,7 +1166,7 @@ TEST(DBTest, Snapshot) {
     ASSERT_EQ("v4", Get("foo"));
   } while (ChangeOptions());
 }
-
+#if 0 // trouble under Riak due to assumed file sizes
 TEST(DBTest, HiddenValuesAreRemoved) {
   do {
     Random rnd(301);
@@ -1254,7 +1197,7 @@ TEST(DBTest, HiddenValuesAreRemoved) {
     ASSERT_TRUE(Between(Size("", "pastfoo"), 0, 1000));
   } while (ChangeOptions());
 }
-
+#endif
 TEST(DBTest, DeletionMarkers1) {
   Put("foo", "v1");
   ASSERT_OK(dbfull()->TEST_CompactMemTable());
@@ -1271,13 +1214,14 @@ TEST(DBTest, DeletionMarkers1) {
   Delete("foo");
   Put("foo", "v2");
   ASSERT_EQ(AllEntriesFor("foo"), "[ v2, DEL, v1 ]");
-  ASSERT_OK(dbfull()->TEST_CompactMemTable());  // Moves to level last-2
-  ASSERT_EQ(AllEntriesFor("foo"), "[ v2, DEL, v1 ]");
+  ASSERT_OK(dbfull()->TEST_CompactMemTable());  // stays at level 0
+  ASSERT_EQ(AllEntriesFor("foo"), "[ v2, v1 ]"); // riak 1.3, DEL merged out by BuildTable
   Slice z("z");
-  dbfull()->TEST_CompactRange(last-2, NULL, &z);
+  dbfull()->TEST_CompactRange(0, NULL, &z);
+  dbfull()->TEST_CompactRange(1, NULL, &z);
   // DEL eliminated, but v1 remains because we aren't compacting that level
   // (DEL can be eliminated because v2 hides v1).
-  ASSERT_EQ(AllEntriesFor("foo"), "[ v2, v1 ]");
+  ASSERT_EQ(AllEntriesFor("foo"), "[ v2, v1 ]"); // Riak 1.4 has merged to level 1
   dbfull()->TEST_CompactRange(last-1, NULL, NULL);
   // Merging last-1 w/ last, so we are the base level for "foo", so
   // DEL is removed.  (as is v1).
@@ -1289,39 +1233,47 @@ TEST(DBTest, DeletionMarkers2) {
   ASSERT_OK(dbfull()->TEST_CompactMemTable());
   const int last = config::kMaxMemCompactLevel;
   ASSERT_EQ(NumTableFilesAtLevel(last), 1);   // foo => v1 is now in last level
+  dbfull()->TEST_CompactRange(0, NULL, NULL);
+  ASSERT_EQ(NumTableFilesAtLevel(last), 1);   // foo => v1 is now in last level
+  ASSERT_EQ(NumTableFilesAtLevel(last-1), 0);
 
   // Place a table at level last-1 to prevent merging with preceding mutation
   Put("a", "begin");
   Put("z", "end");
-  dbfull()->TEST_CompactMemTable();
-  ASSERT_EQ(NumTableFilesAtLevel(last), 1);
+  dbfull()->TEST_CompactMemTable(); // goes to last-1
   ASSERT_EQ(NumTableFilesAtLevel(last-1), 1);
 
   Delete("foo");
   ASSERT_EQ(AllEntriesFor("foo"), "[ DEL, v1 ]");
-  ASSERT_OK(dbfull()->TEST_CompactMemTable());  // Moves to level last-2
+  ASSERT_OK(dbfull()->TEST_CompactMemTable());  // Moves to level 0
   ASSERT_EQ(AllEntriesFor("foo"), "[ DEL, v1 ]");
-  dbfull()->TEST_CompactRange(last-2, NULL, NULL);
+  dbfull()->TEST_CompactRange(0, NULL, NULL);   // Riak overlaps level 1
   // DEL kept: "last" file overlaps
   ASSERT_EQ(AllEntriesFor("foo"), "[ DEL, v1 ]");
-  dbfull()->TEST_CompactRange(last-1, NULL, NULL);
   // Merging last-1 w/ last, so we are the base level for "foo", so
   // DEL is removed.  (as is v1).
+  dbfull()->TEST_CompactRange(1, NULL, NULL);
+  ASSERT_EQ(AllEntriesFor("foo"), "[ DEL, v1 ]");
+
+  dbfull()->TEST_CompactRange(2, NULL, NULL);
   ASSERT_EQ(AllEntriesFor("foo"), "[ ]");
 }
 
 TEST(DBTest, OverlapInLevel0) {
   do {
-    ASSERT_EQ(config::kMaxMemCompactLevel, 2) << "Fix test to match config";
+    ASSERT_EQ(config::kMaxMemCompactLevel, 3) << "Fix test to match config";
 
     // Fill levels 1 and 2 to disable the pushing of new memtables to levels > 0.
     ASSERT_OK(Put("100", "v100"));
     ASSERT_OK(Put("999", "v999"));
     dbfull()->TEST_CompactMemTable();
+    dbfull()->TEST_CompactRange(0, NULL, NULL);
+    dbfull()->TEST_CompactRange(1, NULL, NULL);
     ASSERT_OK(Delete("100"));
     ASSERT_OK(Delete("999"));
     dbfull()->TEST_CompactMemTable();
-    ASSERT_EQ("0,1,1", FilesPerLevel());
+    dbfull()->TEST_CompactRange(0, NULL, NULL);
+    ASSERT_EQ("0,0,1,1", FilesPerLevel());
 
     // Make files spanning the following ranges in level-0:
     //  files[0]  200 .. 900
@@ -1334,7 +1286,7 @@ TEST(DBTest, OverlapInLevel0) {
     ASSERT_OK(Put("600", "v600"));
     ASSERT_OK(Put("900", "v900"));
     dbfull()->TEST_CompactMemTable();
-    ASSERT_EQ("2,1,1", FilesPerLevel());
+    ASSERT_EQ("2,0,1,1", FilesPerLevel());
 
     // Compact away the placeholder files we created initially
     dbfull()->TEST_CompactRange(1, NULL, NULL);
@@ -1364,7 +1316,7 @@ TEST(DBTest, L0_CompactionBug_Issue44_a) {
   Reopen();
   Reopen();
   ASSERT_EQ("(a->v)", Contents());
-  DelayMilliseconds(1000);  // Wait for compaction to finish
+  env_->SleepForMicroseconds(1000000);  // Wait for compaction to finish
   ASSERT_EQ("(a->v)", Contents());
 }
 
@@ -1380,7 +1332,7 @@ TEST(DBTest, L0_CompactionBug_Issue44_b) {
   Put("","");
   Reopen();
   Put("","");
-  DelayMilliseconds(1000);  // Wait for compaction to finish
+  env_->SleepForMicroseconds(1000000);  // Wait for compaction to finish
   Reopen();
   Put("d","dv");
   Reopen();
@@ -1390,7 +1342,7 @@ TEST(DBTest, L0_CompactionBug_Issue44_b) {
   Delete("b");
   Reopen();
   ASSERT_EQ("(->)(c->cv)", Contents());
-  DelayMilliseconds(1000);  // Wait for compaction to finish
+  env_->SleepForMicroseconds(1000000);  // Wait for compaction to finish
   ASSERT_EQ("(->)(c->cv)", Contents());
 }
 
@@ -1473,37 +1425,37 @@ TEST(DBTest, CustomComparator) {
 }
 
 TEST(DBTest, ManualCompaction) {
-  ASSERT_EQ(config::kMaxMemCompactLevel, 2)
+  ASSERT_EQ(config::kMaxMemCompactLevel, 3)
       << "Need to update this test to match kMaxMemCompactLevel";
 
   MakeTables(3, "p", "q");
-  ASSERT_EQ("1,1,1", FilesPerLevel());
+  ASSERT_EQ("1,0,1,1", FilesPerLevel());
 
   // Compaction range falls before files
   Compact("", "c");
-  ASSERT_EQ("1,1,1", FilesPerLevel());
+  ASSERT_EQ("0,1,1,1", FilesPerLevel());
 
   // Compaction range falls after files
   Compact("r", "z");
-  ASSERT_EQ("1,1,1", FilesPerLevel());
+  ASSERT_EQ("0,1,1,1", FilesPerLevel());
 
   // Compaction range overlaps files
   Compact("p1", "p9");
-  ASSERT_EQ("0,0,1", FilesPerLevel());
+  ASSERT_EQ("0,0,0,1", FilesPerLevel());
 
   // Populate a different range
   MakeTables(3, "c", "e");
-  ASSERT_EQ("1,1,2", FilesPerLevel());
+  ASSERT_EQ("1,0,1,2", FilesPerLevel());
 
   // Compact just the new range
   Compact("b", "f");
-  ASSERT_EQ("0,0,2", FilesPerLevel());
+  ASSERT_EQ("0,0,0,2", FilesPerLevel());
 
   // Compact all
   MakeTables(1, "a", "z");
-  ASSERT_EQ("0,1,2", FilesPerLevel());
+  ASSERT_EQ("0,0,1,2", FilesPerLevel());
   db_->CompactRange(NULL, NULL);
-  ASSERT_EQ("0,0,1", FilesPerLevel());
+  ASSERT_EQ("0,0,0,1", FilesPerLevel());
 }
 
 TEST(DBTest, DBOpen_Options) {
@@ -1545,12 +1497,6 @@ TEST(DBTest, DBOpen_Options) {
   db = NULL;
 }
 
-TEST(DBTest, Locking) {
-  DB* db2 = NULL;
-  Status s = DB::Open(CurrentOptions(), dbname_, &db2);
-  ASSERT_TRUE(!s.ok()) << "Locking did not prevent re-opening db";
-}
-
 // Check that number of files does not grow when we are out of space
 TEST(DBTest, NoSpace) {
   Options options = CurrentOptions();
@@ -1562,15 +1508,19 @@ TEST(DBTest, NoSpace) {
   Compact("a", "z");
   const int num_files = CountFiles();
   env_->no_space_.Release_Store(env_);   // Force out-of-space errors
-  for (int i = 0; i < 10; i++) {
+  env_->sleep_counter_.Reset();
+  for (int i = 0; i < 5; i++) {
     for (int level = 0; level < config::kNumLevels-1; level++) {
       dbfull()->TEST_CompactRange(level, NULL, NULL);
     }
   }
   env_->no_space_.Release_Store(NULL);
   ASSERT_LT(CountFiles(), num_files + 3);
-}
 
+  // Check that compaction attempts slept after errors
+  ASSERT_GE(env_->sleep_counter_.Read(), 5);
+}
+#if 0
 TEST(DBTest, NonWritableFileSystem) {
   Options options = CurrentOptions();
   options.write_buffer_size = 1000;
@@ -1584,119 +1534,13 @@ TEST(DBTest, NonWritableFileSystem) {
     fprintf(stderr, "iter %d; errors %d\n", i, errors);
     if (!Put("foo", big).ok()) {
       errors++;
-      DelayMilliseconds(100);
+      env_->SleepForMicroseconds(100000);
     }
   }
   ASSERT_GT(errors, 0);
   env_->non_writable_.Release_Store(NULL);
 }
-
-TEST(DBTest, WriteSyncError) {
-  // Check that log sync errors cause the DB to disallow future writes.
-
-  // (a) Cause log sync calls to fail
-  Options options = CurrentOptions();
-  options.env = env_;
-  Reopen(&options);
-  env_->data_sync_error_.Release_Store(env_);
-
-  // (b) Normal write should succeed
-  WriteOptions w;
-  ASSERT_OK(db_->Put(w, "k1", "v1"));
-  ASSERT_EQ("v1", Get("k1"));
-
-  // (c) Do a sync write; should fail
-  w.sync = true;
-  ASSERT_TRUE(!db_->Put(w, "k2", "v2").ok());
-  ASSERT_EQ("v1", Get("k1"));
-  ASSERT_EQ("NOT_FOUND", Get("k2"));
-
-  // (d) make sync behave normally
-  env_->data_sync_error_.Release_Store(NULL);
-
-  // (e) Do a non-sync write; should fail
-  w.sync = false;
-  ASSERT_TRUE(!db_->Put(w, "k3", "v3").ok());
-  ASSERT_EQ("v1", Get("k1"));
-  ASSERT_EQ("NOT_FOUND", Get("k2"));
-  ASSERT_EQ("NOT_FOUND", Get("k3"));
-}
-
-TEST(DBTest, ManifestWriteError) {
-  // Test for the following problem:
-  // (a) Compaction produces file F
-  // (b) Log record containing F is written to MANIFEST file, but Sync() fails
-  // (c) GC deletes F
-  // (d) After reopening DB, reads fail since deleted F is named in log record
-
-  // We iterate twice.  In the second iteration, everything is the
-  // same except the log record never makes it to the MANIFEST file.
-  for (int iter = 0; iter < 2; iter++) {
-    port::AtomicPointer* error_type = (iter == 0)
-        ? &env_->manifest_sync_error_
-        : &env_->manifest_write_error_;
-
-    // Insert foo=>bar mapping
-    Options options = CurrentOptions();
-    options.env = env_;
-    options.create_if_missing = true;
-    options.error_if_exists = false;
-    DestroyAndReopen(&options);
-    ASSERT_OK(Put("foo", "bar"));
-    ASSERT_EQ("bar", Get("foo"));
-
-    // Memtable compaction (will succeed)
-    dbfull()->TEST_CompactMemTable();
-    ASSERT_EQ("bar", Get("foo"));
-    const int last = config::kMaxMemCompactLevel;
-    ASSERT_EQ(NumTableFilesAtLevel(last), 1);   // foo=>bar is now in last level
-
-    // Merging compaction (will fail)
-    error_type->Release_Store(env_);
-    dbfull()->TEST_CompactRange(last, NULL, NULL);  // Should fail
-    ASSERT_EQ("bar", Get("foo"));
-
-    // Recovery: should not lose data
-    error_type->Release_Store(NULL);
-    Reopen(&options);
-    ASSERT_EQ("bar", Get("foo"));
-  }
-}
-
-TEST(DBTest, MissingSSTFile) {
-  ASSERT_OK(Put("foo", "bar"));
-  ASSERT_EQ("bar", Get("foo"));
-
-  // Dump the memtable to disk.
-  dbfull()->TEST_CompactMemTable();
-  ASSERT_EQ("bar", Get("foo"));
-
-  Close();
-  ASSERT_TRUE(DeleteAnSSTFile());
-  Options options = CurrentOptions();
-  options.paranoid_checks = true;
-  Status s = TryReopen(&options);
-  ASSERT_TRUE(!s.ok());
-  ASSERT_TRUE(s.ToString().find("issing") != std::string::npos)
-      << s.ToString();
-}
-
-TEST(DBTest, StillReadSST) {
-  ASSERT_OK(Put("foo", "bar"));
-  ASSERT_EQ("bar", Get("foo"));
-
-  // Dump the memtable to disk.
-  dbfull()->TEST_CompactMemTable();
-  ASSERT_EQ("bar", Get("foo"));
-  Close();
-  ASSERT_GT(RenameLDBToSST(), 0);
-  Options options = CurrentOptions();
-  options.paranoid_checks = true;
-  Status s = TryReopen(&options);
-  ASSERT_TRUE(s.ok());
-  ASSERT_EQ("bar", Get("foo"));
-}
-
+#endif
 TEST(DBTest, FilesDeletedAfterCompaction) {
   ASSERT_OK(Put("foo", "v2"));
   Compact("a", "z");
@@ -1713,7 +1557,7 @@ TEST(DBTest, BloomFilter) {
   Options options = CurrentOptions();
   options.env = env_;
   options.block_cache = NewLRUCache(0);  // Prevent cache hits
-  options.filter_policy = NewBloomFilterPolicy(10);
+  options.filter_policy = NewBloomFilterPolicy2(16);
   Reopen(&options);
 
   // Populate multiple layers
@@ -1728,12 +1572,12 @@ TEST(DBTest, BloomFilter) {
   dbfull()->TEST_CompactMemTable();
 
   // Prevent auto compactions triggered by seeks
-  env_->delay_data_sync_.Release_Store(env_);
+  env_->delay_sstable_sync_.Release_Store(env_);
 
   // Lookup present keys.  Should rarely read from small sstable.
   env_->random_read_counter_.Reset();
   for (int i = 0; i < N; i++) {
-    ASSERT_EQ(Key(i), Get(Key(i)));
+    ASSERT_EQ(Key(i), GetNoCache(Key(i)));
   }
   int reads = env_->random_read_counter_.Read();
   fprintf(stderr, "%d present => %d reads\n", N, reads);
@@ -1743,13 +1587,13 @@ TEST(DBTest, BloomFilter) {
   // Lookup present keys.  Should rarely read from either sstable.
   env_->random_read_counter_.Reset();
   for (int i = 0; i < N; i++) {
-    ASSERT_EQ("NOT_FOUND", Get(Key(i) + ".missing"));
+    ASSERT_EQ("NOT_FOUND", GetNoCache(Key(i) + ".missing"));
   }
   reads = env_->random_read_counter_.Read();
   fprintf(stderr, "%d missing => %d reads\n", N, reads);
   ASSERT_LE(reads, 3*N/100);
 
-  env_->delay_data_sync_.Release_Store(NULL);
+  env_->delay_sstable_sync_.Release_Store(NULL);
   Close();
   delete options.block_cache;
   delete options.filter_policy;
@@ -1809,7 +1653,7 @@ static void MTThreadBody(void* arg) {
         ASSERT_EQ(k, key);
         ASSERT_GE(w, 0);
         ASSERT_LT(w, kNumThreads);
-        ASSERT_LE(static_cast<uintptr_t>(c), reinterpret_cast<uintptr_t>(
+        ASSERT_LE(c, reinterpret_cast<uintptr_t>(
             t->state->counter[w].Acquire_Load()));
       }
     }
@@ -1834,27 +1678,35 @@ TEST(DBTest, MultiThreaded) {
 
     // Start threads
     MTThread thread[kNumThreads];
+    pthread_t tid;
     for (int id = 0; id < kNumThreads; id++) {
       thread[id].state = &mt;
       thread[id].id = id;
-      env_->StartThread(MTThreadBody, &thread[id]);
+      tid=env_->StartThread(MTThreadBody, &thread[id]);
+      pthread_detach(tid);
     }
 
     // Let them run for a while
-    DelayMilliseconds(kTestSeconds * 1000);
+    env_->SleepForMicroseconds(kTestSeconds * 1000000);
 
     // Stop the threads and wait for them to finish
     mt.stop.Release_Store(&mt);
     for (int id = 0; id < kNumThreads; id++) {
       while (mt.thread_done[id].Acquire_Load() == NULL) {
-        DelayMilliseconds(100);
+        env_->SleepForMicroseconds(100000);
       }
     }
   } while (ChangeOptions());
 }
 
 namespace {
-typedef std::map<std::string, std::string> KVMap;
+struct KVEntry
+{
+    std::string m_Value;
+    KeyMetaData m_Meta;
+};
+
+typedef std::map<std::string, KVEntry> KVMap;
 }
 
 class ModelDB: public DB {
@@ -1866,14 +1718,21 @@ class ModelDB: public DB {
 
   explicit ModelDB(const Options& options): options_(options) { }
   ~ModelDB() { }
-  virtual Status Put(const WriteOptions& o, const Slice& k, const Slice& v) {
-    return DB::Put(o, k, v);
+  virtual Status Put(const WriteOptions& o, const Slice& k, const Slice& v, const KeyMetaData * meta=NULL) {
+    return DB::Put(o, k, v, meta);
   }
   virtual Status Delete(const WriteOptions& o, const Slice& key) {
     return DB::Delete(o, key);
   }
   virtual Status Get(const ReadOptions& options,
-                     const Slice& key, std::string* value) {
+                     const Slice& key, std::string* value,
+                     KeyMetaData * meta = NULL) {
+    assert(false);      // Not implemented
+    return Status::NotFound(key);
+  }
+  virtual Status Get(const ReadOptions& options,
+                     const Slice& key, Value* value,
+                     KeyMetaData * meta = NULL) {
     assert(false);      // Not implemented
     return Status::NotFound(key);
   }
@@ -1901,8 +1760,13 @@ class ModelDB: public DB {
     class Handler : public WriteBatch::Handler {
      public:
       KVMap* map_;
-      virtual void Put(const Slice& key, const Slice& value) {
-        (*map_)[key.ToString()] = value.ToString();
+      virtual void Put(const Slice& key, const Slice& value,
+                       const ValueType & type, const ExpiryTimeMicros & expiry) {
+        KVEntry ent;
+        ent.m_Value=value.ToString();
+        ent.m_Meta.m_Type=type;
+        ent.m_Meta.m_Expiry=expiry;
+        (*map_)[key.ToString()] = ent;
       }
       virtual void Delete(const Slice& key) {
         map_->erase(key.ToString());
@@ -1948,7 +1812,7 @@ class ModelDB: public DB {
     virtual void Next() { ++iter_; }
     virtual void Prev() { --iter_; }
     virtual Slice key() const { return iter_->first; }
-    virtual Slice value() const { return iter_->second; }
+    virtual Slice value() const { return iter_->second.m_Value; }
     virtual Status status() const { return Status::OK(); }
    private:
     const KVMap* const map_;
@@ -2085,6 +1949,44 @@ TEST(DBTest, Randomized) {
   } while (ChangeOptions());
 }
 
+
+class SimpleBugs
+{
+    // need a class for the test harness
+};
+
+
+TEST(SimpleBugs, TieredRecoveryLog)
+{
+    // DB::Open created first recovery log directly
+    //   which lead to it NOT being in tiered storage location.
+    // nope std::string dbname = test::TmpDir() + "/leveldb_nontiered";
+    std::string dbname = "leveldb";
+    std::string fastname = test::TmpDir() + "/leveldb_fast";
+    std::string slowname = test::TmpDir() + "/leveldb_slow";
+    std::string combined;
+
+    DB* db = NULL;
+    Options opts;
+
+    opts.tiered_slow_level = 4;
+    opts.tiered_fast_prefix = fastname;
+    opts.tiered_slow_prefix = slowname;
+    opts.create_if_missing = true;
+
+    Env::Default()->CreateDir(fastname);
+    Env::Default()->CreateDir(slowname);
+
+    Status s = DB::Open(opts, dbname, &db);
+    ASSERT_OK(s);
+    ASSERT_TRUE(db != NULL);
+
+    delete db;
+    DestroyDB(dbname, opts);
+
+}   // TieredRecoveryLog
+
+
 std::string MakeKey(unsigned int num) {
   char buf[30];
   snprintf(buf, sizeof(buf), "%016u", num);
@@ -2113,14 +2015,13 @@ void BM_LogAndApply(int iters, int num_base_files) {
   InternalKeyComparator cmp(BytewiseComparator());
   Options options;
   VersionSet vset(dbname, &options, NULL, &cmp);
-  bool save_manifest;
-  ASSERT_OK(vset.Recover(&save_manifest));
+  ASSERT_OK(vset.Recover());
   VersionEdit vbase;
   uint64_t fnum = 1;
   for (int i = 0; i < num_base_files; i++) {
-    InternalKey start(MakeKey(2*fnum), 1, kTypeValue);
-    InternalKey limit(MakeKey(2*fnum+1), 1, kTypeDeletion);
-    vbase.AddFile(2, fnum++, 1 /* file size */, start, limit);
+    InternalKey start(MakeKey(2*fnum), 0, 1, kTypeValue);
+    InternalKey limit(MakeKey(2*fnum+1), 0, 1, kTypeDeletion);
+    vbase.AddFile2(2, fnum++, 1 /* file size */, start, limit, 0,0,0);
   }
   ASSERT_OK(vset.LogAndApply(&vbase, &mu));
 
@@ -2129,9 +2030,9 @@ void BM_LogAndApply(int iters, int num_base_files) {
   for (int i = 0; i < iters; i++) {
     VersionEdit vedit;
     vedit.DeleteFile(2, fnum);
-    InternalKey start(MakeKey(2*fnum), 1, kTypeValue);
-    InternalKey limit(MakeKey(2*fnum+1), 1, kTypeDeletion);
-    vedit.AddFile(2, fnum++, 1 /* file size */, start, limit);
+    InternalKey start(MakeKey(2*fnum), 0, 1, kTypeValue);
+    InternalKey limit(MakeKey(2*fnum+1), 0, 1, kTypeDeletion);
+    vedit.AddFile2(2, fnum++, 1 /* file size */, start, limit, 0,0,0);
     vset.LogAndApply(&vedit, &mu);
   }
   uint64_t stop_micros = env->NowMicros();

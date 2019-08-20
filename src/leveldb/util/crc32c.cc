@@ -8,12 +8,15 @@
 #include "util/crc32c.h"
 
 #include <stdint.h>
-
-#include "port/port.h"
 #include "util/coding.h"
 
 namespace leveldb {
 namespace crc32c {
+
+static uint32_t SoftCRC(uint32_t StartCrc, const char * BlockStart, size_t BlockSize);
+static uint32_t HardCRC(uint32_t StartCrc, const char * BlockStart, size_t BlockSize);
+
+static uint32_t (*CrcFunction)(uint32_t, const char *, size_t)=&SoftCRC;
 
 static const uint32_t table0_[256] = {
   0x00000000, 0xf26b8303, 0xe13b70f7, 0x1350f3f4,
@@ -285,27 +288,22 @@ static inline uint32_t LE_LOAD32(const uint8_t *p) {
   return DecodeFixed32(reinterpret_cast<const char*>(p));
 }
 
-// Determine if the CPU running this program can accelerate the CRC32C
-// calculation.
-static bool CanAccelerateCRC32C() {
-  if (!port::HasAcceleratedCRC32C())
-    return false;
 
-  // Double-check that the accelerated implementation functions correctly.
-  // port::AcceleretedCRC32C returns zero when unable to accelerate.
-  static const char kTestCRCBuffer[] = "TestCRCBuffer";
-  static const char kBufSize = sizeof(kTestCRCBuffer) - 1;
-  static const uint32_t kTestCRCValue = 0xdcbc59fa;
+uint32_t Extend(uint32_t crc, const char* buf, size_t size)
+{
+    return((*CrcFunction)(crc, buf, size));
+}   // Extend
 
-  return port::AcceleratedCRC32C(0, kTestCRCBuffer, kBufSize) == kTestCRCValue;
-}
 
-uint32_t Extend(uint32_t crc, const char* buf, size_t size) {
-  static bool accelerate = CanAccelerateCRC32C();
-  if (accelerate) {
-    return port::AcceleratedCRC32C(crc, buf, size);
-  }
+void SwitchToHardwareCRC() {CrcFunction=&HardCRC;};
 
+
+bool IsHardwareCRC() {return(&HardCRC==CrcFunction);};
+
+
+static uint32_t
+SoftCRC(uint32_t crc, const char* buf, size_t size)
+{
   const uint8_t *p = reinterpret_cast<const uint8_t *>(buf);
   const uint8_t *e = p + size;
   uint32_t l = crc ^ 0xffffffffu;
@@ -347,8 +345,53 @@ uint32_t Extend(uint32_t crc, const char* buf, size_t size) {
   }
 #undef STEP4
 #undef STEP1
+
   return l ^ 0xffffffffu;
-}
+}   // SoftCRC
+
+
+static uint32_t
+HardCRC(
+    uint32_t StartCrc,
+    const char * BlockStart,
+    size_t BlockSize)
+{
+#if defined(__x86_64__)
+    size_t fullqwords, remainder;
+    uint32_t ret_crc;
+    char * src_c;
+    uint64_t * src_q;
+
+    fullqwords=BlockSize / 8;
+    remainder=BlockSize % 8;
+
+    ret_crc=StartCrc ^ 0xffffffffu;
+    src_q=(uint64_t *)BlockStart;
+
+    for ( ; 0!=fullqwords; --fullqwords, ++src_q)
+    {
+        __asm__ __volatile__ (
+            ".byte 0xf2, 0x48, 0x0f, 0x38, 0xf1, 0xf1;"
+            : "=S"(ret_crc)
+            : "S"(ret_crc), "c"(*src_q));
+    }   // for
+
+    src_c=(char *)src_q;
+    for ( ; 0!=remainder; --remainder, ++src_c)
+    {
+        __asm__ __volatile__ (
+            ".byte 0xf2, 0x48, 0x0f, 0x38, 0xf0, 0xf1;"
+            : "=S"(ret_crc)
+            : "S"(ret_crc), "c"(*src_c));
+    }   // for
+
+    return(ret_crc ^ 0xffffffffu);
+#else
+    return(0);
+#endif
+
+}   // HardCRC
+
 
 }  // namespace crc32c
 }  // namespace leveldb

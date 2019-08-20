@@ -7,6 +7,16 @@
 #ifndef STORAGE_LEVELDB_PORT_PORT_POSIX_H_
 #define STORAGE_LEVELDB_PORT_PORT_POSIX_H_
 
+// to properly pull in bits/posix_opt.h on Linux
+#include <unistd.h>
+#include <assert.h>
+
+#if _POSIX_TIMERS >= 200801L
+   #include <time.h> // declares clock_gettime()
+#else
+   #include <sys/time.h> // declares gettimeofday()
+#endif
+
 #undef PLATFORM_IS_LITTLE_ENDIAN
 #if defined(OS_MACOSX)
   #include <machine/endian.h>
@@ -21,23 +31,17 @@
   #else
     #define PLATFORM_IS_LITTLE_ENDIAN false
   #endif
-#elif defined(OS_FREEBSD) || defined(OS_OPENBSD) ||\
-      defined(OS_NETBSD) || defined(OS_DRAGONFLYBSD)
+#elif defined(OS_FREEBSD) || defined(OS_OPENBSD) || defined(OS_NETBSD) ||\
+      defined(OS_DRAGONFLYBSD) || defined(OS_ANDROID)
   #include <sys/types.h>
   #include <sys/endian.h>
-  #define PLATFORM_IS_LITTLE_ENDIAN (_BYTE_ORDER == _LITTLE_ENDIAN)
-#elif defined(OS_HPUX)
-  #define PLATFORM_IS_LITTLE_ENDIAN false
-#elif defined(OS_ANDROID)
-  // Due to a bug in the NDK x86 <sys/endian.h> definition,
-  // _BYTE_ORDER must be used instead of __BYTE_ORDER on Android.
-  // See http://code.google.com/p/android/issues/detail?id=39824
-  #include <endian.h>
-  #define PLATFORM_IS_LITTLE_ENDIAN  (_BYTE_ORDER == _LITTLE_ENDIAN)
+
+  #if !defined(PLATFORM_IS_LITTLE_ENDIAN) && defined(_BYTE_ORDER)
+    #define PLATFORM_IS_LITTLE_ENDIAN (_BYTE_ORDER == _LITTLE_ENDIAN)
+  #endif
 #else
   #include <endian.h>
 #endif
-
 #include <pthread.h>
 #ifdef SNAPPY
 #include <snappy.h>
@@ -52,21 +56,28 @@
 
 #if defined(OS_MACOSX) || defined(OS_SOLARIS) || defined(OS_FREEBSD) ||\
     defined(OS_NETBSD) || defined(OS_OPENBSD) || defined(OS_DRAGONFLYBSD) ||\
-    defined(OS_ANDROID) || defined(OS_HPUX) || defined(CYGWIN)
+    defined(OS_ANDROID)
 // Use fread/fwrite/fflush on platforms without _unlocked variants
 #define fread_unlocked fread
 #define fwrite_unlocked fwrite
 #define fflush_unlocked fflush
 #endif
 
-#if defined(OS_FREEBSD) ||\
+#if defined(OS_MACOSX) || defined(OS_FREEBSD) ||\
     defined(OS_OPENBSD) || defined(OS_DRAGONFLYBSD)
 // Use fsync() on platforms without fdatasync()
 #define fdatasync fsync
 #endif
 
-#if defined(OS_MACOSX)
-#define fdatasync(fd) fcntl(fd, F_FULLFSYNC, 0)
+// Some compilers do not provide access to nested classes of a declared friend class
+// Defining PUBLIC_NESTED_FRIEND_ACCESS will cause those declarations to be made
+// public as a workaround.  Added by David Smith, Basho.
+#if defined(OS_MACOSX) || defined(OS_SOLARIS)
+#define USED_BY_NESTED_FRIEND(a) public: a; private:
+#define USED_BY_NESTED_FRIEND2(a,b) public: a,b; private:
+#else
+#define USED_BY_NESTED_FRIEND(a) a;
+#define USED_BY_NESTED_FRIEND2(a,b) a,b;
 #endif
 
 #if defined(OS_ANDROID) && __ANDROID_API__ < 9
@@ -85,12 +96,12 @@ class CondVar;
 
 class Mutex {
  public:
-  Mutex();
+  Mutex(bool recursive=false); // true => creates a mutex that can be locked recursively
   ~Mutex();
 
   void Lock();
   void Unlock();
-  void AssertHeld() { }
+  void AssertHeld() {assert(0!=pthread_mutex_trylock(&mu_));}
 
  private:
   friend class CondVar;
@@ -101,11 +112,40 @@ class Mutex {
   void operator=(const Mutex&);
 };
 
+
+#if defined(_POSIX_SPIN_LOCKS) && 0<_POSIX_SPIN_LOCKS
+class Spin {
+ public:
+  Spin();
+  ~Spin();
+
+  void Lock();
+  void Unlock();
+  void AssertHeld() {assert(0!=pthread_spin_trylock(&sp_));}
+
+ private:
+  friend class CondVar;
+  pthread_spinlock_t sp_;
+
+  // No copying
+  Spin(const Spin&);
+  void operator=(const Spin&);
+};
+#else
+typedef Mutex Spin;
+#endif
+
+
 class CondVar {
  public:
   explicit CondVar(Mutex* mu);
   ~CondVar();
   void Wait();
+
+  // waits on the condition variable until the specified time is reached
+  bool // true => the condition variable was signaled, else timed out
+  Wait(struct timespec* pTimespec);
+
   void Signal();
   void SignalAll();
  private:
@@ -116,6 +156,27 @@ class CondVar {
 typedef pthread_once_t OnceType;
 #define LEVELDB_ONCE_INIT PTHREAD_ONCE_INIT
 extern void InitOnce(OnceType* once, void (*initializer)());
+
+
+class RWMutex {
+ public:
+  RWMutex();
+  ~RWMutex();
+
+  void ReadLock();
+  void WriteLock();
+  void Unlock();
+  void AssertHeld() { }
+
+ private:
+  pthread_rwlock_t mu_;
+
+  // No copying
+  RWMutex(const RWMutex&);
+  void operator=(const RWMutex&);
+
+};
+
 
 inline bool Snappy_Compress(const char* input, size_t length,
                             ::std::string* output) {
@@ -152,8 +213,45 @@ inline bool GetHeapProfile(void (*func)(void*, const char*, int), void* arg) {
   return false;
 }
 
-bool HasAcceleratedCRC32C();
-uint32_t AcceleratedCRC32C(uint32_t crc, const char* buf, size_t size);
+// sets the name of the current thread
+inline void SetCurrentThreadName(const char* threadName) {
+  if (NULL == threadName) {
+    threadName = "";
+  }
+#if defined(OS_MACOSX)
+  pthread_setname_np(threadName);
+//#elif defined(OS_LINUX)
+#elif defined(__GLIBC__)
+#if  __GLIBC_PREREQ(2,12)
+  pthread_setname_np(pthread_self(), threadName);
+#endif
+#elif defined(OS_NETBSD)
+  pthread_setname_np(pthread_self(), threadName, NULL);
+#else
+  // we have some other platform(s) to support
+  //   defined(OS_FREEBSD) ... freebsd-9.2, Feb 19, 2016 not working
+  //
+  // NOTE: do not fail here since this functionality is optional
+#endif
+}
+
+// similar to Env::NowMicros except guaranteed to return "time" instead
+//  of potentially only ticks since reboot
+const uint64_t UINT64_ONE_SECOND_MICROS=1000000;
+
+inline uint64_t TimeMicros() {
+#if _POSIX_TIMERS >= 200801L
+    struct timespec ts;
+
+    // this is rumored to be faster than gettimeofday(),
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return static_cast<uint64_t>(ts.tv_sec) * 1000000 + ts.tv_nsec/1000;
+#else
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return static_cast<uint64_t>(tv.tv_sec) * 1000000 + tv.tv_usec;
+#endif
+} // TimeMicros
 
 } // namespace port
 } // namespace leveldb

@@ -29,7 +29,7 @@ class TestHashFilter : public FilterPolicy {
 
   virtual bool KeyMayMatch(const Slice& key, const Slice& filter) const {
     uint32_t h = Hash(key.data(), key.size(), 1);
-    for (size_t i = 0; i + 4 <= filter.size(); i += 4) {
+    for (int i = 0; i + 4 <= filter.size(); i += 4) {
       if (h == DecodeFixed32(filter.data() + i)) {
         return true;
       }
@@ -46,7 +46,7 @@ class FilterBlockTest {
 TEST(FilterBlockTest, EmptyBuilder) {
   FilterBlockBuilder builder(&policy_);
   Slice block = builder.Finish();
-  ASSERT_EQ("\\x00\\x00\\x00\\x00\\x0b", EscapeString(block));
+  ASSERT_EQ("\\x00\\x00\\x00\\x00\\x1c", EscapeString(block));
   FilterBlockReader reader(&policy_, block);
   ASSERT_TRUE(reader.KeyMayMatch(0, "foo"));
   ASSERT_TRUE(reader.KeyMayMatch(100000, "foo"));
@@ -95,7 +95,7 @@ TEST(FilterBlockTest, MultiChunk) {
 
   Slice block = builder.Finish();
   FilterBlockReader reader(&policy_, block);
-
+#if 0 // all in first/only filter with riak
   // Check first filter
   ASSERT_TRUE(reader.KeyMayMatch(0, "foo"));
   ASSERT_TRUE(reader.KeyMayMatch(2000, "bar"));
@@ -119,6 +119,30 @@ TEST(FilterBlockTest, MultiChunk) {
   ASSERT_TRUE(reader.KeyMayMatch(9000, "hello"));
   ASSERT_TRUE(! reader.KeyMayMatch(9000, "foo"));
   ASSERT_TRUE(! reader.KeyMayMatch(9000, "bar"));
+#else
+  ASSERT_TRUE(reader.KeyMayMatch(0, "foo"));
+  ASSERT_TRUE(reader.KeyMayMatch(2000, "bar"));
+  ASSERT_TRUE(reader.KeyMayMatch(0, "box"));
+  ASSERT_TRUE(reader.KeyMayMatch(0, "hello"));
+
+  // Check second filter
+  ASSERT_TRUE(reader.KeyMayMatch(3100, "box"));
+  ASSERT_TRUE(reader.KeyMayMatch(3100, "foo"));
+  ASSERT_TRUE(reader.KeyMayMatch(3100, "bar"));
+  ASSERT_TRUE(reader.KeyMayMatch(3100, "hello"));
+
+  // Check third filter (empty)
+  ASSERT_TRUE(reader.KeyMayMatch(4100, "foo"));
+  ASSERT_TRUE(reader.KeyMayMatch(4100, "bar"));
+  ASSERT_TRUE(reader.KeyMayMatch(4100, "box"));
+  ASSERT_TRUE(reader.KeyMayMatch(4100, "hello"));
+
+  // Check last filter
+  ASSERT_TRUE(reader.KeyMayMatch(9000, "box"));
+  ASSERT_TRUE(reader.KeyMayMatch(9000, "hello"));
+  ASSERT_TRUE(reader.KeyMayMatch(9000, "foo"));
+  ASSERT_TRUE(reader.KeyMayMatch(9000, "bar"));
+#endif
 }
 
 }  // namespace leveldb

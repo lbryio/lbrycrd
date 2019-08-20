@@ -13,13 +13,17 @@
 //    len: varint32
 //    data: uint8[len]
 
-#include "leveldb/write_batch.h"
+#include <stdint.h>
 
 #include "leveldb/db.h"
+#include "leveldb/env.h"
+#include "leveldb/expiry.h"
+#include "leveldb/write_batch.h"
 #include "db/dbformat.h"
 #include "db/memtable.h"
 #include "db/write_batch_internal.h"
 #include "util/coding.h"
+#include "util/throttle.h"
 
 namespace leveldb {
 
@@ -47,16 +51,17 @@ Status WriteBatch::Iterate(Handler* handler) const {
 
   input.remove_prefix(kHeader);
   Slice key, value;
+  ExpiryTimeMicros expiry;
   int found = 0;
   while (!input.empty()) {
     found++;
-    char tag = input[0];
+    ValueType tag = (ValueType)input[0];
     input.remove_prefix(1);
     switch (tag) {
       case kTypeValue:
         if (GetLengthPrefixedSlice(&input, &key) &&
             GetLengthPrefixedSlice(&input, &value)) {
-          handler->Put(key, value);
+            handler->Put(key, value, kTypeValue, 0);
         } else {
           return Status::Corruption("bad WriteBatch Put");
         }
@@ -66,6 +71,16 @@ Status WriteBatch::Iterate(Handler* handler) const {
           handler->Delete(key);
         } else {
           return Status::Corruption("bad WriteBatch Delete");
+        }
+        break;
+      case kTypeValueWriteTime:
+      case kTypeValueExplicitExpiry:
+        if (GetLengthPrefixedSlice(&input, &key) &&
+            GetVarint64(&input, &expiry) &&
+            GetLengthPrefixedSlice(&input, &value)) {
+            handler->Put(key, value, tag, expiry);
+        } else {
+          return Status::Corruption("bad WriteBatch Expiry");
         }
         break;
       default:
@@ -95,10 +110,20 @@ void WriteBatchInternal::SetSequence(WriteBatch* b, SequenceNumber seq) {
   EncodeFixed64(&b->rep_[0], seq);
 }
 
-void WriteBatch::Put(const Slice& key, const Slice& value) {
+void WriteBatch::Put(const Slice& key, const Slice& value, const KeyMetaData * meta) {
+  KeyMetaData local_meta;
   WriteBatchInternal::SetCount(this, WriteBatchInternal::Count(this) + 1);
-  rep_.push_back(static_cast<char>(kTypeValue));
+  if (NULL!=meta)
+      local_meta=*meta;
+  rep_.push_back(static_cast<char>(local_meta.m_Type));
   PutLengthPrefixedSlice(&rep_, key);
+  if (kTypeValueExplicitExpiry==local_meta.m_Type
+      || kTypeValueWriteTime==local_meta.m_Type)
+  {
+      if (kTypeValueWriteTime==local_meta.m_Type && 0==local_meta.m_Expiry)
+          local_meta.m_Expiry=GetCachedTimeMicros();
+      PutVarint64(&rep_, local_meta.m_Expiry);
+  }   // if
   PutLengthPrefixedSlice(&rep_, value);
 }
 
@@ -113,23 +138,33 @@ class MemTableInserter : public WriteBatch::Handler {
  public:
   SequenceNumber sequence_;
   MemTable* mem_;
+  const Options * options_;
 
-  virtual void Put(const Slice& key, const Slice& value) {
-    mem_->Add(sequence_, kTypeValue, key, value);
+  MemTableInserter() : mem_(NULL), options_(NULL) {};
+
+  virtual void Put(const Slice& key, const Slice& value, const ValueType &type, const ExpiryTimeMicros &expiry) {
+    ValueType type_use(type);
+    ExpiryTimeMicros expiry_use(expiry);
+
+    if (NULL!=options_ && options_->ExpiryActivated())
+        options_->expiry_module->MemTableInserterCallback(key, value, type_use, expiry_use);
+    mem_->Add(sequence_, (ValueType)type_use, key, value, expiry_use);
     sequence_++;
   }
   virtual void Delete(const Slice& key) {
-    mem_->Add(sequence_, kTypeDeletion, key, Slice());
+    mem_->Add(sequence_, kTypeDeletion, key, Slice(), 0);
     sequence_++;
   }
 };
 }  // namespace
 
 Status WriteBatchInternal::InsertInto(const WriteBatch* b,
-                                      MemTable* memtable) {
+                                      MemTable* memtable,
+                                      const Options * options) {
   MemTableInserter inserter;
   inserter.sequence_ = WriteBatchInternal::Sequence(b);
   inserter.mem_ = memtable;
+  inserter.options_ = options;
   return b->Iterate(&inserter);
 }
 

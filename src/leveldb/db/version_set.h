@@ -21,7 +21,9 @@
 #include "db/dbformat.h"
 #include "db/version_edit.h"
 #include "port/port.h"
-#include "port/thread_annotations.h"
+#include "leveldb/atomics.h"
+#include "leveldb/env.h"
+#include "util/throttle.h"
 
 namespace leveldb {
 
@@ -70,19 +72,13 @@ class Version {
     FileMetaData* seek_file;
     int seek_file_level;
   };
-  Status Get(const ReadOptions&, const LookupKey& key, std::string* val,
+  Status Get(const ReadOptions&, const LookupKey& key, Value* val,
              GetStats* stats);
 
   // Adds "stats" into the current state.  Returns true if a new
   // compaction may need to be triggered, false otherwise.
   // REQUIRES: lock is held
   bool UpdateStats(const GetStats& stats);
-
-  // Record a sample of bytes read at the specified internal key.
-  // Samples are taken approximately once every config::kReadBytesPeriod
-  // bytes.  Returns true if a new compaction may need to be triggered.
-  // REQUIRES: lock is held
-  bool RecordReadSample(Slice key);
 
   // Reference count management (so Versions do not disappear out from
   // under live iterators)
@@ -101,33 +97,36 @@ class Version {
   // largest_user_key==NULL represents a key largest than all keys in the DB.
   bool OverlapInLevel(int level,
                       const Slice* smallest_user_key,
-                      const Slice* largest_user_key);
+                      const Slice* largest_user_key) const;
 
   // Return the level at which we should place a new memtable compaction
   // result that covers the range [smallest_user_key,largest_user_key].
   int PickLevelForMemTableOutput(const Slice& smallest_user_key,
-                                 const Slice& largest_user_key);
+                                 const Slice& largest_user_key,
+                                 const int level_limit);
 
-  int NumFiles(int level) const { return files_[level].size(); }
+  virtual size_t NumFiles(int level) const { return files_[level].size(); }
+
+  const VersionSet * GetVersionSet() const { return vset_; }
+
+  typedef std::vector<FileMetaData*> FileMetaDataVector_t;
+
+  virtual const std::vector<FileMetaData*> & GetFileList(int level) const {return files_[level];};
+
+  volatile int WritePenalty() const {return write_penalty_; }
+
+  // Riak specific repair routine
+  bool VerifyLevels(int & level, InternalKey & begin, InternalKey & end);
 
   // Return a human readable string that describes this version's contents.
   std::string DebugString() const;
 
- private:
+protected:
   friend class Compaction;
   friend class VersionSet;
 
   class LevelFileNumIterator;
   Iterator* NewConcatenatingIterator(const ReadOptions&, int level) const;
-
-  // Call func(arg, level, f) for every file that overlaps user_key in
-  // order from newest to oldest.  If an invocation of func returns
-  // false, makes no more calls.
-  //
-  // REQUIRES: user portion of internal_key == user_key.
-  void ForEachOverlapping(Slice user_key, Slice internal_key,
-                          void* arg,
-                          bool (*func)(void*, int, FileMetaData*));
 
   VersionSet* vset_;            // VersionSet to which this Version belongs
   Version* next_;               // Next version in linked list
@@ -135,9 +134,10 @@ class Version {
   int refs_;                    // Number of live refs to this version
 
   // List of files per level
-  std::vector<FileMetaData*> files_[config::kNumLevels];
+  USED_BY_NESTED_FRIEND(std::vector<FileMetaData*> files_[config::kNumLevels];)
 
-  // Next file to compact based on seek stats.
+ protected:
+  // Next file to compact based on seek stats (or Riak delete test)
   FileMetaData* file_to_compact_;
   int file_to_compact_level_;
 
@@ -146,17 +146,29 @@ class Version {
   // are initialized by Finalize().
   double compaction_score_;
   int compaction_level_;
+  bool compaction_grooming_;
+  bool compaction_no_move_;
+  bool compaction_expirefile_;
+  volatile int write_penalty_;
 
+ protected:
+  // make the ctor/dtor protected, so that a unit test can subclass
   explicit Version(VersionSet* vset)
       : vset_(vset), next_(this), prev_(this), refs_(0),
         file_to_compact_(NULL),
         file_to_compact_level_(-1),
         compaction_score_(-1),
-        compaction_level_(-1) {
+        compaction_level_(-1),
+        compaction_grooming_(false),
+        compaction_no_move_(false),
+        compaction_expirefile_(false),
+        write_penalty_(0)
+  {
   }
 
-  ~Version();
+  virtual ~Version();
 
+private:
   // No copying allowed
   Version(const Version&);
   void operator=(const Version&);
@@ -175,11 +187,10 @@ class VersionSet {
   // current version.  Will release *mu while actually writing to the file.
   // REQUIRES: *mu is held on entry.
   // REQUIRES: no other thread concurrently calls LogAndApply()
-  Status LogAndApply(VersionEdit* edit, port::Mutex* mu)
-      EXCLUSIVE_LOCKS_REQUIRED(mu);
+  Status LogAndApply(VersionEdit* edit, port::Mutex* mu);
 
   // Recover the last saved descriptor from persistent storage.
-  Status Recover(bool *save_manifest);
+  Status Recover();
 
   // Return the current version.
   Version* current() const { return current_; }
@@ -188,19 +199,29 @@ class VersionSet {
   uint64_t ManifestFileNumber() const { return manifest_file_number_; }
 
   // Allocate and return a new file number
-  uint64_t NewFileNumber() { return next_file_number_++; }
+  //  (-1 is to "duplicate" old post-increment logic while maintaining
+  //   some threading integrity ... next_file_number_ used naked a bunch)
+  uint64_t NewFileNumber() { return(inc_and_fetch(&next_file_number_) -1); }
 
   // Arrange to reuse "file_number" unless a newer file number has
   // already been allocated.
   // REQUIRES: "file_number" was returned by a call to NewFileNumber().
+  //  (disabled due to threading concerns ... and desire NOT to use mutex, matthewv)
   void ReuseFileNumber(uint64_t file_number) {
-    if (next_file_number_ == file_number + 1) {
-      next_file_number_ = file_number;
-    }
+//    if (next_file_number_ == file_number + 1) {
+//      next_file_number_ = file_number;
+//    }
   }
 
   // Return the number of Table files at the specified level.
-  int NumLevelFiles(int level) const;
+  size_t NumLevelFiles(int level) const;
+
+  // is the specified level overlapped (or if false->sorted)
+  static bool IsLevelOverlapped(int level);
+
+  static uint64_t DesiredBytesForLevel(int level);
+  static uint64_t MaxBytesForLevel(int level);
+  static uint64_t MaxFileSizeForLevel(int level);
 
   // Return the combined file size of all files at the specified level.
   int64_t NumLevelBytes(int level) const;
@@ -224,11 +245,36 @@ class VersionSet {
   // being compacted, or zero if there is no such log file.
   uint64_t PrevLogNumber() const { return prev_log_number_; }
 
+  int WriteThrottleUsec(bool active_compaction)
+  {
+      uint64_t penalty, throttle;
+      int ret_val;
+
+      penalty=current_->write_penalty_;
+      throttle=GetThrottleWriteRate();
+
+      ret_val=0;
+      if (0==penalty && 1!=throttle)
+          ret_val=(int)throttle;
+      else if (0!=penalty)
+      {
+          if (1==throttle)
+              throttle=GetUnadjustedThrottleWriteRate();
+          ret_val=(int)penalty * throttle;
+      }   // else if
+
+      return(ret_val);
+  }
+
+
   // Pick level and inputs for a new compaction.
   // Returns NULL if there is no compaction to be done.
   // Otherwise returns a pointer to a heap-allocated object that
   // describes the compaction.  Caller should delete the result.
-  Compaction* PickCompaction();
+  //
+  // Riak October 2013:  Pick Compaction now posts work directly
+  //  to hot_thread pools
+  void PickCompaction(class DBImpl * db_impl);
 
   // Return a compaction object for compacting the range [begin,end] in
   // the specified level.  Returns NULL if there is nothing in that
@@ -267,16 +313,42 @@ class VersionSet {
     char buffer[100];
   };
   const char* LevelSummary(LevelSummaryStorage* scratch) const;
+  const char* CompactionSummary(LevelSummaryStorage* scratch) const;
 
- private:
+  TableCache* GetTableCache() {return(table_cache_);};
+
+  const Options * GetOptions() const {return(options_);};
+
+  bool IsCompactionSubmitted(int level)
+  {return(m_CompactionStatus[level].m_Submitted);}
+
+  void SetCompactionSubmitted(int level)
+  {m_CompactionStatus[level].m_Submitted=true;}
+
+  void SetCompactionRunning(int level)
+  {m_CompactionStatus[level].m_Running=true;}
+
+  void SetCompactionDone(int level, uint64_t Now)
+  {   m_CompactionStatus[level].m_Running=false;
+      m_CompactionStatus[level].m_Submitted=false;
+      // must set both source and destination.  otherwise
+      //  destination might immediately decide it needs a
+      //  timed grooming too ... defeating idea to spreadout the groomings
+      m_CompactionStatus[level].m_LastCompaction=Now;
+      if ((level+1)<config::kNumLevels)
+          m_CompactionStatus[level+1].m_LastCompaction=Now;
+  }
+
+  bool NeighborCompactionsQuiet(int level);
+
+protected:
   class Builder;
 
   friend class Compaction;
   friend class Version;
 
-  bool ReuseManifest(const std::string& dscname, const std::string& dscbase);
-
-  void Finalize(Version* v);
+  bool Finalize(Version* v);
+  void UpdatePenalty(Version *v);
 
   void GetRange(const std::vector<FileMetaData*>& inputs,
                 InternalKey* smallest,
@@ -299,7 +371,7 @@ class VersionSet {
   const Options* const options_;
   TableCache* const table_cache_;
   const InternalKeyComparator icmp_;
-  uint64_t next_file_number_;
+  volatile uint64_t next_file_number_;
   uint64_t manifest_file_number_;
   uint64_t last_sequence_;
   uint64_t log_number_;
@@ -315,10 +387,43 @@ class VersionSet {
   // Either an empty string, or a valid InternalKey.
   std::string compact_pointer_[config::kNumLevels];
 
+  // Riak allows multiple compaction threads, this mutex allows
+  //  only one to write to manifest at a time.  Only used in LogAndApply
+  port::Mutex manifest_mutex_;
+
+  volatile uint64_t last_penalty_minutes_;
+  volatile int prev_write_penalty_;
+
+
+
+  struct CompactionStatus_s
+  {
+      bool m_Submitted;     //!< level submitted to hot thread pool
+      bool m_Running;       //!< thread actually running compaction
+      uint64_t m_LastCompaction; //!<NowMicros() when last compaction completed
+
+      CompactionStatus_s()
+      : m_Submitted(false), m_Running(false), m_LastCompaction(0)
+      {};
+  } m_CompactionStatus[config::kNumLevels];
+
+private:
   // No copying allowed
   VersionSet(const VersionSet&);
   void operator=(const VersionSet&);
 };
+
+//
+// allows routing of compaction request to
+//  diverse processing routines via common
+//  BackgroundCall2 thread entry
+//
+enum CompactionType
+{
+    kNormalCompaction = 0x0,
+    kExpiryFileCompaction = 0x1
+};  // CompactionType
+
 
 // A Compaction encapsulates information about a compaction.
 class Compaction {
@@ -328,6 +433,9 @@ class Compaction {
   // Return the level that is being compacted.  Inputs from "level"
   // and "level+1" will be merged to produce a set of "level+1" files.
   int level() const { return level_; }
+
+  // Return parent Version object
+  const Version * version() const { return input_version_; }
 
   // Return the object that holds the edits to the descriptor done
   // by this compaction.
@@ -356,32 +464,47 @@ class Compaction {
 
   // Returns true iff we should stop building the current output
   // before processing "internal_key".
-  bool ShouldStopBefore(const Slice& internal_key);
+  bool ShouldStopBefore(const Slice& internal_key, size_t key_count);
 
   // Release the input version for the compaction, once the compaction
   // is successful.
   void ReleaseInputs();
 
+  // Riak specific:  get summary statistics from compaction inputs
+  void CalcInputStats(TableCache & tables);
+  size_t TotalUserDataSize() const {return(tot_user_data_);};
+  size_t TotalIndexKeys()    const {return(tot_index_keys_);};
+  size_t AverageValueSize()  const {return(avg_value_size_);};
+  size_t AverageKeySize()    const {return(avg_key_size_);};
+  size_t AverageBlockSize()  const {return(avg_block_size_);};
+  bool IsCompressible()      const {return(compressible_);};
+
+  // Riak specific:  is move operation ok for compaction?
+  bool IsMoveOk()            const {return(!no_move_);};
+
+  enum CompactionType GetCompactionType() const {return(compaction_type_);};
+
  private:
   friend class Version;
   friend class VersionSet;
 
-  Compaction(const Options* options, int level);
+  explicit Compaction(int level);
 
   int level_;
   uint64_t max_output_file_size_;
   Version* input_version_;
   VersionEdit edit_;
+  CompactionType compaction_type_;
 
   // Each compaction reads inputs from "level_" and "level_+1"
   std::vector<FileMetaData*> inputs_[2];      // The two sets of inputs
 
-  // State used to check for number of overlapping grandparent files
+  // State used to check for number of of overlapping grandparent files
   // (parent == level_ + 1, grandparent == level_ + 2)
   std::vector<FileMetaData*> grandparents_;
   size_t grandparent_index_;  // Index in grandparent_starts_
   bool seen_key_;             // Some output key has been seen
-  int64_t overlapped_bytes_;  // Bytes of overlap between current output
+  uint64_t overlapped_bytes_;  // Bytes of overlap between current output
                               // and grandparent files
 
   // State for implementing IsBaseLevelForKey
@@ -391,6 +514,16 @@ class Compaction {
   // higher level than the ones involved in this compaction (i.e. for
   // all L >= level_ + 2).
   size_t level_ptrs_[config::kNumLevels];
+
+  // Riak specific:  output statistics from CalcInputStats
+  size_t tot_user_data_;
+  size_t tot_index_keys_;
+  size_t avg_value_size_;
+  size_t avg_key_size_;
+  size_t avg_block_size_;
+  bool compressible_;
+  bool stats_done_;
+  bool no_move_;
 };
 
 }  // namespace leveldb

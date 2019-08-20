@@ -2,15 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
+#include <syslog.h>
+#include <stdarg.h>
+
 #include "leveldb/env.h"
+#include "leveldb/perf_count.h"
 
 namespace leveldb {
 
 Env::~Env() {
-}
-
-Status Env::NewAppendableFile(const std::string& fname, WritableFile** result) {
-  return Status::NotSupported("NewAppendableFile", fname);
 }
 
 SequentialFile::~SequentialFile() {
@@ -29,19 +29,39 @@ FileLock::~FileLock() {
 }
 
 void Log(Logger* info_log, const char* format, ...) {
-  if (info_log != NULL) {
     va_list ap;
+
     va_start(ap, format);
-    info_log->Logv(format, ap);
+
+    if (info_log != NULL)
+    {
+        info_log->Logv(format, ap);
+    }   // if
+    else
+    {
+        // perf counter is clue to check syslog
+        vsyslog(LOG_ERR, format, ap);
+        gPerfCounters->Inc(ePerfSyslogWrite);
+    }   // else
+
     va_end(ap);
-  }
 }
 
 static Status DoWriteStringToFile(Env* env, const Slice& data,
                                   const std::string& fname,
                                   bool should_sync) {
   WritableFile* file;
-  Status s = env->NewWritableFile(fname, &file);
+  size_t map_size;
+
+  // adjust file map size to speed up corruption test's
+  //  writing of 40M files, but keep small for normal
+  //  case of writing CURRENT file (code will round up to page_size)
+  if (gMapSize<data.size())
+      map_size=gMapSize;
+  else
+      map_size=data.size();
+
+  Status s = env->NewWritableFile(fname, &file, map_size);
   if (!s.ok()) {
     return s;
   }

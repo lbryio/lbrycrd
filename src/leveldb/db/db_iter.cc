@@ -5,14 +5,14 @@
 #include "db/db_iter.h"
 
 #include "db/filename.h"
-#include "db/db_impl.h"
 #include "db/dbformat.h"
 #include "leveldb/env.h"
+#include "leveldb/expiry.h"
 #include "leveldb/iterator.h"
+#include "leveldb/perf_count.h"
 #include "port/port.h"
 #include "util/logging.h"
 #include "util/mutexlock.h"
-#include "util/random.h"
 
 namespace leveldb {
 
@@ -48,18 +48,20 @@ class DBIter: public Iterator {
     kReverse
   };
 
-  DBIter(DBImpl* db, const Comparator* cmp, Iterator* iter, SequenceNumber s,
-         uint32_t seed)
-      : db_(db),
+  DBIter(const std::string* dbname, Env* env,
+         const Comparator* cmp, Iterator* iter, SequenceNumber s,
+         const ExpiryModule * expiry)
+      : dbname_(dbname),
+        env_(env),
         user_comparator_(cmp),
         iter_(iter),
         sequence_(s),
         direction_(kForward),
         valid_(false),
-        rnd_(seed),
-        bytes_counter_(RandomPeriod()) {
+        expiry_(expiry) {
   }
   virtual ~DBIter() {
+    gPerfCounters->Inc(ePerfIterDelete);
     delete iter_;
   }
   virtual bool Valid() const { return valid_; }
@@ -71,6 +73,26 @@ class DBIter: public Iterator {
     assert(valid_);
     return (direction_ == kForward) ? iter_->value() : saved_value_;
   }
+  // Riak specific:  if a database iterator, returns key meta data
+  // REQUIRES: Valid() and forward iteration
+  //  (reverse iteration is possible, just needs code)
+  virtual KeyMetaData & keymetadata() const
+  {
+    assert(valid_ && kForward==direction_);
+    if (kForward==direction_)
+    {
+      ParsedInternalKey parsed;
+      // this initialization clears a warning.  ParsedInternalKey says
+      //  it is not initializing for performance reasons ... oh well
+      parsed.type=kTypeValue; parsed.sequence=0; parsed.expiry=0;
+      ParseInternalKey(iter_->key(), &parsed);
+      keymetadata_.m_Type=parsed.type;
+      keymetadata_.m_Sequence=parsed.sequence;
+      keymetadata_.m_Expiry=parsed.expiry;
+    }
+    return(keymetadata_);
+  }
+
   virtual Status status() const {
     if (status_.ok()) {
       return iter_->status();
@@ -103,12 +125,8 @@ class DBIter: public Iterator {
     }
   }
 
-  // Pick next gap with average value of config::kReadBytesPeriod.
-  ssize_t RandomPeriod() {
-    return rnd_.Uniform(2*config::kReadBytesPeriod);
-  }
-
-  DBImpl* db_;
+  const std::string* const dbname_;
+  Env* const env_;
   const Comparator* const user_comparator_;
   Iterator* const iter_;
   SequenceNumber const sequence_;
@@ -118,9 +136,7 @@ class DBIter: public Iterator {
   std::string saved_value_;   // == current raw value when direction_==kReverse
   Direction direction_;
   bool valid_;
-
-  Random rnd_;
-  ssize_t bytes_counter_;
+  const ExpiryModule * expiry_;
 
   // No copying allowed
   DBIter(const DBIter&);
@@ -128,14 +144,7 @@ class DBIter: public Iterator {
 };
 
 inline bool DBIter::ParseKey(ParsedInternalKey* ikey) {
-  Slice k = iter_->key();
-  ssize_t n = k.size() + iter_->value().size();
-  bytes_counter_ -= n;
-  while (bytes_counter_ < 0) {
-    bytes_counter_ += RandomPeriod();
-    db_->RecordReadSample(k);
-  }
-  if (!ParseInternalKey(k, ikey)) {
+  if (!ParseInternalKey(iter_->key(), ikey)) {
     status_ = Status::Corruption("corrupted internal key in DBIter");
     return false;
   } else {
@@ -146,6 +155,7 @@ inline bool DBIter::ParseKey(ParsedInternalKey* ikey) {
 void DBIter::Next() {
   assert(valid_);
 
+  gPerfCounters->Inc(ePerfIterNext);
   if (direction_ == kReverse) {  // Switch directions?
     direction_ = kForward;
     // iter_ is pointing just before the entries for this->key(),
@@ -161,13 +171,12 @@ void DBIter::Next() {
       saved_key_.clear();
       return;
     }
-    // saved_key_ already contains the key to skip past.
-  } else {
-    // Store in saved_key_ the current key so we skip it below.
-    SaveKey(ExtractUserKey(iter_->key()), &saved_key_);
   }
 
-  FindNextUserEntry(true, &saved_key_);
+  // Temporarily use saved_key_ as storage for key to skip.
+  std::string* skip = &saved_key_;
+  SaveKey(ExtractUserKey(iter_->key()), skip);
+  FindNextUserEntry(true, skip);
 }
 
 void DBIter::FindNextUserEntry(bool skipping, std::string* skip) {
@@ -177,6 +186,9 @@ void DBIter::FindNextUserEntry(bool skipping, std::string* skip) {
   do {
     ParsedInternalKey ikey;
     if (ParseKey(&ikey) && ikey.sequence <= sequence_) {
+      if (IsExpiryKey(ikey.type) && NULL!=expiry_
+          && expiry_->KeyRetirementCallback(ikey))
+        ikey.type=kTypeDeletion;
       switch (ikey.type) {
         case kTypeDeletion:
           // Arrange to skip all upcoming entries for this key since
@@ -184,6 +196,9 @@ void DBIter::FindNextUserEntry(bool skipping, std::string* skip) {
           SaveKey(ikey.user_key, skip);
           skipping = true;
           break;
+
+        case kTypeValueWriteTime:
+        case kTypeValueExplicitExpiry:
         case kTypeValue:
           if (skipping &&
               user_comparator_->Compare(ikey.user_key, *skip) <= 0) {
@@ -205,6 +220,7 @@ void DBIter::FindNextUserEntry(bool skipping, std::string* skip) {
 void DBIter::Prev() {
   assert(valid_);
 
+  gPerfCounters->Inc(ePerfIterPrev);
   if (direction_ == kForward) {  // Switch directions?
     // iter_ is pointing at the current entry.  Scan backwards until
     // the key changes so we can use the normal reverse scanning code.
@@ -242,6 +258,10 @@ void DBIter::FindPrevUserEntry() {
           // We encountered a non-deleted value in entries for previous keys,
           break;
         }
+        if (IsExpiryKey(ikey.type) && NULL!=expiry_
+            && expiry_->KeyRetirementCallback(ikey))
+          ikey.type=kTypeDeletion;
+
         value_type = ikey.type;
         if (value_type == kTypeDeletion) {
           saved_key_.clear();
@@ -272,11 +292,12 @@ void DBIter::FindPrevUserEntry() {
 }
 
 void DBIter::Seek(const Slice& target) {
+  gPerfCounters->Inc(ePerfIterSeek);
   direction_ = kForward;
   ClearSavedValue();
   saved_key_.clear();
   AppendInternalKey(
-      &saved_key_, ParsedInternalKey(target, sequence_, kValueTypeForSeek));
+      &saved_key_, ParsedInternalKey(target, 0, sequence_, kValueTypeForSeek));
   iter_->Seek(saved_key_);
   if (iter_->Valid()) {
     FindNextUserEntry(false, &saved_key_ /* temporary storage */);
@@ -286,6 +307,7 @@ void DBIter::Seek(const Slice& target) {
 }
 
 void DBIter::SeekToFirst() {
+  gPerfCounters->Inc(ePerfIterSeekFirst);
   direction_ = kForward;
   ClearSavedValue();
   iter_->SeekToFirst();
@@ -297,6 +319,7 @@ void DBIter::SeekToFirst() {
 }
 
 void DBIter::SeekToLast() {
+  gPerfCounters->Inc(ePerfIterSeekLast);
   direction_ = kReverse;
   ClearSavedValue();
   iter_->SeekToLast();
@@ -306,12 +329,13 @@ void DBIter::SeekToLast() {
 }  // anonymous namespace
 
 Iterator* NewDBIterator(
-    DBImpl* db,
+    const std::string* dbname,
+    Env* env,
     const Comparator* user_key_comparator,
     Iterator* internal_iter,
-    SequenceNumber sequence,
-    uint32_t seed) {
-  return new DBIter(db, user_key_comparator, internal_iter, sequence, seed);
+    const SequenceNumber& sequence,
+    const ExpiryModule * expiry) {
+  return new DBIter(dbname, env, user_key_comparator, internal_iter, sequence, expiry);
 }
 
 }  // namespace leveldb

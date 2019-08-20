@@ -38,7 +38,7 @@ int RunAllTests() {
 
   int num = 0;
   if (tests != NULL) {
-    for (size_t i = 0; i < tests->size(); i++) {
+    for (int i = 0; i < tests->size(); i++) {
       const Test& t = (*tests)[i];
       if (matcher != NULL) {
         std::string name = t.base;
@@ -54,6 +54,11 @@ int RunAllTests() {
     }
   }
   fprintf(stderr, "==== PASSED %d tests\n", num);
+
+  // cleanup memory for valgrind
+  leveldb::Env::Shutdown();
+  delete tests;
+
   return 0;
 }
 

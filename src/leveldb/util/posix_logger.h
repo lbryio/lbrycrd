@@ -3,16 +3,16 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 //
 // Logger implementation that can be shared by all environments
-// where enough Posix functionality is available.
+// where enough posix functionality is available.
 
 #ifndef STORAGE_LEVELDB_UTIL_POSIX_LOGGER_H_
 #define STORAGE_LEVELDB_UTIL_POSIX_LOGGER_H_
 
-#include <algorithm>
 #include <stdio.h>
 #include <sys/time.h>
 #include <time.h>
 #include "leveldb/env.h"
+#include "util/mutexlock.h"
 
 namespace leveldb {
 
@@ -20,11 +20,23 @@ class PosixLogger : public Logger {
  private:
   FILE* file_;
   uint64_t (*gettid_)();  // Return the thread id for the current thread
+
  public:
   PosixLogger(FILE* f, uint64_t (*gettid)()) : file_(f), gettid_(gettid) { }
   virtual ~PosixLogger() {
     fclose(file_);
   }
+  virtual long LogSize()
+      {
+          long ret_val;
+
+          // if ftell() gives error, return zero
+          //  to match default class' "does not exist" response
+          ret_val=ftell(file_);
+          if (-1==ret_val)
+              ret_val=0;
+          return(ret_val);
+      };
   virtual void Logv(const char* format, va_list ap) {
     const uint64_t thread_id = (*gettid_)();
 

@@ -29,6 +29,11 @@ class Cache;
 // of Cache uses a least-recently-used eviction policy.
 extern Cache* NewLRUCache(size_t capacity);
 
+// Riak customization - just like NewLRUCache except the underlying
+//  structure is NOT sharded.  Better for file cache.
+extern Cache* NewLRUCache2(size_t capacity);
+
+
 class Cache {
  public:
   Cache() { }
@@ -81,16 +86,17 @@ class Cache {
   // its cache keys.
   virtual uint64_t NewId() = 0;
 
-  // Remove all cache entries that are not actively in use.  Memory-constrained
-  // applications may wish to call this method to reduce memory usage.
-  // Default implementation of Prune() does nothing.  Subclasses are strongly
-  // encouraged to override the default implementation.  A future release of
-  // leveldb may change Prune() to a pure abstract method.
-  virtual void Prune() {}
+  // Return size, if any, of per entry overhead for item placed in cache.
+  // Allows more accurate tracking of "charge" against each cache item.
+  virtual size_t EntryOverheadSize() {return(0);};
 
-  // Return an estimate of the combined charges of all elements stored in the
-  // cache.
-  virtual size_t TotalCharge() const = 0;
+  // Riak specific:  Add a reference to cache object to help hold it
+  //  in memory
+  virtual void Addref(Handle* e) = 0;
+
+  // Riak specific:  walk contents of entire cache, calling functor Acc
+  // with the "value" for each cache entry.  Locks cache throughout call.
+  virtual bool WalkCache(class CacheAccumulator & Acc) {return(true);};
 
  private:
   void LRU_Remove(Handle* e);
@@ -107,4 +113,4 @@ class Cache {
 
 }  // namespace leveldb
 
-#endif  // STORAGE_LEVELDB_INCLUDE_CACHE_H_
+#endif  // STORAGE_LEVELDB_UTIL_CACHE_H_

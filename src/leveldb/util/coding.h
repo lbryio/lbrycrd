@@ -82,6 +82,19 @@ inline uint64_t DecodeFixed64(const char* ptr) {
   }
 }
 
+// Riak: return only lowest 8 bits of 64 bit number,
+//       optimization for internal key's ValueType
+inline unsigned char DecodeLeastFixed64(const char * ptr) {
+  unsigned char ret_char;
+
+  if (port::kLittleEndian)
+    ret_char=(unsigned char)*ptr;
+  else
+    ret_char=(unsigned char)*(ptr+7);
+  return(ret_char);
+}
+
+
 // Internal routine for use by fallback path of GetVarint32Ptr
 extern const char* GetVarint32PtrFallback(const char* p,
                                           const char* limit,

@@ -24,10 +24,10 @@ class MemTable {
   explicit MemTable(const InternalKeyComparator& comparator);
 
   // Increase reference count.
-  void Ref() { ++refs_; }
+  void Ref() volatile { ++refs_; }
 
   // Drop reference count.  Delete if no more references exist.
-  void Unref() {
+  void Unref() volatile {
     --refs_;
     assert(refs_ >= 0);
     if (refs_ <= 0) {
@@ -36,7 +36,10 @@ class MemTable {
   }
 
   // Returns an estimate of the number of bytes of data in use by this
-  // data structure. It is safe to call when MemTable is being modified.
+  // data structure.
+  //
+  // REQUIRES: external synchronization to prevent simultaneous
+  // operations on the same MemTable.
   size_t ApproximateMemoryUsage();
 
   // Return an iterator that yields the contents of the memtable.
@@ -52,13 +55,17 @@ class MemTable {
   // Typically value will be empty if type==kTypeDeletion.
   void Add(SequenceNumber seq, ValueType type,
            const Slice& key,
-           const Slice& value);
+           const Slice& value,
+           const ExpiryTimeMicros& expiry=0);
 
   // If memtable contains a value for key, store it in *value and return true.
   // If memtable contains a deletion for key, store a NotFound() error
   // in *status and return true.
   // Else, return false.
-  bool Get(const LookupKey& key, std::string* value, Status* s);
+  bool Get(const LookupKey& key, Value* value, Status* s, const Options * options);
+
+  // parse keymetadata from skiplist key string
+  static void DecodeKeyMetaData(const char * key, KeyMetaData & meta);
 
  private:
   ~MemTable();  // Private since only Unref() should be used to delete it
@@ -69,7 +76,7 @@ class MemTable {
     int operator()(const char* a, const char* b) const;
   };
   friend class MemTableIterator;
-  friend class MemTableBackwardIterator;
+  friend class MemTableBackwardIterator; // does not exist
 
   typedef SkipList<const char*, KeyComparator> Table;
 

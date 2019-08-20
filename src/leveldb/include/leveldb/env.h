@@ -13,15 +13,19 @@
 #ifndef STORAGE_LEVELDB_INCLUDE_ENV_H_
 #define STORAGE_LEVELDB_INCLUDE_ENV_H_
 
+#include <cstdarg>
+#include <pthread.h>
 #include <string>
 #include <vector>
-#include <stdarg.h>
 #include <stdint.h>
+#include "leveldb/perf_count.h"
 #include "leveldb/status.h"
 
 namespace leveldb {
 
+class AppendableFile;
 class FileLock;
+struct Options;
 class Logger;
 class RandomAccessFile;
 class SequentialFile;
@@ -39,6 +43,11 @@ class Env {
   //
   // The result of Default() belongs to leveldb and must never be deleted.
   static Env* Default();
+
+  // Riak specific:  Shutdown background work threads and other objects
+  //  to get clean environment for valgrind memory test.  No restart supported
+  //  after this call.  Not thread safe.
+  static void Shutdown();
 
   // Create a brand new sequentially-readable file with the specified name.
   // On success, stores a pointer to the new file in *result and returns OK.
@@ -67,22 +76,31 @@ class Env {
   //
   // The returned file will only be accessed by one thread at a time.
   virtual Status NewWritableFile(const std::string& fname,
-                                 WritableFile** result) = 0;
+                                 WritableFile** result,
+                                 size_t map_size) = 0;
 
-  // Create an object that either appends to an existing file, or
-  // writes to a new file (if the file does not exist to begin with).
-  // On success, stores a pointer to the new file in *result and
-  // returns OK.  On failure stores NULL in *result and returns
-  // non-OK.
+  // Riak specific:
+  // Derived from NewWritableFile.  One change: if the file exists,
+  // move to the end of the file and continue writing.
+  // new file.  On success, stores a pointer to the open file in
+  // *result and returns OK.  On failure stores NULL in *result and
+  // returns non-OK.
   //
   // The returned file will only be accessed by one thread at a time.
-  //
-  // May return an IsNotSupportedError error if this Env does
-  // not allow appending to an existing file.  Users of Env (including
-  // the leveldb implementation) must be prepared to deal with
-  // an Env that does not support appending.
   virtual Status NewAppendableFile(const std::string& fname,
-                                   WritableFile** result);
+                                   WritableFile** result,
+                                   size_t map_size) = 0;
+
+  // Riak specific:
+  // Allows for virtualized version of NewWritableFile that enables write
+  // and close operations to execute on background threads
+  //  (where platform supported).
+  //
+  // The returned file will only be accessed by one thread at a time.
+  virtual Status NewWriteOnlyFile(const std::string& fname,
+                                  WritableFile** result,
+                                  size_t map_size)
+  {return(NewWritableFile(fname, result, map_size));};
 
   // Returns true iff the named file exists.
   virtual bool FileExists(const std::string& fname) = 0;
@@ -142,7 +160,7 @@ class Env {
 
   // Start a new thread, invoking "function(arg)" within the new thread.
   // When "function(arg)" returns, the thread will be destroyed.
-  virtual void StartThread(void (*function)(void* arg), void* arg) = 0;
+  virtual pthread_t StartThread(void (*function)(void* arg), void* arg) = 0;
 
   // *path is set to a temporary directory that can be used for testing. It may
   // or many not have just been created. The directory may or may not differ
@@ -157,8 +175,15 @@ class Env {
   // useful for computing deltas of time.
   virtual uint64_t NowMicros() = 0;
 
-  // Sleep/delay the thread for the prescribed number of micro-seconds.
+  // Sleep/delay the thread for the perscribed number of micro-seconds.
   virtual void SleepForMicroseconds(int micros) = 0;
+
+  // Riak specific:  Get object that is tracking various software counters
+  virtual PerformanceCounters * GetPerformanceCounters() {return(gPerfCounters);};
+
+  // Riak specific:  Request size of recovery memory map, potentially using
+  //  Options data for the decision.  Default 2Mbyte is Google's original size.
+  virtual size_t RecoveryMmapSize(const struct Options *) const {return(2*1024*1024L);};
 
  private:
   // No copying allowed
@@ -190,14 +215,6 @@ class SequentialFile {
   //
   // REQUIRES: External synchronization
   virtual Status Skip(uint64_t n) = 0;
-
-  // Get a name for the file, only for error reporting
-  virtual std::string GetName() const = 0;
-
- private:
-  // No copying allowed
-  SequentialFile(const SequentialFile&);
-  void operator=(const SequentialFile&);
 };
 
 // A file abstraction for randomly reading the contents of a file.
@@ -218,13 +235,11 @@ class RandomAccessFile {
   virtual Status Read(uint64_t offset, size_t n, Slice* result,
                       char* scratch) const = 0;
 
-  // Get a name for the file, only for error reporting
-  virtual std::string GetName() const = 0;
+  // Riak optimization:  allows advising Linux page cache
+  virtual void SetForCompaction(uint64_t file_size) {};
 
- private:
-  // No copying allowed
-  RandomAccessFile(const RandomAccessFile&);
-  void operator=(const RandomAccessFile&);
+  // Riak addition:  size of this structure in bytes
+  virtual size_t ObjectSize() {return(sizeof(RandomAccessFile));};
 };
 
 // A file abstraction for sequential writing.  The implementation
@@ -240,8 +255,10 @@ class WritableFile {
   virtual Status Flush() = 0;
   virtual Status Sync() = 0;
 
-  // Get a name for the file, only for error reporting
-  virtual std::string GetName() const = 0;
+  // Riak specific:
+  // Provide hint where key/value data ends and metadata starts
+  //  in an .sst table file.
+  virtual void SetMetadataOffset(uint64_t) {};
 
  private:
   // No copying allowed
@@ -249,11 +266,29 @@ class WritableFile {
   void operator=(const WritableFile&);
 };
 
+// A file abstraction for sequential writing at end of existing file.
+class AppendableFile: public WritableFile {
+ public:
+  AppendableFile() { }
+  virtual ~AppendableFile();
+
+ private:
+  // No copying allowed
+  AppendableFile(const AppendableFile&);
+  void operator=(const AppendableFile&);
+};
+
 // An interface for writing log messages.
 class Logger {
  public:
   Logger() { }
   virtual ~Logger();
+
+  // Riak specific function for hot backup.
+  //  hot_backup.cc assumes that it can rotate the LOG file
+  //  via standard Env routines if this function returns a
+  //  non-zero value.
+  virtual long LogSize() {return(0);};
 
   // Write an entry to the log file with the specified format.
   virtual void Logv(const char* format, va_list ap) = 0;
@@ -310,11 +345,14 @@ class EnvWrapper : public Env {
   Status NewRandomAccessFile(const std::string& f, RandomAccessFile** r) {
     return target_->NewRandomAccessFile(f, r);
   }
-  Status NewWritableFile(const std::string& f, WritableFile** r) {
-    return target_->NewWritableFile(f, r);
+  Status NewWritableFile(const std::string& f, WritableFile** r, size_t s=0) {
+    return target_->NewWritableFile(f, r, s);
   }
-  Status NewAppendableFile(const std::string& f, WritableFile** r) {
-    return target_->NewAppendableFile(f, r);
+  Status NewAppendableFile(const std::string& f, WritableFile** r, size_t s=0) {
+      return target_->NewAppendableFile(f, r, s);
+  }
+  Status NewWriteOnlyFile(const std::string& f, WritableFile** r, size_t s=0) {
+    return target_->NewWriteOnlyFile(f, r, s);
   }
   bool FileExists(const std::string& f) { return target_->FileExists(f); }
   Status GetChildren(const std::string& dir, std::vector<std::string>* r) {
@@ -334,9 +372,9 @@ class EnvWrapper : public Env {
   }
   Status UnlockFile(FileLock* l) { return target_->UnlockFile(l); }
   void Schedule(void (*f)(void*), void* a) {
-    return target_->Schedule(f, a);
+      return target_->Schedule(f, a);
   }
-  void StartThread(void (*f)(void*), void* a) {
+  pthread_t StartThread(void (*f)(void*), void* a) {
     return target_->StartThread(f, a);
   }
   virtual Status GetTestDirectory(std::string* path) {
@@ -354,6 +392,12 @@ class EnvWrapper : public Env {
  private:
   Env* target_;
 };
+
+// Riak specific hack to allow runtime change
+//  of mapping size
+extern volatile size_t gMapSize;
+
+extern bool gFadviseWillNeed;
 
 }  // namespace leveldb
 

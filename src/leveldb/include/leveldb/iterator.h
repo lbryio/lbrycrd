@@ -17,6 +17,7 @@
 
 #include "leveldb/slice.h"
 #include "leveldb/status.h"
+#include "leveldb/options.h"
 
 namespace leveldb {
 
@@ -37,7 +38,7 @@ class Iterator {
   // Valid() after this call iff the source is not empty.
   virtual void SeekToLast() = 0;
 
-  // Position at the first key in the source that is at or past target.
+  // Position at the first key in the source that at or past target
   // The iterator is Valid() after this call iff the source contains
   // an entry that comes at or past target.
   virtual void Seek(const Slice& target) = 0;
@@ -61,8 +62,12 @@ class Iterator {
   // Return the value for the current entry.  The underlying storage for
   // the returned slice is valid only until the next modification of
   // the iterator.
-  // REQUIRES: Valid()
+  // REQUIRES: !AtEnd() && !AtStart()
   virtual Slice value() const = 0;
+
+  // Riak specific:  if a database iterator, returns key meta data
+  // REQUIRES: Valid()
+  virtual KeyMetaData & keymetadata() const {return(keymetadata_); };
 
   // If an error has occurred, return it.  Else return an ok status.
   virtual Status status() const = 0;
@@ -74,6 +79,10 @@ class Iterator {
   // not abstract and therefore clients should not override it.
   typedef void (*CleanupFunction)(void* arg1, void* arg2);
   void RegisterCleanup(CleanupFunction function, void* arg1, void* arg2);
+
+ protected:
+  // mutable so reusable by derived classes
+  mutable KeyMetaData keymetadata_;
 
  private:
   struct Cleanup {

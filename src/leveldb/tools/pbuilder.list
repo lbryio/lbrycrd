@@ -1,0 +1,16 @@
+10.0.27.222    debian6
+10.0.27.239    debian7
+10.0.27.249    fedora19
+10.0.27.190    freebsd9.2
+10.0.27.220    rhel5
+10.0.27.221    rhel6
+10.0.27.248    rhel7
+10.0.27.251    sles11
+10.0.27.234    smartos1.8
+10.0.27.217    solaris10
+10.0.27.213    ubuntuLucid
+10.0.27.212    ubuntuPrecise
+10.0.27.250    ubuntuTrusty
+bsd-build.bos1 freebsd10
+mac-mini.bos1  osx10.8
+10.0.27.240    smartos13.1

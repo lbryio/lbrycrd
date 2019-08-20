@@ -4,7 +4,6 @@
 
 #include "leveldb/filter_policy.h"
 
-#include "util/coding.h"
 #include "util/logging.h"
 #include "util/testharness.h"
 #include "util/testutil.h"
@@ -14,8 +13,8 @@ namespace leveldb {
 static const int kVerbose = 1;
 
 static Slice Key(int i, char* buffer) {
-  EncodeFixed32(buffer, i);
-  return Slice(buffer, sizeof(uint32_t));
+  memcpy(buffer, &i, sizeof(i));
+  return Slice(buffer, sizeof(i));
 }
 
 class BloomTest {
@@ -25,7 +24,8 @@ class BloomTest {
   std::vector<std::string> keys_;
 
  public:
-  BloomTest() : policy_(NewBloomFilterPolicy(10)) { }
+//  BloomTest() : policy_(NewBloomFilterPolicy(10)) { }
+  BloomTest() : policy_(NewBloomFilterPolicy2(16)) { }
 
   ~BloomTest() {
     delete policy_;
@@ -46,8 +46,7 @@ class BloomTest {
       key_slices.push_back(Slice(keys_[i]));
     }
     filter_.clear();
-    policy_->CreateFilter(&key_slices[0], static_cast<int>(key_slices.size()),
-                          &filter_);
+    policy_->CreateFilter(&key_slices[0], key_slices.size(), &filter_);
     keys_.clear();
     if (kVerbose >= 2) DumpFilter();
   }
@@ -107,8 +106,10 @@ static int NextLength(int length) {
     length += 10;
   } else if (length < 1000) {
     length += 100;
-  } else {
+  } else if (length < 15000) {
     length += 1000;
+  } else {
+    length += 15000;
   }
   return length;
 }
@@ -120,15 +121,15 @@ TEST(BloomTest, VaryingLengths) {
   int mediocre_filters = 0;
   int good_filters = 0;
 
-  for (int length = 1; length <= 10000; length = NextLength(length)) {
+  for (int length = 1; length <= 200000; length = NextLength(length)) {
     Reset();
     for (int i = 0; i < length; i++) {
       Add(Key(i, buffer));
     }
     Build();
 
-    ASSERT_LE(FilterSize(), static_cast<size_t>((length * 10 / 8) + 40))
-        << length;
+//    ASSERT_LE(FilterSize(), (length * 10 / 8) + 40) << length;
+    ASSERT_LE(FilterSize(), (length * 16 / 8) + 40) << length;
 
     // All added keys must match
     for (int i = 0; i < length; i++) {

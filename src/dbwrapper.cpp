@@ -97,11 +97,45 @@ static void SetMaxOpenFiles(leveldb::Options *options) {
              options->max_open_files, default_open_files);
 }
 
+class CappedLenCache: public leveldb::Cache {
+    leveldb::Cache* inner;
+    std::size_t maxKeyLen;
+public:
+    CappedLenCache(std::size_t capacity, std::size_t maxKeyLen)
+        : inner(leveldb::NewLRUCache(capacity)), maxKeyLen(maxKeyLen) {}
+
+    ~CappedLenCache() override { delete inner; }
+
+    Handle* Insert(const leveldb::Slice& key, void* value, size_t charge,
+                           void (*deleter)(const leveldb::Slice& key, void* value)) override {
+        if (key.size() <= maxKeyLen)
+            return inner->Insert(key, value, charge, deleter);
+        deleter(key, value);
+        return nullptr;
+    }
+
+    Handle* Lookup(const leveldb::Slice& key) override { return inner->Lookup(key); }
+    void Release(Handle* handle) override { return inner->Release(handle); }
+    void* Value(Handle* handle) override { return inner->Value(handle); }
+    void Erase(const leveldb::Slice& key) override {return inner->Erase(key); }
+    uint64_t NewId() override { return inner->NewId(); }
+};
+
 static leveldb::Options GetOptions(size_t nCacheSize)
 {
     leveldb::Options options;
-    auto write_cache = std::min(nCacheSize / 4, size_t(16) << 20U); // cap write_cache at 16MB (4x default)
+
+    options.filter_policy=leveldb::NewBloomFilterPolicy2(16);
+    options.write_buffer_size=60 * 1024 * 1024;
+    options.total_leveldb_mem=2500ULL * 1024ULL * 1024ULL;
+    options.env=leveldb::Env::Default();
+    options.compression = leveldb::kNoCompression;
+    options.info_log = new CBitcoinLevelDBLogger();
+    return options;
+
+    auto write_cache = std::min(nCacheSize / 4, size_t(4 * 1024 * 1024)); // cap write_cache at 4MB (default)
     options.block_cache = leveldb::NewLRUCache(nCacheSize - write_cache * 2);
+    // options.block_cache = new CappedLenCache(nCacheSize - write_cache * 2, 6);
     options.write_buffer_size = write_cache; // up to two write buffers may be held in memory simultaneously
     options.filter_policy = leveldb::NewBloomFilterPolicy(10);
     options.compression = leveldb::kNoCompression;
@@ -112,6 +146,7 @@ static leveldb::Options GetOptions(size_t nCacheSize)
         options.paranoid_checks = true;
     }
     SetMaxOpenFiles(&options);
+    options.max_open_files = 30000;
     return options;
 }
 

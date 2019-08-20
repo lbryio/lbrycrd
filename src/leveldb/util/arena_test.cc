@@ -40,7 +40,7 @@ TEST(ArenaTest, Simple) {
       r = arena.Allocate(s);
     }
 
-    for (size_t b = 0; b < s; b++) {
+    for (int b = 0; b < s; b++) {
       // Fill the "i"th allocation with a known bit pattern
       r[b] = i % 256;
     }
@@ -51,10 +51,10 @@ TEST(ArenaTest, Simple) {
       ASSERT_LE(arena.MemoryUsage(), bytes * 1.10);
     }
   }
-  for (size_t i = 0; i < allocated.size(); i++) {
+  for (int i = 0; i < allocated.size(); i++) {
     size_t num_bytes = allocated[i].first;
     const char* p = allocated[i].second;
-    for (size_t b = 0; b < num_bytes; b++) {
+    for (int b = 0; b < num_bytes; b++) {
       // Check the "i"th allocation for the known bit pattern
       ASSERT_EQ(int(p[b]) & 0xff, i % 256);
     }

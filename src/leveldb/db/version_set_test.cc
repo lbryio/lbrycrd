@@ -27,13 +27,13 @@ class FindFileTest {
            SequenceNumber largest_seq = 100) {
     FileMetaData* f = new FileMetaData;
     f->number = files_.size() + 1;
-    f->smallest = InternalKey(smallest, smallest_seq, kTypeValue);
-    f->largest = InternalKey(largest, largest_seq, kTypeValue);
+    f->smallest = InternalKey(smallest, 0, smallest_seq, kTypeValue);
+    f->largest = InternalKey(largest, 0, largest_seq, kTypeValue);
     files_.push_back(f);
   }
 
   int Find(const char* key) {
-    InternalKey target(key, 100, kTypeValue);
+    InternalKey target(key, 0, 100, kTypeValue);
     InternalKeyComparator cmp(BytewiseComparator());
     return FindFile(cmp, files_, target.Encode());
   }

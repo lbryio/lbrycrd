@@ -13,7 +13,7 @@
 #include "leveldb/db.h"
 #include "leveldb/env.h"
 #include "port/port.h"
-#include "port/thread_annotations.h"
+#include "util/cache2.h"
 
 namespace leveldb {
 
@@ -29,26 +29,37 @@ class DBImpl : public DB {
   virtual ~DBImpl();
 
   // Implementations of the DB interface
-  virtual Status Put(const WriteOptions&, const Slice& key, const Slice& value);
+  virtual Status Put(const WriteOptions&, const Slice& key, const Slice& value, const KeyMetaData * meta=NULL);
   virtual Status Delete(const WriteOptions&, const Slice& key);
   virtual Status Write(const WriteOptions& options, WriteBatch* updates);
   virtual Status Get(const ReadOptions& options,
                      const Slice& key,
-                     std::string* value);
+                     std::string* value,
+                     KeyMetaData * meta=NULL);
+  virtual Status Get(const ReadOptions& options,
+                     const Slice& key,
+                     Value* value,
+                     KeyMetaData * meta=NULL);
   virtual Iterator* NewIterator(const ReadOptions&);
   virtual const Snapshot* GetSnapshot();
   virtual void ReleaseSnapshot(const Snapshot* snapshot);
   virtual bool GetProperty(const Slice& property, std::string* value);
   virtual void GetApproximateSizes(const Range* range, int n, uint64_t* sizes);
   virtual void CompactRange(const Slice* begin, const Slice* end);
+  virtual Status VerifyLevels();
+  virtual void CheckAvailableCompactions();
+  virtual Logger* GetLogger() const { return options_.info_log; }
 
   // Extra methods (for testing) that are not in the public DB interface
+
+  const Options & GetOptions() const { return options_; };
 
   // Compact any files in the named level that overlap [*begin,*end]
   void TEST_CompactRange(int level, const Slice* begin, const Slice* end);
 
-  // Force current memtable contents to be compacted.
-  Status TEST_CompactMemTable();
+  // Force current memtable contents to be compacted, waits for completion
+  Status CompactMemTableSynchronous();
+  Status TEST_CompactMemTable();       // wraps CompactMemTableSynchronous (historical)
 
   // Return an internal iterator over the current state of the database.
   // The keys of this iterator are internal keys (see format.h).
@@ -59,64 +70,82 @@ class DBImpl : public DB {
   // file at a level >= 1.
   int64_t TEST_MaxNextLevelOverlappingBytes();
 
-  // Record a sample of bytes read at the specified internal key.
-  // Samples are taken approximately once every config::kReadBytesPeriod
-  // bytes.
-  void RecordReadSample(Slice key);
+  // These are routines that DBListImpl calls across all open databases
+  void ResizeCaches() {double_cache.ResizeCaches();};
+  size_t GetCacheCapacity() {return(double_cache.GetCapacity(false));}
+  void PurgeExpiredFileCache() {double_cache.PurgeExpiredFiles();};
 
- private:
+  // in util/hot_backup.cc
+  void HotBackup();
+  bool PurgeWriteBuffer();
+  bool WriteBackupManifest();
+  bool CreateBackupLinks(Version * Version, Options & BackupOptions);
+  bool CopyLOGSegment(long FileEnd);
+  void HotBackupComplete();
+
+  void BackgroundCall2(Compaction * Compact);
+  void BackgroundImmCompactCall();
+  bool IsCompactionScheduled();
+  uint32_t RunningCompactionCount() {mutex_.AssertHeld(); return(running_compactions_);};
+
+ protected:
   friend class DB;
   struct CompactionState;
   struct Writer;
 
   Iterator* NewInternalIterator(const ReadOptions&,
-                                SequenceNumber* latest_snapshot,
-                                uint32_t* seed);
+                                SequenceNumber* latest_snapshot);
 
   Status NewDB();
 
   // Recover the descriptor from persistent storage.  May do a significant
   // amount of work to recover recently logged updates.  Any changes to
   // be made to the descriptor are added to *edit.
-  Status Recover(VersionEdit* edit, bool* save_manifest)
-      EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  Status Recover(VersionEdit* edit);
+
+  // Riak routine:  pause DB::Open if too many compactions
+  //  stacked up immediately.  Happens in some repairs and
+  //  some Riak upgrades
+  void CheckCompactionState();
 
   void MaybeIgnoreError(Status* s) const;
 
   // Delete any unneeded files and stale in-memory entries.
   void DeleteObsoleteFiles();
+  void KeepOrDelete(const std::string & Filename, int level, const std::set<uint64_t> & Live);
 
   // Compact the in-memory write buffer to disk.  Switches to a new
   // log-file/memtable and writes a new descriptor iff successful.
-  // Errors are recorded in bg_error_.
-  void CompactMemTable() EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  Status CompactMemTable();
 
-  Status RecoverLogFile(uint64_t log_number, bool last_log, bool* save_manifest,
-                        VersionEdit* edit, SequenceNumber* max_sequence)
-      EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  Status RecoverLogFile(uint64_t log_number,
+                        VersionEdit* edit,
+                        SequenceNumber* max_sequence);
 
-  Status WriteLevel0Table(MemTable* mem, VersionEdit* edit, Version* base)
-      EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  Status WriteLevel0Table(volatile MemTable* mem, VersionEdit* edit, Version* base);
 
-  Status MakeRoomForWrite(bool force /* compact even if there is room? */)
-      EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  Status MakeRoomForWrite(bool force /* TRUE forces memtable rotation to disk (for testing) */);
+  Status NewRecoveryLog(uint64_t NewLogNumber);
+
   WriteBatch* BuildBatchGroup(Writer** last_writer);
 
-  void RecordBackgroundError(const Status& s);
+  void MaybeScheduleCompaction();
 
-  void MaybeScheduleCompaction() EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-  static void BGWork(void* db);
-  void BackgroundCall();
-  void  BackgroundCompaction() EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-  void CleanupCompaction(CompactionState* compact)
-      EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-  Status DoCompactionWork(CompactionState* compact)
-      EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  Status BackgroundCompaction(Compaction * Compact=NULL);
+  Status BackgroundExpiry(Compaction * Compact=NULL);
 
-  Status OpenCompactionOutputFile(CompactionState* compact);
+  void CleanupCompaction(CompactionState* compact);
+  Status DoCompactionWork(CompactionState* compact);
+  int64_t PrioritizeWork(bool IsLevel0);
+
+  Status OpenCompactionOutputFile(CompactionState* compact, size_t sample_value_size);
+  bool Send2PageCache(CompactionState * compact);
+  size_t MaybeRaiseBlockSize(Compaction & CompactionStuff, size_t SampleValueSize);
   Status FinishCompactionOutputFile(CompactionState* compact, Iterator* input);
-  Status InstallCompactionResults(CompactionState* compact)
-      EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  Status InstallCompactionResults(CompactionState* compact);
+
+  // initialized before options so its block_cache is available
+  class DoubleCache double_cache;
 
   // Constant after construction
   Env* const env_;
@@ -130,20 +159,22 @@ class DBImpl : public DB {
   // table_cache_ provides its own synchronization
   TableCache* table_cache_;
 
+
   // Lock over the persistent DB state.  Non-NULL iff successfully acquired.
   FileLock* db_lock_;
 
   // State below is protected by mutex_
   port::Mutex mutex_;
+  port::Mutex throttle_mutex_;   // used by write throttle to force sequential waits on callers
   port::AtomicPointer shutting_down_;
+
   port::CondVar bg_cv_;          // Signalled when background work finishes
   MemTable* mem_;
-  MemTable* imm_;                // Memtable being compacted
+  volatile MemTable* imm_;                // Memtable being compacted
   port::AtomicPointer has_imm_;  // So bg thread can detect non-NULL imm_
   WritableFile* logfile_;
   uint64_t logfile_number_;
   log::Writer* log_;
-  uint32_t seed_;                // For sampling.
 
   // Queue of writers.
   std::deque<Writer*> writers_;
@@ -155,9 +186,6 @@ class DBImpl : public DB {
   // part of ongoing compactions.
   std::set<uint64_t> pending_outputs_;
 
-  // Has a background compaction been scheduled or is running?
-  bool bg_compaction_scheduled_;
-
   // Information for a manual compaction
   struct ManualCompaction {
     int level;
@@ -166,7 +194,7 @@ class DBImpl : public DB {
     const InternalKey* end;     // NULL means end of key range
     InternalKey tmp_storage;    // Used to keep track of compaction progress
   };
-  ManualCompaction* manual_compaction_;
+  volatile ManualCompaction* manual_compaction_;
 
   VersionSet* versions_;
 
@@ -190,6 +218,18 @@ class DBImpl : public DB {
   };
   CompactionStats stats_[config::kNumLevels];
 
+  volatile uint64_t throttle_end;
+  volatile uint32_t running_compactions_;
+  volatile size_t current_block_size_;    // last dynamic block size computed
+  volatile uint64_t block_size_changed_;  // NowMicros() when block size computed
+  volatile uint64_t last_low_mem_;        // NowMicros() when low memory last seen
+
+  // accessor to new, dynamic block_cache
+  Cache * block_cache() {return(double_cache.GetBlockCache());};
+  Cache * file_cache() {return(double_cache.GetFileCache());};
+
+  volatile bool hotbackup_pending_;
+
   // No copying allowed
   DBImpl(const DBImpl&);
   void operator=(const DBImpl&);
@@ -204,7 +244,8 @@ class DBImpl : public DB {
 extern Options SanitizeOptions(const std::string& db,
                                const InternalKeyComparator* icmp,
                                const InternalFilterPolicy* ipolicy,
-                               const Options& src);
+                               const Options& src,
+                               Cache * block_cache);
 
 }  // namespace leveldb
 

@@ -9,6 +9,7 @@
   Does not support:
   . getters for the option types
   . custom comparators that implement key shortening
+  . capturing post-write-snapshot
   . custom iter, db, env, cache implementations using just the C bindings
 
   Some conventions:
@@ -27,7 +28,6 @@
   be true on entry:
      *errptr == NULL
      *errptr points to a malloc()ed null-terminated error message
-       (On Windows, *errptr must have been malloc()-ed by this library.)
   On success, a leveldb routine leaves *errptr unchanged.
   On failure, leveldb frees the old value of *errptr and
   set *errptr to a malloc()ed error message.
@@ -66,7 +66,7 @@ typedef struct leveldb_snapshot_t      leveldb_snapshot_t;
 typedef struct leveldb_writablefile_t  leveldb_writablefile_t;
 typedef struct leveldb_writebatch_t    leveldb_writebatch_t;
 typedef struct leveldb_writeoptions_t  leveldb_writeoptions_t;
-
+typedef struct leveldb_keymetadata_t   leveldb_keymetadata_t;
 /* DB operations */
 
 extern leveldb_t* leveldb_open(
@@ -82,6 +82,14 @@ extern void leveldb_put(
     const char* key, size_t keylen,
     const char* val, size_t vallen,
     char** errptr);
+
+extern void leveldb_put2(
+    leveldb_t* db,
+    const leveldb_writeoptions_t* options,
+    const char* key, size_t keylen,
+    const char* val, size_t vallen,
+    char** errptr,
+    const leveldb_keymetadata_t * metadata);
 
 extern void leveldb_delete(
     leveldb_t* db,
@@ -103,6 +111,14 @@ extern char* leveldb_get(
     const char* key, size_t keylen,
     size_t* vallen,
     char** errptr);
+
+extern char* leveldb_get2(
+    leveldb_t* db,
+    const leveldb_readoptions_t* options,
+    const char* key, size_t keylen,
+    size_t* vallen,
+    char** errptr,
+    leveldb_keymetadata_t * metadata);
 
 extern leveldb_iterator_t* leveldb_create_iterator(
     leveldb_t* db,
@@ -156,6 +172,7 @@ extern void leveldb_iter_next(leveldb_iterator_t*);
 extern void leveldb_iter_prev(leveldb_iterator_t*);
 extern const char* leveldb_iter_key(const leveldb_iterator_t*, size_t* klen);
 extern const char* leveldb_iter_value(const leveldb_iterator_t*, size_t* vlen);
+extern const void leveldb_iter_keymetadata(const leveldb_iterator_t *, leveldb_keymetadata_t *);
 extern void leveldb_iter_get_error(const leveldb_iterator_t*, char** errptr);
 
 /* Write batch */
@@ -167,13 +184,19 @@ extern void leveldb_writebatch_put(
     leveldb_writebatch_t*,
     const char* key, size_t klen,
     const char* val, size_t vlen);
+extern void leveldb_writebatch_put2(
+    leveldb_writebatch_t*,
+    const char* key, size_t klen,
+    const char* val, size_t vlen,
+    const leveldb_keymetadata_t * meta);
 extern void leveldb_writebatch_delete(
     leveldb_writebatch_t*,
     const char* key, size_t klen);
 extern void leveldb_writebatch_iterate(
     leveldb_writebatch_t*,
     void* state,
-    void (*put)(void*, const char* k, size_t klen, const char* v, size_t vlen),
+    void (*put)(void*, const char* k, size_t klen, const char* v, size_t vlen,
+                const int & type, const uint64_t & expiry),
     void (*deleted)(void*, const char* k, size_t klen));
 
 /* Options */
@@ -192,6 +215,8 @@ extern void leveldb_options_set_error_if_exists(
     leveldb_options_t*, unsigned char);
 extern void leveldb_options_set_paranoid_checks(
     leveldb_options_t*, unsigned char);
+extern void leveldb_options_set_verify_compactions(
+    leveldb_options_t*, unsigned char);
 extern void leveldb_options_set_env(leveldb_options_t*, leveldb_env_t*);
 extern void leveldb_options_set_info_log(leveldb_options_t*, leveldb_logger_t*);
 extern void leveldb_options_set_write_buffer_size(leveldb_options_t*, size_t);
@@ -199,6 +224,7 @@ extern void leveldb_options_set_max_open_files(leveldb_options_t*, int);
 extern void leveldb_options_set_cache(leveldb_options_t*, leveldb_cache_t*);
 extern void leveldb_options_set_block_size(leveldb_options_t*, size_t);
 extern void leveldb_options_set_block_restart_interval(leveldb_options_t*, int);
+extern void leveldb_options_set_total_leveldb_mem(leveldb_options_t*, size_t);
 
 enum {
   leveldb_no_compression = 0,
@@ -267,20 +293,20 @@ extern void leveldb_cache_destroy(leveldb_cache_t* cache);
 
 extern leveldb_env_t* leveldb_create_default_env();
 extern void leveldb_env_destroy(leveldb_env_t*);
+extern void leveldb_env_shutdown();
 
-/* Utility */
+/* Util */
 
-/* Calls free(ptr).
-   REQUIRES: ptr was malloc()-ed and returned by one of the routines
-   in this file.  Note that in certain cases (typically on Windows), you
-   may need to call this routine instead of free(ptr) to dispose of
-   malloc()-ed memory returned by this library. */
+/**
+ * CAUTION:  this call is only for char * objects returned by
+ *           functions like leveldb_get and leveldb_property_value.
+ *           Also used to release errptr strings.
+ */
 extern void leveldb_free(void* ptr);
 
-/* Return the major version number for this release. */
-extern int leveldb_major_version();
+/* Version */
 
-/* Return the minor version number for this release. */
+extern int leveldb_major_version();
 extern int leveldb_minor_version();
 
 #ifdef __cplusplus

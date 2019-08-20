@@ -21,6 +21,10 @@ inline uint32_t Value(const char* data, size_t n) {
   return Extend(0, data, n);
 }
 
+// switch function pointer from software crc to hardware
+extern void SwitchToHardwareCRC();
+extern bool IsHardwareCRC();
+
 static const uint32_t kMaskDelta = 0xa282ead8ul;
 
 // Return a masked representation of crc.

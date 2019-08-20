@@ -36,8 +36,13 @@ class FilterBlockBuilder {
 
  private:
   void GenerateFilter();
+  void PickFilterBase(size_t BlockOffset);
 
   const FilterPolicy* policy_;
+  size_t filter_base_lg_;
+  size_t filter_base_;
+  size_t last_offset_;
+
   std::string keys_;              // Flattened key contents
   std::vector<size_t> start_;     // Starting index in keys_ of each key
   std::string result_;            // Filter data computed so far

@@ -14,7 +14,7 @@ namespace leveldb {
 
 // Update Makefile if you change these
 static const int kMajorVersion = 1;
-static const int kMinorVersion = 20;
+static const int kMinorVersion = 9;
 
 struct Options;
 struct ReadOptions;
@@ -36,6 +36,17 @@ struct Range {
 
   Range() { }
   Range(const Slice& s, const Slice& l) : start(s), limit(l) { }
+};
+
+// Abstract holder for a DB value.
+// This allows callers to manage their own value buffers and have
+// DB values copied directly into those buffers.
+class Value {
+ public:
+  virtual Value& assign(const char* data, size_t size) = 0;
+
+ protected:
+  virtual ~Value();
 };
 
 // A DB is a persistent ordered map from keys to values.
@@ -60,7 +71,8 @@ class DB {
   // Note: consider setting options.sync = true.
   virtual Status Put(const WriteOptions& options,
                      const Slice& key,
-                     const Slice& value) = 0;
+                     const Slice& value,
+                     const KeyMetaData * meta=NULL) = 0;
 
   // Remove the database entry (if any) for "key".  Returns OK on
   // success, and a non-OK status on error.  It is not an error if "key"
@@ -81,7 +93,11 @@ class DB {
   //
   // May return some other Status on an error.
   virtual Status Get(const ReadOptions& options,
-                     const Slice& key, std::string* value) = 0;
+                     const Slice& key, std::string* value,
+                     KeyMetaData * meta=NULL) = 0;
+  virtual Status Get(const ReadOptions& options,
+                     const Slice& key, Value* value,
+                     KeyMetaData * meta=NULL) = 0;
 
   // Return a heap-allocated iterator over the contents of the database.
   // The result of NewIterator() is initially invalid (caller must
@@ -115,8 +131,6 @@ class DB {
   //     about the internal operation of the DB.
   //  "leveldb.sstables" - returns a multi-line string that describes all
   //     of the sstables that make up the db contents.
-  //  "leveldb.approximate-memory-usage" - returns the approximate number of
-  //     bytes of memory in use by the DB.
   virtual bool GetProperty(const Slice& property, std::string* value) = 0;
 
   // For each i in [0,n-1], store in "sizes[i]", the approximate
@@ -141,6 +155,21 @@ class DB {
   // Therefore the following call will compact the entire database:
   //    db->CompactRange(NULL, NULL);
   virtual void CompactRange(const Slice* begin, const Slice* end) = 0;
+
+  // Riak specific function:  Verify that no .sst files overlap
+  // within the levels that expect non-overlapping files.  Run
+  // compactions as necessary to correct.  Assumes DB opened
+  // with Options.is_repair=true
+  virtual Status VerifyLevels();
+
+  // Riak specific function:  Request database check for
+  // available compactions.  This is to stimulate retry of
+  // grooming that might have been offered and rejected previously
+  virtual void CheckAvailableCompactions();
+
+  // Riak specific function:  Give external code, namely
+  // eleveldb, access to leveldb's logging routines.
+  virtual Logger* GetLogger() const { return NULL; }
 
  private:
   // No copying allowed

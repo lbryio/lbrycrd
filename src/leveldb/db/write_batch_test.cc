@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
+#include <sstream>
 #include "leveldb/db.h"
 
 #include "db/memtable.h"
@@ -17,16 +18,39 @@ static std::string PrintContents(WriteBatch* b) {
   MemTable* mem = new MemTable(cmp);
   mem->Ref();
   std::string state;
-  Status s = WriteBatchInternal::InsertInto(b, mem);
+  Status s = WriteBatchInternal::InsertInto(b, mem, NULL);
   int count = 0;
   Iterator* iter = mem->NewIterator();
   for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
     ParsedInternalKey ikey;
+    std::stringstream sstr;
     ASSERT_TRUE(ParseInternalKey(iter->key(), &ikey));
     switch (ikey.type) {
       case kTypeValue:
         state.append("Put(");
         state.append(ikey.user_key.ToString());
+        state.append(", ");
+        state.append(iter->value().ToString());
+        state.append(")");
+        count++;
+        break;
+      case kTypeValueWriteTime:
+        state.append("PutWT(");
+        state.append(ikey.user_key.ToString());
+        state.append(", ");
+        sstr << ikey.expiry;
+        state.append(sstr.str());
+        state.append(", ");
+        state.append(iter->value().ToString());
+        state.append(")");
+        count++;
+        break;
+      case kTypeValueExplicitExpiry:
+        state.append("PutEE(");
+        state.append(ikey.user_key.ToString());
+        state.append(", ");
+        sstr << ikey.expiry;
+        state.append(sstr.str());
         state.append(", ");
         state.append(iter->value().ToString());
         state.append(")");
@@ -71,6 +95,32 @@ TEST(WriteBatchTest, Multiple) {
   ASSERT_EQ("Put(baz, boo)@102"
             "Delete(box)@101"
             "Put(foo, bar)@100",
+            PrintContents(&batch));
+}
+
+TEST(WriteBatchTest, MultipleExpiry) {
+  WriteBatch batch;
+  KeyMetaData meta;
+  batch.Put(Slice("Mary"), Slice("Lamb"));
+  meta.m_Type=kTypeValueExplicitExpiry;
+  meta.m_Expiry=2347;
+  batch.Put(Slice("Adam"), Slice("Ant"), &meta);
+  //batch.PutExplicitExpiry(Slice("Adam"), Slice("Ant"), 2347);
+  batch.Put(Slice("Frosty"), Slice("Snowman"));
+  batch.Put(Slice("Tip"), Slice("ONeal"));
+  batch.Delete(Slice("Frosty"));
+  meta.m_Type=kTypeValueExplicitExpiry;
+  meta.m_Expiry=987654321;
+  batch.Put(Slice("The"), Slice("Fonz"), &meta);
+  WriteBatchInternal::SetSequence(&batch, 200);
+  ASSERT_EQ(200, WriteBatchInternal::Sequence(&batch));
+  ASSERT_EQ(6, WriteBatchInternal::Count(&batch));
+  ASSERT_EQ("PutEE(Adam, 2347, Ant)@201"
+            "Delete(Frosty)@204"
+            "Put(Frosty, Snowman)@202"
+            "Put(Mary, Lamb)@200"
+            "PutEE(The, 987654321, Fonz)@205"
+            "Put(Tip, ONeal)@203",
             PrintContents(&batch));
 }
 

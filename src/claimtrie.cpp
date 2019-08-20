@@ -597,7 +597,7 @@ bool CClaimTrieCacheBase::flush()
     base->nNextHeight = nNextHeight;
     if (!nodesToAddOrUpdate.empty() && (LogAcceptCategory(BCLog::CLAIMS) || LogAcceptCategory(BCLog::BENCH))) {
         LogPrintf("TrieCache size: %zu nodes on block %d, batch writes %zu bytes.\n",
-                nodesToAddOrUpdate.height(), nNextHeight, batch.SizeEstimate());
+                nodesToAddOrUpdate.height(), nNextHeight, batch.SizeEstimate(), base->db->DynamicMemoryUsage());
     }
     auto ret = base->db->WriteBatch(batch);
     clear();

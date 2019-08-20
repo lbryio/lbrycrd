@@ -6,7 +6,6 @@
 #define STORAGE_LEVELDB_UTIL_MUTEXLOCK_H_
 
 #include "port/port.h"
-#include "port/thread_annotations.h"
 
 namespace leveldb {
 
@@ -20,19 +19,63 @@ namespace leveldb {
 //     ... some complex code, possibly with multiple return paths ...
 //   }
 
-class SCOPED_LOCKABLE MutexLock {
+class MutexLock {
  public:
-  explicit MutexLock(port::Mutex *mu) EXCLUSIVE_LOCK_FUNCTION(mu)
-      : mu_(mu)  {
+  explicit MutexLock(port::Mutex *mu) : mu_(mu) {
     this->mu_->Lock();
   }
-  ~MutexLock() UNLOCK_FUNCTION() { this->mu_->Unlock(); }
+  ~MutexLock() { this->mu_->Unlock(); }
 
  private:
   port::Mutex *const mu_;
   // No copying allowed
   MutexLock(const MutexLock&);
   void operator=(const MutexLock&);
+};
+
+
+class SpinLock {
+ public:
+  explicit SpinLock(port::Spin *sp) : sp_(sp) {
+    this->sp_->Lock();
+  }
+  ~SpinLock() { this->sp_->Unlock(); }
+
+ private:
+  port::Spin *const sp_;
+  // No copying allowed
+  SpinLock(const SpinLock&);
+  void operator=(const SpinLock&);
+};
+
+
+class ReadLock {
+ public:
+  explicit ReadLock(port::RWMutex *mu) : mu_(mu) {
+    this->mu_->ReadLock();
+  }
+  ~ReadLock() { this->mu_->Unlock(); }
+
+ private:
+  port::RWMutex *const mu_;
+  // No copying allowed
+  ReadLock(const ReadLock&);
+  void operator=(const ReadLock&);
+};
+
+
+class WriteLock {
+ public:
+  explicit WriteLock(port::RWMutex *mu) : mu_(mu) {
+    this->mu_->WriteLock();
+  }
+  ~WriteLock() { this->mu_->Unlock(); }
+
+ private:
+  port::RWMutex *const mu_;
+  // No copying allowed
+  WriteLock(const WriteLock&);
+  void operator=(const WriteLock&);
 };
 
 }  // namespace leveldb

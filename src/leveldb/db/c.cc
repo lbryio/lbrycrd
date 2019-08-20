@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdint.h>
 #include "leveldb/cache.h"
 #include "leveldb/comparator.h"
 #include "leveldb/db.h"
@@ -40,6 +41,8 @@ using leveldb::Status;
 using leveldb::WritableFile;
 using leveldb::WriteBatch;
 using leveldb::WriteOptions;
+using leveldb::KeyMetaData;
+using leveldb::ValueType;
 
 extern "C" {
 
@@ -49,6 +52,7 @@ struct leveldb_writebatch_t   { WriteBatch        rep; };
 struct leveldb_snapshot_t     { const Snapshot*   rep; };
 struct leveldb_readoptions_t  { ReadOptions       rep; };
 struct leveldb_writeoptions_t { WriteOptions      rep; };
+struct leveldb_keymetadata_t  { KeyMetaData       rep; };
 struct leveldb_options_t      { Options           rep; };
 struct leveldb_cache_t        { Cache*            rep; };
 struct leveldb_seqfile_t      { SequentialFile*   rep; };
@@ -173,8 +177,19 @@ void leveldb_put(
     const char* key, size_t keylen,
     const char* val, size_t vallen,
     char** errptr) {
+    return(leveldb_put2(db, options, key, keylen, val, vallen, errptr, NULL));
+}
+
+void leveldb_put2(
+    leveldb_t* db,
+    const leveldb_writeoptions_t* options,
+    const char* key, size_t keylen,
+    const char* val, size_t vallen,
+    char** errptr,
+    const leveldb_keymetadata_t * metadata) {
   SaveError(errptr,
-            db->rep->Put(options->rep, Slice(key, keylen), Slice(val, vallen)));
+            db->rep->Put(options->rep, Slice(key, keylen), Slice(val, vallen),
+                         (NULL==metadata ? NULL : &metadata->rep)));
 }
 
 void leveldb_delete(
@@ -200,9 +215,21 @@ char* leveldb_get(
     const char* key, size_t keylen,
     size_t* vallen,
     char** errptr) {
+
+ return(leveldb_get2(db, options, key, keylen, vallen, errptr, NULL));
+}
+
+char* leveldb_get2(
+    leveldb_t* db,
+    const leveldb_readoptions_t* options,
+    const char* key, size_t keylen,
+    size_t* vallen,
+    char** errptr,
+    leveldb_keymetadata_t * metadata) {
   char* result = NULL;
   std::string tmp;
-  Status s = db->rep->Get(options->rep, Slice(key, keylen), &tmp);
+  Status s = db->rep->Get(options->rep, Slice(key, keylen), &tmp,
+                          (NULL==metadata ? NULL : &metadata->rep));
   if (s.ok()) {
     *vallen = tmp.size();
     result = CopyString(tmp);
@@ -330,6 +357,15 @@ const char* leveldb_iter_value(const leveldb_iterator_t* iter, size_t* vlen) {
   return s.data();
 }
 
+const void leveldb_iter_keymetadata(const leveldb_iterator_t* iter,
+                                    leveldb_keymetadata_t * meta)
+{
+  if (NULL!=iter && NULL!=meta)
+  {
+    meta->rep=iter->rep->keymetadata();
+  } // if
+}
+
 void leveldb_iter_get_error(const leveldb_iterator_t* iter, char** errptr) {
   SaveError(errptr, iter->rep->status());
 }
@@ -350,7 +386,16 @@ void leveldb_writebatch_put(
     leveldb_writebatch_t* b,
     const char* key, size_t klen,
     const char* val, size_t vlen) {
-  b->rep.Put(Slice(key, klen), Slice(val, vlen));
+    leveldb_writebatch_put2(b, key, klen, val, vlen,NULL);
+}
+
+void leveldb_writebatch_put2(
+    leveldb_writebatch_t* b,
+    const char* key, size_t klen,
+    const char* val, size_t vlen,
+    const leveldb_keymetadata_t * metadata) {
+    b->rep.Put(Slice(key, klen), Slice(val, vlen),
+                         (NULL==metadata ? NULL : &metadata->rep));
 }
 
 void leveldb_writebatch_delete(
@@ -362,15 +407,20 @@ void leveldb_writebatch_delete(
 void leveldb_writebatch_iterate(
     leveldb_writebatch_t* b,
     void* state,
-    void (*put)(void*, const char* k, size_t klen, const char* v, size_t vlen),
+    void (*put)(void*, const char* k, size_t klen, const char* v, size_t vlen,
+                const int & type, const uint64_t & expiry),
     void (*deleted)(void*, const char* k, size_t klen)) {
   class H : public WriteBatch::Handler {
    public:
     void* state_;
-    void (*put_)(void*, const char* k, size_t klen, const char* v, size_t vlen);
+    void (*put_)(void*, const char* k, size_t klen, const char* v, size_t vlen,
+                 const int & type, const uint64_t & expiry);
     void (*deleted_)(void*, const char* k, size_t klen);
-    virtual void Put(const Slice& key, const Slice& value) {
-      (*put_)(state_, key.data(), key.size(), value.data(), value.size());
+    virtual void Put(const Slice& key, const Slice& value,
+                     const leveldb::ValueType & type,
+                     const leveldb::ExpiryTimeMicros & expiry)
+    {
+        (*put_)(state_, key.data(), key.size(), value.data(), value.size(), (int)type, (uint64_t)expiry);
     }
     virtual void Delete(const Slice& key) {
       (*deleted_)(state_, key.data(), key.size());
@@ -418,6 +468,11 @@ void leveldb_options_set_paranoid_checks(
   opt->rep.paranoid_checks = v;
 }
 
+void leveldb_options_set_verify_compactions(
+    leveldb_options_t* opt, unsigned char v) {
+  opt->rep.verify_compactions = v;
+}
+
 void leveldb_options_set_env(leveldb_options_t* opt, leveldb_env_t* env) {
   opt->rep.env = (env ? env->rep : NULL);
 }
@@ -448,6 +503,10 @@ void leveldb_options_set_block_restart_interval(leveldb_options_t* opt, int n) {
 
 void leveldb_options_set_compression(leveldb_options_t* opt, int t) {
   opt->rep.compression = static_cast<CompressionType>(t);
+}
+
+void leveldb_options_set_total_leveldb_mem(leveldb_options_t* opt, size_t s) {
+  opt->rep.total_leveldb_mem = s;
 }
 
 leveldb_comparator_t* leveldb_comparator_create(
@@ -580,8 +639,18 @@ void leveldb_env_destroy(leveldb_env_t* env) {
   delete env;
 }
 
+void leveldb_env_shutdown() {
+  Env::Shutdown();
+}
+
+/**
+ * CAUTION:  this call is only for char * objects returned by
+ *           functions like leveldb_get and leveldb_property_value.
+ *           Also used to release errptr strings.
+ */
 void leveldb_free(void* ptr) {
-  free(ptr);
+  if (NULL!=ptr)
+    free(ptr);
 }
 
 int leveldb_major_version() {

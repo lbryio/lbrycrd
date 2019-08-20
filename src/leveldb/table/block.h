@@ -24,8 +24,9 @@ class Block {
   size_t size() const { return size_; }
   Iterator* NewIterator(const Comparator* comparator);
 
- private:
   uint32_t NumRestarts() const;
+
+ private:
 
   const char* data_;
   size_t size_;

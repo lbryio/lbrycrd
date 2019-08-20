@@ -3,6 +3,8 @@
    found in the LICENSE file. See the AUTHORS file for names of contributors. */
 
 #include "leveldb/c.h"
+#include "leveldb/options.h"
+#include "port/port.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -11,8 +13,13 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+using leveldb::ValueType;
+
+struct leveldb_keymetadata_t  { leveldb::KeyMetaData       rep; };
+
 const char* phase = "";
 static char dbname[200];
+static leveldb::ExpiryTimeMicros gStartTime;
 
 static void StartPhase(const char* name) {
   fprintf(stderr, "=== Test %s\n", name);
@@ -33,7 +40,7 @@ static const char* GetTempDir(void) {
   }
 
 #define CheckCondition(cond)                                            \
-  if (!(cond)) {                                                        \
+  if (!(cond)) {                                                     \
     fprintf(stderr, "%s:%d: %s: %s\n", __FILE__, __LINE__, phase, #cond); \
     abort();                                                            \
   }
@@ -49,7 +56,7 @@ static void CheckEqual(const char* expected, const char* v, size_t n) {
     fprintf(stderr, "%s: expected '%s', got '%s'\n",
             phase,
             (expected ? expected : "(null)"),
-            (v ? v : "(null"));
+            (v ? v : "(null)"));
     abort();
   }
 }
@@ -112,6 +119,117 @@ static void CheckDel(void* ptr, const char* k, size_t klen) {
   (*state)++;
 }
 
+//  (expiry enabled)
+static void CheckGet2(
+    leveldb_t* db,
+    const leveldb_readoptions_t* options,
+    const char* key,
+    const char* expected,
+    ValueType type,
+    uint64_t expiry) {
+  char* err = NULL;
+  size_t val_len;
+  char* val;
+  leveldb_keymetadata_t meta;
+
+  val = leveldb_get2(db, options, key, strlen(key), &val_len, &err, &meta);
+  CheckNoError(err);
+  CheckEqual(expected, val, val_len);
+  CheckCondition(type==meta.rep.m_Type);
+  if (0==expiry && leveldb::kTypeValueWriteTime==type)
+  {
+    leveldb::ExpiryTimeMicros now=leveldb::port::TimeMicros();
+    CheckCondition(gStartTime<=meta.rep.m_Expiry && meta.rep.m_Expiry<=now);
+  }   // if
+  else
+    {CheckCondition(expiry==meta.rep.m_Expiry);}
+
+  Free(&val);
+}
+
+//  (expiry enabled)
+static void CheckIter2(leveldb_iterator_t* iter,
+                       const char* key, const char* val,
+                       const leveldb::KeyMetaData & meta) {
+  size_t len;
+  const char* str;
+  leveldb_keymetadata_t it_meta;
+
+  str = leveldb_iter_key(iter, &len);
+  CheckEqual(key, str, len);
+  str = leveldb_iter_value(iter, &len);
+  CheckEqual(val, str, len);
+
+  leveldb_iter_keymetadata(iter, &it_meta);
+  CheckCondition(meta.m_Type==it_meta.rep.m_Type);
+  if (0==meta.m_Expiry && leveldb::kTypeValueWriteTime==meta.m_Type)
+  {
+    leveldb::ExpiryTimeMicros now=leveldb::port::TimeMicros();
+    CheckCondition(gStartTime<=it_meta.rep.m_Expiry && it_meta.rep.m_Expiry<=now);
+  }   // if
+  else
+    {CheckCondition(meta.m_Expiry==it_meta.rep.m_Expiry);}
+
+}
+
+// Callback from leveldb_writebatch_iterate()
+//  (expiry enabled)
+struct CheckPut2Data
+{
+    const char * m_Key;
+    const char * m_Value;
+    ValueType m_Type;
+    uint64_t m_Expiry;
+};
+
+static struct CheckPut2Data gCheckPut2Data[]=
+{
+    {"foo","hello_put2",leveldb::kTypeValue,0},
+    {"box","c_put2",leveldb::kTypeValue,0},
+    {"disney","cartoon_put2",leveldb::kTypeValueWriteTime, 0},
+    {"money","lotsof_put2",leveldb::kTypeValueWriteTime, 9988776655},
+    {"time","ismoney_put2",leveldb::kTypeValueExplicitExpiry, 221199887766}
+};
+
+static struct CheckPut2Data gCheckPut2ItrData[]=
+{
+    {"bar","b",leveldb::kTypeValue,0},
+    {"box","c",leveldb::kTypeValue,0},
+    {"bar","",leveldb::kTypeDeletion,0},
+    {"mom","texas",leveldb::kTypeValueWriteTime,0},
+    {"dad","poland",leveldb::kTypeValueExplicitExpiry,22446688}
+  };
+
+static void CheckPut2(void* ptr,
+                      const char* k, size_t klen,
+                      const char* v, size_t vlen,
+                      const int & type_int,
+                      const uint64_t & expiry) {
+  int* state = (int*) ptr;
+  CheckCondition(*state < (sizeof(gCheckPut2ItrData)/sizeof(gCheckPut2ItrData[0])));
+  struct CheckPut2Data * test;
+
+  test=&gCheckPut2ItrData[*state];
+  CheckEqual(test->m_Key, k, klen);
+  CheckEqual(test->m_Value, v, vlen);
+  CheckCondition((int)test->m_Type==type_int);
+  if (leveldb::kTypeValueWriteTime!=test->m_Type)
+    {CheckCondition((uint64_t)test->m_Expiry==expiry);}
+  (*state)++;
+}
+
+// Callback from leveldb_writebatch_iterate()
+//  (expiry enabled)
+static void CheckDel2(void* ptr, const char* k, size_t klen) {
+  int* state = (int*) ptr;
+  CheckCondition(*state < (sizeof(gCheckPut2ItrData)/sizeof(gCheckPut2ItrData[0])));
+  struct CheckPut2Data * test;
+
+  test=&gCheckPut2ItrData[*state];
+  CheckEqual(test->m_Key, k, klen);
+  (*state)++;
+}
+
 static void CmpDestroy(void* arg) { }
 
 static int CmpCompare(void* arg, const char* a, size_t alen,
@@ -141,7 +259,7 @@ static char* FilterCreate(
     int num_keys,
     size_t* filter_length) {
   *filter_length = 4;
-  char* result = malloc(4);
+  char* result = (char*)malloc(4);
   memcpy(result, "fake", 4);
   return result;
 }
@@ -167,6 +285,7 @@ int main(int argc, char** argv) {
 
   CheckCondition(leveldb_major_version() >= 1);
   CheckCondition(leveldb_minor_version() >= 1);
+  gStartTime=leveldb::port::TimeMicros();
 
   snprintf(dbname, sizeof(dbname),
            "%s/leveldb_c_test-%d",
@@ -207,12 +326,6 @@ int main(int argc, char** argv) {
   CheckCondition(err != NULL);
   Free(&err);
 
-  StartPhase("leveldb_free");
-  db = leveldb_open(options, dbname, &err);
-  CheckCondition(err != NULL);
-  leveldb_free(err);
-  err = NULL;
-
   StartPhase("open");
   leveldb_options_set_create_if_missing(options, 1);
   db = leveldb_open(options, dbname, &err);
@@ -234,42 +347,74 @@ int main(int argc, char** argv) {
 
   StartPhase("writebatch");
   {
+    leveldb_keymetadata_t meta;
     leveldb_writebatch_t* wb = leveldb_writebatch_create();
     leveldb_writebatch_put(wb, "foo", 3, "a", 1);
     leveldb_writebatch_clear(wb);
     leveldb_writebatch_put(wb, "bar", 3, "b", 1);
     leveldb_writebatch_put(wb, "box", 3, "c", 1);
     leveldb_writebatch_delete(wb, "bar", 3);
+    meta.rep.m_Type=leveldb::kTypeValueWriteTime;
+    meta.rep.m_Expiry=0;
+    leveldb_writebatch_put2(wb, "mom", 3, "texas", 5, &meta);
+    meta.rep.m_Type=leveldb::kTypeValueExplicitExpiry;
+    meta.rep.m_Expiry=22446688;
+    leveldb_writebatch_put2(wb, "dad", 3, "poland", 6, &meta);
     leveldb_write(db, woptions, wb, &err);
     CheckNoError(err);
     CheckGet(db, roptions, "foo", "hello");
     CheckGet(db, roptions, "bar", NULL);
     CheckGet(db, roptions, "box", "c");
+    CheckGet2(db, roptions, "dad", "poland", leveldb::kTypeValueExplicitExpiry, 22446688);
+    CheckGet2(db, roptions, "mom", "texas", leveldb::kTypeValueWriteTime, 0);
     int pos = 0;
-    leveldb_writebatch_iterate(wb, &pos, CheckPut, CheckDel);
-    CheckCondition(pos == 3);
+    leveldb_writebatch_iterate(wb, &pos, CheckPut2, CheckDel2);
+    CheckCondition(pos == 5);
     leveldb_writebatch_destroy(wb);
   }
 
+  // reminder:  keymetadata not supported on backward iteration
   StartPhase("iter");
   {
+    leveldb::KeyMetaData meta;
     leveldb_iterator_t* iter = leveldb_create_iterator(db, roptions);
     CheckCondition(!leveldb_iter_valid(iter));
     leveldb_iter_seek_to_first(iter);
     CheckCondition(leveldb_iter_valid(iter));
     CheckIter(iter, "box", "c");
+    meta.m_Type=leveldb::kTypeValue;
+    meta.m_Expiry=0;
+    CheckIter2(iter, "box", "c", meta);
+
+    meta.m_Type=leveldb::kTypeValueExplicitExpiry;
+    meta.m_Expiry=22446688;
+    leveldb_iter_next(iter);
+    CheckIter2(iter, "dad", "poland", meta);
     leveldb_iter_next(iter);
     CheckIter(iter, "foo", "hello");
+    leveldb_iter_prev(iter);
+    CheckIter(iter, "dad", "poland");
     leveldb_iter_prev(iter);
     CheckIter(iter, "box", "c");
     leveldb_iter_prev(iter);
     CheckCondition(!leveldb_iter_valid(iter));
     leveldb_iter_seek_to_last(iter);
-    CheckIter(iter, "foo", "hello");
+    CheckIter(iter, "mom", "texas");
     leveldb_iter_seek(iter, "b", 1);
     CheckIter(iter, "box", "c");
     leveldb_iter_get_error(iter, &err);
     CheckNoError(err);
+
+    meta.m_Type=leveldb::kTypeValue;
+    meta.m_Expiry=0;
+    CheckIter2(iter, "box", "c", meta);
+    leveldb_iter_seek(iter, "m", 1);
+    meta.m_Type=leveldb::kTypeValueWriteTime;
+    meta.m_Expiry=0;
+    CheckIter2(iter, "mom", "texas", meta);
+    leveldb_iter_get_error(iter, &err);
+    CheckNoError(err);
+
     leveldb_iter_destroy(iter);
   }
 
@@ -335,6 +480,70 @@ int main(int argc, char** argv) {
     leveldb_options_set_error_if_exists(options, 1);
   }
 
+  StartPhase("put expiry");
+  {
+      leveldb_keymetadata_t meta;
+      int loop, count;
+
+      count = sizeof(gCheckPut2Data) / sizeof(gCheckPut2Data[0]);
+
+      for (loop=0; loop<count; ++loop)
+      {
+          size_t klen, vlen;
+          leveldb_keymetadata_t meta;
+          struct CheckPut2Data * test;
+
+          test=&gCheckPut2Data[loop];
+          klen=strlen(test->m_Key);
+          vlen=strlen(test->m_Value);
+          meta.rep.m_Type=test->m_Type;
+          meta.rep.m_Expiry=test->m_Expiry;
+
+          leveldb_put2(db, woptions, test->m_Key, klen,
+                       test->m_Value, vlen, &err,
+                       &meta);
+          CheckNoError(err);
+      }   // for
+
+      // testing memtable right now
+      for (loop=0; loop<count; ++loop)
+      {
+          size_t klen, vlen;
+          leveldb_keymetadata_t meta;
+          struct CheckPut2Data * test;
+
+          test=&gCheckPut2Data[loop];
+          klen=strlen(test->m_Key);
+          vlen=strlen(test->m_Value);
+
+          CheckGet2(db, roptions, test->m_Key, test->m_Value,
+                    test->m_Type, test->m_Expiry);
+      }   // for
+
+      // close and open to force memory table into .sst upon open
+      leveldb_close(db);
+      leveldb_options_set_error_if_exists(options, 0);
+      db = leveldb_open(options, dbname, &err);
+      CheckNoError(err);
+
+      // now testing get from a level-0 .sst file
+      for (loop=0; loop<count; ++loop)
+      {
+          size_t klen, vlen;
+          leveldb_keymetadata_t meta;
+          struct CheckPut2Data * test;
+
+          test=&gCheckPut2Data[loop];
+          klen=strlen(test->m_Key);
+          vlen=strlen(test->m_Value);
+
+          CheckGet2(db, roptions, test->m_Key, test->m_Value,
+                    test->m_Type, test->m_Expiry);
+      }   // for
+  }
+
+  //
+  // This screws up "options" for real database work.  execute last.
   StartPhase("filter");
   for (run = 0; run < 2; run++) {
     // First run uses custom filter, second run uses bloom filter
@@ -376,6 +585,8 @@ int main(int argc, char** argv) {
     leveldb_filterpolicy_destroy(policy);
   }
 
+
+
   StartPhase("cleanup");
   leveldb_close(db);
   leveldb_options_destroy(options);
@@ -386,5 +597,7 @@ int main(int argc, char** argv) {
   leveldb_env_destroy(env);
 
   fprintf(stderr, "PASS\n");
+
+  leveldb_env_shutdown();
   return 0;
 }

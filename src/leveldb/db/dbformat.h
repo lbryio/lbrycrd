@@ -2,13 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#ifndef STORAGE_LEVELDB_DB_DBFORMAT_H_
-#define STORAGE_LEVELDB_DB_DBFORMAT_H_
+#ifndef STORAGE_LEVELDB_DB_FORMAT_H_
+#define STORAGE_LEVELDB_DB_FORMAT_H_
 
 #include <stdio.h>
 #include "leveldb/comparator.h"
 #include "leveldb/db.h"
 #include "leveldb/filter_policy.h"
+#include "leveldb/options.h"
 #include "leveldb/slice.h"
 #include "leveldb/table_builder.h"
 #include "util/coding.h"
@@ -16,19 +17,33 @@
 
 namespace leveldb {
 
+class Compaction;
+
 // Grouping of constants.  We may want to make some of these
 // parameters set via options.
 namespace config {
 static const int kNumLevels = 7;
+static const int kNumOverlapLevels = 2;
 
 // Level-0 compaction is started when we hit this many files.
-static const int kL0_CompactionTrigger = 4;
+// Google:  static const size_t kL0_CompactionTrigger = 4;
+static const size_t kL0_CompactionTrigger = 6;
+
+// Level-0 (any overlapped level) number of files where a grooming
+//     compaction could start
+static const size_t kL0_GroomingTrigger = 4;
+static const size_t kL0_GroomingTrigger10min = 2;
+static const size_t kL0_GroomingTrigger20min = 1;
+
+// ... time limits in microseconds
+static const size_t kL0_Grooming10minMicros = 10 * 60 * 1000000;
+static const size_t kL0_Grooming20minMicros = 20 * 60 * 1000000;
 
 // Soft limit on number of level-0 files.  We slow down writes at this point.
-static const int kL0_SlowdownWritesTrigger = 8;
+static const size_t kL0_SlowdownWritesTrigger = 8;
 
 // Maximum number of level-0 files.  We stop writes at this point.
-static const int kL0_StopWritesTrigger = 12;
+static const size_t kL0_StopWritesTrigger = 12;
 
 // Maximum level to which a new compacted memtable is pushed if it
 // does not create overlap.  We try to push to level 2 to avoid the
@@ -36,31 +51,28 @@ static const int kL0_StopWritesTrigger = 12;
 // expensive manifest file operations.  We do not push all the way to
 // the largest level since that can generate a lot of wasted disk
 // space if the same key space is being repeatedly overwritten.
-static const int kMaxMemCompactLevel = 2;
-
-// Approximate gap in bytes between samples of data read during iteration.
-static const int kReadBytesPeriod = 1048576;
+// Basho: push to kNumOverlapLevels +1 ... beyond "landing level"
+static const unsigned kMaxMemCompactLevel = kNumOverlapLevels+1;
 
 }  // namespace config
 
 class InternalKey;
 
-// Value types encoded as the last component of internal keys.
-// DO NOT CHANGE THESE ENUM VALUES: they are embedded in the on-disk
-// data structures.
-enum ValueType {
-  kTypeDeletion = 0x0,
-  kTypeValue = 0x1
-};
 // kValueTypeForSeek defines the ValueType that should be passed when
 // constructing a ParsedInternalKey object for seeking to a particular
 // sequence number (since we sort sequence numbers in decreasing order
 // and the value type is embedded as the low 8 bits in the sequence
 // number in internal keys, we need to use the highest-numbered
 // ValueType, not the lowest).
+//  Riak note: kValueTypeForSeek is placed within temporary keys
+//             for comparisons.  Using kTypeValueExplicitExpiry would
+//             force more code changes to increase internal key size.
+//             But ValueTypeForSeek is redundant to sequence number for
+//             disambiguaty. Therefore going for easiest path and NOT changing.
 static const ValueType kValueTypeForSeek = kTypeValue;
 
 typedef uint64_t SequenceNumber;
+typedef uint64_t ExpiryTimeMicros;
 
 // We leave eight bits empty at the bottom so a type and sequence#
 // can be packed together into 64-bits.
@@ -69,19 +81,16 @@ static const SequenceNumber kMaxSequenceNumber =
 
 struct ParsedInternalKey {
   Slice user_key;
+  ExpiryTimeMicros expiry;
   SequenceNumber sequence;
   ValueType type;
 
   ParsedInternalKey() { }  // Intentionally left uninitialized (for speed)
-  ParsedInternalKey(const Slice& u, const SequenceNumber& seq, ValueType t)
-      : user_key(u), sequence(seq), type(t) { }
+  ParsedInternalKey(const Slice& u, const ExpiryTimeMicros & exp, const SequenceNumber& seq, ValueType t)
+      : user_key(u), expiry(exp), sequence(seq), type(t) { }
   std::string DebugString() const;
+  std::string DebugStringHex() const;
 };
-
-// Return the length of the encoding of "key".
-inline size_t InternalKeyEncodingLength(const ParsedInternalKey& key) {
-  return key.user_key.size() + 8;
-}
 
 // Append the serialization of "key" to *result.
 extern void AppendInternalKey(std::string* result,
@@ -94,18 +103,74 @@ extern void AppendInternalKey(std::string* result,
 extern bool ParseInternalKey(const Slice& internal_key,
                              ParsedInternalKey* result);
 
-// Returns the user key portion of an internal key.
-inline Slice ExtractUserKey(const Slice& internal_key) {
-  assert(internal_key.size() >= 8);
-  return Slice(internal_key.data(), internal_key.size() - 8);
-}
-
 inline ValueType ExtractValueType(const Slice& internal_key) {
   assert(internal_key.size() >= 8);
   const size_t n = internal_key.size();
-  uint64_t num = DecodeFixed64(internal_key.data() + n - 8);
-  unsigned char c = num & 0xff;
+  unsigned char c = DecodeLeastFixed64(internal_key.data() + n - sizeof(SequenceNumber));
   return static_cast<ValueType>(c);
+}
+
+inline size_t KeySuffixSize(ValueType val_type) {
+  size_t ret_val;
+  switch(val_type)
+  {
+      case kTypeDeletion:
+      case kTypeValue:
+          ret_val=sizeof(SequenceNumber);
+          break;
+
+      case kTypeValueWriteTime:
+      case kTypeValueExplicitExpiry:
+          ret_val=sizeof(SequenceNumber) + sizeof(ExpiryTimeMicros);
+          break;
+
+      default:
+          // assert(0);  cannot use because bloom filter block's name is passed as internal key
+          ret_val=sizeof(SequenceNumber);
+          break;
+  }   // switch
+  return(ret_val);
+}
+
+const char * KeyTypeString(ValueType val_type);
+
+inline size_t KeySuffixSize(const Slice & internal_key) {
+    return(KeySuffixSize(ExtractValueType(internal_key)));
+}
+
+// Returns the user key portion of an internal key.
+inline Slice ExtractUserKey(const Slice& internal_key) {
+  assert(internal_key.size() >= 8);
+  return Slice(internal_key.data(), internal_key.size() - KeySuffixSize(internal_key));
+}
+
+// Returns the sequence number with ValueType removed
+inline SequenceNumber ExtractSequenceNumber(const Slice& internal_key) {
+  assert(internal_key.size() >= 8);
+  return(DecodeFixed64(internal_key.data() + internal_key.size() - 8)>>8);
+}
+
+// Return the length of the encoding of "key".
+inline size_t InternalKeyEncodingLength(const ParsedInternalKey& key) {
+  return key.user_key.size() + KeySuffixSize(key.type);
+}
+
+// Riak: is this an expiry key and therefore contain extra ExpiryTime field
+inline bool IsExpiryKey(ValueType val_type) {
+  return(kTypeValueWriteTime==val_type || kTypeValueExplicitExpiry==val_type);
+}
+
+// Riak: is this an expiry key and therefore contain extra ExpiryTime field
+inline bool IsExpiryKey(const Slice & internal_key) {
+    return(internal_key.size()>=KeySuffixSize(kTypeValueWriteTime)
+           && IsExpiryKey(ExtractValueType(internal_key)));
+}
+
+// Riak: extracts expiry value
+inline ExpiryTimeMicros ExtractExpiry(const Slice& internal_key) {
+  assert(internal_key.size() >= KeySuffixSize(kTypeValueWriteTime));
+  assert(IsExpiryKey(internal_key));
+  return(DecodeFixed64(internal_key.data() + internal_key.size() - KeySuffixSize(kTypeValueWriteTime)));
 }
 
 // A comparator for internal keys that uses a specified comparator for
@@ -129,13 +194,19 @@ class InternalKeyComparator : public Comparator {
 
 // Filter policy wrapper that converts from internal keys to user keys
 class InternalFilterPolicy : public FilterPolicy {
- private:
+ protected:
   const FilterPolicy* const user_policy_;
  public:
   explicit InternalFilterPolicy(const FilterPolicy* p) : user_policy_(p) { }
   virtual const char* Name() const;
   virtual void CreateFilter(const Slice* keys, int n, std::string* dst) const;
   virtual bool KeyMayMatch(const Slice& key, const Slice& filter) const;
+};
+
+class InternalFilterPolicy2 : public InternalFilterPolicy {
+ public:
+  explicit InternalFilterPolicy2(const FilterPolicy* p) : InternalFilterPolicy(p) { }
+  virtual ~InternalFilterPolicy2() {delete user_policy_;};
 };
 
 // Modules in this directory should keep internal keys wrapped inside
@@ -146,8 +217,8 @@ class InternalKey {
   std::string rep_;
  public:
   InternalKey() { }   // Leave rep_ as empty to indicate it is invalid
-  InternalKey(const Slice& user_key, SequenceNumber s, ValueType t) {
-    AppendInternalKey(&rep_, ParsedInternalKey(user_key, s, t));
+  InternalKey(const Slice& user_key, ExpiryTimeMicros exp, SequenceNumber s, ValueType t) {
+    AppendInternalKey(&rep_, ParsedInternalKey(user_key, exp, s, t));
   }
 
   void DecodeFrom(const Slice& s) { rep_.assign(s.data(), s.size()); }
@@ -157,6 +228,7 @@ class InternalKey {
   }
 
   Slice user_key() const { return ExtractUserKey(rep_); }
+  Slice internal_key() const { return Slice(rep_); }
 
   void SetFrom(const ParsedInternalKey& p) {
     rep_.clear();
@@ -181,8 +253,12 @@ inline bool ParseInternalKey(const Slice& internal_key,
   unsigned char c = num & 0xff;
   result->sequence = num >> 8;
   result->type = static_cast<ValueType>(c);
-  result->user_key = Slice(internal_key.data(), n - 8);
-  return (c <= static_cast<unsigned char>(kTypeValue));
+  if (IsExpiryKey((ValueType)c))
+    result->expiry=DecodeFixed64(internal_key.data() + n - KeySuffixSize((ValueType)c));
+  else
+    result->expiry=0;
+  result->user_key = Slice(internal_key.data(), n - KeySuffixSize((ValueType)c));
+  return (c <= static_cast<unsigned char>(kTypeValueExplicitExpiry));
 }
 
 // A helper class useful for DBImpl::Get()
@@ -190,7 +266,7 @@ class LookupKey {
  public:
   // Initialize *this for looking up user_key at a snapshot with
   // the specified sequence number.
-  LookupKey(const Slice& user_key, SequenceNumber sequence);
+  LookupKey(const Slice& user_key, SequenceNumber sequence, KeyMetaData * meta=NULL);
 
   ~LookupKey();
 
@@ -201,12 +277,38 @@ class LookupKey {
   Slice internal_key() const { return Slice(kstart_, end_ - kstart_); }
 
   // Return the user key
-  Slice user_key() const { return Slice(kstart_, end_ - kstart_ - 8); }
+  Slice user_key() const
+  { return Slice(kstart_, end_ - kstart_ - KeySuffixSize(internal_key())); }
+
+  // did requestor have metadata object?
+  bool WantsKeyMetaData() const {return(NULL!=meta_);};
+
+  void SetKeyMetaData(ValueType type, SequenceNumber seq, ExpiryTimeMicros expiry) const
+  {if (NULL!=meta_)
+    {
+      meta_->m_Type=type;
+      meta_->m_Sequence=seq;
+      meta_->m_Expiry=expiry;
+    } // if
+  };
+
+  void SetKeyMetaData(const ParsedInternalKey & pi_key) const
+  {if (NULL!=meta_)
+    {
+      meta_->m_Type=pi_key.type;
+      meta_->m_Sequence=pi_key.sequence;
+      meta_->m_Expiry=pi_key.expiry;
+    } // if
+  };
+
+  void SetKeyMetaData(const KeyMetaData & meta) const
+  {if (NULL!=meta_) *meta_=meta;};
 
  private:
   // We construct a char array of the form:
   //    klength  varint32               <-- start_
   //    userkey  char[klength]          <-- kstart_
+  //    optional uint64
   //    tag      uint64
   //                                    <-- end_
   // The array is a suitable MemTable key.
@@ -216,6 +318,9 @@ class LookupKey {
   const char* end_;
   char space_[200];      // Avoid allocation for short keys
 
+  // allow code that finds the key to place metadata here, even if 'const'
+  mutable KeyMetaData * meta_;
+
   // No copying allowed
   LookupKey(const LookupKey&);
   void operator=(const LookupKey&);
@@ -223,8 +328,47 @@ class LookupKey {
 
 inline LookupKey::~LookupKey() {
   if (start_ != space_) delete[] start_;
-}
+};
+
+
+// this class was constructed from code with DBImpl::DoCompactionWork (db_impl.cc)
+//   so it could be shared within BuildTable (and thus reduce Level 0 bloating)
+class KeyRetirement
+{
+protected:
+    // "state" from previous key reviewed
+    std::string current_user_key;
+    bool has_current_user_key;
+    SequenceNumber last_sequence_for_key;
+
+    // database values needed for processing
+    const Comparator * user_comparator;
+    SequenceNumber smallest_snapshot;
+    const Options * options;
+    Compaction * const compaction;
+
+    bool valid;
+    size_t dropped;   // tombstone or old version dropped
+    size_t expired;   // expired dropped
+
+public:
+    KeyRetirement(const Comparator * UserComparator, SequenceNumber SmallestSnapshot,
+                  const Options * Opts, Compaction * const Compaction=NULL);
+
+    virtual ~KeyRetirement();
+
+    bool operator()(Slice & key);
+
+    size_t GetDroppedCount() const {return(dropped);};
+    size_t GetExpiredCount() const {return(expired);};
+
+private:
+    KeyRetirement();
+    KeyRetirement(const KeyRetirement &);
+    const KeyRetirement & operator=(const KeyRetirement &);
+
+};  // class KeyRetirement
 
 }  // namespace leveldb
 
-#endif  // STORAGE_LEVELDB_DB_DBFORMAT_H_
+#endif  // STORAGE_LEVELDB_DB_FORMAT_H_

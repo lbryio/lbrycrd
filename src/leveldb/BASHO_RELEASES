@@ -1,0 +1,72 @@
+github.com tag 2.0.34 - February 15, 2017
+-----------------------------------------
+mv-hot-backup2:  - correct MakeTieredDbname() within db/filename.cc
+                   for case where dbname input is blank and fast/slow
+                   already populated in options.  Corrects issue
+                   with hot backup in non-tiered storage situations
+
+github.com tag 2.0.33 - November 21, 2016
+-----------------------------------------
+mv-bucket-expiry:  - partial branch to enable X-Riak-Meta-Expiry-Base-Seconds
+                     property within enterprise edition
+
+--- no 2.0.32 tag on leveldb ---
+
+github.com tag 2.0.31 - November 1, 2016
+----------------------------------------
+ - version shipped with Riak 2.2
+mv-no-md-expiry: - Riak specific
+                 - never convert a key prefix of sext:encoded "{md" to expiry
+                 - update sst_scan for dumping Riak formated keys
+mv-tuning8:      - rework penalty rules in version_set.cc UpdatePenalty()
+                 - add unit test framework for UpdatePenalty()
+
+github.com tag 2.0.30 - October 11, 2016
+----------------------------------------
+mv-delayed-bloom: - when opening an .sst table file, only load
+                    bloom filter on second Get() operation.  Saves time.
+                  - correct VersionSet::Finalize() logic for level 1 when
+                    when level 2 is above desired size
+                  - move hot backup to Riak ee build
+
+github.com tag 2.0.29 - September 13, 2016
+------------------------------------------
+mv-expiry-manifest:  only switch to expiry enabled manifest format
+                     if expiry function enabled.  Eases downgrade
+                     during early Riak releases containing expiry
+
+github.com tag 2.0.28 - September 6, 2016
+-----------------------------------------
+mv-hot-backup:  add externally triggered hot backup feature
+
+github.com tag 2.0.27 - August 22, 2016
+---------------------------------------
+mv-mem-fences:  fix iterator double delete bug in eleveldb and
+                build better memory fenced operations for referenced count objects.
+
+github.com tag 2.0.26 - August 21, 2016
+---------------------------------------
+mv-expiry-iter-bug:  DBImpl::NewIterator() was not setting the new expiry parameter.
+
+github.com tag 2.0.25 - August 10, 2016
+---------------------------------------
+Make LZ4 the default compression instead of Snappy.
+
+github.com tag 2.0.24 - August 2, 2016
+--------------------------------------
+mv-expiry:  open source expiry.  Supports one expiry policy for all databases.
+
+github.com tag 2.0.23 - July 20, 2016
+-------------------------------------
+mv-no-semaphore:  remove semaphore controlled thread in hot_threads.cc.  Instead use
+ use mutex of thread 0 (only one thread's mutex) to address know race condition.
+
+github.com tag 2.0.22 - June 22, 2016
+-------------------------------------
+no change: iterator fix in eleveldb
+
+github.com tag 2.0.21 - June 16, 2016
+-------------------------------------
+branch mv-iterator-hot-threads:  correct condition where eleveldb MoveTask
+ could hang an iterator. (https://github.com/basho/leveldb/wiki/mv-iterator-hot-threads)
+

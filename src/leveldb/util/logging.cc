@@ -45,14 +45,37 @@ std::string EscapeString(const Slice& value) {
   return r;
 }
 
+std::string
+HexString(const Slice& value)
+{
+  std::string str;
+  for (size_t i = 0; i < value.size(); i++) {
+    char c = value[i];
+    char buf[10];
+    snprintf(buf, sizeof(buf), "%02x",
+             static_cast<unsigned int>(c) & 0xff);
+    str.append(buf);
+  }  // for
+  return(str);
+}  // HexString
+
+bool ConsumeChar(Slice* in, char c) {
+  if (!in->empty() && (*in)[0] == c) {
+    in->remove_prefix(1);
+    return true;
+  } else {
+    return false;
+  }
+}
+
 bool ConsumeDecimalNumber(Slice* in, uint64_t* val) {
   uint64_t v = 0;
   int digits = 0;
   while (!in->empty()) {
-    unsigned char c = (*in)[0];
+    char c = (*in)[0];
     if (c >= '0' && c <= '9') {
       ++digits;
-      const unsigned int delta = (c - '0');
+      const uint64_t delta = (c - '0');
       static const uint64_t kMaxUint64 = ~static_cast<uint64_t>(0);
       if (v > kMaxUint64/10 ||
           (v == kMaxUint64/10 && delta > kMaxUint64%10)) {

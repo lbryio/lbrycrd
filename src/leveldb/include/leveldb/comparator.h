@@ -58,6 +58,10 @@ class Comparator {
 // must not be deleted.
 extern const Comparator* BytewiseComparator();
 
+// Riak specific: cleans up the default comparitor to make
+//  valgrind results clean
+extern void ComparatorShutdown();
+
 }  // namespace leveldb
 
 #endif  // STORAGE_LEVELDB_INCLUDE_COMPARATOR_H_

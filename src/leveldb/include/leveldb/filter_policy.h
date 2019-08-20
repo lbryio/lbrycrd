@@ -23,8 +23,20 @@ namespace leveldb {
 class Slice;
 
 class FilterPolicy {
- public:
+protected:
+  mutable const FilterPolicy * m_Next;      // used by FilterInventory
+
+public:
+  FilterPolicy()
+      : m_Next(NULL)
+  {};
+
   virtual ~FilterPolicy();
+
+  // list pointer accessors
+  const FilterPolicy * GetNext() const {return(m_Next);};
+  void SetNext(const FilterPolicy * Next) const {m_Next=Next;};
+
 
   // Return the name of this policy.  Note that if the filter encoding
   // changes in an incompatible way, the name returned by this method
@@ -47,6 +59,7 @@ class FilterPolicy {
   // This method may return true or false if the key was not on the
   // list, but it should aim to return false with a high probability.
   virtual bool KeyMayMatch(const Slice& key, const Slice& filter) const = 0;
+
 };
 
 // Return a new filter policy that uses a bloom filter with approximately
@@ -64,7 +77,29 @@ class FilterPolicy {
 // FilterPolicy (like NewBloomFilterPolicy) that does not ignore
 // trailing spaces in keys.
 extern const FilterPolicy* NewBloomFilterPolicy(int bits_per_key);
+extern const FilterPolicy* NewBloomFilterPolicy2(int bits_per_key);
 
-}
+
+class FilterInventory
+{
+public:
+    // MUST be static variable so that it initializes before any static objects
+    //  have their initializers called
+    static const FilterPolicy * ListHead;
+
+    // This might be called prior to singleton FilterInventory object
+    //  being initialized.  NOT THREAD SAFE.
+    static void AddFilterToInventory(const FilterPolicy * Filter)
+    {
+        if (NULL!=Filter)
+        {
+            Filter->SetNext(ListHead);
+            ListHead=Filter;
+        }   // if
+        return;
+    }
+};  // class FilterInventory
+
+}   // namespace leveldb
 
 #endif  // STORAGE_LEVELDB_INCLUDE_FILTER_POLICY_H_

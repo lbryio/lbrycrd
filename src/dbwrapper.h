@@ -81,7 +81,7 @@ public:
         ssValue.Xor(dbwrapper_private::GetObfuscateKey(parent));
         leveldb::Slice slValue(ssValue.data(), ssValue.size());
 
-        batch.Put(slKey, slValue);
+        batch.Put(slKey, slValue, nullptr);
         // LevelDB serializes writes as:
         // - byte: header
         // - varint: key length (1 byte up to 127B, 2 bytes up to 16383B, ...)

@@ -6,6 +6,7 @@
 #define STORAGE_LEVELDB_DB_BUILDER_H_
 
 #include "leveldb/status.h"
+#include "db/dbformat.h"
 
 namespace leveldb {
 
@@ -25,9 +26,11 @@ class VersionEdit;
 extern Status BuildTable(const std::string& dbname,
                          Env* env,
                          const Options& options,
+                         const Comparator * user_comparator,
                          TableCache* table_cache,
                          Iterator* iter,
-                         FileMetaData* meta);
+                         FileMetaData* meta,
+                         SequenceNumber smallest_snapshot);
 
 }  // namespace leveldb
 

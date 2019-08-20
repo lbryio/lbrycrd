@@ -9,20 +9,6 @@
 
 namespace leveldb {
 
-// Tag numbers for serialized VersionEdit.  These numbers are written to
-// disk and should not be changed.
-enum Tag {
-  kComparator           = 1,
-  kLogNumber            = 2,
-  kNextFileNumber       = 3,
-  kLastSequence         = 4,
-  kCompactPointer       = 5,
-  kDeletedFile          = 6,
-  kNewFile              = 7,
-  // 8 was used for large value refs
-  kPrevLogNumber        = 9
-};
-
 void VersionEdit::Clear() {
   comparator_.clear();
   log_number_ = 0;
@@ -34,11 +20,21 @@ void VersionEdit::Clear() {
   has_prev_log_number_ = false;
   has_next_file_number_ = false;
   has_last_sequence_ = false;
+  has_f1_files_ = false;
+  has_f2_files_ = false;
+
   deleted_files_.clear();
   new_files_.clear();
 }
 
-void VersionEdit::EncodeTo(std::string* dst) const {
+/**
+ * EncodeTo serializes the VersionEdit object
+ *  to the "dst" string parameter.  "format2" flag
+ *  indicates whether serialization should use original
+ *  Google format for file objects (false) or Basho's updated
+ *  file2 format for expiry enabled file objects (true)
+ */
+void VersionEdit::EncodeTo(std::string* dst, bool format2) const {
   if (has_comparator_) {
     PutVarint32(dst, kComparator);
     PutLengthPrefixedSlice(dst, comparator_);
@@ -76,12 +72,21 @@ void VersionEdit::EncodeTo(std::string* dst) const {
 
   for (size_t i = 0; i < new_files_.size(); i++) {
     const FileMetaData& f = new_files_[i].second;
-    PutVarint32(dst, kNewFile);
+    if (format2)
+      PutVarint32(dst, kNewFile2);
+    else
+      PutVarint32(dst, kNewFile);
     PutVarint32(dst, new_files_[i].first);  // level
     PutVarint64(dst, f.number);
     PutVarint64(dst, f.file_size);
     PutLengthPrefixedSlice(dst, f.smallest.Encode());
     PutLengthPrefixedSlice(dst, f.largest.Encode());
+    if (format2)
+    {
+      PutVarint64(dst, f.exp_write_low);
+      PutVarint64(dst, f.exp_write_high);
+      PutVarint64(dst, f.exp_explicit_high);
+    }
   }
 }
 
@@ -98,7 +103,7 @@ static bool GetInternalKey(Slice* input, InternalKey* dst) {
 static bool GetLevel(Slice* input, int* level) {
   uint32_t v;
   if (GetVarint32(input, &v) &&
-      v < config::kNumLevels) {
+      v < (unsigned)config::kNumLevels) {
     *level = v;
     return true;
   } else {
@@ -185,10 +190,31 @@ Status VersionEdit::DecodeFrom(const Slice& src) {
             GetVarint64(&input, &f.number) &&
             GetVarint64(&input, &f.file_size) &&
             GetInternalKey(&input, &f.smallest) &&
-            GetInternalKey(&input, &f.largest)) {
+            GetInternalKey(&input, &f.largest))
+        {
+          has_f1_files_ = true;
+          f.level=level;
           new_files_.push_back(std::make_pair(level, f));
         } else {
           msg = "new-file entry";
+        }
+        break;
+
+      case kNewFile2:
+        if (GetLevel(&input, &level) &&
+            GetVarint64(&input, &f.number) &&
+            GetVarint64(&input, &f.file_size) &&
+            GetInternalKey(&input, &f.smallest) &&
+            GetInternalKey(&input, &f.largest) &&
+            GetVarint64(&input, &f.exp_write_low) &&
+            GetVarint64(&input, &f.exp_write_high) &&
+            GetVarint64(&input, &f.exp_explicit_high))
+        {
+          has_f2_files_ = true;
+          f.level=level;
+          new_files_.push_back(std::make_pair(level, f));
+        } else {
+          msg = "new-file2 entry";
         }
         break;
 
@@ -258,6 +284,12 @@ std::string VersionEdit::DebugString() const {
     r.append(f.smallest.DebugString());
     r.append(" .. ");
     r.append(f.largest.DebugString());
+    r.append(" ");
+    AppendNumberTo(&r, f.exp_write_low);
+    r.append(" ");
+    AppendNumberTo(&r, f.exp_write_high);
+    r.append(" ");
+    AppendNumberTo(&r, f.exp_explicit_high);
   }
   r.append("\n}\n");
   return r;
