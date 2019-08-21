@@ -2567,3 +2567,45 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, CClaimTriePro
     proof = CClaimTrieProof(nodes, fNameHasValue, outPoint, nHeightOfLastTakeover);
     return true;
 }
+
+void CClaimTrieCacheBase::dumpToLog() const {
+    class CClaimCallback : public CNodeCallback {
+        const CClaimTrieCacheBase* owner;
+        const hashMapType& cacheHashes;
+        const std::map<std::string, int>& cacheTakeoverHeights;
+    public:
+        CClaimCallback(const CClaimTrieCacheBase* owner, const hashMapType& cacheHashes, const std::map<std::string, int>& cacheTakeoverHeights)
+        : owner(owner), cacheHashes(cacheHashes), cacheTakeoverHeights(cacheTakeoverHeights) {}
+        void visit(const std::string &name, const CClaimTrieNode *node) {
+            if (!owner->cacheContains(name))
+                return;
+
+            const nodeMapType& children = node->children;
+            if (children.size() == 1 && node->claims.empty())
+                return; // don't clutter output with interior nodes
+
+            hashMapType::const_iterator hit = cacheHashes.find(name);
+            uint256 hash = node->hash;
+            if (hit != cacheHashes.end())
+                hash = hit->second;
+
+            int takeover = node->nHeightOfLastTakeover;
+            std::map<std::string, int>::const_iterator hit2 = cacheTakeoverHeights.find(name);
+            if (hit2 != cacheTakeoverHeights.end())
+                takeover = hit2->second;
+
+            LogPrintf("%s, %s, hash: %s, take: %d, kids: %zu\n", name, HexStr(name.begin(), name.end()),
+                      hash.ToString(), takeover, children.size());
+            for (std::vector<CClaimValue>::const_iterator it = node->claims.begin(); it != node->claims.end(); ++it)
+                LogPrintf("   claim: %s, %ld, %ld, %d, %d\n", it->claimId.ToString(), it->nAmount, it->nEffectiveAmount, it->nHeight, it->nValidAtHeight);
+            supportMapEntryType supports = owner->getSupports(name);
+            for (supportMapEntryType::const_iterator it = supports.begin(); it != supports.end(); ++it)
+                LogPrintf("   suprt: %s, %ld, %d, %d\n", it->supportedClaimId.ToString(), it->nAmount, it->nHeight, it->nValidAtHeight);
+        }
+    };
+
+    CClaimCallback cc(this, cacheHashes, cacheTakeoverHeights);
+    iterateTrie(cc);
+}
+
+

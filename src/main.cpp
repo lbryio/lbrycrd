@@ -2740,7 +2740,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     assert(trieCache.incrementBlock(blockUndo.insertUndo, blockUndo.expireUndo, blockUndo.insertSupportUndo, blockUndo.expireSupportUndo, blockUndo.takeoverHeightUndo));
 
-    if (trieCache.getMerkleHash() != block.hashClaimTrie) {
+    if (trieCache.getMerkleHash() != block.hashClaimTrie) { //  || pindex->nHeight == ... where we want to stop ...
+        trieCache.dumpToLog();
         return state.DoS(100,
                          error("ConnectBlock() : the merkle root of the claim trie does not match "
                                "(actual=%s vs block=%s)", trieCache.getMerkleHash().GetHex(),

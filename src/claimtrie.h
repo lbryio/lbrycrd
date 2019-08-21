@@ -544,6 +544,16 @@ public:
     CAmount getEffectiveAmountForClaim(const std::string& name, const uint160& claimId, std::vector<CSupportValue>* supports = NULL) const;
     CAmount getEffectiveAmountForClaim(const claimsForNameType& claims, const uint160& claimId, std::vector<CSupportValue>* supports = NULL) const;
 
+    bool cacheContains(const std::string& name) const { return cache.find(name) != cache.end(); }
+    supportMapEntryType getSupports(const std::string& name) const {
+        supportMapEntryType ret;
+        if (getSupportsForName(name, ret))
+            return ret;
+        return supportMapEntryType();
+    }
+
+    void dumpToLog() const;
+
 protected:
     // Should be private: Do not use unless you know what you're doing.
     CClaimTrieNode* addNodeToCache(const std::string& position, CClaimTrieNode* original) const;
