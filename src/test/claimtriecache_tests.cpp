@@ -200,7 +200,6 @@ BOOST_AUTO_TEST_CASE(basic_insertion_info_test)
     CClaimTrieCacheTest ctc(pclaimTrie);
 
     // create and insert claim
-    CClaimValue unused;
     uint256 hash0(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
     CMutableTransaction tx1 = BuildTransaction(hash0);
     uint160 claimId = ClaimIdHash(tx1.GetHash(), 0);
@@ -304,7 +303,9 @@ BOOST_AUTO_TEST_CASE(iteratetrie_test)
     BOOST_CHECK_EQUAL(node.children.size(), 1U);
     BOOST_CHECK(pclaimTrie->find("test", node));
     BOOST_CHECK_EQUAL(node.children.size(), 0U);
-    BOOST_CHECK_EQUAL(node.data.claims.size(), 1);
+    CClaimTrieData data;
+    BOOST_CHECK(pclaimTrie->find("test", data));
+    BOOST_CHECK_EQUAL(data.claims.size(), 1);
 }
 
 BOOST_AUTO_TEST_CASE(trie_stays_consistent_test)
