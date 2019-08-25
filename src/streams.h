@@ -283,6 +283,10 @@ public:
         return (std::string(begin(), end()));
     }
 
+    std::size_t capacity() const
+    {
+        return vch.capacity();
+    }
 
     //
     // Vector subset

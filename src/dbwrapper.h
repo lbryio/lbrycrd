@@ -16,9 +16,6 @@
 #include <leveldb/db.h>
 #include <leveldb/write_batch.h>
 
-static const size_t DBWRAPPER_PREALLOC_KEY_SIZE = 64;
-static const size_t DBWRAPPER_PREALLOC_VALUE_SIZE = 1024;
-
 class dbwrapper_error : public std::runtime_error
 {
 public:
@@ -33,85 +30,14 @@ namespace dbwrapper_private {
 
 /** Handle database error by throwing dbwrapper_error exception.
  */
-void HandleError(const leveldb::Status& status);
+    void HandleError(const leveldb::Status& status);
 
 /** Work around circular dependency, as well as for testing in dbwrapper_tests.
  * Database obfuscation should be considered an implementation detail of the
  * specific database.
  */
-const std::vector<unsigned char>& GetObfuscateKey(const CDBWrapper &w);
+    const std::vector<unsigned char>& GetObfuscateKey(const CDBWrapper &w);
 
-};
-
-/** Batch of changes queued to be written to a CDBWrapper */
-class CDBBatch
-{
-    friend class CDBWrapper;
-
-private:
-    const CDBWrapper &parent;
-    leveldb::WriteBatch batch;
-
-    CDataStream ssKey;
-    CDataStream ssValue;
-
-    size_t size_estimate;
-
-public:
-    /**
-     * @param[in] _parent   CDBWrapper that this batch is to be submitted to
-     */
-    explicit CDBBatch(const CDBWrapper &_parent) : parent(_parent), ssKey(SER_DISK, CLIENT_VERSION), ssValue(SER_DISK, CLIENT_VERSION), size_estimate(0) { };
-
-    void Clear()
-    {
-        batch.Clear();
-        size_estimate = 0;
-    }
-
-    template <typename K, typename V>
-    void Write(const K& key, const V& value)
-    {
-        ssKey.reserve(DBWRAPPER_PREALLOC_KEY_SIZE);
-        ssKey << key;
-        leveldb::Slice slKey(ssKey.data(), ssKey.size());
-
-        ssValue.reserve(DBWRAPPER_PREALLOC_VALUE_SIZE);
-        ssValue << value;
-        ssValue.Xor(dbwrapper_private::GetObfuscateKey(parent));
-        leveldb::Slice slValue(ssValue.data(), ssValue.size());
-
-        batch.Put(slKey, slValue);
-        // LevelDB serializes writes as:
-        // - byte: header
-        // - varint: key length (1 byte up to 127B, 2 bytes up to 16383B, ...)
-        // - byte[]: key
-        // - varint: value length
-        // - byte[]: value
-        // The formula below assumes the key and value are both less than 16k.
-        size_estimate += 3 + (slKey.size() > 127) + slKey.size() + (slValue.size() > 127) + slValue.size();
-        ssKey.clear();
-        ssValue.clear();
-    }
-
-    template <typename K>
-    void Erase(const K& key)
-    {
-        ssKey.reserve(DBWRAPPER_PREALLOC_KEY_SIZE);
-        ssKey << key;
-        leveldb::Slice slKey(ssKey.data(), ssKey.size());
-
-        batch.Delete(slKey);
-        // LevelDB serializes erases as:
-        // - byte: header
-        // - varint: key length
-        // - byte[]: key
-        // The formula below assumes the key is less than 16kB.
-        size_estimate += 2 + (slKey.size() > 127) + slKey.size();
-        ssKey.clear();
-    }
-
-    size_t SizeEstimate() const { return size_estimate; }
 };
 
 class CDBIterator
@@ -127,7 +53,7 @@ public:
      * @param[in] _piter           The original leveldb iterator.
      */
     CDBIterator(const CDBWrapper &_parent, leveldb::Iterator *_piter) :
-        parent(_parent), piter(_piter) { };
+            parent(_parent), piter(_piter) { };
     ~CDBIterator();
 
     bool Valid() const;
@@ -135,10 +61,10 @@ public:
     void SeekToFirst();
 
     template<typename K> void Seek(const K& key) {
-        CDataStream ssKey(SER_DISK, CLIENT_VERSION);
-        ssKey.reserve(DBWRAPPER_PREALLOC_KEY_SIZE);
-        ssKey << key;
-        leveldb::Slice slKey(ssKey.data(), ssKey.size());
+        CDataStream ssKey1(SER_DISK, CLIENT_VERSION);
+        // ssKey1.reserve(parent.ssKey.capacity());
+        ssKey1 << key;
+        leveldb::Slice slKey(ssKey1.data(), ssKey1.size());
         piter->Seek(slKey);
     }
 
@@ -172,6 +98,8 @@ public:
     }
 
 };
+
+class CDBBatch;
 
 class CDBWrapper
 {
@@ -213,6 +141,8 @@ private:
     std::vector<unsigned char> CreateObfuscateKey() const;
 
 public:
+    mutable CDataStream ssKey, ssValue;
+
     /**
      * @param[in] path        Location in the filesystem where leveldb data will be stored.
      * @param[in] nCacheSize  Configures various leveldb cache settings.
@@ -230,13 +160,12 @@ public:
     template <typename K, typename V>
     bool Read(const K& key, V& value) const
     {
-        CDataStream ssKey(SER_DISK, CLIENT_VERSION);
-        ssKey.reserve(DBWRAPPER_PREALLOC_KEY_SIZE);
         ssKey << key;
         leveldb::Slice slKey(ssKey.data(), ssKey.size());
 
         std::string strValue;
         leveldb::Status status = pdb->Get(readoptions, slKey, &strValue);
+        ssKey.clear();
         if (!status.ok()) {
             if (status.IsNotFound())
                 return false;
@@ -254,23 +183,17 @@ public:
     }
 
     template <typename K, typename V>
-    bool Write(const K& key, const V& value, bool fSync = false)
-    {
-        CDBBatch batch(*this);
-        batch.Write(key, value);
-        return WriteBatch(batch, fSync);
-    }
+    bool Write(const K& key, const V& value, bool fSync = false);
 
     template <typename K>
     bool Exists(const K& key) const
     {
-        CDataStream ssKey(SER_DISK, CLIENT_VERSION);
-        ssKey.reserve(DBWRAPPER_PREALLOC_KEY_SIZE);
         ssKey << key;
         leveldb::Slice slKey(ssKey.data(), ssKey.size());
 
         std::string strValue;
         leveldb::Status status = pdb->Get(readoptions, slKey, &strValue);
+        ssKey.clear();
         if (!status.ok()) {
             if (status.IsNotFound())
                 return false;
@@ -281,12 +204,7 @@ public:
     }
 
     template <typename K>
-    bool Erase(const K& key, bool fSync = false)
-    {
-        CDBBatch batch(*this);
-        batch.Erase(key);
-        return WriteBatch(batch, fSync);
-    }
+    bool Erase(const K& key, bool fSync = false);
 
     bool WriteBatch(CDBBatch& batch, bool fSync = false);
 
@@ -299,11 +217,7 @@ public:
         return true;
     }
 
-    bool Sync()
-    {
-        CDBBatch batch(*this);
-        return WriteBatch(batch, true);
-    }
+    bool Sync();
 
     CDBIterator *NewIterator()
     {
@@ -319,8 +233,6 @@ public:
     size_t EstimateSize(const K& key_begin, const K& key_end) const
     {
         CDataStream ssKey1(SER_DISK, CLIENT_VERSION), ssKey2(SER_DISK, CLIENT_VERSION);
-        ssKey1.reserve(DBWRAPPER_PREALLOC_KEY_SIZE);
-        ssKey2.reserve(DBWRAPPER_PREALLOC_KEY_SIZE);
         ssKey1 << key_begin;
         ssKey2 << key_end;
         leveldb::Slice slKey1(ssKey1.data(), ssKey1.size());
@@ -338,8 +250,8 @@ public:
     void CompactRange(const K& key_begin, const K& key_end) const
     {
         CDataStream ssKey1(SER_DISK, CLIENT_VERSION), ssKey2(SER_DISK, CLIENT_VERSION);
-        ssKey1.reserve(DBWRAPPER_PREALLOC_KEY_SIZE);
-        ssKey2.reserve(DBWRAPPER_PREALLOC_KEY_SIZE);
+        ssKey1.reserve(ssKey.capacity());
+        ssKey2.reserve(ssKey.capacity());
         ssKey1 << key_begin;
         ssKey2 << key_end;
         leveldb::Slice slKey1(ssKey1.data(), ssKey1.size());
@@ -348,5 +260,84 @@ public:
     }
 
 };
+
+/** Batch of changes queued to be written to a CDBWrapper */
+class CDBBatch
+{
+    friend class CDBWrapper;
+    const CDBWrapper &parent;
+    leveldb::WriteBatch batch;
+
+    size_t size_estimate;
+
+public:
+    /**
+     * @param[in] _parent   CDBWrapper that this batch is to be submitted to
+     */
+    explicit CDBBatch(const CDBWrapper &_parent) : parent(_parent), size_estimate(0) { };
+
+    void Clear()
+    {
+        batch.Clear();
+        size_estimate = 0;
+    }
+
+    template <typename K, typename V>
+    void Write(const K& key, const V& value)
+    {
+        assert(parent.ssKey.empty());
+        parent.ssKey << key;
+        leveldb::Slice slKey(parent.ssKey.data(), parent.ssKey.size());
+
+        assert(parent.ssValue.empty());
+        parent.ssValue << value;
+        parent.ssValue.Xor(dbwrapper_private::GetObfuscateKey(parent));
+        leveldb::Slice slValue(parent.ssValue.data(), parent.ssValue.size());
+
+        batch.Put(slKey, slValue);
+        // LevelDB serializes writes as:
+        // - byte: header
+        // - varint: key length (1 byte up to 127B, 2 bytes up to 16383B, ...)
+        // - byte[]: key
+        // - varint: value length
+        // - byte[]: value
+        // The formula below assumes the key and value are both less than 16k.
+        size_estimate += 3 + (slKey.size() > 127) + slKey.size() + (slValue.size() > 127) + slValue.size();
+        parent.ssKey.clear();
+        parent.ssValue.clear();
+    }
+
+    template <typename K>
+    void Erase(const K& key)
+    {
+        parent.ssKey << key;
+        leveldb::Slice slKey(parent.ssKey.data(), parent.ssKey.size());
+
+        batch.Delete(slKey);
+        // LevelDB serializes erases as:
+        // - byte: header
+        // - varint: key length
+        // - byte[]: key
+        // The formula below assumes the key is less than 16kB.
+        size_estimate += 2 + (slKey.size() > 127) + slKey.size();
+        parent.ssKey.clear();
+    }
+
+    size_t SizeEstimate() const { return size_estimate; }
+};
+
+template<typename K>
+bool CDBWrapper::Erase(const K &key, bool fSync) {
+    CDBBatch batch(*this);
+    batch.Erase(key);
+    return WriteBatch(batch, fSync);
+}
+
+template<typename K, typename V>
+bool CDBWrapper::Write(const K &key, const V &value, bool fSync) {
+    CDBBatch batch(*this);
+    batch.Write(key, value);
+    return WriteBatch(batch, fSync);
+}
 
 #endif // BITCOIN_DBWRAPPER_H

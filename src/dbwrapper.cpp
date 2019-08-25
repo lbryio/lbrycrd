@@ -100,10 +100,10 @@ static void SetMaxOpenFiles(leveldb::Options *options) {
 static leveldb::Options GetOptions(size_t nCacheSize)
 {
     leveldb::Options options;
-    auto write_cache = std::min(nCacheSize / 4, size_t(16) << 20U); // cap write_cache at 16MB (4x default)
+    auto write_cache = std::min(nCacheSize / 4, size_t(32 * 1024 * 1024)); // cap write_cache
     options.block_cache = leveldb::NewLRUCache(nCacheSize - write_cache * 2);
     options.write_buffer_size = write_cache; // up to two write buffers may be held in memory simultaneously
-    options.filter_policy = leveldb::NewBloomFilterPolicy(10);
+    options.filter_policy = leveldb::NewBloomFilterPolicy(12);
     options.compression = leveldb::kNoCompression;
     options.info_log = new CBitcoinLevelDBLogger();
     if (leveldb::kMajorVersion > 1 || (leveldb::kMajorVersion == 1 && leveldb::kMinorVersion >= 16)) {
@@ -116,7 +116,7 @@ static leveldb::Options GetOptions(size_t nCacheSize)
 }
 
 CDBWrapper::CDBWrapper(const fs::path& path, size_t nCacheSize, bool fMemory, bool fWipe, bool obfuscate)
-    : m_name{path.stem().string()}
+        : m_name(path.stem().string()), ssKey(SER_DISK, CLIENT_VERSION), ssValue(SER_DISK, CLIENT_VERSION)
 {
     penv = nullptr;
     readoptions.verify_checksums = true;
@@ -179,6 +179,11 @@ CDBWrapper::~CDBWrapper()
     options.block_cache = nullptr;
     delete penv;
     options.env = nullptr;
+}
+
+bool CDBWrapper::Sync() {
+    CDBBatch batch(*this);
+    return WriteBatch(batch, true);
 }
 
 bool CDBWrapper::WriteBatch(CDBBatch& batch, bool fSync)
