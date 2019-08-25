@@ -164,7 +164,7 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(insert
     boost::scoped_ptr<CDBIterator> pcursor(base->db->NewIterator());
     for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next()) {
         std::pair<uint8_t, std::string> key;
-        if (!pcursor->GetKey(key) || key.first != TRIE_NODE_BY_NAME)
+        if (!pcursor->GetKey(key) || key.first != TRIE_NODE_CHILDREN)
             continue;
 
         const auto& name = key.second;

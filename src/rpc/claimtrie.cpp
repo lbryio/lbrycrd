@@ -76,6 +76,7 @@ void RollBackTo(const CBlockIndex* targetIndex, CCoinsViewCache& coinsCache, CCl
         if (g_chainstate.DisconnectBlock(block, activeIndex, coinsCache, trieCache) != DisconnectResult::DISCONNECT_OK)
             throw JSONRPCError(RPC_INTERNAL_ERROR, strprintf("Failed to disconnect %s", block.ToString()));
     }
+    trieCache.getMerkleHash(); // update the hash tree
 }
 
 std::string escapeNonUtf8(const std::string& name)
@@ -175,7 +176,6 @@ static UniValue getclaimsintrie(const JSONRPCRequest& request)
     }
 
     UniValue ret(UniValue::VARR);
-    uint256 rootHash;
     LOCK(cs_main);
 
     CCoinsViewCache coinsCache(pcoinsTip.get());
@@ -185,24 +185,18 @@ static UniValue getclaimsintrie(const JSONRPCRequest& request)
         CBlockIndex *blockIndex = BlockHashIndex(ParseHashV(request.params[0], "blockhash (optional parameter 1)"));
         RollBackTo(blockIndex, coinsCache, trieCache);
     }
-    rootHash = trieCache.getMerkleHash();
 
-    CClaimTrieDataNode rootNode;
-    if (!pclaimTrie->find(rootHash, rootNode))
-        return ret;
-
-    pclaimTrie->recurseAllHashedNodes("", rootNode, [&ret, &trieCache, &coinsCache](const std::string &name,
-                                                                                    const CClaimTrieDataNode &node) {
+    trieCache.recurseNodes("", [&ret, &trieCache, &coinsCache] (const std::string& name, const CClaimTrieData& data) {
         if (ShutdownRequested())
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Shutdown requested");
 
         boost::this_thread::interruption_point();
 
-        if (node.data.empty())
+        if (data.empty())
             return;
 
         UniValue claims(UniValue::VARR);
-        for (auto itClaims = node.data.claims.cbegin(); itClaims != node.data.claims.cend(); ++itClaims) {
+        for (auto itClaims = data.claims.cbegin(); itClaims != data.claims.cend(); ++itClaims) {
             UniValue claim(UniValue::VOBJ);
             claim.pushKV("claimId", itClaims->claimId.GetHex());
             claim.pushKV("txid", itClaims->outPoint.hash.GetHex());
@@ -261,27 +255,19 @@ static UniValue getnamesintrie(const JSONRPCRequest& request)
             "Result: \n"
             "\"names\"            (array) all names in the trie that have claims\n");
 
-    uint256 rootHash;
-    {
-        LOCK(cs_main);
+    LOCK(cs_main);
 
-        CCoinsViewCache coinsCache(pcoinsTip.get());
-        CClaimTrieCache trieCache(pclaimTrie);
+    CCoinsViewCache coinsCache(pcoinsTip.get());
+    CClaimTrieCache trieCache(pclaimTrie);
 
-        if (!request.params.empty()) {
-            CBlockIndex *blockIndex = BlockHashIndex(ParseHashV(request.params[0], "blockhash (optional parameter 1)"));
-            RollBackTo(blockIndex, coinsCache, trieCache);
-        }
-        rootHash = trieCache.getMerkleHash();
+    if (!request.params.empty()) {
+        CBlockIndex *blockIndex = BlockHashIndex(ParseHashV(request.params[0], "blockhash (optional parameter 1)"));
+        RollBackTo(blockIndex, coinsCache, trieCache);
     }
     UniValue ret(UniValue::VARR);
 
-    CClaimTrieDataNode rootNode;
-    if (!pclaimTrie->find(rootHash, rootNode))
-        return ret;
-
-    pclaimTrie->recurseAllHashedNodes("", rootNode, [&ret](const std::string& name, const CClaimTrieDataNode& node) {
-        if (!node.data.empty())
+    trieCache.recurseNodes("", [&ret](const std::string &name, const CClaimTrieData &data) {
+        if (!data.empty())
             ret.push_back(escapeNonUtf8(name));
         if (ShutdownRequested())
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Shutdown requested");

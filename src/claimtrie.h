@@ -19,8 +19,8 @@
 
 // leveldb keys
 #define TRIE_NODE 'n' // deprecated
-#define TRIE_NODE_BY_HASH 'h'
-#define TRIE_NODE_BY_NAME 'g'
+#define TRIE_NODE_CHILDREN 'b'
+#define TRIE_NODE_CLAIMS 'c'
 #define CLAIM_BY_ID 'i'
 #define CLAIM_QUEUE_ROW 'r'
 #define CLAIM_QUEUE_NAME_ROW 'm'
@@ -136,11 +136,20 @@ struct CSupportValue
 typedef std::vector<CClaimValue> claimEntryType;
 typedef std::vector<CSupportValue> supportEntryType;
 
+enum CClaimTrieDataFlags: uint32_t {
+    HASH_DIRTY = 1U,
+    CLAIMS_DIRTY = 2U,
+    POTENTIAL_CHILDREN = 4U, // existing on disk
+};
+
 struct CClaimTrieData
 {
-    uint256 hash;
     claimEntryType claims;
     int nHeightOfLastTakeover = 0;
+
+    // non-serialized data:
+    uint256 hash;
+    uint32_t flags = 0;
 
     CClaimTrieData() = default;
     CClaimTrieData(CClaimTrieData&&) = default;
@@ -159,14 +168,13 @@ struct CClaimTrieData
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action)
     {
-        READWRITE(hash);
         READWRITE(claims);
         READWRITE(nHeightOfLastTakeover);
     }
 
     bool operator==(const CClaimTrieData& other) const
     {
-        return hash == other.hash && nHeightOfLastTakeover == other.nHeightOfLastTakeover && claims == other.claims;
+        return nHeightOfLastTakeover == other.nHeightOfLastTakeover && claims == other.claims;
     }
 
     bool operator!=(const CClaimTrieData& other) const
@@ -181,11 +189,10 @@ struct CClaimTrieData
 };
 
 struct CClaimTrieDataNode {
-    CClaimTrieData data;
+    uint256 hash;
     // we're using a vector to avoid RAM thrashing and for faster serialization ops.
     // We're assuming its data is inserted in order and never modified.
-    std::vector<std::pair<std::string, uint256>> children;
-    bool childrenSerialization = true;
+    std::vector<std::string> children;
 
     CClaimTrieDataNode() = default;
     CClaimTrieDataNode(CClaimTrieDataNode&&) = default;
@@ -198,9 +205,8 @@ struct CClaimTrieDataNode {
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action)
     {
-        READWRITE(data);
-        if (childrenSerialization) // wanting constexpr but hoping the compiler is smart enough anyway
-            READWRITE(children);
+        READWRITE(hash);
+        READWRITE(children);
     }
 };
 
@@ -346,11 +352,13 @@ public:
 
     bool contains(const std::string& key) const;
     bool empty() const;
-    bool find(const uint256& key, CClaimTrieDataNode& node) const;
     bool find(const std::string& key, CClaimTrieDataNode& node) const;
+    bool find(const std::string& key, CClaimTrieData& claims) const;
 
     std::vector<std::pair<std::string, CClaimTrieDataNode>> nodes(const std::string& key) const;
-    void recurseAllHashedNodes(const std::string& name, const CClaimTrieDataNode& current, std::function<void(const std::string&, const CClaimTrieDataNode&)> function) const;
+
+    using recurseNodesCB = void(const std::string&, const CClaimTrieData&, const std::vector<std::string>&);
+    void recurseNodes(const std::string& name, const CClaimTrieDataNode& current, std::function<recurseNodesCB> function) const;
 };
 
 struct CClaimTrieProofNode
@@ -473,7 +481,9 @@ public:
     void dumpToLog(CClaimPrefixTrie::const_iterator it, bool diffFromBase = true) const;
     virtual std::string adjustNameForValidHeight(const std::string& name, int validHeight) const;
 
-protected:
+    void recurseNodes(const std::string& name, std::function<void(const std::string&, const CClaimTrieData&)> function) const;
+
+    protected:
     CClaimTrie* base;
     CClaimPrefixTrie nodesToAddOrUpdate; // nodes pulled in from base (and possibly modified thereafter), written to base on flush
     std::unordered_set<std::string> namesToCheckForTakeover; // takeover numbers are updated on increment
@@ -523,7 +533,6 @@ private:
     std::unordered_set<std::string> nodesAlreadyCached; // set of nodes already pulled into cache from base
     std::unordered_map<std::string, bool> takeoverWorkaround;
     std::unordered_set<std::string> removalWorkaround;
-    std::unordered_set<std::string> dirtyNodes;
 
     bool shouldUseTakeoverWorkaround(const std::string& key) const;
     void addTakeoverWorkaroundPotential(const std::string& key);

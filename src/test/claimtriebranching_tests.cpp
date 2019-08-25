@@ -509,6 +509,22 @@ BOOST_AUTO_TEST_CASE(triehash_fuzzer_test)
         std::cerr << "Hash: "  << fixture.getMerkleHash().GetHex() << std::endl;
 }
 #endif
+
+BOOST_AUTO_TEST_CASE(claim_replace_test) {
+    // no competing bids
+    ClaimTrieChainFixture fixture;
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "bass", "one", 1);
+    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(), "basso", "two", 1);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(fixture.is_best_claim("bass", tx1));
+    fixture.Spend(tx1);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "bassfisher", "one", 1);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(pclaimTrie->checkConsistency(fixture.getMerkleHash()));
+    BOOST_CHECK(!fixture.is_best_claim("bass", tx1));
+    BOOST_CHECK(fixture.is_best_claim("bassfisher", tx2));
+}
+
 /*
     claims
         no competing bids
@@ -2617,18 +2633,6 @@ BOOST_AUTO_TEST_CASE(claimtrienode_serialize_unserialize)
     ss >> n2;
     BOOST_CHECK_EQUAL(n1, n2);
 
-    n1.hash.SetHex("0000000000000000000000000000000000000000000000000000000000000001");
-    BOOST_CHECK(n1 != n2);
-    ss << n1;
-    ss >> n2;
-    BOOST_CHECK_EQUAL(n1, n2);
-
-    n1.hash.SetHex("a79e8a5b28f7fa5e8836a4b48da9988bdf56ce749f81f413cb754f963a516200");
-    BOOST_CHECK(n1 != n2);
-    ss << n1;
-    ss >> n2;
-    BOOST_CHECK_EQUAL(n1, n2);
-
     CClaimValue v1(COutPoint(uint256S("0000000000000000000000000000000000000000000000000000000000000001"), 0), hash160, 50, 0, 100);
     CClaimValue v2(COutPoint(uint256S("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"), 1), hash160, 100, 1, 101);
 
@@ -4101,9 +4105,9 @@ BOOST_AUTO_TEST_CASE(update_on_support2_test)
     CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, name, 1);
     fixture.IncrementBlocks(1);
 
-    CClaimTrieDataNode node;
+    CClaimTrieData node;
     BOOST_CHECK(pclaimTrie->find(name, node));
-    BOOST_CHECK_EQUAL(node.data.nHeightOfLastTakeover, height + 1);
+    BOOST_CHECK_EQUAL(node.nHeightOfLastTakeover, height + 1);
 
     fixture.Spend(s1);
     fixture.Spend(s2);
@@ -4111,7 +4115,7 @@ BOOST_AUTO_TEST_CASE(update_on_support2_test)
     fixture.IncrementBlocks(1);
 
     BOOST_CHECK(pclaimTrie->find(name, node));
-    BOOST_CHECK_EQUAL(node.data.nHeightOfLastTakeover, height + 1);
+    BOOST_CHECK_EQUAL(node.nHeightOfLastTakeover, height + 1);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
