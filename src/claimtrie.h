@@ -148,8 +148,8 @@ struct CClaimTrieData
     int nHeightOfLastTakeover = 0;
 
     // non-serialized data:
-    uint256 hash;
     uint32_t flags = 0;
+    uint256 hash;
 
     CClaimTrieData() = default;
     CClaimTrieData(CClaimTrieData&&) = default;
