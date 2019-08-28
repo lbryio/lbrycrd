@@ -29,7 +29,7 @@ class CPrefixTrie
         Node(Node&& o) noexcept = default;
         Node& operator=(Node&& o) noexcept = default;
         Node& operator=(const Node&) = delete;
-        std::shared_ptr<TData> data;
+        TData data;
     };
 
     using TChildren = decltype(Node::children);
