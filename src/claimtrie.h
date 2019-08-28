@@ -399,6 +399,56 @@ struct CClaimTrieProof
 };
 
 template <typename T>
+class COptional
+{
+    bool own;
+    T* value;
+public:
+    COptional(T* value = nullptr) : own(false), value(value) {}
+    COptional(COptional&& o)
+    {
+        own = o.own;
+        value = o.value;
+        o.own = false;
+        o.value = nullptr;
+    }
+    COptional(T&& o) : own(true)
+    {
+        value = new T(std::move(o));
+    }
+    ~COptional()
+    {
+        if (own)
+            delete value;
+    }
+    COptional& operator=(COptional&&) = delete;
+    bool unique() const
+    {
+        return own;
+    }
+    operator bool() const
+    {
+        return value;
+    }
+    operator T*() const
+    {
+        return value;
+    }
+    T* operator->() const
+    {
+        return value;
+    }
+    operator T&() const
+    {
+        return *value;
+    }
+    T& operator*() const
+    {
+        return *value;
+    }
+};
+
+template <typename T>
 using queueEntryType = std::pair<std::string, T>;
 
 typedef std::vector<queueEntryType<CClaimValue>> claimQueueRowType;
@@ -435,10 +485,10 @@ public:
     bool ReadFromDisk(const CBlockIndex* tip);
 
     bool haveClaim(const std::string& name, const COutPoint& outPoint) const;
-    bool haveClaimInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight);
+    bool haveClaimInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const;
 
     bool haveSupport(const std::string& name, const COutPoint& outPoint) const;
-    bool haveSupportInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight);
+    bool haveSupportInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const;
 
     bool addClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId, CAmount nAmount, int nHeight);
     bool undoAddClaim(const std::string& name, const COutPoint& outPoint, int nHeight);
@@ -533,6 +583,7 @@ private:
     std::unordered_set<std::string> nodesAlreadyCached; // set of nodes already pulled into cache from base
     std::unordered_map<std::string, bool> takeoverWorkaround;
     std::unordered_set<std::string> removalWorkaround;
+    std::unordered_set<std::string> forDeleteFromBase;
 
     bool shouldUseTakeoverWorkaround(const std::string& key) const;
     void addTakeoverWorkaroundPotential(const std::string& key);
@@ -547,16 +598,22 @@ private:
     bool validateTrieConsistency(const CBlockIndex* tip);
 
     template <typename T>
-    std::pair<const int, std::vector<queueEntryType<T>>>* getQueueCacheRow(int nHeight, bool createIfNotExists = false);
+    std::vector<queueEntryType<T>>* getQueueCacheRow(int nHeight, bool createIfNotExists);
 
     template <typename T>
-    typename queueNameType::value_type* getQueueCacheNameRow(const std::string& name, bool createIfNotExists = false);
+    COptional<const std::vector<queueEntryType<T>>> getQueueCacheRow(int nHeight) const;
 
     template <typename T>
-    typename expirationQueueType::value_type* getExpirationQueueCacheRow(int nHeight, bool createIfNotExists = false);
+    queueNameRowType* getQueueCacheNameRow(const std::string& name, bool createIfNotExists);
 
     template <typename T>
-    bool haveInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight);
+    COptional<const queueNameRowType> getQueueCacheNameRow(const std::string& name) const;
+
+    template <typename T>
+    expirationQueueRowType* getExpirationQueueCacheRow(int nHeight, bool createIfNotExists);
+
+    template <typename T>
+    bool haveInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const;
 
     template <typename T>
     T add(const std::string& name, const COutPoint& outPoint, const uint160& claimId, CAmount nAmount, int nHeight);
