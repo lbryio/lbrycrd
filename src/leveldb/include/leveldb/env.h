@@ -221,6 +221,9 @@ class RandomAccessFile {
   // Get a name for the file, only for error reporting
   virtual std::string GetName() const = 0;
 
+  virtual char* AllocateScratch(std::size_t size) const { return new char[size]; };
+  virtual void DeallocateScratch(char* pointer) const { delete[] pointer; };
+
  private:
   // No copying allowed
   RandomAccessFile(const RandomAccessFile&);
