@@ -1692,9 +1692,7 @@ void CWalletTx::GetAmounts(std::list<COutputEntry>& listReceived,
 
         // In either case, we need to get the destination address
         CTxDestination address;
-        const CScript& scriptPubKey = StripClaimScriptPrefix(txout.scriptPubKey);
-
-        if (!ExtractDestination(scriptPubKey, address) && !scriptPubKey.IsUnspendable())
+        if (!ExtractDestination(txout.scriptPubKey, address) && !txout.scriptPubKey.IsUnspendable())
         {
             pwallet->WalletLogPrintf("CWalletTx::GetAmounts: Unknown transaction type found, txid %s\n",
                      this->GetHash().ToString());

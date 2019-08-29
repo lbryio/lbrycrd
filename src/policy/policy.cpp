@@ -10,11 +10,9 @@
 #include <consensus/validation.h>
 #include <validation.h>
 #include <coins.h>
-#include <tinyformat.h>
-#include <util.h>
 #include <utilstrencodings.h>
 
-#include "nameclaim.h"
+#include <nameclaim.h>
 
 
 CAmount GetDustThreshold(const CTxOut& txout, const CFeeRate& dustRelayFeeIn)
@@ -117,8 +115,7 @@ bool IsStandardTx(const CTransaction& tx, std::string& reason)
     unsigned int nDataOut = 0;
     txnouttype whichType;
     for (const CTxOut& txout : tx.vout) {
-        const CScript& scriptPubKey = StripClaimScriptPrefix(txout.scriptPubKey);
-        if (!::IsStandard(scriptPubKey, whichType)) {
+        if (!::IsStandard(txout.scriptPubKey, whichType)) {
             reason = "scriptpubkey";
             return false;
         }
@@ -171,8 +168,7 @@ bool AreInputsStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs)
         std::vector<std::vector<unsigned char> > vSolutions;
         txnouttype whichType;
         // get the scriptPubKey corresponding to this input:
-        const CScript& prevScript = StripClaimScriptPrefix(prev.scriptPubKey);
-        if (!Solver(prevScript, whichType, vSolutions))
+        if (!Solver(prev.scriptPubKey, whichType, vSolutions))
             return false;
 
         if (whichType == TX_SCRIPTHASH)
