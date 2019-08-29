@@ -80,14 +80,14 @@ static void SetMaxOpenFiles(leveldb::Options *options) {
     // implementation that does not use extra file descriptors (the fds are
     // closed after being mmap'ed).
     //
-    // Increasing the value beyond the default is dangerous because LevelDB will
-    // fall back to a non-mmap implementation when the file count is too large.
+    // Increasing the value beyond the nmap count is dangerous because LevelDB will
+    // fall back to a non-mmap implementation when the file count is too large (thus contending select()).
     // On 32-bit Unix host we should decrease the value because the handles use
     // up real fds, and we want to avoid fd exhaustion issues.
     //
     // See PR #12495 for further discussion.
 
-    int default_open_files = options->max_open_files;
+    int default_open_files = 400;
 #ifndef WIN32
     if (sizeof(void*) < 8) {
         options->max_open_files = 64;
