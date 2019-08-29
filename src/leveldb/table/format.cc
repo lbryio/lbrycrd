@@ -73,15 +73,15 @@ Status ReadBlock(RandomAccessFile* file,
   // Read the block contents as well as the type/crc footer.
   // See table_builder.cc for the code that built this structure.
   size_t n = static_cast<size_t>(handle.size());
-  char* buf = new char[n + kBlockTrailerSize];
+  char* buf = file->AllocateScratch(n + kBlockTrailerSize);
   Slice contents;
   Status s = file->Read(handle.offset(), n + kBlockTrailerSize, &contents, buf);
   if (!s.ok()) {
-    delete[] buf;
+    file->DeallocateScratch(buf);
     return s;
   }
   if (contents.size() != n + kBlockTrailerSize) {
-    delete[] buf;
+    file->DeallocateScratch(buf);
     return Status::Corruption("truncated block read", file->GetName());
   }
 
@@ -91,7 +91,7 @@ Status ReadBlock(RandomAccessFile* file,
     const uint32_t crc = crc32c::Unmask(DecodeFixed32(data + n + 1));
     const uint32_t actual = crc32c::Value(data, n + 1);
     if (actual != crc) {
-      delete[] buf;
+      file->DeallocateScratch(buf);
       s = Status::Corruption("block checksum mismatch", file->GetName());
       return s;
     }
@@ -103,7 +103,7 @@ Status ReadBlock(RandomAccessFile* file,
         // File implementation gave us pointer to some other data.
         // Use it directly under the assumption that it will be live
         // while the file is open.
-        delete[] buf;
+        file->DeallocateScratch(buf);
         result->data = Slice(data, n);
         result->heap_allocated = false;
         result->cachable = false;  // Do not double-cache
@@ -118,23 +118,23 @@ Status ReadBlock(RandomAccessFile* file,
     case kSnappyCompression: {
       size_t ulength = 0;
       if (!port::Snappy_GetUncompressedLength(data, n, &ulength)) {
-        delete[] buf;
+        file->DeallocateScratch(buf);
         return Status::Corruption("corrupted compressed block contents", file->GetName());
       }
       char* ubuf = new char[ulength];
       if (!port::Snappy_Uncompress(data, n, ubuf)) {
-        delete[] buf;
+        file->DeallocateScratch(buf);
         delete[] ubuf;
         return Status::Corruption("corrupted compressed block contents", file->GetName());
       }
-      delete[] buf;
+      file->DeallocateScratch(buf);
       result->data = Slice(ubuf, ulength);
       result->heap_allocated = true;
       result->cachable = true;
       break;
     }
     default:
-      delete[] buf;
+      file->DeallocateScratch(buf);
       return Status::Corruption("bad block type", file->GetName());
   }
 

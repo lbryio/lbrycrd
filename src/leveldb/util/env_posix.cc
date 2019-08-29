@@ -162,6 +162,7 @@ class PosixRandomAccessFile: public RandomAccessFile {
     }
 
     Status s;
+    assert(scratch);
     ssize_t r = pread(fd, scratch, n, static_cast<off_t>(offset));
     *result = Slice(scratch, (r < 0) ? 0 : r);
     if (r < 0) {
@@ -188,19 +189,19 @@ class PosixMmapReadableFile: public RandomAccessFile {
 
  public:
   // base[0,length-1] contains the mmapped contents of the file.
-  PosixMmapReadableFile(const std::string& fname, void* base, size_t length,
+  PosixMmapReadableFile(std::string fname, void* base, size_t length,
                         Limiter* limiter)
-      : filename_(fname), mmapped_region_(base), length_(length),
+      : filename_(std::move(fname)), mmapped_region_(base), length_(length),
         limiter_(limiter) {
   }
 
-  virtual ~PosixMmapReadableFile() {
+  ~PosixMmapReadableFile() override {
     munmap(mmapped_region_, length_);
     limiter_->Release();
   }
 
-  virtual Status Read(uint64_t offset, size_t n, Slice* result,
-                      char* scratch) const {
+  Status Read(uint64_t offset, size_t n, Slice* result,
+                      char* scratch) const override {
     Status s;
     if (offset + n > length_) {
       *result = Slice();
@@ -211,7 +212,10 @@ class PosixMmapReadableFile: public RandomAccessFile {
     return s;
   }
 
-  virtual std::string GetName() const { return filename_; }
+  std::string GetName() const override { return filename_; }
+
+  char* AllocateScratch(std::size_t size) const override { return nullptr; }
+  void DeallocateScratch(char* pointer) const override { assert(pointer == nullptr); }
 };
 
 class PosixWritableFile : public WritableFile {
@@ -585,8 +589,8 @@ static int MaxMmaps() {
   if (mmap_limit >= 0) {
     return mmap_limit;
   }
-  // Up to 4096 mmaps for 64-bit binaries; none for smaller pointer sizes.
-  mmap_limit = sizeof(void*) >= 8 ? 4096 : 0;
+  // Up to 400 mmaps for 64-bit binaries (800MB); none for smaller pointer sizes.
+  mmap_limit = sizeof(void*) >= 8 ? 400 : 0;
   return mmap_limit;
 }
 
