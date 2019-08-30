@@ -68,7 +68,7 @@ jobs:
         - mkdir -p testrun && cd testrun
         - curl http://build.lbry.io/lbrycrd/${TRAVIS_BRANCH}/lbrycrd-${NAME}-test.zip -o temp.zip
         - unzip temp.zip
-      script: ./test_lbrycrd
+      script: TRIEHASH_FUZZER_BLOCKS=1000 ./test_lbrycrd
 
     - <<: *test-template
       # os: windows # doesn't support secrets at the moment
@@ -79,7 +79,7 @@ jobs:
         - docker
       script:
         - docker pull $DOCKER_WINE_IMAGE
-        - docker run -v "$(pwd):/test" -e "WINEDEBUG=-all" -it $DOCKER_WINE_IMAGE wine "/test/test_lbrycrd.exe"
+        - docker run -v "$(pwd):/test" -e "WINEDEBUG=-all" -e "TRIEHASH_FUZZER_BLOCKS=1000" -it $DOCKER_WINE_IMAGE wine "/test/test_lbrycrd.exe"
 
     - <<: *test-template
       os: osx
