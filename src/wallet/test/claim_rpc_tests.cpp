@@ -7,6 +7,8 @@
 #include <wallet/wallet.h>
 
 #include <consensus/validation.h>
+#include <core_io.h>
+#include <key_io.h>
 #include <rpc/server.h>
 #include <test/test_bitcoin.h>
 #include <validation.h>
@@ -273,6 +275,83 @@ BOOST_AUTO_TEST_CASE(claim_op_runthrough_bech32)
         wallet->m_default_address_type = OutputType::BECH32;
     }
     AddClaimSupportThenRemove();
+}
+
+std::vector<COutPoint> SpendableCoins() {
+    rpcfn_type rpc_method = tableRPC["listunspent"]->actor;
+    JSONRPCRequest req;
+    req.URI = "/wallet/tester_wallet";
+    req.params = UniValue(UniValue::VARR);
+    UniValue unspents = rpc_method(req);
+    std::vector<COutPoint> ret;
+    for (uint32_t i = 0; i < unspents.size(); ++i)
+        ret.emplace_back(uint256S(unspents[i]["txid"].get_str()), unspents[i]["vout"].get_int());
+    return ret;
+}
+
+CTxDestination NewAddress(OutputType t) {
+    rpcfn_type rpc_method = tableRPC["getnewaddress"]->actor;
+    JSONRPCRequest req;
+    req.URI = "/wallet/tester_wallet";
+    req.params = UniValue(UniValue::VARR);
+    req.params.push_back("");
+    req.params.push_back(FormatOutputType(t));
+    UniValue address = rpc_method(req);
+    return DecodeDestination(address.get_str());
+}
+
+std::string SignRawTransaction(const std::string& tx) {
+    rpcfn_type rpc_method = tableRPC["signrawtransactionwithwallet"]->actor;
+    JSONRPCRequest req;
+    req.URI = "/wallet/tester_wallet";
+    req.params = UniValue(UniValue::VARR);
+    req.params.push_back(tx);
+    UniValue results = rpc_method(req);
+    BOOST_CHECK(results["complete"].get_bool());
+    BOOST_CHECK(!results.exists("errors"));
+    return results["hex"].get_str();
+}
+
+std::string SendRawTransaction(const std::string& tx) {
+    rpcfn_type rpc_method = tableRPC["sendrawtransaction"]->actor;
+    JSONRPCRequest req;
+    req.URI = "/wallet/tester_wallet";
+    req.params = UniValue(UniValue::VARR);
+    req.params.push_back(tx);
+    req.params.push_back(UniValue(true)); // allow high fees
+    UniValue results = rpc_method(req);
+    return results.get_str();
+}
+
+
+BOOST_AUTO_TEST_CASE(can_sign_all_addr)
+{
+    generateBlock(110);
+    BOOST_CHECK_EQUAL(AvailableBalance(), 10.0);
+    auto coins = SpendableCoins();
+
+    std::vector<std::string> txids;
+    for (std::size_t i = 0; i < 3; ++i) {
+        CMutableTransaction rawTx;
+        CTxIn in(coins[i], CScript(), 0);
+        rawTx.vin.push_back(in);
+        auto destination = NewAddress(OutputType(i));
+        CScript scriptPubKey = ClaimNameScript("name" + std::to_string(i), "value", false)
+                + GetScriptForDestination(destination);
+        CTxOut out(100000, scriptPubKey);
+        rawTx.vout.push_back(out);
+        auto hex = EncodeHexTx(rawTx);
+        hex = SignRawTransaction(hex);
+        txids.push_back(SendRawTransaction(hex));
+    }
+    generateBlock(1);
+    auto looked = LookupAllNames().get_array();
+
+    for (std::size_t i = 0; i < 3; ++i) {
+        BOOST_CHECK_EQUAL(looked[i]["name"].get_str(), "name" + std::to_string(i));
+        BOOST_CHECK_EQUAL(looked[i]["value"].get_str(), HexStr(std::string("value")));
+        BOOST_CHECK_EQUAL(looked[i]["txid"].get_str(), txids[i]);
+    }
 }
 
 BOOST_AUTO_TEST_SUITE_END()
