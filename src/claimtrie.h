@@ -139,7 +139,7 @@ typedef std::vector<CSupportValue> supportEntryType;
 enum CClaimTrieDataFlags: uint32_t {
     HASH_DIRTY = 1U,
     CLAIMS_DIRTY = 2U,
-    POTENTIAL_CHILDREN = 4U, // existing on disk
+    CAME_FROM_NODE_CACHE = 4U,
 };
 
 struct CClaimTrieData
@@ -188,7 +188,8 @@ struct CClaimTrieData
     }
 };
 
-struct CClaimTrieDataNode {
+struct CClaimTrieDataNode
+{
     uint256 hash;
     // we're using a vector to avoid RAM thrashing and for faster serialization ops.
     // We're assuming its data is inserted in order and never modified.
@@ -364,6 +365,8 @@ struct CClaimSupportToName
     const std::vector<CSupportValue> unmatchedSupports;
 };
 
+typedef CPrefixTrie<std::string, CClaimTrieData> CClaimPrefixTrie;
+
 class CClaimTrie
 {
 public:
@@ -402,6 +405,7 @@ protected:
     int nProportionalDelayFactor = 0;
     std::unique_ptr<CDBWrapper> db;
 
+    CClaimPrefixTrie cacheNodes;
     using recurseNodesCB = void(const std::string&, const CClaimTrieData&, const std::vector<std::string>&);
     void recurseNodes(const std::string& name, const CClaimTrieDataNode& current, std::function<recurseNodesCB> function) const;
 };
@@ -507,8 +511,6 @@ typedef std::map<int, expirationQueueRowType> expirationQueueType;
 
 typedef std::set<CClaimValue> claimIndexClaimListType;
 typedef std::vector<CClaimIndexElement> claimIndexElementListType;
-
-typedef CPrefixTrie<std::string, CClaimTrieData> CClaimPrefixTrie;
 
 class CClaimTrieCacheBase
 {

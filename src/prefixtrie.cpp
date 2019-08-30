@@ -108,16 +108,18 @@ template <typename TKey, typename TData>
 template <bool IsConst>
 typename CPrefixTrie<TKey, TData>::template Iterator<IsConst>::reference CPrefixTrie<TKey, TData>::Iterator<IsConst>::operator*() const
 {
-    assert(!node.expired());
-    return TPair(name, node.lock()->data);
+    auto shared = node.lock();
+    assert(shared);
+    return TPair(name, *(shared->data));
 }
 
 template <typename TKey, typename TData>
 template <bool IsConst>
 typename CPrefixTrie<TKey, TData>::template Iterator<IsConst>::pointer CPrefixTrie<TKey, TData>::Iterator<IsConst>::operator->() const
 {
-    assert(!node.expired());
-    return &(node.lock()->data);
+    auto shared = node.lock();
+    assert(shared);
+    return shared->data.get();
 }
 
 template <typename TKey, typename TData>
@@ -129,18 +131,20 @@ const TKey& CPrefixTrie<TKey, TData>::Iterator<IsConst>::key() const
 
 template <typename TKey, typename TData>
 template <bool IsConst>
-TData& CPrefixTrie<TKey, TData>::Iterator<IsConst>::data()
+typename CPrefixTrie<TKey, TData>::template Iterator<IsConst>::TDataRef CPrefixTrie<TKey, TData>::Iterator<IsConst>::data()
 {
-    assert(!node.expired());
-    return node.lock()->data;
+    auto shared = node.lock();
+    assert(shared);
+    return *(shared->data);
 }
 
 template <typename TKey, typename TData>
 template <bool IsConst>
 const TData& CPrefixTrie<TKey, TData>::Iterator<IsConst>::data() const
 {
-    assert(!node.expired());
-    return node.lock()->data;
+    auto shared = node.lock();
+    assert(shared);
+    return *(shared->data);
 }
 
 template <typename TKey, typename TData>
@@ -244,15 +248,16 @@ std::shared_ptr<typename CPrefixTrie<TKey, TData>::Node>& CPrefixTrie<TKey, TDat
         return it->second;
     }
     if (count < it->first.size()) {
-        const TKey prefix(key.begin(), key.begin() + count);
-        const TKey postfix(it->first.begin() + count, it->first.end());
+        TKey prefix(key.begin(), key.begin() + count);
+        TKey postfix(it->first.begin() + count, it->first.end());
         auto nodes = std::move(it->second);
         children.erase(it);
         ++size;
-        it = children.emplace(prefix, std::make_shared<Node>()).first;
-        it->second->children.emplace(postfix, std::move(nodes));
+        it = children.emplace(std::move(prefix), std::make_shared<Node>()).first;
+        it->second->children.emplace(std::move(postfix), std::move(nodes));
         if (key.size() == count)
             return it->second;
+        it->second->data = std::make_shared<TData>();
     }
     return insert(TKey(key.begin() + count, key.end()), it->second);
 }
@@ -269,12 +274,12 @@ void CPrefixTrie<TKey, TData>::erase(const TKey& key, std::shared_ptr<Node>& nod
     if (!find(key, node, cb))
         return;
 
-    nodes.back().second->data = {};
+    nodes.back().second->data = std::make_shared<TData>();
     for (; nodes.size() > 1; nodes.pop_back()) {
         // if we have only one child and no data ourselves, bring them up to our level
         auto& cNode = nodes.back().second;
         auto onlyOneChild = cNode->children.size() == 1;
-        auto noData = cNode->data.empty();
+        auto noData = cNode->data->empty();
         if (onlyOneChild && noData) {
             auto child = cNode->children.begin();
             auto& prefix = nodes.back().first;
@@ -282,7 +287,7 @@ void CPrefixTrie<TKey, TData>::erase(const TKey& key, std::shared_ptr<Node>& nod
             auto& postfix = child->first;
             newKey.insert(newKey.end(), postfix.begin(), postfix.end());
             auto& pNode = nodes[nodes.size() - 2].second;
-            pNode->children.emplace(newKey, std::move(child->second));
+            pNode->children.emplace(std::move(newKey), std::move(child->second));
             pNode->children.erase(prefix);
             --size;
             continue;
@@ -302,6 +307,7 @@ void CPrefixTrie<TKey, TData>::erase(const TKey& key, std::shared_ptr<Node>& nod
 template <typename TKey, typename TData>
 CPrefixTrie<TKey, TData>::CPrefixTrie() : size(0), root(std::make_shared<Node>())
 {
+    root->data = std::make_shared<TData>();
 }
 
 template <typename TKey, typename TData>
@@ -309,7 +315,7 @@ template <typename TDataUni>
 typename CPrefixTrie<TKey, TData>::iterator CPrefixTrie<TKey, TData>::insert(const TKey& key, TDataUni&& data)
 {
     auto& node = key.empty() ? root : insert(key, root);
-    node->data = std::forward<TDataUni>(data);
+    node->data = std::make_shared<TData>(std::forward<TDataUni>(data));
     return key.empty() ? begin() : iterator{key, node};
 }
 
@@ -335,7 +341,7 @@ typename CPrefixTrie<TKey, TData>::iterator CPrefixTrie<TKey, TData>::insert(CPr
         auto& node = insert(key, shared);
         copy = iterator{name, node};
     }
-    copy.node.lock()->data = std::forward<TDataUni>(data);
+    copy.node.lock()->data = std::make_shared<TData>(std::forward<TDataUni>(data));
     return copy;
 }
 
@@ -404,7 +410,7 @@ bool CPrefixTrie<TKey, TData>::erase(const TKey& key)
 {
     auto size_was = height();
     if (key.empty()) {
-        root->data = {};
+        root->data = std::make_shared<TData>();
     } else {
         erase(key, root);
     }
@@ -415,7 +421,7 @@ template <typename TKey, typename TData>
 void CPrefixTrie<TKey, TData>::clear()
 {
     size = 0;
-    root->data = {};
+    root->data = std::make_shared<TData>();
     root->children.clear();
 }
 
@@ -428,7 +434,7 @@ bool CPrefixTrie<TKey, TData>::empty() const
 template <typename TKey, typename TData>
 std::size_t CPrefixTrie<TKey, TData>::height() const
 {
-    return size + (root->data.empty() ? 0 : 1);
+    return size + (root->data->empty() ? 0 : 1);
 }
 
 template <typename TKey, typename TData>

@@ -29,7 +29,7 @@ class CPrefixTrie
         Node(Node&& o) noexcept = default;
         Node& operator=(Node&& o) noexcept = default;
         Node& operator=(const Node&) = delete;
-        TData data;
+        std::shared_ptr<TData> data;
     };
 
     using TChildren = decltype(Node::children);
@@ -41,9 +41,10 @@ class CPrefixTrie
         friend class Iterator;
         friend class CPrefixTrie<TKey, TData>;
 
-        using TKeyRef = std::reference_wrapper<const TKey>;
-        using TDataRef = std::reference_wrapper<TData>;
-        using TPair = std::pair<TKeyRef, TDataRef>;
+        using TDataRef = typename std::conditional<IsConst, const TData&, TData&>::type;
+        using TKeyWrap = std::reference_wrapper<const TKey>;
+        using TDataWrap = std::reference_wrapper<TData>;
+        using TPair = std::pair<TKeyWrap, TDataWrap>;
 
         TKey name;
         std::weak_ptr<Node> node;
@@ -94,7 +95,7 @@ class CPrefixTrie
 
         const TKey& key() const;
 
-        TData& data();
+        TDataRef data();
         const TData& data() const;
 
         std::size_t depth() const;
