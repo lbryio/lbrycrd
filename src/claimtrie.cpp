@@ -124,10 +124,10 @@ void CClaimTrieData::reorderClaims(const supportEntryType& supports)
     std::sort(claims.rbegin(), claims.rend());
 }
 
-CClaimTrie::CClaimTrie(bool fMemory, bool fWipe, int proportionalDelayFactor)
+CClaimTrie::CClaimTrie(bool fMemory, bool fWipe, int proportionalDelayFactor, std::size_t cacheMB)
 {
     nProportionalDelayFactor = proportionalDelayFactor;
-    db.reset(new CDBWrapper(GetDataDir() / "claimtrie", 400 * 1024 * 1024, fMemory, fWipe, false));
+    db.reset(new CDBWrapper(GetDataDir() / "claimtrie", cacheMB * 1024ULL * 1024ULL, fMemory, fWipe, false));
 }
 
 bool CClaimTrie::SyncToDisk()

@@ -330,7 +330,7 @@ public:
     virtual ~CClaimTrie() = default;
     CClaimTrie(CClaimTrie&&) = delete;
     CClaimTrie(const CClaimTrie&) = delete;
-    CClaimTrie(bool fMemory, bool fWipe, int proportionalDelayFactor = 32);
+    CClaimTrie(bool fMemory, bool fWipe, int proportionalDelayFactor = 32, std::size_t cacheMB=200);
 
     CClaimTrie& operator=(CClaimTrie&&) = delete;
     CClaimTrie& operator=(const CClaimTrie&) = delete;
