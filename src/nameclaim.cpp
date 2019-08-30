@@ -28,18 +28,22 @@ uint32_t vch_to_uint32_t(std::vector<unsigned char>& vchN)
     return n;
 }
 
-CScript ClaimNameScript(std::string name, std::string value)
+CScript ClaimNameScript(std::string name, std::string value, bool fakeSuffix)
 {
     std::vector<unsigned char> vchName(name.begin(), name.end());
     std::vector<unsigned char> vchValue(value.begin(), value.end());
-    return CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP << OP_TRUE;
+    auto ret = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
+    if (fakeSuffix) ret.push_back(OP_TRUE);
+    return ret;
 }
 
-CScript SupportClaimScript(std::string name, uint160 claimId)
+CScript SupportClaimScript(std::string name, uint160 claimId, bool fakeSuffix)
 {
     std::vector<unsigned char> vchName(name.begin(), name.end());
     std::vector<unsigned char> vchClaimId(claimId.begin(), claimId.end());
-    return CScript() << OP_SUPPORT_CLAIM << vchName << vchClaimId << OP_2DROP << OP_DROP << OP_TRUE;
+    auto ret = CScript() << OP_SUPPORT_CLAIM << vchName << vchClaimId << OP_2DROP << OP_DROP;
+    if (fakeSuffix) ret.push_back(OP_TRUE);
+    return ret;
 }
 
 CScript UpdateClaimScript(std::string name, uint160 claimId, std::string value)

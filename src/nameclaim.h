@@ -25,8 +25,8 @@
 // Scripts exceeding this size are rejected in CheckTransaction in main.cpp
 #define MAX_CLAIM_NAME_SIZE 255
 
-CScript ClaimNameScript(std::string name, std::string value);
-CScript SupportClaimScript(std::string name, uint160 claimId);
+CScript ClaimNameScript(std::string name, std::string value, bool fakeSuffix=true);
+CScript SupportClaimScript(std::string name, uint160 claimId, bool fakeSuffix=true);
 CScript UpdateClaimScript(std::string name, uint160 claimId, std::string value);
 bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams);
 bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams, CScript::const_iterator& pc);
