@@ -61,10 +61,9 @@ public:
     void SeekToFirst();
 
     template<typename K> void Seek(const K& key) {
-        CDataStream ssKey1(SER_DISK, CLIENT_VERSION);
-        // ssKey1.reserve(parent.ssKey.capacity());
-        ssKey1 << key;
-        leveldb::Slice slKey(ssKey1.data(), ssKey1.size());
+        CDataStream ssKey(SER_DISK, CLIENT_VERSION);
+        ssKey << key;
+        leveldb::Slice slKey(ssKey.data(), ssKey.size());
         piter->Seek(slKey);
     }
 
@@ -233,6 +232,8 @@ public:
     size_t EstimateSize(const K& key_begin, const K& key_end) const
     {
         CDataStream ssKey1(SER_DISK, CLIENT_VERSION), ssKey2(SER_DISK, CLIENT_VERSION);
+        ssKey1.reserve(ssKey.capacity());
+        ssKey2.reserve(ssKey.capacity());
         ssKey1 << key_begin;
         ssKey2 << key_end;
         leveldb::Slice slKey1(ssKey1.data(), ssKey1.size());
@@ -269,12 +270,17 @@ class CDBBatch
     leveldb::WriteBatch batch;
 
     size_t size_estimate;
+    CDataStream ssKey, ssValue;
 
 public:
     /**
      * @param[in] _parent   CDBWrapper that this batch is to be submitted to
      */
-    explicit CDBBatch(const CDBWrapper &_parent) : parent(_parent), size_estimate(0) { };
+    explicit CDBBatch(const CDBWrapper &_parent) : parent(_parent), size_estimate(0),
+        ssKey(SER_DISK, CLIENT_VERSION), ssValue(SER_DISK, CLIENT_VERSION) {
+        ssKey.reserve(parent.ssKey.capacity());
+        ssValue.reserve(parent.ssValue.capacity());
+    };
 
     void Clear()
     {
@@ -285,14 +291,14 @@ public:
     template <typename K, typename V>
     void Write(const K& key, const V& value)
     {
-        assert(parent.ssKey.empty());
-        parent.ssKey << key;
-        leveldb::Slice slKey(parent.ssKey.data(), parent.ssKey.size());
+        assert(ssKey.empty());
+        ssKey << key;
+        leveldb::Slice slKey(ssKey.data(), ssKey.size());
 
-        assert(parent.ssValue.empty());
-        parent.ssValue << value;
-        parent.ssValue.Xor(dbwrapper_private::GetObfuscateKey(parent));
-        leveldb::Slice slValue(parent.ssValue.data(), parent.ssValue.size());
+        assert(ssValue.empty());
+        ssValue << value;
+        ssValue.Xor(dbwrapper_private::GetObfuscateKey(parent));
+        leveldb::Slice slValue(ssValue.data(), ssValue.size());
 
         batch.Put(slKey, slValue);
         // LevelDB serializes writes as:
@@ -303,15 +309,15 @@ public:
         // - byte[]: value
         // The formula below assumes the key and value are both less than 16k.
         size_estimate += 3 + (slKey.size() > 127) + slKey.size() + (slValue.size() > 127) + slValue.size();
-        parent.ssKey.clear();
-        parent.ssValue.clear();
+        ssKey.clear();
+        ssValue.clear();
     }
 
     template <typename K>
     void Erase(const K& key)
     {
-        parent.ssKey << key;
-        leveldb::Slice slKey(parent.ssKey.data(), parent.ssKey.size());
+        ssKey << key;
+        leveldb::Slice slKey(ssKey.data(), ssKey.size());
 
         batch.Delete(slKey);
         // LevelDB serializes erases as:
@@ -320,7 +326,7 @@ public:
         // - byte[]: key
         // The formula below assumes the key is less than 16kB.
         size_estimate += 2 + (slKey.size() > 127) + slKey.size();
-        parent.ssKey.clear();
+        ssKey.clear();
     }
 
     size_t SizeEstimate() const { return size_estimate; }
