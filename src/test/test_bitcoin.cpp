@@ -19,7 +19,7 @@
 #include <rpc/register.h>
 #include <script/sigcache.h>
 
-#include "claimtrie.h"
+#include <claimtrie.h>
 #include <boost/test/unit_test.hpp>
 #include <boost/test/unit_test_parameters.hpp>
 

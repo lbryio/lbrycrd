@@ -62,8 +62,7 @@ bool CClaimScriptUndoAddOp::supportClaim(CClaimTrieCache& trieCache, const std::
     if (LogAcceptCategory(BCLog::CLAIMS)) {
         LogPrintf("--- [%lu]: OP_SUPPORT_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n", nHeight, name,
                   claimId.GetHex(), point.hash.ToString(), point.n);
-        LogPrintf(
-                "%s: (txid: %s, nOut: %d) Removing support for %s, claimId: %s, from the claim trie due to block disconnect\n",
+        LogPrintf("%s: (txid: %s, nOut: %d) Removing support for %s, claimId: %s, from the claim trie due to block disconnect\n",
                 __func__, point.hash.ToString(), point.n, name, claimId.ToString());
     }
     bool res = trieCache.undoAddSupport(name, point, nHeight);

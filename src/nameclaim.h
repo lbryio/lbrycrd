@@ -1,10 +1,10 @@
 #ifndef BITCOIN_NAMECLAIM_H
 #define BITCOIN_NAMECLAIM_H
 
-#include "amount.h"
-#include "script/script.h"
-#include "primitives/transaction.h"
-#include "uint256.h"
+#include <amount.h>
+#include <script/script.h>
+#include <primitives/transaction.h>
+#include <uint256.h>
 
 #include <vector>
 

@@ -2,16 +2,16 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef CLAIMSCRIPTOP_H
-#define CLAIMSCRIPTOP_H
+#ifndef BITCOIN_CLAIMSCRIPTOP_H
+#define BITCOIN_CLAIMSCRIPTOP_H
 
-#include "amount.h"
-#include "claimtrie.h"
-#include "hash.h"
-#include "primitives/transaction.h"
-#include "script/script.h"
-#include "uint256.h"
-#include "util.h"
+#include <amount.h>
+#include <claimtrie.h>
+#include <hash.h>
+#include <primitives/transaction.h>
+#include <script/script.h>
+#include <uint256.h>
+#include <util.h>
 
 #include <string>
 #include <vector>
@@ -242,4 +242,4 @@ struct CUpdateCacheCallbacks
  */
 void UpdateCache(const CTransaction& tx, CClaimTrieCache& trieCache, const CCoinsViewCache& view, int nHeight, const CUpdateCacheCallbacks& callbacks = {});
 
-#endif // CLAIMSCRIPTOP_H
+#endif // BITCOIN_CLAIMSCRIPTOP_H

@@ -1,5 +1,5 @@
-#ifndef LBRY_H
-#define LBRY_H
+#ifndef BITCOIN_LBRY_H
+#define BITCOIN_LBRY_H
 
 #include <chain.h>
 #include <chainparams.h>

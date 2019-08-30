@@ -40,7 +40,7 @@ class ZMQTest (BitcoinTestFramework):
 
     def skip_test_if_missing_module(self):
         self.skip_if_no_py3_zmq()
-        self.skip_if_no_bitcoind_zmq()
+        self.skip_if_no_lbrycrdd_zmq()
         self.skip_if_no_wallet()
 
     def setup_nodes(self):
@@ -57,7 +57,7 @@ class ZMQTest (BitcoinTestFramework):
         # that this test fails if the publishing order changes.
         # Note that the publishing order is not defined in the documentation and
         # is subject to change.
-        address = "tcp://127.0.0.1:28332"
+        address = "tcp://127.0.0.1:29245"
         self.zmq_context = zmq.Context()
         socket = self.zmq_context.socket(zmq.SUB)
         socket.set(zmq.RCVTIMEO, 60000)

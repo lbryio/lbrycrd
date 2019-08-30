@@ -10,7 +10,7 @@ from test_framework.util import assert_equal
 
 class RPCZMQTest(BitcoinTestFramework):
 
-    address = "tcp://127.0.0.1:28332"
+    address = "tcp://127.0.0.1:29245"
 
     def set_test_params(self):
         self.num_nodes = 1
@@ -18,7 +18,7 @@ class RPCZMQTest(BitcoinTestFramework):
 
     def skip_test_if_missing_module(self):
         self.skip_if_no_py3_zmq()
-        self.skip_if_no_bitcoind_zmq()
+        self.skip_if_no_lbrycrdd_zmq()
 
     def run_test(self):
         self._test_getzmqnotifications()

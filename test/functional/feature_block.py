@@ -309,7 +309,7 @@ class FullBlockTest(BitcoinTestFramework):
         b26 = self.update_block(26, [])
         self.sync_blocks([b26], success=False, reject_code=16, reject_reason=b'bad-cb-length', reconnect=True)
 
-        # Extend the b26 chain to make sure bitcoind isn't accepting b26
+        # Extend the b26 chain to make sure lbrycrdd isn't accepting b26
         b27 = self.next_block(27, spend=out[7])
         self.sync_blocks([b27], False)
 
@@ -321,7 +321,7 @@ class FullBlockTest(BitcoinTestFramework):
         b28 = self.update_block(28, [])
         self.sync_blocks([b28], success=False, reject_code=16, reject_reason=b'bad-cb-length', reconnect=True)
 
-        # Extend the b28 chain to make sure bitcoind isn't accepting b28
+        # Extend the b28 chain to make sure lbrycrdd isn't accepting b28
         b29 = self.next_block(29, spend=out[7])
         self.sync_blocks([b29], False)
 
@@ -829,7 +829,7 @@ class FullBlockTest(BitcoinTestFramework):
         assert_equal(len(b64a.serialize()), MAX_BLOCK_BASE_SIZE + 8)
         self.sync_blocks([b64a], success=False, reject_code=1, reject_reason=b'error parsing message')
 
-        # bitcoind doesn't disconnect us for sending a bloated block, but if we subsequently
+        # lbrycrdd doesn't disconnect us for sending a bloated block, but if we subsequently
         # resend the header message, it won't send us the getdata message again. Just
         # disconnect and reconnect and then call sync_blocks.
         # TODO: improve this test to be less dependent on P2P DOS behaviour.

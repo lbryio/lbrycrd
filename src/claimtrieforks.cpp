@@ -4,11 +4,7 @@
 #include <claimtrie.h>
 #include <hash.h>
 
-#include <boost/algorithm/string.hpp>
-#include <boost/foreach.hpp>
 #include <boost/locale.hpp>
-#include <boost/locale/conversion.hpp>
-#include <boost/locale/localization_backend.hpp>
 #include <boost/scope_exit.hpp>
 #include <boost/scoped_ptr.hpp>
 

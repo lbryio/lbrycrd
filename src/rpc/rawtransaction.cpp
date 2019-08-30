@@ -436,9 +436,17 @@ CMutableTransaction ConstructTransaction(const UniValue& inputs_in, const UniVal
                 throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated address: ") + name_);
             }
 
-            CScript scriptPubKey = GetScriptForDestination(destination);
-            CAmount nAmount = AmountFromValue(outputs[name_]);
+            auto rawAmount = outputs[name_];
+            CAmount nAmount;
+            CScript prefix;
+            if (rawAmount.isArray() && rawAmount.size() > 2) {
+                nAmount = AmountFromValue(rawAmount[0]);
+                prefix = ClaimNameScript(rawAmount[1].get_str(), rawAmount[2].get_str());
+            }
+            else
+                nAmount = AmountFromValue(outputs[name_]);
 
+            CScript scriptPubKey = prefix + GetScriptForDestination(destination);
             CTxOut out(nAmount, scriptPubKey);
             rawTx.vout.push_back(out);
         }

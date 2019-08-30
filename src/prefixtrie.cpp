@@ -1,6 +1,5 @@
-
-#include "prefixtrie.h"
-#include "claimtrie.h"
+#include <prefixtrie.h>
+#include <claimtrie.h>
 
 template <typename TKey, typename TData>
 template <bool IsConst>
