@@ -726,7 +726,7 @@ UniValue supportclaim(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() < 3 || request.params.size() > 5)
+    if (request.fHelp || request.params.size() < 1 || request.params.size() > 5)
         throw std::runtime_error(
             "supportclaim \"name\" \"claimid\" \"amount\" \"value\"\n"
             "Increase the value of a claim. Whichever claim has the greatest value, including all support values, will be the authoritative claim, according to the rest of the rules. The name is the name which is claimed by the claim that will be supported, the txid is the txid\
@@ -735,31 +735,49 @@ UniValue supportclaim(const JSONRPCRequest& request)
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
             "1. \"name\"         (string, required) The name claimed by the claim to support.\n"
-            "2. \"claimid\"      (string, required) The claimid of the claim to support.\n"
-            "3. \"amount\"       (numeric, required) The amount in LBC to use to support the claim.\n"
+            "2. \"claimid\"      (string, optional) The claimid, partialid or best claim to support.\n"
+            "3. \"amount\"       (numeric, optional) The amount in LBC to use to support the claim.\n"
             "4. \"value\"        (string, optional) The metadata of the support encoded in hexadecimal.\n"
-            "\nResult:\n"
-            "\"transactionid\"  (string) The transaction id of the support.\n");
+            "\nResult: [\n"
+                "\"txId\"        (string) The transaction id of the support.\n"
+                "\"address\"     (string) The destination address of the claim.\n"
+            "\n]");
 
     auto sName = request.params[0].get_str();
-    auto sClaimId = request.params[1].get_str();
+    std::string sClaimId;
+    if (request.params.size() > 1)
+        sClaimId = request.params[1].get_str();
 
     const size_t claimLength = 40;
 
-    if (!IsHex(sClaimId))
+    if (!IsHexNumber(sClaimId))
         throw JSONRPCError(RPC_INVALID_PARAMETER, "claimid must be a 20-character hexadecimal string (not '" + sClaimId + "')");
-    if (sClaimId.length() != claimLength)
-        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("claimid must be of length %d", claimLength));
 
-    uint160 claimId;
-    claimId.SetHex(sClaimId);
-    std::vector<unsigned char> vchName (sName.begin(), sName.end());
-    std::vector<unsigned char> vchClaimId (claimId.begin(), claimId.end());
-    CAmount nAmount = AmountFromValue(request.params[2]);
+    if (sClaimId.length() > claimLength)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("claimid must be maximum of length %d", claimLength));
 
     pwallet->BlockUntilSyncedToCurrentChain();
     LOCK2(cs_main, pwallet->cs_wallet);
     EnsureWalletIsUnlocked(pwallet);
+
+    uint160 claimId;
+    if (sClaimId.length() != claimLength) {
+        CClaimTrieCache trieCache(pclaimTrie);
+        auto csToName = trieCache.getClaimsForName(sName);
+        if (csToName.claimsNsupports.empty())
+            return NullUniValue;
+        auto& claimNsupports = !sClaimId.empty() ? csToName.find(sClaimId) : csToName.claimsNsupports[0];
+        if (claimNsupports.IsNull())
+            return NullUniValue;
+        claimId = claimNsupports.claim.claimId;
+    } else {
+        claimId.SetHex(sClaimId);
+    }
+
+    std::vector<unsigned char> vchName (sName.begin(), sName.end());
+    std::vector<unsigned char> vchClaimId (claimId.begin(), claimId.end());
+    CAmount nAmount = AmountFromValue(request.params.size() > 2 ? request.params[2] : "0.00000001");
+
     CScript supportScript = CScript() << OP_SUPPORT_CLAIM << vchName << vchClaimId;
     auto lastOp = OP_DROP;
     if (request.params.size() > 3) {
@@ -787,7 +805,11 @@ UniValue supportclaim(const JSONRPCRequest& request)
     CCoinControl cc;
     cc.m_change_type = pwallet->m_default_change_type;
     auto tx = SendMoney(pwallet, dest, nAmount, false, cc, {}, {}, supportScript);
-    return tx->GetHash().GetHex();
+
+    UniValue result(UniValue::VOBJ);
+    result.pushKV("txId", tx->GetHash().GetHex());
+    result.pushKV("address", EncodeDestination(dest));
+    return result;
 }
 
 UniValue abandonsupport(const JSONRPCRequest& request)
