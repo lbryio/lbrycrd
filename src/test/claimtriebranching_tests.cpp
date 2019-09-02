@@ -4007,7 +4007,7 @@ BOOST_AUTO_TEST_CASE(getclaimsforname_test)
 
     UniValue results = getclaimsforname(req);
     UniValue claims = results[T_CLAIMS];
-    BOOST_CHECK_EQUAL(claims.size(), 1U);
+    BOOST_CHECK_EQUAL(claims.size(), 2U);
     BOOST_CHECK_EQUAL(results[T_LASTTAKEOVERHEIGHT].get_int(), height + 1);
     BOOST_CHECK_EQUAL(claims[0][T_EFFECTIVEAMOUNT].get_int(), 2);
     BOOST_CHECK_EQUAL(claims[0][T_SUPPORTS].size(), 0U);
@@ -4458,6 +4458,43 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
     BOOST_CHECK_EQUAL(result[T_CLAIMSREMOVED].size(), 0);
     BOOST_CHECK_EQUAL(result[T_SUPPORTSADDEDORUPDATED].size(), 0);
     BOOST_CHECK_EQUAL(result[T_SUPPORTSREMOVED].size(), 0);
+}
+
+BOOST_AUTO_TEST_CASE(claim_rpc_pending_amount_test)
+{
+    ClaimTrieChainFixture fixture;
+    std::string sName1("test");
+    std::string sValue1("test1");
+    std::string sValue2("test2");
+
+    rpcfn_type getclaimsforname = tableRPC["getclaimsforname"]->actor;
+
+    JSONRPCRequest req;
+    req.params = UniValue(UniValue::VARR);
+    req.params.push_back(UniValue(sName1));
+
+    fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue1, 1);
+    fixture.IncrementBlocks(1);
+
+    fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue2, 2);
+    fixture.IncrementBlocks(1);
+
+    auto claims = getclaimsforname(req)[T_CLAIMS];
+    BOOST_CHECK_EQUAL(claims.size(), 2U);
+    BOOST_CHECK_EQUAL(claims[0][T_EFFECTIVEAMOUNT].get_int(), 1);
+    BOOST_CHECK(!claims[0].exists(T_PENDINGAMOUNT));
+    BOOST_CHECK_EQUAL(claims[1][T_EFFECTIVEAMOUNT].get_int(), 0);
+    BOOST_CHECK(claims[1].exists(T_PENDINGAMOUNT));
+    BOOST_CHECK_EQUAL(claims[1][T_PENDINGAMOUNT].get_int(), 2);
+
+    fixture.IncrementBlocks(1);
+
+    claims = getclaimsforname(req)[T_CLAIMS];
+    BOOST_CHECK_EQUAL(claims.size(), 2U);
+    BOOST_CHECK_EQUAL(claims[0][T_EFFECTIVEAMOUNT].get_int(), 2);
+    BOOST_CHECK(!claims[0].exists(T_PENDINGAMOUNT));
+    BOOST_CHECK_EQUAL(claims[1][T_EFFECTIVEAMOUNT].get_int(), 1);
+    BOOST_CHECK(!claims[1].exists(T_PENDINGAMOUNT));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

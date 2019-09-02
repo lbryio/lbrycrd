@@ -245,6 +245,14 @@ UniValue supportToJSON(const CCoinsViewCache& coinsCache, const CSupportValue& s
     return ret;
 }
 
+CAmount amountToClaim(const CClaimNsupports& claimNsupports)
+{
+    auto fullAmount = claimNsupports.claim.nAmount;
+    for (auto& support : claimNsupports.supports)
+        fullAmount += support.nAmount;
+    return fullAmount;
+}
+
 UniValue claimAndSupportsToJSON(const CCoinsViewCache& coinsCache, const CClaimNsupports& claimNsupports)
 {
     auto& claim = claimNsupports.claim;
@@ -252,6 +260,10 @@ UniValue claimAndSupportsToJSON(const CCoinsViewCache& coinsCache, const CClaimN
 
     auto result = claimToJSON(coinsCache, claim);
     result.pushKV(T_EFFECTIVEAMOUNT, claimNsupports.effectiveAmount);
+
+    auto fullAmount = amountToClaim(claimNsupports);
+    if (fullAmount > claimNsupports.effectiveAmount)
+        result.pushKV(T_PENDINGAMOUNT, fullAmount);
 
     UniValue supportObjs(UniValue::VARR);
     for (auto& support : supports)

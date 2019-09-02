@@ -391,27 +391,44 @@ bool CClaimTrieCacheBase::getInfoForName(const std::string& name, CClaimValue& c
     return base->find(name, claims) && claims.getBestClaim(claim);
 }
 
+template <typename T>
+void CClaimTrieCacheBase::insertRowsFromQueue(std::vector<T>& result, const std::string& name) const
+{
+    supportedType<T>();
+    if (auto nameRows = getQueueCacheNameRow<T>(name))
+        for (auto& nameRow : *nameRows)
+            if (auto rows = getQueueCacheRow<T>(nameRow.nHeight))
+                for (auto& row : *rows)
+                    if (row.first == name)
+                        result.push_back(row.second);
+}
+
 CClaimSupportToName CClaimTrieCacheBase::getClaimsForName(const std::string& name) const
 {
     claimEntryType claims;
     int nLastTakeoverHeight = 0;
     auto supports = getSupportsForName(name);
+    insertRowsFromQueue(supports, name);
 
-    CClaimTrieData data;
     if (auto it = nodesToAddOrUpdate.find(name)) {
         claims = it->claims;
         nLastTakeoverHeight = it->nHeightOfLastTakeover;
+    } else if (!nodesToDelete.count(name)) {
+        CClaimTrieData data;
+        if (base->find(name, data)) {
+            claims = data.claims;
+            nLastTakeoverHeight = data.nHeightOfLastTakeover;
+        }
     }
-    else if (!nodesToDelete.count(name) && base->find(name, data)) {
-        claims = data.claims;
-        nLastTakeoverHeight = data.nHeightOfLastTakeover;
-    }
+    insertRowsFromQueue(claims, name);
+
     auto find = [&supports](decltype(supports)::iterator& it, const CClaimValue& claim) {
         it = std::find_if(it, supports.end(), [&claim](const CSupportValue& support) {
             return claim.claimId == support.supportedClaimId;
         });
         return it != supports.end();
     };
+
     // match support to claim
     std::vector<CClaimNsupports> claimsNsupports;
     for (const auto& claim : claims) {
