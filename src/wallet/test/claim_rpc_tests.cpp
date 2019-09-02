@@ -78,7 +78,7 @@ uint256 SupportAName(const std::string& name, const std::string& claimId, const 
     req.params.push_back(price);
 
     UniValue results = rpc_method(req);
-    auto txid = results.get_str();
+    auto txid = results["txId"].get_str();
     uint256 ret;
     ret.SetHex(txid);
     return ret;
