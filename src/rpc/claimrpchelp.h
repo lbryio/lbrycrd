@@ -45,6 +45,7 @@
 #define T_CLAIMSREMOVED                 "claimsRemoved"
 #define T_SUPPORTSREMOVED               "supportsRemoved"
 #define T_ADDRESS                       "address"
+#define T_PENDINGAMOUNT                 "pendingAmount"
 
 enum {
     GETCLAIMSINTRIE = 0,
@@ -89,6 +90,7 @@ S3("    ", T_HEIGHT, "                 (numeric) the height of the block in whic
 S3("    ", T_VALIDATHEIGHT, "          (numeric) the height at which the support became/becomes valid") \
 S3("    ", T_AMOUNT, "                 (numeric) the amount of the claim") \
 S3("    ", T_EFFECTIVEAMOUNT, "        (numeric) the amount plus amount from all supports associated with the claim") \
+S3("    ", T_PENDINGAMOUNT, "          (numeric) expected amount when claim and its support got valid") \
 S3("    ", T_SUPPORTS, ": [            (array of object) supports for this claim") \
 S3("        ", T_VALUE, "              (string) the metadata of the support if any") \
 S3("        ", T_ADDRESS, "            (string) the destination address of the support") \
@@ -184,6 +186,7 @@ S3("        ", T_HEIGHT, "             (numeric) the height of the block in whic
 S3("        ", T_VALIDATHEIGHT, "      (numeric) the height at which the claim became/becomes valid")
 S3("        ", T_AMOUNT, "             (numeric) the amount of the claim")
 S3("        ", T_EFFECTIVEAMOUNT, "    (numeric) the amount plus amount from all supports associated with the claim")
+S3("        ", T_PENDINGAMOUNT, "      (numeric) expected amount when claim and its support got valid")
 S3("        ", T_SUPPORTS, ": [        (array of object) supports for this claim")
 S3("            ", T_VALUE, "          (string) the metadata of the support if any")
 S3("            ", T_ADDRESS, "        (string) the destination address of the support")
