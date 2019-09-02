@@ -629,6 +629,9 @@ private:
     bool validateTrieConsistency(const CBlockIndex* tip);
 
     template <typename T>
+    void insertRowsFromQueue(std::vector<T>& result, const std::string& name) const;
+
+    template <typename T>
     std::vector<queueEntryType<T>>* getQueueCacheRow(int nHeight, bool createIfNotExists);
 
     template <typename T>
