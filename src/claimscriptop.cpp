@@ -149,7 +149,7 @@ bool ProcessClaim(CClaimScriptOp& claimOp, CClaimTrieCache& trieCache, const CSc
 {
     int op;
     std::vector<std::vector<unsigned char> > vvchParams;
-    if (!DecodeClaimScript(scriptPubKey, op, vvchParams))
+    if (!DecodeClaimScript(scriptPubKey, op, vvchParams, trieCache.allowSupportMetadata()))
         return false;
 
     switch (op) {
