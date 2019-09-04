@@ -26,10 +26,10 @@
 #define MAX_CLAIM_NAME_SIZE 255
 
 CScript ClaimNameScript(std::string name, std::string value, bool fakeSuffix=true);
-CScript SupportClaimScript(std::string name, uint160 claimId, bool fakeSuffix=true);
+CScript SupportClaimScript(std::string name, uint160 claimId, std::string value="", bool fakeSuffix=true);
 CScript UpdateClaimScript(std::string name, uint160 claimId, std::string value);
-bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams);
-bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams, CScript::const_iterator& pc);
+bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams, bool allowSupportMetadata=true);
+bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams, CScript::const_iterator& pc, bool allowSupportMetadata=true);
 CScript StripClaimScriptPrefix(const CScript& scriptIn);
 CScript StripClaimScriptPrefix(const CScript& scriptIn, int& op);
 uint160 ClaimIdHash(const uint256& txhash, uint32_t nOut);

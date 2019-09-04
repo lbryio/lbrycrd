@@ -499,3 +499,7 @@ bool CClaimTrieCacheHashFork::finalizeDecrement(std::vector<std::pair<std::strin
         copyAllBaseToCache();
     return ret;
 }
+
+bool CClaimTrieCacheHashFork::allowSupportMetadata() const {
+    return nNextHeight >= Params().GetConsensus().nAllClaimsInMerkleForkHeight;
+}
