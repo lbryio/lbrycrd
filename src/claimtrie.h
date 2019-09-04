@@ -778,6 +778,8 @@ public:
     void initializeIncrement() override;
     bool finalizeDecrement(std::vector<std::pair<std::string, int>>& takeoverHeightUndo) override;
 
+    bool allowSupportMetadata() const;
+
 protected:
     uint256 recursiveComputeMerkleHash(CClaimPrefixTrie::iterator& it) override;
 

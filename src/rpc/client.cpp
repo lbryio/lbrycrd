@@ -177,6 +177,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "getclaimproofbybid", 1, "bid"},
     { "getclaimproofbyseq", 1, "sequence"},
     { "supportclaim", 4, "isTip"},
+    { "gettotalvalueofclaims", 0, "controlling_only"},
     { "stop", 0, "wait" },
 };
 // clang-format on

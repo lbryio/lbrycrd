@@ -8,7 +8,6 @@ BOOST_FIXTURE_TEST_SUITE(nameclaim_tests, BasicTestingSetup)
 
 BOOST_AUTO_TEST_CASE(calc_min_claimtrie_fee)
 {
-
     CMutableTransaction tx;
     tx.vout.resize(1);
     tx.vout[0].scriptPubKey = ClaimNameScript("A","test");
@@ -31,7 +30,18 @@ BOOST_AUTO_TEST_CASE(calc_min_claimtrie_fee)
     CMutableTransaction tx4;
     tx4.vout.resize(1);
     BOOST_CHECK_EQUAL(CalcMinClaimTrieFee(tx4,MIN_FEE_PER_NAMECLAIM_CHAR), 0);
+}
 
+BOOST_AUTO_TEST_CASE(support_handles_value)
+{
+    auto script = SupportClaimScript("s1", uint160(), "me value");
+    int op = 0;
+    std::vector<std::vector<unsigned char>> params;
+    BOOST_CHECK(!DecodeClaimScript(script, op, params, false));
+    params.clear();
+    BOOST_CHECK(DecodeClaimScript(script, op, params));
+    BOOST_CHECK(params[0][0] == 's');
+    BOOST_CHECK(std::string(params[2].begin(), params[2].end()) == "me value");
 }
 
 BOOST_AUTO_TEST_CASE(scriptToAsmStr_output)

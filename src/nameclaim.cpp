@@ -37,11 +37,17 @@ CScript ClaimNameScript(std::string name, std::string value, bool fakeSuffix)
     return ret;
 }
 
-CScript SupportClaimScript(std::string name, uint160 claimId, bool fakeSuffix)
+CScript SupportClaimScript(std::string name, uint160 claimId, std::string value, bool fakeSuffix)
 {
     std::vector<unsigned char> vchName(name.begin(), name.end());
     std::vector<unsigned char> vchClaimId(claimId.begin(), claimId.end());
-    auto ret = CScript() << OP_SUPPORT_CLAIM << vchName << vchClaimId << OP_2DROP << OP_DROP;
+    CScript ret;
+    if (value.empty())
+        ret = CScript() << OP_SUPPORT_CLAIM << vchName << vchClaimId << OP_2DROP << OP_DROP;
+    else {
+        std::vector<unsigned char> vchValue(value.begin(), value.end());
+        ret = CScript() << OP_SUPPORT_CLAIM << vchName << vchClaimId << vchValue << OP_2DROP << OP_2DROP;
+    }
     if (fakeSuffix) ret.push_back(OP_TRUE);
     return ret;
 }
@@ -54,13 +60,13 @@ CScript UpdateClaimScript(std::string name, uint160 claimId, std::string value)
     return CScript() << OP_UPDATE_CLAIM << vchName << vchClaimId << vchValue << OP_2DROP << OP_2DROP << OP_TRUE;
 }
 
-bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams)
+bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams, bool allowSupportMetadata)
 {
     CScript::const_iterator pc = scriptIn.begin();
-    return DecodeClaimScript(scriptIn, op, vvchParams, pc);
+    return DecodeClaimScript(scriptIn, op, vvchParams, pc, allowSupportMetadata);
 }
 
-bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams, CScript::const_iterator& pc)
+bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams, CScript::const_iterator& pc, bool allowSupportMetadata)
 {
     op = -1;
     opcodetype opcode;
@@ -83,6 +89,7 @@ bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector
     // OP_CLAIM_NAME vchName vchValue OP_2DROP OP_DROP pubkeyscript
     // OP_UPDATE_CLAIM vchName vchClaimId vchValue OP_2DROP OP_2DROP pubkeyscript
     // OP_SUPPORT_CLAIM vchName vchClaimId OP_2DROP OP_DROP pubkeyscript
+    // OP_SUPPORT_CLAIM vchName vchClaimId vchValue OP_2DROP OP_2DROP pubkeyscript
     // All others are invalid.
 
     if (!scriptIn.GetOp(pc, opcode, vchParam1) || opcode < 0 || opcode > OP_PUSHDATA4)
@@ -100,35 +107,42 @@ bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector
             return false;
         }
     }
-    if (op == OP_UPDATE_CLAIM)
+
+    if (!scriptIn.GetOp(pc, opcode, vchParam3))
     {
-        if (!scriptIn.GetOp(pc, opcode, vchParam3) || opcode < 0 || opcode > OP_PUSHDATA4)
+        return false;
+    }
+    auto last_drop = OP_DROP;
+    if (opcode >= 0 && opcode <= OP_PUSHDATA4 && op != OP_CLAIM_NAME)
+    {
+        if (!scriptIn.GetOp(pc, opcode))
         {
             return false;
         }
+        last_drop = OP_2DROP;
     }
-    if (!scriptIn.GetOp(pc, opcode) || opcode != OP_2DROP)
+    else if (op == OP_UPDATE_CLAIM)
     {
         return false;
     }
-    if (!scriptIn.GetOp(pc, opcode))
+    if (opcode != OP_2DROP)
     {
         return false;
     }
-    if ((op == OP_CLAIM_NAME || op == OP_SUPPORT_CLAIM) && opcode != OP_DROP)
+    if (!scriptIn.GetOp(pc, opcode) || opcode != last_drop)
     {
         return false;
     }
-    else if ((op == OP_UPDATE_CLAIM) && opcode != OP_2DROP)
+    if (op == OP_SUPPORT_CLAIM && last_drop == OP_2DROP && !allowSupportMetadata)
     {
         return false;
     }
 
-    vvchParams.push_back(vchParam1);
-    vvchParams.push_back(vchParam2);
-    if (op == OP_UPDATE_CLAIM)
+    vvchParams.push_back(std::move(vchParam1));
+    vvchParams.push_back(std::move(vchParam2));
+    if (last_drop == OP_2DROP)
     {
-        vvchParams.push_back(vchParam3);
+        vvchParams.push_back(std::move(vchParam3));
     }
     return true;
 }
