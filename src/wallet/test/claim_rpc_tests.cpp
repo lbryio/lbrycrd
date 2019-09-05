@@ -309,6 +309,8 @@ std::string SignRawTransaction(const std::string& tx) {
     UniValue results = rpc_method(req);
     BOOST_CHECK(results["complete"].get_bool());
     BOOST_CHECK(!results.exists("errors"));
+    if (results.exists("errors"))
+        fprintf(stderr, "Errors: %s\n", results.write(2).c_str());
     return results["hex"].get_str();
 }
 
@@ -323,6 +325,43 @@ std::string SendRawTransaction(const std::string& tx) {
     return results.get_str();
 }
 
+std::string FundRawTransaction(const std::string& tx) {
+    rpcfn_type rpc_method = tableRPC["fundrawtransaction"]->actor;
+    JSONRPCRequest req;
+    req.URI = "/wallet/tester_wallet";
+    req.params = UniValue(UniValue::VARR);
+    req.params.push_back(tx);
+    UniValue results = rpc_method(req);
+    return results["hex"].get_str();
+}
+
+std::string ProcessPsbt(const PartiallySignedTransaction& pst) {
+    BOOST_CHECK(pst.IsSane());
+    rpcfn_type rpc_method = tableRPC["walletprocesspsbt"]->actor;
+    JSONRPCRequest req;
+    req.URI = "/wallet/tester_wallet";
+    req.params = UniValue(UniValue::VARR);
+
+    CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION);
+    ssTx << pst;
+    auto base64 = EncodeBase64((unsigned char*)ssTx.data(), ssTx.size());
+    req.params.push_back(base64);
+    UniValue results = rpc_method(req);
+    BOOST_CHECK(results["complete"].get_bool());
+    return results["psbt"].get_str();
+}
+
+std::string FinalizePsbt(const std::string& pst) {
+    rpcfn_type rpc_method = tableRPC["finalizepsbt"]->actor;
+    JSONRPCRequest req;
+    req.URI = "/wallet/tester_wallet";
+    req.params = UniValue(UniValue::VARR);
+    req.params.push_back(pst);
+    req.params.push_back(UniValue(true));
+    UniValue results = rpc_method(req);
+    BOOST_CHECK(results["complete"].get_bool());
+    return results["hex"].get_str();
+}
 
 BOOST_AUTO_TEST_CASE(can_sign_all_addr)
 {
@@ -331,18 +370,26 @@ BOOST_AUTO_TEST_CASE(can_sign_all_addr)
     auto coins = SpendableCoins();
 
     std::vector<std::string> txids;
-    for (std::size_t i = 0; i < 3; ++i) {
-        CMutableTransaction rawTx;
-        CTxIn in(coins[i], CScript(), 0);
-        rawTx.vin.push_back(in);
+    std::vector<std::string> spends;
+    for (uint32_t i = 0; i < 3; ++i) {
+        CMutableTransaction claimTx, spendTx;
+        CTxIn in(coins[i]);
+        claimTx.vin.push_back(in);
         auto destination = NewAddress(OutputType(i));
         CScript scriptPubKey = ClaimNameScript("name" + std::to_string(i), "value", false)
                 + GetScriptForDestination(destination);
         CTxOut out(100000, scriptPubKey);
-        rawTx.vout.push_back(out);
-        auto hex = EncodeHexTx(rawTx);
+        claimTx.vout.push_back(out);
+        auto hex = EncodeHexTx(claimTx);
         hex = SignRawTransaction(hex);
         txids.push_back(SendRawTransaction(hex));
+        CTxIn spendIn(uint256S(txids.back()), 0);
+        auto destination2 = NewAddress(OutputType(i));
+        CTxOut spendOut(90000, GetScriptForDestination(destination2));
+        spendTx.vin.push_back(spendIn);
+        spendTx.vout.push_back(spendOut);
+        hex = EncodeHexTx(spendTx);
+        spends.push_back(hex);
     }
     generateBlock(1);
     auto looked = LookupAllNames().get_array();
@@ -352,6 +399,61 @@ BOOST_AUTO_TEST_CASE(can_sign_all_addr)
         BOOST_CHECK_EQUAL(looked[i]["value"].get_str(), HexStr(std::string("value")));
         BOOST_CHECK_EQUAL(looked[i]["txid"].get_str(), txids[i]);
     }
+    for (auto& s: spends) {
+        auto hex = FundRawTransaction(s); // redundant
+        hex = SignRawTransaction(hex);
+        txids.push_back(SendRawTransaction(hex));
+    }
+    generateBlock(1);
+    looked = LookupAllNames().get_array();
+    BOOST_CHECK_EQUAL(looked.size(), 0U);
+}
+
+BOOST_AUTO_TEST_CASE(can_sign_all_pbst)
+{
+    generateBlock(110);
+    BOOST_CHECK_EQUAL(AvailableBalance(), 10.0);
+    auto coins = SpendableCoins();
+
+    std::vector<std::string> txids;
+    std::vector<PartiallySignedTransaction> spends;
+    for (uint32_t i = 0; i < 3; ++i) {
+        CMutableTransaction claimTx, spendTx;
+        CTxIn in(coins[i]);
+        claimTx.vin.push_back(in);
+        auto destination = NewAddress(OutputType(i));
+        CScript scriptPubKey = ClaimNameScript("name" + std::to_string(i), "value", false)
+                               + GetScriptForDestination(destination);
+        CTxOut out(100000, scriptPubKey);
+        claimTx.vout.push_back(out);
+        PartiallySignedTransaction pst(claimTx);
+        auto result = ProcessPsbt(pst);
+        auto hex = FinalizePsbt(result);
+        txids.push_back(SendRawTransaction(hex));
+        CTxIn spendIn(uint256S(txids.back()), 0);
+        auto destination2 = NewAddress(OutputType(i));
+        CTxOut spendOut(90000, GetScriptForDestination(destination2));
+        spendTx.vin.push_back(spendIn);
+        spendTx.vout.push_back(spendOut);
+        spends.push_back(PartiallySignedTransaction(spendTx));
+    }
+    generateBlock(1);
+    auto looked = LookupAllNames().get_array();
+
+    for (std::size_t i = 0; i < 3; ++i) {
+        BOOST_CHECK_EQUAL(looked[i]["name"].get_str(), "name" + std::to_string(i));
+        BOOST_CHECK_EQUAL(looked[i]["value"].get_str(), HexStr(std::string("value")));
+        BOOST_CHECK_EQUAL(looked[i]["txid"].get_str(), txids[i]);
+    }
+    for (auto& s: spends) {
+        auto result = ProcessPsbt(s);
+        auto hex = FinalizePsbt(result);
+        txids.push_back(SendRawTransaction(hex));
+    }
+    generateBlock(1);
+    looked = LookupAllNames().get_array();
+    BOOST_CHECK_EQUAL(looked.size(), 0U);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
+
