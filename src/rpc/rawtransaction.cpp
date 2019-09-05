@@ -1757,7 +1757,7 @@ UniValue converttopsbt(const JSONRPCRequest& request)
                             "createpsbt and walletcreatefundedpsbt should be used for new applications.\n"
                             "\nArguments:\n"
                             "1. \"hexstring\"              (string, required) The hex string of a raw transaction\n"
-                            "2. permitsigdata           (boolean, optional, default=false) If true, any signatures in the input will be discarded and conversion.\n"
+                            "2. permitsigdata           (boolean, optional, default=false) If true, any signatures in the input will be discarded and conversion\n"
                             "                              will continue. If false, RPC will fail if any signatures are present.\n"
                             "3. iswitness               (boolean, optional) Whether the transaction hex is a serialized witness transaction.\n"
                             "                              If iswitness is not present, heuristic tests will be used in decoding. If true, only witness deserializaion\n"
