@@ -174,6 +174,11 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "listnameclaims", 0, "includesupports"},
     { "listnameclaims", 1, "activeonly"},
     { "listnameclaims", 2, "minconf"},
+    { "getclaimbybid", 1, "bid"},
+    { "getclaimbyseq", 1, "sequence"},
+    { "getclaimproofbybid", 1, "bid"},
+    { "getclaimproofbyseq", 1, "sequence"},
+    { "supportclaim", 4, "isTip"},
 };
 
 class CRPCConvertTable
