@@ -61,7 +61,7 @@ enum {
     CHECKNORMALIZATION,
     GETCLAIMBYBID,
     GETCLAIMBYSEQ,
-    GETCLAIMPROOFBYID,
+    GETCLAIMPROOFBYBID,
     GETCLAIMPROOFBYSEQ,
     GETCHANGESINBLOCK,
 };
@@ -90,7 +90,7 @@ S3("    ", T_HEIGHT, "                 (numeric) the height of the block in whic
 S3("    ", T_VALIDATHEIGHT, "          (numeric) the height at which the support became/becomes valid") \
 S3("    ", T_AMOUNT, "                 (numeric) the amount of the claim") \
 S3("    ", T_EFFECTIVEAMOUNT, "        (numeric) the amount plus amount from all supports associated with the claim") \
-S3("    ", T_PENDINGAMOUNT, "          (numeric) expected amount when claim and its support got valid") \
+S3("    ", T_PENDINGAMOUNT, "          (numeric) expected amount when claim and its supports are all valid") \
 S3("    ", T_SUPPORTS, ": [            (array of object) supports for this claim") \
 S3("        ", T_VALUE, "              (string) the metadata of the support if any") \
 S3("        ", T_ADDRESS, "            (string) the destination address of the support") \
@@ -305,7 +305,7 @@ S1("Result: [")
 CLAIM_OUTPUT
 "]",
 
-// GETCLAIMPROOFBYID
+// GETCLAIMPROOFBYBID
 S1(R"(getclaimproofbyid
 Return the cryptographic proof that a name maps to a value or doesn't by a bid.
 Arguments:)")
@@ -329,7 +329,8 @@ PROOF_OUTPUT
 
 // GETCHANGESINBLOCK
 S1(R"(getchangesinblock
-Return the list of claims added, updated, and removed in a block or doesn't."
+Return the list of claims added, updated, and removed as pulled from the queued work for that block."
+Use this method to determine which claims or supports went live on a given block."
 Arguments:)")
 S3("1. ", T_BLOCKHASH, BLOCKHASH_TEXT)
 S1("Result: [")
