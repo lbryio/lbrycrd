@@ -770,7 +770,7 @@ UniValue getnameproof(const JSONRPCRequest& request)
 
 UniValue getclaimproofbybid(const JSONRPCRequest& request)
 {
-    validateRequest(request, GETCLAIMPROOFBYID, 1, 2);
+    validateRequest(request, GETCLAIMPROOFBYBID, 1, 2);
 
     LOCK(cs_main);
     CCoinsViewCache coinsCache(pcoinsTip.get());

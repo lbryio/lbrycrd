@@ -348,8 +348,12 @@ struct CClaimSupportToName
 
     const CClaimNsupports& find(const std::string& partialId) const
     {
-        auto it = std::find_if(claimsNsupports.begin(), claimsNsupports.end(), [&partialId](const CClaimNsupports& value) {
-            return value.claim.claimId.GetHex().find(partialId) == 0;
+        std::string lowered(partialId);
+        for (auto& c: lowered)
+            c = std::tolower(c);
+
+        auto it = std::find_if(claimsNsupports.begin(), claimsNsupports.end(), [&lowered](const CClaimNsupports& value) {
+            return value.claim.claimId.GetHex().find(lowered) == 0;
         });
         return it != claimsNsupports.end() ? *it : invalid;
     }

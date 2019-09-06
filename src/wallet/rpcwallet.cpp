@@ -735,9 +735,10 @@ UniValue supportclaim(const JSONRPCRequest& request)
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
             "1. \"name\"         (string, required) The name claimed by the claim to support.\n"
-            "2. \"claimid\"      (string, optional) The claimid, partialid or best claim to support.\n"
+            "2. \"claimid\"      (string, optional) The claimid or partialid of the claim to support.\n"
             "3. \"amount\"       (numeric, optional) The amount in LBC to use to support the claim.\n"
             "4. \"value\"        (string, optional) The metadata of the support encoded in hexadecimal.\n"
+            "5. \"isTip\"        (boolean, optional, defaults to false) spendable by owning claim's address when true.\n"
             "\nResult: [\n"
                 "\"txId\"        (string) The transaction id of the support.\n"
                 "\"address\"     (string) The destination address of the claim.\n"
@@ -760,19 +761,14 @@ UniValue supportclaim(const JSONRPCRequest& request)
     LOCK2(cs_main, pwallet->cs_wallet);
     EnsureWalletIsUnlocked(pwallet);
 
-    uint160 claimId;
-    if (sClaimId.length() != claimLength) {
-        CClaimTrieCache trieCache(pclaimTrie);
-        auto csToName = trieCache.getClaimsForName(sName);
-        if (csToName.claimsNsupports.empty())
-            return NullUniValue;
-        auto& claimNsupports = !sClaimId.empty() ? csToName.find(sClaimId) : csToName.claimsNsupports[0];
-        if (claimNsupports.IsNull())
-            return NullUniValue;
-        claimId = claimNsupports.claim.claimId;
-    } else {
-        claimId.SetHex(sClaimId);
-    }
+    CClaimTrieCache trieCache(pclaimTrie);
+    auto csToName = trieCache.getClaimsForName(sName);
+    if (csToName.claimsNsupports.empty())
+        return NullUniValue;
+    auto& claimNsupports = !sClaimId.empty() ? csToName.find(sClaimId) : csToName.claimsNsupports[0];
+    if (claimNsupports.IsNull())
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Unable to find a claimid that starts with %s", sClaimId));
+    auto& claimId = claimNsupports.claim.claimId;
 
     std::vector<unsigned char> vchName (sName.begin(), sName.end());
     std::vector<unsigned char> vchClaimId (claimId.begin(), claimId.end());
@@ -794,13 +790,28 @@ UniValue supportclaim(const JSONRPCRequest& request)
 
     supportScript = supportScript << OP_2DROP << lastOp;
 
-    CPubKey newKey;
-    if (!pwallet->GetKeyFromPool(newKey))
-        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
+    auto isTip = false;
+    if (request.params.size() > 4)
+        isTip = request.params[4].get_bool();
 
-    OutputType output_type = pwallet->m_default_address_type;
-    pwallet->LearnRelatedScripts(newKey, output_type);
-    CTxDestination dest = GetDestinationForKey(newKey, output_type);
+    CTxDestination dest;
+    if (isTip) {
+        CTransactionRef ref;
+        uint256 block;
+        if (!GetTransaction(claimNsupports.claim.outPoint.hash, ref, Params().GetConsensus(), block, true))
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Unable to locate the TX with the claim's output.");
+        if (!ExtractDestination(ref->vout[claimNsupports.claim.outPoint.n].scriptPubKey, dest))
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Unable to extract the destination from the chosen claim.");
+    }
+    else {
+        CPubKey newKey;
+        if (!pwallet->GetKeyFromPool(newKey))
+            throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
+
+        OutputType output_type = pwallet->m_default_address_type;
+        pwallet->LearnRelatedScripts(newKey, output_type);
+        dest = GetDestinationForKey(newKey, output_type);
+    }
 
     CCoinControl cc;
     cc.m_change_type = pwallet->m_default_change_type;
