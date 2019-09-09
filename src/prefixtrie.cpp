@@ -320,12 +320,14 @@ typename CPrefixTrie<TKey, TData>::iterator CPrefixTrie<TKey, TData>::insert(con
 }
 
 template <typename TKey, typename TData>
-typename CPrefixTrie<TKey, TData>::iterator CPrefixTrie<TKey, TData>::copy(CPrefixTrie<TKey, TData>::const_iterator it)
+typename CPrefixTrie<TKey, TData>::iterator CPrefixTrie<TKey, TData>::copy(CPrefixTrie<TKey, TData>::const_iterator it, bool wipeChildren)
 {
     auto& key = it.key();
     auto& node = key.empty() ? root : insert(key, root);
     node->data = it.node.lock()->data;
-    return key.empty() ? begin() : iterator{key, node};
+    if (wipeChildren)
+        node->children.clear();
+    return iterator{key, node};
 }
 
 template <typename TKey, typename TData>

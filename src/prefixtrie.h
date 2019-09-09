@@ -133,7 +133,7 @@ public:
     template <typename TDataUni>
     iterator insert(iterator& it, const TKey& key, TDataUni&& data);
 
-    iterator copy(const_iterator it);
+    iterator copy(const_iterator it, bool wipeChildren);
 
     iterator find(const TKey& key);
     const_iterator find(const TKey& key) const;

@@ -547,26 +547,34 @@ std::vector<std::string> extractChildren(CClaimPrefixTrie::const_iterator it)
     return children;
 }
 
+static std::size_t cacheHits = 0;
+static std::size_t cacheMisses = 0;
 bool CClaimTrie::find(const std::string& key, CClaimTrieDataNode& node) const
 {
     if (auto it = cacheNodes.find(key)) {
         if (it.hasChildren()) {
+            cacheHits++;
             node.hash = it->hash;
             node.children = extractChildren(it);
             return true;
         }
     }
-    return db->Read(std::make_pair(TRIE_NODE_CHILDREN, key), node);
+    auto ret = db->Read(std::make_pair(TRIE_NODE_CHILDREN, key), node);
+    if (ret) ++cacheMisses;
+    return ret;
 }
 
 bool CClaimTrie::find(const std::string& key, CClaimTrieData& data) const
 {
     if (auto it = cacheNodes.find(key)) {
+        cacheHits++;
         data = it.data();
         data.flags |= CAME_FROM_NODE_CACHE;
         return true;
     }
-    return db->Read(std::make_pair(TRIE_NODE_CLAIMS, key), data);
+    auto ret = db->Read(std::make_pair(TRIE_NODE_CLAIMS, key), data);
+    if (ret) ++cacheMisses;
+    return ret;
 }
 
 template <typename K, typename T>
@@ -604,18 +612,10 @@ bool CClaimTrieCacheBase::flush()
 
     getMerkleHash();
 
-    if (!nodesToDelete.empty() || !nodesToAddOrUpdate.empty()) {
-        base->cacheNodes.clear();
-        if (auto it = nodesToAddOrUpdate.begin()) {
-            if (it->flags & HASH_DIRTY) {
-                for (auto& child : it.children())
-                    base->cacheNodes.copy(child);
-                base->cacheNodes.copy(it);
-            }
-        }
-    }
-
     for (auto it = nodesToAddOrUpdate.begin(); it != nodesToAddOrUpdate.end(); ++it) {
+        if (it.depth() < 4) {
+            base->cacheNodes.copy(it, it.depth() == 3 || (it->flags & HASH_DIRTY && !it.hasChildren()));
+        }
         bool removed = forDeleteFromBase.erase(it.key());
         if (it->flags & HASH_DIRTY) {
             CClaimTrieDataNode node;
@@ -635,6 +635,9 @@ bool CClaimTrieCacheBase::flush()
         batch.Erase(std::make_pair(TRIE_NODE_CHILDREN, name));
         batch.Erase(std::make_pair(TRIE_NODE_CLAIMS, name));
     }
+
+    fprintf(stderr, "Height: %d, Hits: %zu, Misses: %zu, Cache Size: %zu\n", nNextHeight, cacheHits, cacheMisses, base->cacheNodes.height());
+    cacheHits = cacheMisses = 0;
 
     BatchWriteQueue(batch, SUPPORT, supportCache);
 
