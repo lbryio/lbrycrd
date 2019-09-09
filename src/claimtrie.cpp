@@ -612,10 +612,10 @@ bool CClaimTrieCacheBase::flush()
 
     getMerkleHash();
 
+    if (base->cacheNodes.height() > 40000)
+        base->cacheNodes.clear();
+
     for (auto it = nodesToAddOrUpdate.begin(); it != nodesToAddOrUpdate.end(); ++it) {
-        if (it.depth() < 4) {
-            base->cacheNodes.copy(it, it.depth() == 3 || (it->flags & HASH_DIRTY && !it.hasChildren()));
-        }
         bool removed = forDeleteFromBase.erase(it.key());
         if (it->flags & HASH_DIRTY) {
             CClaimTrieDataNode node;
@@ -636,7 +636,13 @@ bool CClaimTrieCacheBase::flush()
         batch.Erase(std::make_pair(TRIE_NODE_CLAIMS, name));
     }
 
-    fprintf(stderr, "Height: %d, Hits: %zu, Misses: %zu, Cache Size: %zu\n", nNextHeight, cacheHits, cacheMisses, base->cacheNodes.height());
+    for (auto it = nodesToAddOrUpdate.begin(); it != nodesToAddOrUpdate.end(); ++it) {
+        if (it.depth() < 4) {
+            base->cacheNodes.copy(it, it.depth() == 3 || (it->flags & HASH_DIRTY && !it.hasChildren()));
+        }
+    }
+
+        fprintf(stderr, "Height: %d, Hits: %zu, Misses: %zu, Cache Size: %zu\n", nNextHeight, cacheHits, cacheMisses, base->cacheNodes.height());
     cacheHits = cacheMisses = 0;
 
     BatchWriteQueue(batch, SUPPORT, supportCache);
