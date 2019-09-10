@@ -13,7 +13,7 @@
 
 const std::string CBaseChainParams::MAIN = "lbrycrd";
 const std::string CBaseChainParams::TESTNET = "lbrycrdtest";
-const std::string CBaseChainParams::REGTEST = "regtest";
+const std::string CBaseChainParams::REGTEST = "lbrycrdreg";
 
 void SetupChainParamsBaseOptions()
 {
