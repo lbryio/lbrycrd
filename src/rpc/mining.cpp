@@ -443,7 +443,7 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
     if (strMode != "template")
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid mode");
 
-    if (Params().NetworkIDString() != "lbrycrdreg") // who should own this constant?
+    if (Params().NetworkIDString() != CBaseChainParams::REGTEST) // who should own this constant?
     {
         if (!g_connman)
             throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");

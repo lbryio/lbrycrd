@@ -18,8 +18,8 @@ static const struct {
     const int iconColorSaturationReduction;
 } network_styles[] = {
     {"lbrycrd", QAPP_APP_NAME_DEFAULT, 0, 0},
-    {"lbrycrdtest", QAPP_APP_NAME_TESTNET, 70, 30, QT_TRANSLATE_NOOP("SplashScreen")},
-    {"regtest", QAPP_APP_NAME_REGTEST, 160, 30}
+    {"lbrycrdtest", QAPP_APP_NAME_TESTNET, 70, 30},
+    {"lbrycrdreg", QAPP_APP_NAME_REGTEST, 160, 30}
 };
 static const unsigned network_styles_count = sizeof(network_styles)/sizeof(*network_styles);
 
