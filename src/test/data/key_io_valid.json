@@ -28,7 +28,7 @@
         "76a91453c0307d6851aa0ce7825ba883c6bd9ad242b48688ac",
         {
             "isPrivkey": false,
-            "chain": "regtest"
+            "chain": "lbrycrdreg"
         }
     ],
     [
@@ -72,7 +72,7 @@
         {
             "isCompressed": false,
             "isPrivkey": true,
-            "chain": "regtest"
+            "chain": "lbrycrdreg"
         }
     ],
     [
@@ -90,7 +90,7 @@
         {
             "isCompressed": true,
             "isPrivkey": true,
-            "chain": "regtest"
+            "chain": "lbrycrdreg"
         }
     ],
     [
@@ -294,7 +294,7 @@
         {
             "isCompressed": false,
             "isPrivkey": true,
-            "chain": "regtest"
+            "chain": "lbrycrdreg"
         }
     ],
     [
@@ -481,7 +481,7 @@
         "001428e40f9a66993a8d50b2604af71b17e1606842d8",
         {
             "isPrivkey": false,
-            "chain": "regtest",
+            "chain": "lbrycrdreg",
             "tryCaseFlip": true
         }
     ]

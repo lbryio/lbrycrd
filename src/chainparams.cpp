@@ -123,7 +123,7 @@ void CChainParams::UpdateVersionBitsParameters(Consensus::DeploymentPos d, int64
 class CMainParams : public CChainParams {
 public:
     CMainParams() {
-        strNetworkID = "lbrycrd";
+        strNetworkID = CBaseChainParams::MAIN;
         consensus.nSubsidyLevelInterval = 1<<5;
         consensus.nMajorityEnforceBlockUpgrade = 750;
         consensus.nMajorityRejectBlockOutdated = 950;
@@ -241,7 +241,7 @@ public:
 class CTestNetParams : public CChainParams {
 public:
     CTestNetParams() {
-        strNetworkID = "lbrycrdtest";
+        strNetworkID = CBaseChainParams::TESTNET;
         consensus.nSubsidyLevelInterval = 1 << 5;
         consensus.nMajorityEnforceBlockUpgrade = 51;
         consensus.nMajorityRejectBlockOutdated = 75;
@@ -351,7 +351,7 @@ public:
 class CRegTestParams : public CChainParams {
 public:
     CRegTestParams() {
-        strNetworkID = "lbrycrdreg";
+        strNetworkID = CBaseChainParams::REGTEST;
         consensus.nSubsidyLevelInterval = 1 << 5;
         consensus.BIP16Exception = uint256();
         consensus.BIP34Height = 1000; // BIP34 is needed for validation_block_tests
