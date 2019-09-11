@@ -3,6 +3,7 @@
 #include <uint256.h>
 #include <validation.h>
 
+#include <test/claimtriefixture.h>
 #include <test/test_bitcoin.h>
 #include <boost/test/unit_test.hpp>
 #include <boost/scope_exit.hpp>
@@ -41,23 +42,6 @@ public:
         return nodesToAddOrUpdate.find(key);
     }
 };
-
-CMutableTransaction BuildTransaction(const uint256& prevhash)
-{
-    CMutableTransaction tx;
-    tx.nVersion = 1;
-    tx.nLockTime = 0;
-    tx.vin.resize(1);
-    tx.vout.resize(1);
-    tx.vin[0].prevout.hash = prevhash;
-    tx.vin[0].prevout.n = 0;
-    tx.vin[0].scriptSig = CScript();
-    tx.vin[0].nSequence = std::numeric_limits<unsigned int>::max();
-    tx.vout[0].scriptPubKey = CScript();
-    tx.vout[0].nValue = 0;
-
-    return tx;
-}
 
 BOOST_FIXTURE_TEST_SUITE(claimtriecache_tests, RegTestingSetup)
 
@@ -401,6 +385,69 @@ BOOST_AUTO_TEST_CASE(verify_basic_serialization)
 
     BOOST_CHECK_EQUAL(cv, cv2);
     BOOST_CHECK_EQUAL(cv.nEffectiveAmount, cv2.nEffectiveAmount);
+}
+
+BOOST_AUTO_TEST_CASE(claimtrienode_serialize_unserialize)
+{
+    CDataStream ss(SER_DISK, 0);
+
+    uint160 hash160;
+
+    CClaimTrieData n1;
+    CClaimTrieData n2;
+    CClaimValue throwaway;
+
+    ss << n1;
+    ss >> n2;
+    BOOST_CHECK_EQUAL(n1, n2);
+
+    CClaimValue v1(COutPoint(uint256S("0000000000000000000000000000000000000000000000000000000000000001"), 0), hash160, 50, 0, 100);
+    CClaimValue v2(COutPoint(uint256S("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"), 1), hash160, 100, 1, 101);
+
+    n1.insertClaim(v1);
+    BOOST_CHECK(n1 != n2);
+    ss << n1;
+    ss >> n2;
+    BOOST_CHECK_EQUAL(n1, n2);
+
+    n1.insertClaim(v2);
+    BOOST_CHECK(n1 != n2);
+    ss << n1;
+    ss >> n2;
+    BOOST_CHECK_EQUAL(n1, n2);
+
+    n1.removeClaim(v1.outPoint, throwaway);
+    BOOST_CHECK(n1 != n2);
+    ss << n1;
+    ss >> n2;
+    BOOST_CHECK_EQUAL(n1, n2);
+
+    n1.removeClaim(v2.outPoint, throwaway);
+    BOOST_CHECK(n1 != n2);
+    ss << n1;
+    ss >> n2;
+    BOOST_CHECK_EQUAL(n1, n2);
+}
+
+BOOST_AUTO_TEST_CASE(claimtrienode_remove_invalid_claim)
+{
+    uint160 hash160;
+
+    CClaimTrieData n1;
+    CClaimTrieData n2;
+    CClaimValue throwaway;
+
+    CClaimValue v1(COutPoint(uint256S("0000000000000000000000000000000000000000000000000000000000000001"), 0), hash160, 50, 0, 100);
+    CClaimValue v2(COutPoint(uint256S("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"), 1), hash160, 100, 1, 101);
+
+    n1.insertClaim(v1);
+    n2.insertClaim(v2);
+
+    bool invalidClaim = n2.removeClaim(v1.outPoint, throwaway);
+    BOOST_CHECK_EQUAL(invalidClaim, false);
+
+    invalidClaim = n1.removeClaim(v2.outPoint, throwaway);
+    BOOST_CHECK_EQUAL(invalidClaim, false);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

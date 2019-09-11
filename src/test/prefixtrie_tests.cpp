@@ -3,6 +3,7 @@
 #include <random.h>
 
 #include <boost/test/unit_test.hpp>
+#include <test/claimtriefixture.h>
 #include <test/test_bitcoin.h>
 
 #include <chrono>
@@ -37,7 +38,79 @@ std::vector<std::string> random_strings(std::size_t count)
 
 using namespace std;
 
-BOOST_FIXTURE_TEST_SUITE(prefixtrie_tests, BasicTestingSetup)
+BOOST_FIXTURE_TEST_SUITE(prefixtrie_tests, RegTestingSetup)
+
+#ifndef MAC_OSX // can't find a random number generator that produces the same sequence on OSX
+BOOST_AUTO_TEST_CASE(triehash_fuzzer_test)
+{
+    ClaimTrieChainFixture fixture;
+
+    auto envClaims = std::getenv("TRIEHASH_FUZZER_CLAIMS");
+    auto envBlocks = std::getenv("TRIEHASH_FUZZER_BLOCKS");
+
+    const int claimsPerBlock = envClaims ? std::atoi(envClaims) : 100;
+    const int blocks = envBlocks ? std::atoi(envBlocks) : 13;
+
+    auto names = random_strings(blocks * claimsPerBlock);
+
+    FastRandomContext frc(true);
+    std::unordered_map<std::string, std::vector<CMutableTransaction>> existingClaims;
+    std::vector<CMutableTransaction> existingSupports;
+    std::string value(1024, 'c');
+
+    std::vector<CTransaction> cb {fixture.GetCoinbase()};
+    for (int i = 0; i < blocks; ++i) {
+        for (int j = 0; j < claimsPerBlock; ++j) {
+            auto name = names[i * claimsPerBlock + j];
+            auto supportFront = frc.randrange(4) == 0;
+            auto supportBack = frc.randrange(4) == 0;
+            auto removeClaim = frc.randrange(4) == 0;
+            auto removeSupport = frc.randrange(4) == 0;
+            auto hit = existingClaims.find(name);
+            if (supportFront && hit != existingClaims.end() && hit->second.size()) {
+                auto tx = fixture.MakeSupport(cb.back(), hit->second[frc.rand64() % hit->second.size()], name, 2);
+                existingSupports.push_back(tx);
+                cb.emplace_back(std::move(tx));
+            }
+            if (removeClaim && hit != existingClaims.end() && hit->second.size()) {
+                auto idx = frc.rand64() % hit->second.size();
+                fixture.Spend(hit->second[idx]);
+                hit->second.erase(hit->second.begin() + idx);
+            } else {
+                auto tx = fixture.MakeClaim(cb.back(), name, value, 2);
+                existingClaims[name].push_back(tx);
+                hit = existingClaims.find(name);
+                cb.emplace_back(std::move(tx));
+            }
+            if (supportBack && hit != existingClaims.end() && hit->second.size()) {
+                auto tx = fixture.MakeSupport(cb.back(), hit->second[frc.rand64() % hit->second.size()], name, 2);
+                existingSupports.push_back(tx);
+                cb.emplace_back(std::move(tx));
+            }
+            if (removeSupport && (i & 7) == 7 && !existingSupports.empty()) {
+                const auto tidx = frc.rand64() % existingSupports.size();
+                const auto tx = existingSupports[tidx];
+                fixture.Spend(tx);
+                existingSupports.erase(existingSupports.begin() + tidx);
+            }
+            if (cb.back().GetValueOut() < 10 || cb.size() > 40000) {
+                cb.clear();
+                cb.push_back(fixture.GetCoinbase());
+            }
+        }
+        fixture.IncrementBlocks(1);
+        if (blocks > 13 && i % 50 == 0) // travisCI needs some periodic output
+            std::cerr << "In triehash_fuzzer_test with " << fixture.getTotalNamesInTrie() << " names at block " << i << std::endl;
+    }
+
+    if (blocks == 1000 && claimsPerBlock == 100)
+        BOOST_CHECK_EQUAL(fixture.getMerkleHash().GetHex(), "28825257a129eef69cab87d6255c8359fc6dc083ca7f09222526e3a7971f382d");
+    else if (blocks == 13 && claimsPerBlock == 100)
+        BOOST_CHECK_EQUAL(fixture.getMerkleHash().GetHex(), "4e5984d6984f5f05d50e821e6228d56bcfbd16ca2093cd0308f6ff1c2bc8689a");
+    else
+        std::cerr << "Hash: "  << fixture.getMerkleHash().GetHex() << std::endl;
+}
+#endif
 
 BOOST_AUTO_TEST_CASE(insert_erase_test)
 {
