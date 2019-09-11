@@ -1493,6 +1493,11 @@ bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const C
 
     // scriptSig and scriptPubKey must be evaluated sequentially on the same stack
     // rather than being simply concatenated (see CVE-2010-5141)
+    int claimOp;
+    const CScript& strippedScriptPubKey = StripClaimScriptPrefix(scriptPubKey, claimOp);
+    if (claimOp >= 0) // lbryum used to violate this rule with an off-by-1 at len == 255 (and its not very important)
+        flags &= ~SCRIPT_VERIFY_MINIMALDATA;
+
     std::vector<std::vector<unsigned char> > stack, stackCopy;
     if (!EvalScript(stack, scriptSig, flags, checker, SigVersion::BASE, serror))
         // serror is set
@@ -1508,8 +1513,6 @@ bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const C
         return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
 
     // Bare witness programs
-
-    const CScript& strippedScriptPubKey = StripClaimScriptPrefix(scriptPubKey);
 
     int witnessversion;
     std::vector<unsigned char> witnessprogram;

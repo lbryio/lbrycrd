@@ -62,6 +62,7 @@ bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector
 
 bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams, CScript::const_iterator& pc)
 {
+    op = -1;
     opcodetype opcode;
     if (!scriptIn.GetOp(pc, opcode))
     {
