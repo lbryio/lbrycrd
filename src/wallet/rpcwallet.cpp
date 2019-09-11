@@ -781,7 +781,7 @@ UniValue supportclaim(const JSONRPCRequest& request)
         if (!hex.empty()) {
             if (!IsHex(hex))
                 throw JSONRPCError(RPC_INVALID_PARAMETER, "value/metadata must be of hexadecimal data");
-            if (!IsWitnessEnabled(chainActive.Tip(), Params().GetConsensus()))
+            if (!trieCache.allowSupportMetadata())
                 throw JSONRPCError(RPC_INVALID_PARAMETER, "value/metadata on supports is not enabled yet");
             supportScript = supportScript << ParseHex(hex);
             lastOp = OP_2DROP;
