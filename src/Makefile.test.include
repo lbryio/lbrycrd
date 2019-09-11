@@ -121,6 +121,11 @@ BITCOIN_TESTS =\
   test/net_tests.cpp \
   test/claimtriecache_tests.cpp \
   test/claimtriebranching_tests.cpp \
+  test/claimtrieexpirationfork_tests.cpp \
+  test/claimtriefixture.cpp \
+  test/claimtriehashfork_tests.cpp \
+  test/claimtrienormalization_tests.cpp \
+  test/claimtrierpc_tests.cpp \
   test/nameclaim_tests.cpp \
   test/netbase_tests.cpp \
   test/pmt_tests.cpp \
