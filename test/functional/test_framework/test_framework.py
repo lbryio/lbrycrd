@@ -138,7 +138,7 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
         config = configparser.ConfigParser()
         config.read_file(open(self.options.configfile))
         self.options.lbrycrdd = os.getenv("LBRYCRDD", default=config["environment"]["BUILDDIR"] + '/src/lbrycrdd' + config["environment"]["EXEEXT"])
-        self.options.bitcoincli = os.getenv("LBRYCRDCLI", default=config["environment"]["BUILDDIR"] + '/src/lbrycrd-cli' + config["environment"]["EXEEXT"])
+        self.options.lbrycrdcli = os.getenv("LBRYCRDCLI", default=config["environment"]["BUILDDIR"] + '/src/lbrycrd-cli' + config["environment"]["EXEEXT"])
 
         os.environ['PATH'] = os.pathsep.join([
             os.path.join(config['environment']['BUILDDIR'], 'src'),
@@ -293,7 +293,7 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
         assert_equal(len(extra_args), num_nodes)
         assert_equal(len(binary), num_nodes)
         for i in range(num_nodes):
-            self.nodes.append(TestNode(i, get_datadir_path(self.options.tmpdir, i), rpchost=rpchost, timewait=self.rpc_timewait, lbrycrdd=binary[i], bitcoin_cli=self.options.bitcoincli, mocktime=self.mocktime, coverage_dir=self.options.coveragedir, extra_conf=extra_confs[i], extra_args=extra_args[i], use_cli=self.options.usecli))
+            self.nodes.append(TestNode(i, get_datadir_path(self.options.tmpdir, i), rpchost=rpchost, timewait=self.rpc_timewait, lbrycrdd=binary[i], lbrycrd_cli=self.options.lbrycrdcli, mocktime=self.mocktime, coverage_dir=self.options.coveragedir, extra_conf=extra_confs[i], extra_args=extra_args[i], use_cli=self.options.usecli))
 
     def start_node(self, i, *args, **kwargs):
         """Start a lbrycrdd"""
@@ -382,7 +382,7 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
         For backward compatibility of the python scripts with previous
         versions of the cache, this helper function sets mocktime to Jan 1,
         2014 + (201 * 10 * 60)"""
-        self.mocktime = 1388534400 + (201 * 10 * 60) + 86400 * 365 * 7
+        self.mocktime = 1451606400 + (201 * 10 * 60)
 
     def disable_mocktime(self):
         self.mocktime = 0
@@ -444,7 +444,7 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
                 args = [self.options.lbrycrdd, "-datadir=" + datadir, '-disablewallet']
                 if i > 0:
                     args.append("-connect=127.0.0.1:" + str(p2p_port(0)))
-                self.nodes.append(TestNode(i, get_datadir_path(self.options.cachedir, i), extra_conf=["bind=127.0.0.1"], extra_args=[], rpchost=None, timewait=self.rpc_timewait, lbrycrdd=self.options.lbrycrdd, bitcoin_cli=self.options.bitcoincli, mocktime=self.mocktime, coverage_dir=None))
+                self.nodes.append(TestNode(i, get_datadir_path(self.options.cachedir, i), extra_conf=["bind=127.0.0.1"], extra_args=[], rpchost=None, timewait=self.rpc_timewait, lbrycrdd=self.options.lbrycrdd, lbrycrd_cli=self.options.lbrycrdcli, mocktime=self.mocktime, coverage_dir=None))
                 self.nodes[i].args = args
                 self.start_node(i)
 
@@ -481,7 +481,7 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
             for i in range(MAX_NODES):
                 os.rmdir(cache_path(i, 'wallets'))  # Remove empty wallets dir
                 for entry in os.listdir(cache_path(i)):
-                    if entry not in ['chainstate', 'blocks']:
+                    if entry not in ['chainstate', 'blocks', 'claimtrie']:
                         os.remove(cache_path(i, entry))
 
         for i in range(self.num_nodes):

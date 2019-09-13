@@ -19,14 +19,14 @@ class TestBitcoinCli(BitcoinTestFramework):
         """Main test logic"""
 
         cli_response = self.nodes[0].cli("-version").send_cli()
-        assert("Bitcoin Core RPC client version" in cli_response)
+        assert("LBRYcrd Core RPC client version" in cli_response)
 
-        self.log.info("Compare responses from gewalletinfo RPC and `bitcoin-cli getwalletinfo`")
+        self.log.info("Compare responses from gewalletinfo RPC and `lbrycrd-cli getwalletinfo`")
         cli_response = self.nodes[0].cli.getwalletinfo()
         rpc_response = self.nodes[0].getwalletinfo()
         assert_equal(cli_response, rpc_response)
 
-        self.log.info("Compare responses from getblockchaininfo RPC and `bitcoin-cli getblockchaininfo`")
+        self.log.info("Compare responses from getblockchaininfo RPC and `lbrycrd-cli getblockchaininfo`")
         cli_response = self.nodes[0].cli.getblockchaininfo()
         rpc_response = self.nodes[0].getblockchaininfo()
         assert_equal(cli_response, rpc_response)
