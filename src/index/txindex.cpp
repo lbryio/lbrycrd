@@ -55,6 +55,7 @@ class TxIndex::DB : public BaseIndex::DB
 {
 public:
     explicit DB(size_t n_cache_size, bool f_memory = false, bool f_wipe = false);
+    ~DB() override {}
 
     /// Read the disk location of the transaction data with the given hash. Returns false if the
     /// transaction hash is not indexed.

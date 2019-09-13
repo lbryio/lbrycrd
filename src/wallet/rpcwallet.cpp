@@ -764,7 +764,7 @@ UniValue supportclaim(const JSONRPCRequest& request)
     CClaimTrieCache trieCache(pclaimTrie);
     auto csToName = trieCache.getClaimsForName(sName);
     if (csToName.claimsNsupports.empty())
-        return NullUniValue;
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Unable to find a claim named %s", sName));
     auto& claimNsupports = !sClaimId.empty() ? csToName.find(sClaimId) : csToName.claimsNsupports[0];
     if (claimNsupports.IsNull())
         throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Unable to find a claimid that starts with %s", sClaimId));

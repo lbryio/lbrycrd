@@ -151,7 +151,7 @@ public:
      *                        with a zero'd byte array.
      */
     CDBWrapper(const fs::path& path, size_t nCacheSize, bool fMemory = false, bool fWipe = false, bool obfuscate = false);
-    ~CDBWrapper();
+    virtual ~CDBWrapper();
 
     CDBWrapper(const CDBWrapper&) = delete;
     /* CDBWrapper& operator=(const CDBWrapper&) = delete; */
@@ -159,6 +159,7 @@ public:
     template <typename K, typename V>
     bool Read(const K& key, V& value) const
     {
+        assert(ssKey.empty());
         ssKey << key;
         leveldb::Slice slKey(ssKey.data(), ssKey.size());
 

@@ -14,6 +14,7 @@
 #include <univalue.h>
 #include <util/system.h>
 #include <util/strencodings.h>
+#include <nameclaim.h>
 
 UniValue ValueFromAmount(const CAmount& amount)
 {
@@ -145,12 +146,21 @@ void ScriptToUniv(const CScript& script, UniValue& out, bool include_address)
     out.pushKV("asm", ScriptToAsmStr(script));
     out.pushKV("hex", HexStr(script.begin(), script.end()));
 
+    int claimOp;
     std::vector<std::vector<unsigned char>> solns;
+    auto stripped = StripClaimScriptPrefix(script, claimOp);
     txnouttype type = Solver(script, solns);
-    out.pushKV("type", GetTxnOutputType(type));
+    if (claimOp >= 0) {
+        out.pushKV("isclaim", UniValue(claimOp == OP_CLAIM_NAME || claimOp == OP_UPDATE_CLAIM));
+        out.pushKV("issupport", UniValue(claimOp == OP_SUPPORT_CLAIM));
+        out.pushKV("subtype", GetTxnOutputType(type));
+        out.pushKV("type", GetTxnOutputType(TX_NONSTANDARD)); // trying to keep backwards compatibility
+    }
+    else
+        out.pushKV("type", GetTxnOutputType(type)); // trying to keep backwards compatibility
 
     CTxDestination address;
-    if (include_address && ExtractDestination(script, address) && type != TX_PUBKEY) {
+    if (include_address && ExtractDestination(stripped, address) && type != TX_PUBKEY) {
         out.pushKV("address", EncodeDestination(address));
     }
 }
@@ -166,19 +176,29 @@ void ScriptPubKeyToUniv(const CScript& scriptPubKey,
     if (fIncludeHex)
         out.pushKV("hex", HexStr(scriptPubKey.begin(), scriptPubKey.end()));
 
-    if (!ExtractDestinations(scriptPubKey, type, addresses, nRequired) || type == TX_PUBKEY) {
+    int claimOp;
+    auto stripped = StripClaimScriptPrefix(scriptPubKey, claimOp);
+    auto extracted = ExtractDestinations(stripped, type, addresses, nRequired);
+
+    if (claimOp >= 0) {
+        out.pushKV("isclaim", UniValue(claimOp == OP_CLAIM_NAME || claimOp == OP_UPDATE_CLAIM));
+        out.pushKV("issupport", UniValue(claimOp == OP_SUPPORT_CLAIM));
+        out.pushKV("subtype", GetTxnOutputType(type));
+        out.pushKV("type", GetTxnOutputType(TX_NONSTANDARD));
+    }
+    else
         out.pushKV("type", GetTxnOutputType(type));
-        return;
-    }
 
-    out.pushKV("reqSigs", nRequired);
-    out.pushKV("type", GetTxnOutputType(type));
-
-    UniValue a(UniValue::VARR);
-    for (const CTxDestination& addr : addresses) {
-        a.push_back(EncodeDestination(addr));
+    if (extracted || type == TX_PUBLIC) {
+        out.pushKV("reqSigs", nRequired);
+        UniValue a(UniValue::VARR);
+        for (const CTxDestination &addr : addresses) {
+            a.push_back(EncodeDestination(addr));
+        }
+        if (!a.empty()) {
+            out.pushKV("addresses", a);
+        }
     }
-    out.pushKV("addresses", a);
 }
 
 void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry, bool include_hex, int serialize_flags)

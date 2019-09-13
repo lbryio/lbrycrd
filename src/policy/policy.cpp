@@ -114,7 +114,7 @@ bool IsStandardTx(const CTransaction& tx, bool permit_bare_multisig, const CFeeR
     unsigned int nDataOut = 0;
     txnouttype whichType;
     for (const CTxOut& txout : tx.vout) {
-        if (!::IsStandard(txout.scriptPubKey, whichType)) {
+        if (!::IsStandard(StripClaimScriptPrefix(txout.scriptPubKey), whichType)) {
             reason = "scriptpubkey";
             return false;
         }

@@ -28,6 +28,8 @@ protected:
         DB(const fs::path& path, size_t n_cache_size,
            bool f_memory = false, bool f_wipe = false, bool f_obfuscate = false);
 
+        ~DB() override {}
+
         /// Read block locator of the chain that the txindex is in sync with.
         bool ReadBestBlock(CBlockLocator& locator) const;
 
