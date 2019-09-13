@@ -111,7 +111,7 @@ std::string escapeNonUtf8(const std::string& name)
 static bool extractValue(const CScript& scriptPubKey, std::string& sValue)
 {
     int op;
-    std::vector<std::vector<unsigned char> > vvchParams;
+    std::vector<std::vector<unsigned char>> vvchParams;
     if (!DecodeClaimScript(scriptPubKey, op, vvchParams))
         return false;
 

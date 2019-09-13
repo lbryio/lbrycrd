@@ -115,7 +115,7 @@ bool IsStandardTx(const CTransaction& tx, std::string& reason)
     unsigned int nDataOut = 0;
     txnouttype whichType;
     for (const CTxOut& txout : tx.vout) {
-        if (!::IsStandard(txout.scriptPubKey, whichType)) {
+        if (!::IsStandard(StripClaimScriptPrefix(txout.scriptPubKey), whichType)) {
             reason = "scriptpubkey";
             return false;
         }
