@@ -91,21 +91,19 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
 {
     vSolutionsRet.clear();
 
-    auto strippedPubKey = StripClaimScriptPrefix(scriptPubKey);
-
     // Shortcut for pay-to-script-hash, which are more constrained than the other types:
     // it is always OP_HASH160 20 [20 byte hash] OP_EQUAL
-    if (strippedPubKey.IsPayToScriptHash())
+    if (scriptPubKey.IsPayToScriptHash())
     {
         typeRet = TX_SCRIPTHASH;
-        std::vector<unsigned char> hashBytes(strippedPubKey.begin()+2, strippedPubKey.begin()+22);
+        std::vector<unsigned char> hashBytes(scriptPubKey.begin()+2, scriptPubKey.begin()+22);
         vSolutionsRet.push_back(hashBytes);
         return true;
     }
 
     int witnessversion;
     std::vector<unsigned char> witnessprogram;
-    if (strippedPubKey.IsWitnessProgram(witnessversion, witnessprogram)) {
+    if (scriptPubKey.IsWitnessProgram(witnessversion, witnessprogram)) {
         if (witnessversion == 0 && witnessprogram.size() == WITNESS_V0_KEYHASH_SIZE) {
             typeRet = TX_WITNESS_V0_KEYHASH;
             vSolutionsRet.push_back(witnessprogram);
@@ -131,19 +129,19 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
     // So long as script passes the IsUnspendable() test and all but the first
     // byte passes the IsPushOnly() test we don't care what exactly is in the
     // script.
-    if (strippedPubKey.size() >= 1 && strippedPubKey[0] == OP_RETURN && strippedPubKey.IsPushOnly(strippedPubKey.begin()+1)) {
+    if (scriptPubKey.size() >= 1 && scriptPubKey[0] == OP_RETURN && scriptPubKey.IsPushOnly(scriptPubKey.begin()+1)) {
         typeRet = TX_NULL_DATA;
         return true;
     }
 
     std::vector<unsigned char> data;
-    if (MatchPayToPubkey(strippedPubKey, data)) {
+    if (MatchPayToPubkey(scriptPubKey, data)) {
         typeRet = TX_PUBKEY;
         vSolutionsRet.push_back(std::move(data));
         return true;
     }
 
-    if (MatchPayToPubkeyHash(strippedPubKey, data)) {
+    if (MatchPayToPubkeyHash(scriptPubKey, data)) {
         typeRet = TX_PUBKEYHASH;
         vSolutionsRet.push_back(std::move(data));
         return true;
@@ -151,7 +149,7 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
 
     unsigned int required;
     std::vector<std::vector<unsigned char>> keys;
-    if (MatchMultisig(strippedPubKey, required, keys)) {
+    if (MatchMultisig(scriptPubKey, required, keys)) {
         typeRet = TX_MULTISIG;
         vSolutionsRet.push_back({static_cast<unsigned char>(required)}); // safe as required is in range 1..16
         vSolutionsRet.insert(vSolutionsRet.end(), keys.begin(), keys.end());
@@ -168,7 +166,7 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
 {
     std::vector<valtype> vSolutions;
     txnouttype whichType;
-    if (!Solver(scriptPubKey, whichType, vSolutions))
+    if (!Solver(StripClaimScriptPrefix(scriptPubKey), whichType, vSolutions))
         return false;
 
     if (whichType == TX_PUBKEY)
@@ -216,9 +214,8 @@ bool ExtractDestinations(const CScript& scriptPubKey, txnouttype& typeRet, std::
     addressRet.clear();
     typeRet = TX_NONSTANDARD;
     std::vector<valtype> vSolutions;
-    if (!Solver(scriptPubKey, typeRet, vSolutions))
-        return false;
-    if (typeRet == TX_NULL_DATA){
+    auto solved = Solver(scriptPubKey, typeRet, vSolutions);
+    if (!solved || typeRet == TX_NULL_DATA){
         // This is data, not addresses
         return false;
     }

@@ -6,6 +6,7 @@
 #include <script/sign.h>
 
 #include <key.h>
+#include <nameclaim.h>
 #include <policy/policy.h>
 #include <primitives/transaction.h>
 #include <script/standard.h>
@@ -183,7 +184,7 @@ bool ProduceSignature(const SigningProvider& provider, const BaseSignatureCreato
 
     std::vector<valtype> result;
     txnouttype whichType;
-    bool solved = SignStep(provider, creator, fromPubKey, result, whichType, SigVersion::BASE, sigdata);
+    bool solved = SignStep(provider, creator, StripClaimScriptPrefix(fromPubKey), result, whichType, SigVersion::BASE, sigdata);
     bool P2SH = false;
     CScript subscript;
     sigdata.scriptWitness.stack.clear();
@@ -349,7 +350,7 @@ SignatureData DataFromTransaction(const CMutableTransaction& tx, unsigned int nI
     // Get scripts
     txnouttype script_type;
     std::vector<std::vector<unsigned char>> solutions;
-    Solver(txout.scriptPubKey, script_type, solutions);
+    Solver(StripClaimScriptPrefix(txout.scriptPubKey), script_type, solutions);
     SigVersion sigversion = SigVersion::BASE;
     CScript next_script = txout.scriptPubKey;
 

@@ -224,6 +224,7 @@ CMutableTransaction ClaimTrieChainFixture::MakeSupport(const CTransaction &prev,
     uint32_t prevout = prev.vout.size() - 1;
     while (prevout > 0 && prev.vout[prevout].nValue < quantity)
         --prevout;
+
     CMutableTransaction tx = BuildTransaction(prev, prevout, prev.vout[prevout].nValue > quantity ? 2 : 1);
     tx.vout[0].scriptPubKey = SupportClaimScript(name, ClaimIdHash(claimtx.GetHash(), 0));
     tx.vout[0].nValue = quantity;
