@@ -532,6 +532,7 @@ class CBlockHeader:
             self.nVersion = header.nVersion
             self.hashPrevBlock = header.hashPrevBlock
             self.hashMerkleRoot = header.hashMerkleRoot
+            self.hashClaimTrie = header.hashClaimTrie
             self.nTime = header.nTime
             self.nBits = header.nBits
             self.nNonce = header.nNonce
@@ -543,6 +544,7 @@ class CBlockHeader:
         self.nVersion = 1
         self.hashPrevBlock = 0
         self.hashMerkleRoot = 0
+        self.hashClaimTrie = 1
         self.nTime = 0
         self.nBits = 0
         self.nNonce = 0
@@ -553,6 +555,7 @@ class CBlockHeader:
         self.nVersion = struct.unpack("<i", f.read(4))[0]
         self.hashPrevBlock = deser_uint256(f)
         self.hashMerkleRoot = deser_uint256(f)
+        self.hashClaimTrie = deser_uint256(f)
         self.nTime = struct.unpack("<I", f.read(4))[0]
         self.nBits = struct.unpack("<I", f.read(4))[0]
         self.nNonce = struct.unpack("<I", f.read(4))[0]
@@ -564,6 +567,7 @@ class CBlockHeader:
         r += struct.pack("<i", self.nVersion)
         r += ser_uint256(self.hashPrevBlock)
         r += ser_uint256(self.hashMerkleRoot)
+        r += ser_uint256(self.hashClaimTrie)
         r += struct.pack("<I", self.nTime)
         r += struct.pack("<I", self.nBits)
         r += struct.pack("<I", self.nNonce)
@@ -575,6 +579,7 @@ class CBlockHeader:
             r += struct.pack("<i", self.nVersion)
             r += ser_uint256(self.hashPrevBlock)
             r += ser_uint256(self.hashMerkleRoot)
+            r += ser_uint256(self.hashClaimTrie)
             r += struct.pack("<I", self.nTime)
             r += struct.pack("<I", self.nBits)
             r += struct.pack("<I", self.nNonce)
@@ -587,8 +592,8 @@ class CBlockHeader:
         return self.sha256
 
     def __repr__(self):
-        return "CBlockHeader(nVersion=%i hashPrevBlock=%064x hashMerkleRoot=%064x nTime=%s nBits=%08x nNonce=%08x)" \
-            % (self.nVersion, self.hashPrevBlock, self.hashMerkleRoot,
+        return "CBlockHeader(nVersion=%i hashPrevBlock=%064x hashMerkleRoot=%064x hashClaimTrie=%064x nTime=%s nBits=%08x nNonce=%08x)" \
+            % (self.nVersion, self.hashPrevBlock, self.hashMerkleRoot, self.hashClaimTrie,
                time.ctime(self.nTime), self.nBits, self.nNonce)
 
 BLOCK_HEADER_SIZE = len(CBlockHeader().serialize())

@@ -59,7 +59,7 @@ class TestNode():
     To make things easier for the test writer, any unrecognised messages will
     be dispatched to the RPC connection."""
 
-    def __init__(self, i, datadir, *, chain, rpchost, timewait, lbrycrdd, bitcoin_cli, coverage_dir, cwd, extra_conf=None, extra_args=None, use_cli=False, start_perf=False):
+    def __init__(self, i, datadir, *, chain, rpchost, timewait, lbrycrdd, lbrycrd_cli, coverage_dir, cwd, extra_conf=None, extra_args=None, use_cli=False, start_perf=False):
         """
         Kwargs:
             start_perf (bool): If True, begin profiling the node with `perf` as soon as
@@ -68,7 +68,7 @@ class TestNode():
 
         self.index = i
         self.datadir = datadir
-        self.bitcoinconf = os.path.join(self.datadir, "bitcoin.conf")
+        self.lbrycrdconf = os.path.join(self.datadir, "lbrycrd.conf")
         self.stdout_dir = os.path.join(self.datadir, "stdout")
         self.stderr_dir = os.path.join(self.datadir, "stderr")
         self.chain = chain
@@ -97,7 +97,7 @@ class TestNode():
             "-uacomment=testnode%d" % i,
         ]
 
-        self.cli = TestNodeCLI(bitcoin_cli, self.datadir)
+        self.cli = TestNodeCLI(lbrycrd_cli, self.datadir)
         self.use_cli = use_cli
         self.start_perf = start_perf
 

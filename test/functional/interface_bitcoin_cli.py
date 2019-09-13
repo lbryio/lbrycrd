@@ -21,13 +21,13 @@ class TestBitcoinCli(BitcoinTestFramework):
         cli_response = self.nodes[0].cli("-version").send_cli()
         assert "{} RPC client version".format(self.config['environment']['PACKAGE_NAME']) in cli_response
 
-        self.log.info("Compare responses from getwalletinfo RPC and `bitcoin-cli getwalletinfo`")
+        self.log.info("Compare responses from getwalletinfo RPC and `lbrycrd-cli getwalletinfo`")
         if self.is_wallet_compiled():
             cli_response = self.nodes[0].cli.getwalletinfo()
             rpc_response = self.nodes[0].getwalletinfo()
             assert_equal(cli_response, rpc_response)
 
-        self.log.info("Compare responses from getblockchaininfo RPC and `bitcoin-cli getblockchaininfo`")
+        self.log.info("Compare responses from getblockchaininfo RPC and `lbrycrd-cli getblockchaininfo`")
         cli_response = self.nodes[0].cli.getblockchaininfo()
         rpc_response = self.nodes[0].getblockchaininfo()
         assert_equal(cli_response, rpc_response)

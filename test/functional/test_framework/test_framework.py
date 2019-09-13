@@ -152,7 +152,7 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
         config.read_file(open(self.options.configfile))
         self.config = config
         self.options.lbrycrdd = os.getenv("LBRYCRDD", default=config["environment"]["BUILDDIR"] + '/src/lbrycrdd' + config["environment"]["EXEEXT"])
-        self.options.bitcoincli = os.getenv("LBRYCRDCLI", default=config["environment"]["BUILDDIR"] + '/src/lbrycrd-cli' + config["environment"]["EXEEXT"])
+        self.options.lbrycrdcli = os.getenv("LBRYCRDCLI", default=config["environment"]["BUILDDIR"] + '/src/lbrycrd-cli' + config["environment"]["EXEEXT"])
 
         os.environ['PATH'] = os.pathsep.join([
             os.path.join(config['environment']['BUILDDIR'], 'src'),
@@ -364,7 +364,7 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
                 rpchost=rpchost,
                 timewait=self.rpc_timeout,
                 lbrycrdd=binary[i],
-                bitcoin_cli=self.options.bitcoincli,
+                lbrycrd_cli=self.options.bitcoincli,
                 coverage_dir=self.options.coveragedir,
                 cwd=self.options.tmpdir,
                 extra_conf=extra_confs[i],
@@ -507,7 +507,7 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
                     rpchost=None,
                     timewait=self.rpc_timeout,
                     lbrycrdd=self.options.bitcoind,
-                    bitcoin_cli=self.options.bitcoincli,
+                    lbrycrd_cli=self.options.bitcoincli,
                     coverage_dir=None,
                     cwd=self.options.tmpdir,
                 ))
@@ -539,7 +539,7 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
 
             os.rmdir(cache_path('wallets'))  # Remove empty wallets dir
             for entry in os.listdir(cache_path()):
-                if entry not in ['chainstate', 'blocks']:  # Only keep chainstate and blocks folder
+                if entry not in ['chainstate', 'blocks', 'claimtrie']:  # Only keep chainstate and blocks folder
                     os.remove(cache_path(entry))
 
         for i in range(self.num_nodes):

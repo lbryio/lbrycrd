@@ -94,9 +94,9 @@ class P2PPermissionsTests(BitcoinTestFramework):
                 raise AssertionError("Expected permissions %r is not granted." % p)
 
     def replaceinconfig(self, nodeid, old, new):
-        with open(self.nodes[nodeid].bitcoinconf, encoding="utf8") as f:
+        with open(self.nodes[nodeid].lbrycrdconf, encoding="utf8") as f:
             newText=f.read().replace(old, new)
-        with open(self.nodes[nodeid].bitcoinconf, 'w', encoding="utf8") as f:
+        with open(self.nodes[nodeid].lbrycrdconf, 'w', encoding="utf8") as f:
             f.write(newText)
 
 if __name__ == '__main__':
