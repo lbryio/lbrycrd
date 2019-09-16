@@ -165,7 +165,7 @@ bool AreInputsStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs)
         const CTxOut& prev = mapInputs.AccessCoin(tx.vin[i].prevout).out;
 
         std::vector<std::vector<unsigned char> > vSolutions;
-        const CScript& prevScript = prev.scriptPubKey;
+        const CScript& prevScript = StripClaimScriptPrefix(prev.scriptPubKey);
         txnouttype whichType = Solver(prevScript, vSolutions);
         if (whichType == TX_NONSTANDARD) {
             return false;

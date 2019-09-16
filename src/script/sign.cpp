@@ -105,7 +105,8 @@ static bool SignStep(const SigningProvider& provider, const BaseSignatureCreator
     std::vector<unsigned char> sig;
 
     std::vector<valtype> vSolutions;
-    whichTypeRet = Solver(scriptPubKey, vSolutions);
+    auto stripped = StripClaimScriptPrefix(scriptPubKey);
+    whichTypeRet = Solver(stripped, vSolutions);
 
     switch (whichTypeRet)
     {
@@ -195,7 +196,7 @@ bool ProduceSignature(const SigningProvider& provider, const BaseSignatureCreato
 
     std::vector<valtype> result;
     txnouttype whichType;
-    bool solved = SignStep(provider, creator, StripClaimScriptPrefix(fromPubKey), result, whichType, SigVersion::BASE, sigdata);
+    bool solved = SignStep(provider, creator, fromPubKey, result, whichType, SigVersion::BASE, sigdata);
     bool P2SH = false;
     CScript subscript;
     sigdata.scriptWitness.stack.clear();
