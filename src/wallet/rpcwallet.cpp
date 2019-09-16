@@ -2952,8 +2952,11 @@ static UniValue getwalletinfo(const JSONRPCRequest& request)
             "  \"walletname\": xxxxx,               (string) the wallet name\n"
             "  \"walletversion\": xxxxx,            (numeric) the wallet version\n"
             "  \"balance\": xxxxxxx,                (numeric) DEPRECATED. Identical to getbalances().mine.trusted\n"
+            "  \"available_balance\": xxxxxxx,      (numeric) balance minus stakes in " + CURRENCY_UNIT + "\n"
+            "  \"staked_claim_balance\": xxxxxxx,   (numeric) total in claim reservations in " + CURRENCY_UNIT + "\n"
             "  \"unconfirmed_balance\": xxx,        (numeric) DEPRECATED. Identical to getbalances().mine.untrusted_pending\n"
             "  \"immature_balance\": xxxxxx,        (numeric) DEPRECATED. Identical to getbalances().mine.immature\n"
+            "  \"staked_support_balance\": xxxxxxx, (numeric) total in support reservations in " + CURRENCY_UNIT + "\n"
             "  \"txcount\": xxxxxxx,                (numeric) the total number of transactions in the wallet\n"
             "  \"keypoololdest\": xxxxxx,           (numeric) the timestamp (seconds since Unix epoch) of the oldest pre-generated key in the key pool\n"
             "  \"keypoolsize\": xxxx,               (numeric) how many new keys are pre-generated (only counts external keys)\n"
@@ -2986,12 +2989,17 @@ static UniValue getwalletinfo(const JSONRPCRequest& request)
     UniValue obj(UniValue::VOBJ);
 
     size_t kpExternalSize = pwallet->KeypoolCountExternalKeys();
-    const auto bal = pwallet->GetBalance();
     obj.pushKV("walletname", pwallet->GetName());
     obj.pushKV("walletversion", pwallet->GetVersion());
-    obj.pushKV("balance", ValueFromAmount(bal.m_mine_trusted));
-    obj.pushKV("unconfirmed_balance", ValueFromAmount(bal.m_mine_untrusted_pending));
-    obj.pushKV("immature_balance", ValueFromAmount(bal.m_mine_immature));
+    auto balance = pwallet->GetBalance();
+    auto claims = pwallet->GetBalance(ISMINE_CLAIM);
+    auto supports = pwallet->GetBalance(ISMINE_SUPPORT);
+    obj.pushKV("balance",       ValueFromAmount(balance.m_mine_trusted));
+    obj.pushKV("available_balance",       ValueFromAmount(balance.m_mine_trusted - claims.m_mine_trusted - supports.m_mine_trusted));
+    obj.pushKV("staked_claim_balance", ValueFromAmount(claims));
+    obj.pushKV("staked_support_balance",  ValueFromAmount(supports));
+    obj.pushKV("unconfirmed_balance", ValueFromAmount(balance.m_mine_untrusted_pending));
+    obj.pushKV("immature_balance",    ValueFromAmount(balance.m_mine_immature));
     obj.pushKV("txcount",       (int)pwallet->mapWallet.size());
     obj.pushKV("keypoololdest", pwallet->GetOldestKeyPoolTime());
     obj.pushKV("keypoolsize", (int64_t)kpExternalSize);
