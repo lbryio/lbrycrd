@@ -168,7 +168,7 @@ bool AreInputsStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs)
         std::vector<std::vector<unsigned char> > vSolutions;
         txnouttype whichType;
         // get the scriptPubKey corresponding to this input:
-        if (!Solver(prev.scriptPubKey, whichType, vSolutions))
+        if (!Solver(StripClaimScriptPrefix(prev.scriptPubKey), whichType, vSolutions))
             return false;
 
         if (whichType == TX_SCRIPTHASH)
