@@ -3538,6 +3538,9 @@ static UniValue getwalletinfo(const JSONRPCRequest& request)
             "  \"walletname\": xxxxx,               (string) the wallet name\n"
             "  \"walletversion\": xxxxx,            (numeric) the wallet version\n"
             "  \"balance\": xxxxxxx,                (numeric) the total confirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
+            "  \"available_balance\": xxxxxxx,      (numeric) balance minus stakes in " + CURRENCY_UNIT + "\n"
+            "  \"staked_claim_balance\": xxxxxxx,   (numeric) total in claim reservations in " + CURRENCY_UNIT + "\n"
+            "  \"staked_support_balance\": xxxxxxx, (numeric) total in support reservations in " + CURRENCY_UNIT + "\n"
             "  \"unconfirmed_balance\": xxx,        (numeric) the total unconfirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"immature_balance\": xxxxxx,        (numeric) the total immature balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"txcount\": xxxxxxx,                (numeric) the total number of transactions in the wallet\n"
@@ -3566,7 +3569,13 @@ static UniValue getwalletinfo(const JSONRPCRequest& request)
     size_t kpExternalSize = pwallet->KeypoolCountExternalKeys();
     obj.pushKV("walletname", pwallet->GetName());
     obj.pushKV("walletversion", pwallet->GetVersion());
-    obj.pushKV("balance",       ValueFromAmount(pwallet->GetBalance()));
+    auto balance = pwallet->GetBalance();
+    auto claims = pwallet->GetBalance(ISMINE_CLAIM);
+    auto supports = pwallet->GetBalance(ISMINE_SUPPORT);
+    obj.pushKV("balance",       ValueFromAmount(balance));
+    obj.pushKV("available_balance",       ValueFromAmount(balance - claims - supports));
+    obj.pushKV("staked_claim_balance", ValueFromAmount(claims));
+    obj.pushKV("staked_support_balance",  ValueFromAmount(supports));
     obj.pushKV("unconfirmed_balance", ValueFromAmount(pwallet->GetUnconfirmedBalance()));
     obj.pushKV("immature_balance",    ValueFromAmount(pwallet->GetImmatureBalance()));
     obj.pushKV("txcount",       (int)pwallet->mapWallet.size());

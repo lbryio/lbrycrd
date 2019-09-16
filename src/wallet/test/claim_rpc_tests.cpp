@@ -151,6 +151,17 @@ uint256 AbandonAClaim(const uint256& txid, bool isSupport = false) {
     }
 }
 
+void ValidateBalance(double claims, double supports) {
+    rpcfn_type rpc_method = tableRPC["getwalletinfo"]->actor;
+    JSONRPCRequest req;
+    req.URI = "/wallet/tester_wallet";
+    req.params = UniValue(UniValue::VARR);
+    UniValue results = rpc_method(req);
+    BOOST_CHECK_EQUAL(claims, results["staked_claim_balance"].get_real());
+    BOOST_CHECK_EQUAL(supports, results["staked_support_balance"].get_real());
+    BOOST_CHECK_EQUAL(claims + supports, results["balance"].get_real() - results["available_balance"].get_real());
+}
+
 void AddClaimSupportThenRemove() {
     generateBlock(155);
     BOOST_CHECK_EQUAL(AvailableBalance(), 55.0);
@@ -189,6 +200,8 @@ void AddClaimSupportThenRemove() {
     BOOST_CHECK_EQUAL(looked[1]["amount"].get_real(), 0.5);
     BOOST_CHECK_EQUAL(looked[1]["txid"].get_str(), spid.GetHex());
     BOOST_CHECK_EQUAL(looked[1]["supported_claimid"].get_str(), clid);
+
+    ValidateBalance(1.0, 0.5);
 
     // abandon support
     auto aid1 = AbandonAClaim(spid, true);
