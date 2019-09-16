@@ -1,9 +1,6 @@
-#include <boost/foreach.hpp>
 #include "nameclaim.h"
 #include "hash.h"
 #include "util.h"
-#include "claimtrie.h"
-
 
 std::vector<unsigned char> uint32_t_to_vch(uint32_t n)
 {
@@ -21,7 +18,7 @@ uint32_t vch_to_uint32_t(std::vector<unsigned char>& vchN)
     uint32_t n;
     static const size_t uint32Size = sizeof(uint32_t);
     if (vchN.size() != uint32Size) {
-        LogPrintf("%s() : a vector<unsigned char> with size other than 4 has been given", __func__);
+        LogPrintf("%s() : a vector<unsigned char> with size other than 4 has been given\n", __func__);
         return 0;
     }
     n = vchN[0] << 24 | vchN[1] << 16 | vchN[2] << 8 | vchN[3];
@@ -203,7 +200,7 @@ CAmount CalcMinClaimTrieFee(const CTransaction& tx, const CAmount &minFeePerName
     }
 
     CAmount min_fee = 0;
-    BOOST_FOREACH(const CTxOut& txout, tx.vout)
+    for (const CTxOut& txout: tx.vout)
     {
         int op;
         std::vector<std::vector<unsigned char> > vvchParams;

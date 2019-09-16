@@ -640,7 +640,7 @@ bool CClaimTrieCacheBase::ReadFromDisk(const CBlockIndex* tip)
     clear();
 
     if (tip && base->db->Exists(std::make_pair(TRIE_NODE, std::string()))) {
-        LogPrintf("The claim trie database contains deprecated data and will need to be rebuilt");
+        LogPrintf("The claim trie database contains deprecated data and will need to be rebuilt\n");
         return false;
     }
     return validateTrieConsistency(tip);
