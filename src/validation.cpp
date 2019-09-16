@@ -2532,7 +2532,8 @@ void static UpdateTip(const CBlockIndex* pindexNew, const CChainParams& chainPar
     }
 
     std::string warningMessages;
-    if (!::ChainstateActive().IsInitialBlockDownload())
+    auto isInitialBlockDownload = ::ChainstateActive().IsInitialBlockDownload();
+    if (!isInitialBlockDownload)
     {
         int nUpgraded = 0;
         const CBlockIndex* pindex = pindexNew;
@@ -2561,8 +2562,7 @@ void static UpdateTip(const CBlockIndex* pindexNew, const CChainParams& chainPar
     }
     static int64_t lastBlockPrintTime = 0;
     auto currentTime = GetAdjustedTime();
-    auto oldBlock = pindexNew->nTime + MAX_FUTURE_BLOCK_TIME < currentTime;
-    if (!warningMessages.empty() || !oldBlock || lastBlockPrintTime < currentTime - 15 || LogAcceptCategory(BCLog::CLAIMS)) {
+    if (!warningMessages.empty() || !isInitialBlockDownload || lastBlockPrintTime < currentTime - 15 || LogAcceptCategory(BCLog::CLAIMS)) {
         lastBlockPrintTime = currentTime;
         LogPrintf("%s: new best=%s height=%d version=0x%08x log2_work=%.8g txb=%lu tx=%lu date='%s' progress=%f cache=%.1fMiB(%utxo)%s",
                 __func__, pindexNew->GetBlockHash().ToString(), pindexNew->nHeight, pindexNew->nVersion,
@@ -2570,12 +2570,11 @@ void static UpdateTip(const CBlockIndex* pindexNew, const CChainParams& chainPar
                 (unsigned long) pindexNew->nChainTx, FormatISO8601DateTime(pindexNew->GetBlockTime()),
                 GuessVerificationProgress(chainParams.TxData(), pindexNew),
                 pcoinsTip->DynamicMemoryUsage() * (1.0 / (1U << 20U)), pcoinsTip->GetCacheSize(),
-                oldBlock ? " (synchronizing)" : "");
+                isInitialBlockDownload ? " IBD" : "");
         if (!warningMessages.empty())
             LogPrintf(" warning='%s'", warningMessages); /* Continued */
         LogPrintf("\n");
     }
-
 }
 
 /** Disconnect m_chain's tip.

@@ -188,12 +188,14 @@ bool CDBWrapper::Sync() {
 
 bool CDBWrapper::WriteBatch(CDBBatch& batch, bool fSync)
 {
+    if (!pdb)
+        return false;
+
     const bool log_memory = LogAcceptCategory(BCLog::LEVELDB);
     double mem_before = 0;
     if (log_memory) {
         mem_before = DynamicMemoryUsage() / 1024.0 / 1024;
     }
-    assert(pdb);
     leveldb::Status status = pdb->Write(fSync ? syncoptions : writeoptions, &batch.batch);
     dbwrapper_private::HandleError(status);
     if (log_memory) {
