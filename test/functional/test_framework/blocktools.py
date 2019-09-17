@@ -98,6 +98,12 @@ def serialize_script_num(value):
         r[-1] |= 0x80
     return r
 
+def GetBlockSubsidy(height):
+    if height == 0:
+        return 400000000 * COIN
+    else:
+        return 1 * COIN
+
 def create_coinbase(height, pubkey=None):
     """Create a coinbase transaction, assuming no miner fees.
 
@@ -107,9 +113,7 @@ def create_coinbase(height, pubkey=None):
     coinbase.vin.append(CTxIn(COutPoint(0, 0xffffffff),
                         ser_string(serialize_script_num(height)), 0xffffffff))
     coinbaseoutput = CTxOut()
-    coinbaseoutput.nValue = 50 * COIN
-    halvings = int(height / 150)  # regtest
-    coinbaseoutput.nValue >>= halvings
+    coinbaseoutput.nValue = GetBlockSubsidy(height)
     if (pubkey is not None):
         coinbaseoutput.scriptPubKey = CScript([pubkey, OP_CHECKSIG])
     else:

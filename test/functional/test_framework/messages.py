@@ -33,7 +33,7 @@ MY_RELAY = 1 # from version 70001 onwards, fRelay should be appended to version 
 
 MAX_INV_SZ = 50000
 MAX_LOCATOR_SZ = 101
-MAX_BLOCK_BASE_SIZE = 1000000
+MAX_BLOCK_BASE_SIZE = 2000000
 
 COIN = 100000000  # 1 btc in satoshis
 
@@ -59,6 +59,9 @@ def ripemd160(s):
 
 def hash256(s):
     return sha256(sha256(s))
+
+def hash160(s):
+    return hashlib.new('ripemd160', sha256(s)).digest()
 
 def ser_compact_size(l):
     r = b""
@@ -128,6 +131,11 @@ def deser_vector(f, c):
         r.append(t)
     return r
 
+def lbryPOW(i):
+    h512 = hashlib.new('sha512', ser_uint256(i)).digest()
+    m = len(h512) // 2
+    s = hash256(ripemd160(h512[:m]) + ripemd160(h512[m:]))
+    return uint256_from_str(s)
 
 # ser_function_name: Allow for an alternate serialization function on the
 # entries in the vector (we use this for serializing the vector of transactions
@@ -619,7 +627,7 @@ class CBlock(CBlockHeader):
     def is_valid(self):
         self.calc_sha256()
         target = uint256_from_compact(self.nBits)
-        if self.sha256 > target:
+        if lbryPOW(self.sha256) > target:
             return False
         for tx in self.vtx:
             if not tx.is_valid():
@@ -631,13 +639,13 @@ class CBlock(CBlockHeader):
     def solve(self):
         self.rehash()
         target = uint256_from_compact(self.nBits)
-        while self.sha256 > target:
+        while lbryPOW(self.sha256) > target:
             self.nNonce += 1
             self.rehash()
 
     def __repr__(self):
-        return "CBlock(nVersion=%i hashPrevBlock=%064x hashMerkleRoot=%064x nTime=%s nBits=%08x nNonce=%08x vtx=%s)" \
-            % (self.nVersion, self.hashPrevBlock, self.hashMerkleRoot,
+        return "CBlock(nVersion=%i hashPrevBlock=%064x hashMerkleRoot=%064x hashClaimTrie=%064x nTime=%s nBits=%08x nNonce=%08x vtx=%s)" \
+            % (self.nVersion, self.hashPrevBlock, self.hashMerkleRoot, self.hashClaimTrie,
                time.ctime(self.nTime), self.nBits, self.nNonce, repr(self.vtx))
 
 
