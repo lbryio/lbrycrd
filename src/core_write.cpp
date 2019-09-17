@@ -180,6 +180,8 @@ void ScriptPubKeyToUniv(const CScript& scriptPubKey,
     int claimOp;
     auto stripped = StripClaimScriptPrefix(scriptPubKey, claimOp);
     auto extracted = ExtractDestinations(stripped, type, addresses, nRequired);
+    if (extracted)
+        out.pushKV("reqSigs", nRequired);
 
     if (claimOp >= 0) {
         out.pushKV("isclaim", UniValue(claimOp == OP_CLAIM_NAME || claimOp == OP_UPDATE_CLAIM));
@@ -191,7 +193,6 @@ void ScriptPubKeyToUniv(const CScript& scriptPubKey,
         out.pushKV("type", GetTxnOutputType(type));
 
     if (extracted) {
-        out.pushKV("reqSigs", nRequired);
         UniValue a(UniValue::VARR);
         for (const CTxDestination &addr : addresses) {
             a.push_back(EncodeDestination(addr));

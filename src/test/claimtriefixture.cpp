@@ -7,6 +7,15 @@
 
 using namespace std;
 
+BOOST_FIXTURE_TEST_SUITE(claimtriefixture_tests, RegTestingSetup)
+
+BOOST_AUTO_TEST_CASE(claimtriefixture_noop)
+{
+    BOOST_REQUIRE(true);
+}
+
+BOOST_AUTO_TEST_SUITE_END()
+
 CMutableTransaction BuildTransaction(const CTransaction& prev, uint32_t prevout, unsigned int numOutputs, int locktime)
 {
     CMutableTransaction tx;
