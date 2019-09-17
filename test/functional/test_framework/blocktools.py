@@ -99,6 +99,12 @@ def script_BIP34_coinbase_height(height):
     return CScript([CScriptNum(height)])
 
 
+def GetBlockSubsidy(height):
+    if height == 0:
+        return 400000000 * COIN
+    else:
+        return 1 * COIN
+
 def create_coinbase(height, pubkey=None):
     """Create a coinbase transaction, assuming no miner fees.
 
@@ -107,9 +113,7 @@ def create_coinbase(height, pubkey=None):
     coinbase = CTransaction()
     coinbase.vin.append(CTxIn(COutPoint(0, 0xffffffff), script_BIP34_coinbase_height(height), 0xffffffff))
     coinbaseoutput = CTxOut()
-    coinbaseoutput.nValue = 50 * COIN
-    halvings = int(height / 150)  # regtest
-    coinbaseoutput.nValue >>= halvings
+    coinbaseoutput.nValue = GetBlockSubsidy(height)
     if (pubkey is not None):
         coinbaseoutput.scriptPubKey = CScript([pubkey, OP_CHECKSIG])
     else:
