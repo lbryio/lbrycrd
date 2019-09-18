@@ -4803,11 +4803,11 @@ static const CRPCCommand commands[] =
     { "wallet",             "walletpassphrasechange",           &walletpassphrasechange,        {"oldpassphrase","newpassphrase"} },
     { "wallet",             "walletprocesspsbt",                &walletprocesspsbt,             {"psbt","sign","sighashtype","bip32derivs"} },
 
-    { "Claimtrie",          "claimname",                        &claimname,                     {"name","value","amount","address_type"} },
-    { "Claimtrie",          "updateclaim",                      &updateclaim,                   {"txid","value","amount","address_type"} },
+    { "Claimtrie",          "claimname",                        &claimname,                     {"name","value","amount"} },
+    { "Claimtrie",          "updateclaim",                      &updateclaim,                   {"txid","value","amount"} },
     { "Claimtrie",          "abandonclaim",                     &abandonclaim,                  {"txid","address"} },
     { "Claimtrie",          "listnameclaims",                   &listnameclaims,                {"includesuppports","activeonly","minconf"} },
-    { "Claimtrie",          "supportclaim",                     &supportclaim,                  {"name","claimid","amount","value","address_type"} },
+    { "Claimtrie",          "supportclaim",                     &supportclaim,                  {"name","claimid","amount","value"} },
     { "Claimtrie",          "abandonsupport",                   &abandonsupport,                {"txid","address"} },
 };
 // clang-format on
