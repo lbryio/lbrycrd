@@ -5369,11 +5369,11 @@ static const CRPCCommand commands[] =
 
     { "generating",         "generate",                         &generate,                      {"nblocks","maxtries"} },
 
-    { "Claimtrie",          "claimname",                        &claimname,                     {"name","value","amount","address_type"} },
-    { "Claimtrie",          "updateclaim",                      &updateclaim,                   {"txid","value","amount","address_type"} },
+    { "Claimtrie",          "claimname",                        &claimname,                     {"name","value","amount"} },
+    { "Claimtrie",          "updateclaim",                      &updateclaim,                   {"txid","value","amount"} },
     { "Claimtrie",          "abandonclaim",                     &abandonclaim,                  {"txid","address"} },
     { "Claimtrie",          "listnameclaims",                   &listnameclaims,                {"includesuppports","activeonly","minconf"} },
-    { "Claimtrie",          "supportclaim",                     &supportclaim,                  {"name","claimid","amount","value","address_type"} },
+    { "Claimtrie",          "supportclaim",                     &supportclaim,                  {"name","claimid","amount","value"} },
     { "Claimtrie",          "abandonsupport",                   &abandonsupport,                {"txid","address"} },
 };
 
