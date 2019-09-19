@@ -284,44 +284,44 @@ S3("    ", T_NORMALIZEDNAME,  "        (string) normalized name")
 ,
 
 // GETCLAIMBYBID
-S1("getclaimbybid \"" T_NAME "\" " T_BID " ( \"" T_BLOCKHASH R"(" )
+S1("getclaimbybid \"" T_NAME "\" ( " T_BID " \"" T_BLOCKHASH R"(" )
 Get a claim by bid
 Arguments:)")
 S3("1. ", T_NAME, NAME_TEXT)
-S3("2. ", T_BID, "                     (numeric) bid number")
+S3("2. ", T_BID, "                     (numeric, optional) bid number")
 S3("3. ", T_BLOCKHASH, BLOCKHASH_TEXT)
 S1("Result: [")
 CLAIM_OUTPUT
 "]",
 
 // GETCLAIMBYSEQ
-S1("getclaimbyseq \"" T_NAME "\" " T_SEQUENCE " ( \"" T_BLOCKHASH R"(" )
+S1("getclaimbyseq \"" T_NAME "\" ( " T_SEQUENCE " \"" T_BLOCKHASH R"(" )
 Get a claim by sequence
 Arguments:)")
 S3("1. ", T_NAME, NAME_TEXT)
-S3("2. ", T_SEQUENCE, "                (numeric) sequence number")
+S3("2. ", T_SEQUENCE, "                (numeric, optional) sequence number")
 S3("3. ", T_BLOCKHASH, BLOCKHASH_TEXT)
 S1("Result: [")
 CLAIM_OUTPUT
 "]",
 
 // GETCLAIMPROOFBYBID
-S1("getclaimproofbyid \"" T_NAME "\" " T_BID " ( \"" T_BLOCKHASH R"(" )
+S1("getclaimproofbyid \"" T_NAME "\" ( " T_BID " \"" T_BLOCKHASH R"(" )
 Return the cryptographic proof that a name maps to a value or doesn't by a bid.
 Arguments:)")
 S3("1. ", T_NAME, NAME_TEXT)
-S3("2. ", T_BID, "                     (numeric) bid number")
+S3("2. ", T_BID, "                     (numeric, optional) bid number")
 S3("3. ", T_BLOCKHASH, BLOCKHASH_TEXT)
 S1("Result: [")
 PROOF_OUTPUT
 "]",
 
 // GETCLAIMPROOFBYSEQ
-S1("getclaimproofbyseq \"" T_NAME "\" " T_SEQUENCE " ( \"" T_BLOCKHASH R"(" )
+S1("getclaimproofbyseq \"" T_NAME "\" ( " T_SEQUENCE " \"" T_BLOCKHASH R"(" )
 Return the cryptographic proof that a name maps to a value or doesn't by a sequence.
 Arguments:)")
 S3("1. ", T_NAME, NAME_TEXT)
-S3("2. ", T_SEQUENCE, "                (numeric) sequence number")
+S3("2. ", T_SEQUENCE, "                (numeric, optional) sequence number")
 S3("3. ", T_BLOCKHASH, BLOCKHASH_TEXT)
 S1("Result: [")
 PROOF_OUTPUT
