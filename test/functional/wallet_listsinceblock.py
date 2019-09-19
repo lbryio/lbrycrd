@@ -7,6 +7,8 @@
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import assert_equal, assert_array_result, assert_raises_rpc_error
 
+from decimal import Decimal
+
 class ListSinceBlockTest (BitcoinTestFramework):
     def set_test_params(self):
         self.num_nodes = 4
@@ -26,14 +28,14 @@ class ListSinceBlockTest (BitcoinTestFramework):
         self.test_double_send()
 
     def test_no_blockhash(self):
-        txid = self.nodes[2].sendtoaddress(self.nodes[0].getnewaddress(), 1)
+        txid = self.nodes[2].sendtoaddress(self.nodes[0].getnewaddress(), 0.02)
         blockhash, = self.nodes[2].generate(1)
         self.sync_all()
 
         txs = self.nodes[0].listtransactions()
         assert_array_result(txs, {"txid": txid}, {
             "category": "receive",
-            "amount": 1,
+            "amount": Decimal("0.02"),
             "blockhash": blockhash,
             "confirmations": 1,
         })
@@ -89,7 +91,7 @@ class ListSinceBlockTest (BitcoinTestFramework):
         self.split_network()
 
         # send to nodes[0] from nodes[2]
-        senttx = self.nodes[2].sendtoaddress(self.nodes[0].getnewaddress(), 1)
+        senttx = self.nodes[2].sendtoaddress(self.nodes[0].getnewaddress(), 0.02)
 
         # generate on both sides
         lastblockhash = self.nodes[1].generate(6)[5]
@@ -151,9 +153,9 @@ class ListSinceBlockTest (BitcoinTestFramework):
         self.nodes[1].importprivkey(privkey)
 
         # send from nodes[1] using utxo to nodes[0]
-        change = '%.8f' % (float(utxo['amount']) - 1.0003)
+        change = '%.8f' % (float(utxo['amount']) - 0.020006)
         recipient_dict = {
-            self.nodes[0].getnewaddress(): 1,
+            self.nodes[0].getnewaddress(): Decimal("0.02"),
             self.nodes[1].getnewaddress(): change,
         }
         utxo_dicts = [{
@@ -166,7 +168,7 @@ class ListSinceBlockTest (BitcoinTestFramework):
 
         # send from nodes[2] using utxo to nodes[3]
         recipient_dict2 = {
-            self.nodes[3].getnewaddress(): 1,
+            self.nodes[3].getnewaddress(): Decimal("0.02"),
             self.nodes[2].getnewaddress(): change,
         }
         self.nodes[2].sendrawtransaction(
@@ -226,9 +228,9 @@ class ListSinceBlockTest (BitcoinTestFramework):
         # create and sign a transaction
         utxos = self.nodes[2].listunspent()
         utxo = utxos[0]
-        change = '%.8f' % (float(utxo['amount']) - 1.0003)
+        change = '%.8f' % (float(utxo['amount']) - 0.020006)
         recipient_dict = {
-            self.nodes[0].getnewaddress(): 1,
+            self.nodes[0].getnewaddress(): Decimal("0.02"),
             self.nodes[2].getnewaddress(): change,
         }
         utxo_dicts = [{

@@ -40,10 +40,10 @@ class MiningTest(BitcoinTestFramework):
         self.log.info('getmininginfo')
         mining_info = node.getmininginfo()
         assert_equal(mining_info['blocks'], 200)
-        assert_equal(mining_info['chain'], 'regtest')
+        assert_equal(mining_info['chain'], 'lbrycrdreg')
         assert_equal(mining_info['currentblocktx'], 0)
         assert_equal(mining_info['currentblockweight'], 0)
-        assert_equal(mining_info['difficulty'], Decimal('4.656542373906925E-10'))
+        assert_equal(mining_info['difficulty'], Decimal('0.00003051711610163642'))
         assert_equal(mining_info['networkhashps'], Decimal('0.003333333333333334'))
         assert_equal(mining_info['pooledtx'], 0)
 
@@ -106,7 +106,7 @@ class MiningTest(BitcoinTestFramework):
 
         self.log.info("getblocktemplate: Test bad tx count")
         # The tx count is immediately after the block header
-        TX_COUNT_OFFSET = 80
+        TX_COUNT_OFFSET = 80+32
         bad_block_sn = bytearray(block.serialize())
         assert_equal(bad_block_sn[TX_COUNT_OFFSET], 1)
         bad_block_sn[TX_COUNT_OFFSET] += 1

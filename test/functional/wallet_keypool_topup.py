@@ -12,6 +12,7 @@ Two nodes. Node1 is under test. Node0 is providing transactions and generating b
 - connect node1 to node0. Verify that they sync and node1 receives its funds."""
 import os
 import shutil
+from decimal import Decimal
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
@@ -48,9 +49,9 @@ class KeypoolRestoreTest(BitcoinTestFramework):
             addr_extpool = self.nodes[1].getnewaddress()
 
         self.log.info("Send funds to wallet")
-        self.nodes[0].sendtoaddress(addr_oldpool, 10)
+        self.nodes[0].sendtoaddress(addr_oldpool, 0.1)
         self.nodes[0].generate(1)
-        self.nodes[0].sendtoaddress(addr_extpool, 5)
+        self.nodes[0].sendtoaddress(addr_extpool, 0.05)
         self.nodes[0].generate(1)
         sync_blocks(self.nodes)
 
@@ -62,7 +63,7 @@ class KeypoolRestoreTest(BitcoinTestFramework):
         self.sync_all()
 
         self.log.info("Verify keypool is restored and balance is correct")
-        assert_equal(self.nodes[1].getbalance(), 15)
+        assert_equal(self.nodes[1].getbalance(), Decimal("0.15"))
         assert_equal(self.nodes[1].listtransactions()[0]['category'], "receive")
         # Check that we have marked all keys up to the used keypool key as used
         assert_equal(self.nodes[1].getaddressinfo(self.nodes[1].getnewaddress())['hdkeypath'], "m/0'/0'/110'")

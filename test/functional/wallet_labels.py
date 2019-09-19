@@ -16,6 +16,7 @@ Run the test twice - once using the accounts API and once using the labels API.
 The accounts API test can be removed in V0.18.
 """
 from collections import defaultdict
+from decimal import Decimal
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import assert_equal, assert_raises_rpc_error
@@ -48,7 +49,7 @@ class WalletLabelsTest(BitcoinTestFramework):
         # the same address, so we call twice to get two addresses w/50 each
         node.generate(1)
         node.generate(101)
-        assert_equal(node.getbalance(), 100)
+        assert_equal(node.getbalance(), 2)
 
         # there should be 2 address groups
         # each with 1 address with a balance of 50 Bitcoins
@@ -60,7 +61,7 @@ class WalletLabelsTest(BitcoinTestFramework):
         for address_group in address_groups:
             assert_equal(len(address_group), 1)
             assert_equal(len(address_group[0]), 2)
-            assert_equal(address_group[0][1], 50)
+            assert_equal(address_group[0][1], 1)
             linked_addresses.add(address_group[0][0])
 
         # send 50 from each address to a third address not in this wallet
@@ -69,7 +70,7 @@ class WalletLabelsTest(BitcoinTestFramework):
         common_address = "msf4WtN1YQKXvNtvdFYt9JBnUD2FB41kjr"
         txid = node.sendmany(
             fromaccount="",
-            amounts={common_address: 100},
+            amounts={common_address: 2},
             subtractfeefrom=[common_address],
             minconf=1,
         )
@@ -90,7 +91,7 @@ class WalletLabelsTest(BitcoinTestFramework):
         # and matures in the next 100 blocks
         if accounts_api:
             node.sendfrom("", common_address, fee)
-        amount_to_send = 1.0
+        amount_to_send = 0.1
 
         # Create labels and make sure subsequent label API calls
         # recognize the label/address associations.
@@ -120,8 +121,8 @@ class WalletLabelsTest(BitcoinTestFramework):
         node.generate(1)
         for label in labels:
             assert_equal(
-                node.getreceivedbyaddress(label.addresses[0]), amount_to_send)
-            assert_equal(node.getreceivedbylabel(label.name), amount_to_send)
+                node.getreceivedbyaddress(label.addresses[0]), Decimal(str(amount_to_send)))
+            assert_equal(node.getreceivedbylabel(label.name), Decimal(str(amount_to_send)))
 
         # Check that sendfrom label reduces listaccounts balances.
         for i, label in enumerate(labels):
@@ -138,17 +139,17 @@ class WalletLabelsTest(BitcoinTestFramework):
                 address = node.getnewaddress(label.name)
             label.add_receive_address(address)
             label.verify(node)
-            assert_equal(node.getreceivedbylabel(label.name), 2)
+            assert_equal(node.getreceivedbylabel(label.name), Decimal("0.2"))
             if accounts_api:
                 node.move(label.name, "", node.getbalance(label.name))
             label.verify(node)
         node.generate(101)
-        expected_account_balances = {"": 5200}
+        expected_account_balances = {"": 104}
         for label in labels:
             expected_account_balances[label.name] = 0
         if accounts_api:
             assert_equal(node.listaccounts(), expected_account_balances)
-            assert_equal(node.getbalance(""), 5200)
+            assert_equal(node.getbalance(""), 104)
 
         # Check that setlabel can assign a label to a new unused address.
         for label in labels:
@@ -171,11 +172,11 @@ class WalletLabelsTest(BitcoinTestFramework):
             label.purpose[multisig_address] = "send"
             label.verify(node)
             if accounts_api:
-                node.sendfrom("", multisig_address, 50)
+                node.sendfrom("", multisig_address, 1)
         node.generate(101)
         if accounts_api:
             for label in labels:
-                assert_equal(node.getbalance(label.name), 50)
+                assert_equal(node.getbalance(label.name), 1)
 
         # Check that setlabel can change the label of an address from a
         # different label.

@@ -521,7 +521,7 @@ class CBlockHeader():
             self.calc_sha256()
 
     def set_null(self):
-        self.nVersion = 1
+        self.nVersion = 5
         self.hashPrevBlock = 0
         self.hashMerkleRoot = 0
         self.hashClaimTrie = 1

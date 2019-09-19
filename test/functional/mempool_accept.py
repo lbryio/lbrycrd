@@ -66,7 +66,7 @@ class MempoolAcceptanceTest(BitcoinTestFramework):
         coin = node.listunspent()[0]  # Pick a random coin(base) to spend
         raw_tx_in_block = node.signrawtransactionwithwallet(node.createrawtransaction(
             inputs=[{'txid': coin['txid'], 'vout': coin['vout']}],
-            outputs=[{node.getnewaddress(): 0.3}, {node.getnewaddress(): 49}],
+            outputs=[{node.getnewaddress(): 0.006}, {node.getnewaddress(): 0.98}],
         ))['hex']
         txid_in_block = node.sendrawtransaction(hexstring=raw_tx_in_block, allowhighfees=True)
         node.generate(1)
@@ -79,7 +79,7 @@ class MempoolAcceptanceTest(BitcoinTestFramework):
         fee = 0.00000700
         raw_tx_0 = node.signrawtransactionwithwallet(node.createrawtransaction(
             inputs=[{"txid": txid_in_block, "vout": 0, "sequence": BIP125_SEQUENCE_NUMBER}],  # RBF is used later
-            outputs=[{node.getnewaddress(): 0.3 - fee}],
+            outputs=[{node.getnewaddress(): 0.006 - fee}],
         ))['hex']
         tx = CTransaction()
         tx.deserialize(BytesIO(hex_str_to_bytes(raw_tx_0)))
@@ -114,7 +114,7 @@ class MempoolAcceptanceTest(BitcoinTestFramework):
         node.sendrawtransaction(hexstring=bytes_to_hex_str(tx.serialize()), allowhighfees=True)
         # take original raw_tx_0
         tx.deserialize(BytesIO(hex_str_to_bytes(raw_tx_0)))
-        tx.vout[0].nValue -= int(4 * fee * COIN)  # Set more fee
+        tx.vout[0].nValue -= int(0.08 * fee * COIN)  # Set more fee
         # skip re-signing the tx
         self.check_mempool_result(
             result_expected=[{'txid': tx.rehash(), 'allowed': False, 'reject-reason': '18: txn-mempool-conflict'}],

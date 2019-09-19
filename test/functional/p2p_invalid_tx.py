@@ -70,7 +70,7 @@ class InvalidTxRequestTest(BitcoinTestFramework):
         # Transaction will be rejected with code 16 (REJECT_INVALID)
         # and we get disconnected immediately
         self.log.info('Test a transaction that is rejected')
-        tx1 = create_tx_with_script(block1.vtx[0], 0, script_sig=b'\x64' * 35, amount=50 * COIN - 12000)
+        tx1 = create_tx_with_script(block1.vtx[0], 0, script_sig=b'\x64' * 35, amount=int(0.9 * COIN))
         node.p2p.send_txs_and_test([tx1], node, success=False, expect_disconnect=True)
 
         # Make two p2p connections to provide the node with orphans
@@ -84,30 +84,30 @@ class InvalidTxRequestTest(BitcoinTestFramework):
         SCRIPT_PUB_KEY_OP_TRUE = b'\x51\x75' * 15 + b'\x51'
         tx_withhold = CTransaction()
         tx_withhold.vin.append(CTxIn(outpoint=COutPoint(block1.vtx[0].sha256, 0)))
-        tx_withhold.vout.append(CTxOut(nValue=50 * COIN - 12000, scriptPubKey=SCRIPT_PUB_KEY_OP_TRUE))
+        tx_withhold.vout.append(CTxOut(nValue=int(0.99 * COIN), scriptPubKey=SCRIPT_PUB_KEY_OP_TRUE))
         tx_withhold.calc_sha256()
 
         # Our first orphan tx with some outputs to create further orphan txs
         tx_orphan_1 = CTransaction()
         tx_orphan_1.vin.append(CTxIn(outpoint=COutPoint(tx_withhold.sha256, 0)))
-        tx_orphan_1.vout = [CTxOut(nValue=10 * COIN, scriptPubKey=SCRIPT_PUB_KEY_OP_TRUE)] * 3
+        tx_orphan_1.vout = [CTxOut(nValue=int(0.2 * COIN), scriptPubKey=SCRIPT_PUB_KEY_OP_TRUE)] * 3
         tx_orphan_1.calc_sha256()
 
         # A valid transaction with low fee
         tx_orphan_2_no_fee = CTransaction()
         tx_orphan_2_no_fee.vin.append(CTxIn(outpoint=COutPoint(tx_orphan_1.sha256, 0)))
-        tx_orphan_2_no_fee.vout.append(CTxOut(nValue=10 * COIN, scriptPubKey=SCRIPT_PUB_KEY_OP_TRUE))
+        tx_orphan_2_no_fee.vout.append(CTxOut(nValue=int(0.2 * COIN), scriptPubKey=SCRIPT_PUB_KEY_OP_TRUE))
 
         # A valid transaction with sufficient fee
         tx_orphan_2_valid = CTransaction()
         tx_orphan_2_valid.vin.append(CTxIn(outpoint=COutPoint(tx_orphan_1.sha256, 1)))
-        tx_orphan_2_valid.vout.append(CTxOut(nValue=10 * COIN - 12000, scriptPubKey=SCRIPT_PUB_KEY_OP_TRUE))
+        tx_orphan_2_valid.vout.append(CTxOut(nValue=int(0.2 * COIN), scriptPubKey=SCRIPT_PUB_KEY_OP_TRUE))
         tx_orphan_2_valid.calc_sha256()
 
         # An invalid transaction with negative fee
         tx_orphan_2_invalid = CTransaction()
         tx_orphan_2_invalid.vin.append(CTxIn(outpoint=COutPoint(tx_orphan_1.sha256, 2)))
-        tx_orphan_2_invalid.vout.append(CTxOut(nValue=11 * COIN, scriptPubKey=SCRIPT_PUB_KEY_OP_TRUE))
+        tx_orphan_2_invalid.vout.append(CTxOut(nValue=int(0.22 * COIN), scriptPubKey=SCRIPT_PUB_KEY_OP_TRUE))
 
         self.log.info('Send the orphans ... ')
         # Send valid orphan txs from p2ps[0]

@@ -79,7 +79,7 @@ class WalletGroupTest(BitcoinTestFramework):
             raw_tx = self.nodes[0].createrawtransaction([{"txid":"0"*64, "vout":0}], [{addr2[0]: 0.05}])
             tx = FromHex(CTransaction(), raw_tx)
             tx.vin = []
-            tx.vout = [tx.vout[0]] * 2000
+            tx.vout = [tx.vout[0]] * 2
             funded_tx = self.nodes[0].fundrawtransaction(ToHex(tx))
             signed_tx = self.nodes[0].signrawtransactionwithwallet(funded_tx['hex'])
             self.nodes[0].sendrawtransaction(signed_tx['hex'])
@@ -90,7 +90,7 @@ class WalletGroupTest(BitcoinTestFramework):
         # Check that we can create a transaction that only requires ~100 of our
         # utxos, without pulling in all outputs and creating a transaction that
         # is way too big.
-        assert self.nodes[2].sendtoaddress(address=addr2[0], amount=5)
+        assert self.nodes[2].sendtoaddress(address=addr2[0], amount=0.1)
 
 if __name__ == '__main__':
     WalletGroupTest().main ()

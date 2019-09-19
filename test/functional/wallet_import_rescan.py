@@ -25,6 +25,7 @@ from test_framework.util import (assert_raises_rpc_error, connect_nodes, sync_bl
 import collections
 import enum
 import itertools
+from decimal import Decimal
 
 Call = enum.Enum("Call", "single multi")
 Data = enum.Enum("Data", "address pub priv")
@@ -80,7 +81,7 @@ class Variant(collections.namedtuple("Variant", "call data rescan prune")):
             tx, = [tx for tx in txs if tx["txid"] == txid]
             assert_equal(tx["label"], self.label)
             assert_equal(tx["address"], self.address["address"])
-            assert_equal(tx["amount"], amount)
+            assert_equal(tx["amount"], Decimal(str(amount)))
             assert_equal(tx["category"], "receive")
             assert_equal(tx["label"], self.label)
             assert_equal(tx["txid"], txid)
@@ -89,7 +90,7 @@ class Variant(collections.namedtuple("Variant", "call data rescan prune")):
 
             address, = [ad for ad in addresses if txid in ad["txids"]]
             assert_equal(address["address"], self.address["address"])
-            assert_equal(address["amount"], self.expected_balance)
+            assert_equal(address["amount"], Decimal(str(self.expected_balance)))
             assert_equal(address["confirmations"], confirmations)
             # Verify the transaction is correctly marked watchonly depending on
             # whether the transaction pays to an imported public key or
@@ -153,7 +154,7 @@ class ImportRescanTest(BitcoinTestFramework):
             variant.label = "label {} {}".format(i, variant)
             variant.address = self.nodes[1].getaddressinfo(self.nodes[1].getnewaddress(variant.label))
             variant.key = self.nodes[1].dumpprivkey(variant.address["address"])
-            variant.initial_amount = 10 - (i + 1) / 4.0
+            variant.initial_amount = 0.01
             variant.initial_txid = self.nodes[0].sendtoaddress(variant.address["address"], variant.initial_amount)
 
         # Generate a block containing the initial transactions, then another
@@ -183,7 +184,7 @@ class ImportRescanTest(BitcoinTestFramework):
 
         # Create new transactions sending to each address.
         for i, variant in enumerate(IMPORT_VARIANTS):
-            variant.sent_amount = 10 - (2 * i + 1) / 8.0
+            variant.sent_amount = 0.02
             variant.sent_txid = self.nodes[0].sendtoaddress(variant.address["address"], variant.sent_amount)
 
         # Generate a block containing the new transactions.
