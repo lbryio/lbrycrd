@@ -128,7 +128,7 @@ S3("    ", T_LASTTAKEOVERHEIGHT, "     (numeric) the last height at which owners
 static const char* const rpc_help[] = {
 
 // GETCLAIMSINTRIE
-S1(R"(getclaimsintrie
+S1("getclaimsintrie ( \"" T_BLOCKHASH R"(" )
 Return all claims in the name trie. Deprecated
 Arguments:)")
 S3("1. ", T_BLOCKHASH, BLOCKHASH_TEXT)
@@ -148,7 +148,7 @@ S1("    ]")
 "]",
 
 // GETNAMESINTRIE
-S1(R"(getnamesintrie
+S1("getnamesintrie ( \"" T_BLOCKHASH R"(" )
 Return all claim names in the trie.
 Arguments:)")
 S3("1. ", T_BLOCKHASH, BLOCKHASH_TEXT)
@@ -157,7 +157,7 @@ S3("    ", T_NAMES, "                  all names in the trie that have claims")
 "]",
 
 // GETVALUEFORNAME
-S1(R"(getvalueforname
+S1("getvalueforname \"" T_NAME "\" ( \"" T_BLOCKHASH "\" \"" T_CLAIMID R"(" )
 Return the winning or specified by claimId value associated with a name
 Arguments:)")
 S3("1. ", T_NAME, NAME_TEXT)
@@ -168,7 +168,7 @@ CLAIM_OUTPUT
 "]",
 
 // GETCLAIMSFORNAME
-S1(R"(getclaimsforname
+S1("getclaimsforname \"" T_NAME "\" ( \"" T_BLOCKHASH R"(" )
 Return all claims and supports for a name
 Arguments:)")
 S3("1. ", T_NAME, NAME_TEXT)
@@ -210,7 +210,7 @@ S1("    ]")
 "]",
 
 // GETCLAIMBYID
-S1(R"(getclaimbyid
+S1("getclaimbyid \"" T_CLAIMID R"("
 Get a claim by claim id
 Arguments:)")
 S3("1. ", T_CLAIMID, "                 (string) the claimId of this claim or patial id (at least 3 chars)")
@@ -235,7 +235,7 @@ S3("    ", T_TOTALCLAIMS, "            (numeric) the total number of active clai
 ,
 
 // GETTOTALVALUEOFCLAIMS
-S1(R"(gettotalvalueofclaims
+S1("gettotalvalueofclaims ( " T_CONTROLLINGONLY R"( )
 Return the total value of the claims in the trie
 Arguments:)")
 S3("1. ", T_CONTROLLINGONLY, "         (boolean) only include the value of controlling claims")
@@ -244,7 +244,7 @@ S3("    ", T_TOTALVALUE, "             (numeric) the total value of the claims i
 ,
 
 // GETCLAIMSFORTX
-S1(R"(getclaimsfortx
+S1("getclaimsfortx \"" T_TXID R"("
 Return any claims or supports found in a transaction
 Arguments:)")
 S3("1.  ", T_TXID, "                   (string) the txid of the transaction to check for unspent claims")
@@ -263,7 +263,7 @@ S3("    ", T_BLOCKSTOVALID, "          (numeric) if in a queue, the number of bl
 "]",
 
 // GETNAMEPROOF
-S1(R"(getnameproof
+S1("getnameproof \"" T_NAME "\" ( \"" T_BLOCKHASH "\" \"" T_CLAIMID R"(" )
 Return the cryptographic proof that a name maps to a value or doesn't.
 Arguments:)")
 S3("1. ", T_NAME, NAME_TEXT)
@@ -275,7 +275,7 @@ PROOF_OUTPUT
 "]",
 
 // CHECKNORMALIZATION
-S1(R"(checknormalization
+S1("checknormalization \"" T_NAME R"("
 Given an unnormalized name of a claim, return normalized version of it
 Arguments:)")
 S3("1. ", T_NAME, "                    (string) the name to normalize")
@@ -284,7 +284,7 @@ S3("    ", T_NORMALIZEDNAME,  "        (string) normalized name")
 ,
 
 // GETCLAIMBYBID
-S1(R"(getclaimbybid
+S1("getclaimbybid \"" T_NAME "\" " T_BID " ( \"" T_BLOCKHASH R"(" )
 Get a claim by bid
 Arguments:)")
 S3("1. ", T_NAME, NAME_TEXT)
@@ -295,7 +295,7 @@ CLAIM_OUTPUT
 "]",
 
 // GETCLAIMBYSEQ
-S1(R"(getclaimbyseq
+S1("getclaimbyseq \"" T_NAME "\" " T_SEQUENCE " ( \"" T_BLOCKHASH R"(" )
 Get a claim by sequence
 Arguments:)")
 S3("1. ", T_NAME, NAME_TEXT)
@@ -306,7 +306,7 @@ CLAIM_OUTPUT
 "]",
 
 // GETCLAIMPROOFBYBID
-S1(R"(getclaimproofbyid
+S1("getclaimproofbyid \"" T_NAME "\" " T_BID " ( \"" T_BLOCKHASH R"(" )
 Return the cryptographic proof that a name maps to a value or doesn't by a bid.
 Arguments:)")
 S3("1. ", T_NAME, NAME_TEXT)
@@ -317,7 +317,7 @@ PROOF_OUTPUT
 "]",
 
 // GETCLAIMPROOFBYSEQ
-S1(R"(getclaimproofbyseq
+S1("getclaimproofbyseq \"" T_NAME "\" " T_SEQUENCE " ( \"" T_BLOCKHASH R"(" )
 Return the cryptographic proof that a name maps to a value or doesn't by a sequence.
 Arguments:)")
 S3("1. ", T_NAME, NAME_TEXT)
@@ -328,7 +328,7 @@ PROOF_OUTPUT
 "]",
 
 // GETCHANGESINBLOCK
-S1(R"(getchangesinblock
+S1("getchangesinblock ( \"" T_BLOCKHASH R"(" )
 Return the list of claims added, updated, and removed as pulled from the queued work for that block."
 Use this method to determine which claims or supports went live on a given block."
 Arguments:)")

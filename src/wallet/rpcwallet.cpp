@@ -654,7 +654,7 @@ UniValue listnameclaims(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() > 3)
         throw std::runtime_error(
-            "listnameclaims includesuppports activeonly minconf\n"
+            "listnameclaims ( includesuppports activeonly minconf )\n"
             "Return a list of all transactions claiming names.\n"
             "\nArguments\n"
             "1. includesupports  (bool, optional) Whether to also include claim supports. Default is true.\n"
@@ -728,7 +728,7 @@ UniValue supportclaim(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 5)
         throw std::runtime_error(
-            "supportclaim \"name\" \"claimid\" \"amount\" \"value\"\n"
+            "supportclaim \"name\" ( \"claimid\" amount \"value\" isTip ) \n"
             "Increase the value of a claim. Whichever claim has the greatest value, including all support values, will be the authoritative claim, according to the rest of the rules. The name is the name which is claimed by the claim that will be supported, the txid is the txid\
  of the claim that will be supported, nout is the transaction output which contains the claim to be supported, and amount is the amount which will be added to the value of the claim. If the claim is currently the authoritative claim, this support will go into effect immediately \
 . Otherwise, it will go into effect after 100 blocks. The support will be in effect until it is spent, and will lose its effect when the claim is spent or expires. The amount is a real and is rounded to the nearest .00000001\n"
