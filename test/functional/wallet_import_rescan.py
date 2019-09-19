@@ -32,6 +32,7 @@ from decimal import Decimal
 import enum
 import itertools
 import random
+from decimal import Decimal
 
 Call = enum.Enum("Call", "single multiaddress multiscript")
 Data = enum.Enum("Data", "address pub priv")
@@ -96,7 +97,7 @@ class Variant(collections.namedtuple("Variant", "call data address_type rescan p
             tx, = [tx for tx in txs if tx["txid"] == txid]
             assert_equal(tx["label"], self.label)
             assert_equal(tx["address"], self.address["address"])
-            assert_equal(tx["amount"], amount)
+            assert_equal(tx["amount"], Decimal(str(amount)))
             assert_equal(tx["category"], "receive")
             assert_equal(tx["label"], self.label)
             assert_equal(tx["txid"], txid)
@@ -105,7 +106,7 @@ class Variant(collections.namedtuple("Variant", "call data address_type rescan p
 
             address, = [ad for ad in addresses if txid in ad["txids"]]
             assert_equal(address["address"], self.address["address"])
-            assert_equal(address["amount"], self.expected_balance)
+            assert_equal(address["amount"], Decimal(str(self.expected_balance)))
             assert_equal(address["confirmations"], 1 + current_height - confirmation_height)
             # Verify the transaction is correctly marked watchonly depending on
             # whether the transaction pays to an imported public key or
@@ -177,7 +178,7 @@ class ImportRescanTest(BitcoinTestFramework):
                 address_type=variant.address_type.value,
             ))
             variant.key = self.nodes[1].dumpprivkey(variant.address["address"])
-            variant.initial_amount = get_rand_amount()
+            variant.initial_amount = 0.01
             variant.initial_txid = self.nodes[0].sendtoaddress(variant.address["address"], variant.initial_amount)
             self.nodes[0].generate(1)  # Generate one block for each send
             variant.confirmation_height = self.nodes[0].getblockcount()
@@ -210,7 +211,7 @@ class ImportRescanTest(BitcoinTestFramework):
 
         # Create new transactions sending to each address.
         for i, variant in enumerate(IMPORT_VARIANTS):
-            variant.sent_amount = get_rand_amount()
+            variant.sent_amount = 0.02
             variant.sent_txid = self.nodes[0].sendtoaddress(variant.address["address"], variant.sent_amount)
             self.nodes[0].generate(1)  # Generate one block for each send
             variant.confirmation_height = self.nodes[0].getblockcount()

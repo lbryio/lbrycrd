@@ -6,6 +6,7 @@
 
 import os
 import shutil
+from decimal import Decimal
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
@@ -53,9 +54,9 @@ class WalletHDTest(BitcoinTestFramework):
             hd_info = self.nodes[1].getaddressinfo(hd_add)
             assert_equal(hd_info["hdkeypath"], "m/0'/0'/"+str(i)+"'")
             assert_equal(hd_info["hdseedid"], masterkeyid)
-            self.nodes[0].sendtoaddress(hd_add, 1)
+            self.nodes[0].sendtoaddress(hd_add, 0.1)
             self.nodes[0].generate(1)
-        self.nodes[0].sendtoaddress(non_hd_add, 1)
+        self.nodes[0].sendtoaddress(non_hd_add, 0.1)
         self.nodes[0].generate(1)
 
         # create an internal key (again)
@@ -64,7 +65,7 @@ class WalletHDTest(BitcoinTestFramework):
         assert_equal(change_addrV["hdkeypath"], "m/0'/1'/1'") #second internal child key
 
         self.sync_all()
-        assert_equal(self.nodes[1].getbalance(), NUM_HD_ADDS + 1)
+        assert_equal(self.nodes[1].getbalance(), Decimal("1.1"))
 
         self.log.info("Restore backup ...")
         self.stop_node(1)
@@ -89,7 +90,7 @@ class WalletHDTest(BitcoinTestFramework):
         # Needs rescan
         self.stop_node(1)
         self.start_node(1, extra_args=self.extra_args[1] + ['-rescan'])
-        assert_equal(self.nodes[1].getbalance(), NUM_HD_ADDS + 1)
+        assert_equal(self.nodes[1].getbalance(), Decimal("1.1"))
 
         # Try a RPC based rescan
         self.stop_node(1)
@@ -100,14 +101,14 @@ class WalletHDTest(BitcoinTestFramework):
         connect_nodes(self.nodes[0], 1)
         self.sync_all()
         # Wallet automatically scans blocks older than key on startup
-        assert_equal(self.nodes[1].getbalance(), NUM_HD_ADDS + 1)
+        assert_equal(self.nodes[1].getbalance(), Decimal("1.1"))
         out = self.nodes[1].rescanblockchain(0, 1)
         assert_equal(out['start_height'], 0)
         assert_equal(out['stop_height'], 1)
         out = self.nodes[1].rescanblockchain()
         assert_equal(out['start_height'], 0)
         assert_equal(out['stop_height'], self.nodes[1].getblockcount())
-        assert_equal(self.nodes[1].getbalance(), NUM_HD_ADDS + 1)
+        assert_equal(self.nodes[1].getbalance(), Decimal("1.1"))
 
         # send a tx and make sure its using the internal chain for the changeoutput
         txid = self.nodes[1].sendtoaddress(self.nodes[0].getnewaddress(), 1)

@@ -39,7 +39,7 @@ class TxnMallTest(BitcoinTestFramework):
             output_type = "legacy"
 
         # All nodes should start with 1,250 BTC:
-        starting_balance = 1250
+        starting_balance = 25
         for i in range(4):
             assert_equal(self.nodes[i].getbalance(), starting_balance)
             self.nodes[i].getnewaddress()  # bug workaround, coins generated assigned to first getnewaddress!
@@ -47,11 +47,11 @@ class TxnMallTest(BitcoinTestFramework):
         self.nodes[0].settxfee(.001)
 
         node0_address1 = self.nodes[0].getnewaddress(address_type=output_type)
-        node0_txid1 = self.nodes[0].sendtoaddress(node0_address1, 1219)
+        node0_txid1 = self.nodes[0].sendtoaddress(node0_address1, 24.38)
         node0_tx1 = self.nodes[0].gettransaction(node0_txid1)
 
         node0_address2 = self.nodes[0].getnewaddress(address_type=output_type)
-        node0_txid2 = self.nodes[0].sendtoaddress(node0_address2, 29)
+        node0_txid2 = self.nodes[0].sendtoaddress(node0_address2, 0.58)
         node0_tx2 = self.nodes[0].gettransaction(node0_txid2)
 
         assert_equal(self.nodes[0].getbalance(),
@@ -61,8 +61,8 @@ class TxnMallTest(BitcoinTestFramework):
         node1_address = self.nodes[1].getnewaddress()
 
         # Send tx1, and another transaction tx2 that won't be cloned
-        txid1 = self.nodes[0].sendtoaddress(node1_address, 40)
-        txid2 = self.nodes[0].sendtoaddress(node1_address, 20)
+        txid1 = self.nodes[0].sendtoaddress(node1_address, 0.8)
+        txid2 = self.nodes[0].sendtoaddress(node1_address, 0.4)
 
         # Construct a clone of tx1, to be malleated
         rawtx1 = self.nodes[0].getrawtransaction(txid1, 1)
@@ -136,7 +136,7 @@ class TxnMallTest(BitcoinTestFramework):
 
         # Check node0's total balance; should be same as before the clone, + 100 BTC for 2 matured,
         # less possible orphaned matured subsidy
-        expected += 100
+        expected += 2
         if (self.options.mine_block):
             expected -= 50
         assert_equal(self.nodes[0].getbalance(), expected)

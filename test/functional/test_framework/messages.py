@@ -549,7 +549,7 @@ class CBlockHeader:
             self.calc_sha256()
 
     def set_null(self):
-        self.nVersion = 1
+        self.nVersion = 5
         self.hashPrevBlock = 0
         self.hashMerkleRoot = 0
         self.hashClaimTrie = 1
@@ -605,7 +605,7 @@ class CBlockHeader:
                time.ctime(self.nTime), self.nBits, self.nNonce)
 
 BLOCK_HEADER_SIZE = len(CBlockHeader().serialize())
-assert_equal(BLOCK_HEADER_SIZE, 80)
+assert_equal(BLOCK_HEADER_SIZE, 80 + 32)
 
 class CBlock(CBlockHeader):
     __slots__ = ("vtx",)

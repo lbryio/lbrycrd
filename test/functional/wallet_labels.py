@@ -10,6 +10,7 @@ RPCs tested are:
     - setlabel
 """
 from collections import defaultdict
+from decimal import Decimal
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import assert_equal, assert_raises_rpc_error
@@ -34,7 +35,7 @@ class WalletLabelsTest(BitcoinTestFramework):
         # the same address, so we call twice to get two addresses w/50 each
         node.generatetoaddress(nblocks=1, address=node.getnewaddress(label='coinbase'))
         node.generatetoaddress(nblocks=101, address=node.getnewaddress(label='coinbase'))
-        assert_equal(node.getbalance(), 100)
+        assert_equal(node.getbalance(), 2)
 
         # there should be 2 address groups
         # each with 1 address with a balance of 50 Bitcoins
@@ -46,14 +47,14 @@ class WalletLabelsTest(BitcoinTestFramework):
         for address_group in address_groups:
             assert_equal(len(address_group), 1)
             assert_equal(len(address_group[0]), 3)
-            assert_equal(address_group[0][1], 50)
+            assert_equal(address_group[0][1], 1)
             assert_equal(address_group[0][2], 'coinbase')
             linked_addresses.add(address_group[0][0])
 
         # send 50 from each address to a third address not in this wallet
         common_address = "msf4WtN1YQKXvNtvdFYt9JBnUD2FB41kjr"
         node.sendmany(
-            amounts={common_address: 100},
+            amounts={common_address: 2},
             subtractfeefrom=[common_address],
             minconf=1,
         )
@@ -70,7 +71,7 @@ class WalletLabelsTest(BitcoinTestFramework):
         # we want to reset so that the "" label has what's expected.
         # otherwise we're off by exactly the fee amount as that's mined
         # and matures in the next 100 blocks
-        amount_to_send = 1.0
+        amount_to_send = 0.1
 
         # Create labels and make sure subsequent label API calls
         # recognize the label/address associations.
@@ -92,8 +93,8 @@ class WalletLabelsTest(BitcoinTestFramework):
         node.generate(1)
         for label in labels:
             assert_equal(
-                node.getreceivedbyaddress(label.addresses[0]), amount_to_send)
-            assert_equal(node.getreceivedbylabel(label.name), amount_to_send)
+                node.getreceivedbyaddress(label.addresses[0]), Decimal(str(amount_to_send)))
+            assert_equal(node.getreceivedbylabel(label.name), Decimal(str(amount_to_send)))
 
         for i, label in enumerate(labels):
             to_label = labels[(i + 1) % len(labels)]
@@ -103,7 +104,7 @@ class WalletLabelsTest(BitcoinTestFramework):
             address = node.getnewaddress(label.name)
             label.add_receive_address(address)
             label.verify(node)
-            assert_equal(node.getreceivedbylabel(label.name), 2)
+            assert_equal(node.getreceivedbylabel(label.name), Decimal("0.2"))
             label.verify(node)
         node.generate(101)
 
