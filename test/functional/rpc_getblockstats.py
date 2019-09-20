@@ -36,7 +36,7 @@ class GetblockstatsTest(BitcoinTestFramework):
 
     def add_options(self, parser):
         parser.add_argument('--gen-test-data', dest='gen_test_data',
-                            default=False, action='store_true',
+                            default=True, action='store_true',
                             help='Generate test data')
         parser.add_argument('--test-data', dest='test_data',
                             default='data/rpc_getblockstats.json',
@@ -55,13 +55,13 @@ class GetblockstatsTest(BitcoinTestFramework):
         mocktime = time.time()
         self.nodes[0].generate(101)
 
-        self.nodes[0].sendtoaddress(address=self.nodes[1].getnewaddress(), amount=10, subtractfeefromamount=True)
+        self.nodes[0].sendtoaddress(address=self.nodes[1].getnewaddress(), amount=0.2, subtractfeefromamount=True)
         self.nodes[0].generate(1)
         self.sync_all()
 
-        self.nodes[0].sendtoaddress(address=self.nodes[0].getnewaddress(), amount=10, subtractfeefromamount=True)
-        self.nodes[0].sendtoaddress(address=self.nodes[0].getnewaddress(), amount=10, subtractfeefromamount=False)
-        self.nodes[1].sendtoaddress(address=self.nodes[0].getnewaddress(), amount=1, subtractfeefromamount=True)
+        self.nodes[0].sendtoaddress(address=self.nodes[0].getnewaddress(), amount=0.2, subtractfeefromamount=True)
+        self.nodes[0].sendtoaddress(address=self.nodes[0].getnewaddress(), amount=0.2, subtractfeefromamount=False)
+        self.nodes[1].sendtoaddress(address=self.nodes[0].getnewaddress(), amount=0.02, subtractfeefromamount=True)
         self.sync_all()
         self.nodes[0].generate(1)
 
