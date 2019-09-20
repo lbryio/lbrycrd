@@ -92,7 +92,7 @@ class RpcCreateMultiSigTest(BitcoinTestFramework):
 
         height = node0.getblockchaininfo()["blocks"]
         assert 150 < height < 350
-        total = 149 * 50 + (height - 149 - 100) * 25
+        total = 149 * 1 + (height - 149 - 100) * 1
         assert bal1 == 0
         assert bal2 == self.moved
         assert bal0 + bal1 + bal2 == total
@@ -114,7 +114,7 @@ class RpcCreateMultiSigTest(BitcoinTestFramework):
         assert maddw == madd
         assert mredeemw == mredeem
 
-        txid = node0.sendtoaddress(madd, 40)
+        txid = node0.sendtoaddress(madd, 0.8)
 
         tx = node0.getrawtransaction(txid, True)
         vout = [v["n"] for v in tx["vout"] if madd in v["scriptPubKey"].get("addresses", [])]
