@@ -63,6 +63,10 @@ uint256 ClaimAName(const std::string& name, const std::string& data, const std::
     UniValue results = rpc_method(req);
     auto txid = results.get_str();
     uint256 ret;
+    if (txid.find(' ') != std::string::npos) {
+        fprintf(stderr, "Error creating claim: %s\n", txid.c_str());
+        return ret;
+    }
     ret.SetHex(txid);
     return ret;
 }
@@ -466,6 +470,25 @@ BOOST_AUTO_TEST_CASE(can_sign_all_pbst)
     generateBlock(1);
     looked = LookupAllNames().get_array();
     BOOST_CHECK_EQUAL(looked.size(), 0U);
+}
+
+BOOST_AUTO_TEST_CASE(can_claim_after_each_fork)
+{
+    generateBlock(140);
+    auto txid = ClaimAName("tester", "deadbeef", "1.0");
+    BOOST_CHECK(!txid.IsNull());
+    generateBlock(100);
+    txid = ClaimAName("tester2", "deadbeef", "1.0");
+    BOOST_CHECK(!txid.IsNull());
+    generateBlock(100);
+    txid = ClaimAName("tester3", "deadbeef", "10.0");
+    BOOST_CHECK(!txid.IsNull());
+    generateBlock(15);
+    txid = ClaimAName("tester4", "deadbeef", "10.0");
+    BOOST_CHECK(!txid.IsNull());
+    generateBlock(1);
+    auto looked = LookupAllNames().get_array();
+    BOOST_CHECK_EQUAL(looked.size(), 4U);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -11,7 +11,7 @@
 // This is the minimum claim fee per character in the name of an OP_CLAIM_NAME command that must
 // be attached to transactions for it to be accepted into the memory pool.
 // Rationale: current implementation of the claim trie uses more memory for longer name claims
-// due to the fact that each chracater is assigned a trie node regardless of whether it contains
+// due to the fact that each character is assigned a trie node regardless of whether it contains
 // any claims or not. In the future, we can switch to a radix tree implementation where
 // empty nodes do not take up any memory and the minimum fee can be priced on a per claim
 // basis.
