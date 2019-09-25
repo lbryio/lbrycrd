@@ -90,6 +90,21 @@ static bool CreateSig(const BaseSignatureCreator& creator, SignatureData& sigdat
     return false;
 }
 
+static CScript StripTimelockPrefix(const CScript& script) {
+    auto it = script.begin();
+    opcodetype op;
+    if (!script.GetOp(it, op))
+        return script;
+
+    if (!script.GetOp(it, op) || (op != OP_CHECKLOCKTIMEVERIFY && op != OP_CHECKSEQUENCEVERIFY))
+        return script;
+
+    if (!script.GetOp(it, op) || op != OP_DROP)
+        return script;
+
+    return CScript(it, script.end());
+}
+
 /**
  * Sign scriptPubKey using signature made with creator.
  * Signatures are returned in scriptSigRet (or returns false if scriptPubKey can't be signed),
@@ -106,6 +121,7 @@ static bool SignStep(const SigningProvider& provider, const BaseSignatureCreator
 
     std::vector<valtype> vSolutions;
     auto stripped = StripClaimScriptPrefix(scriptPubKey);
+    stripped = StripTimelockPrefix(stripped);
     whichTypeRet = Solver(stripped, vSolutions);
 
     switch (whichTypeRet)

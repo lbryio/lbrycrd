@@ -1538,6 +1538,68 @@ static UniValue addmultisigaddress(const JSONRPCRequest& request)
     return result;
 }
 
+static UniValue addtimelockedaddress(const JSONRPCRequest& request)
+{
+    std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
+    CWallet* const pwallet = wallet.get();
+
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() < 2 || request.params.size() > 4) {
+        std::string msg = "addtimelockedaddress timelock address ( \"label\" \"address_type\" )\n"
+                          "\nAdd an address that can't be redeemed until timelock. Requires a new wallet backup.\n"
+                          "See `importaddress` for watchonly p2sh address support.\n"
+                          "If 'label' is specified, assign address to that label.\n"
+
+                          "\nArguments:\n"
+                          "1. timelock                      (numeric, required) Block height if < 500 million or unix timestamp if greater.\n"
+                          "1. \"address\"                   (string, required) The destination wallet address.\n"
+                          "2. \"label\"                     (string, optional) A label to assign the addresses to.\n"
+                          "3. \"address_type\"              (string, optional) The address type to use. Options are \"legacy\", \"p2sh-segwit\", and \"bech32\". Default is set by -addresstype.\n"
+
+                          "\nResult:\n"
+                          "{\n"
+                          "  \"address\":\"address\",       (string) The value of the new P2SH address.\n"
+                          "  \"redeemScript\":\"script\"    (string) The string value of the hex-encoded redemption script.\n"
+                          "}\n"
+        ;
+        throw std::runtime_error(msg);
+    }
+
+    auto timelock = request.params[0].get_int();
+    std::string label;
+    if (!request.params[2].isNull())
+        label = LabelFromValue(request.params[2]);
+
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    auto address = request.params[1].get_str();
+    CTxDestination destination = DecodeDestination(address);
+    if (!IsValidDestination(destination)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid LBRY address: ") + address);
+    }
+    auto destinationScript = GetScriptForDestination(destination);
+
+    OutputType output_type = pwallet->m_default_address_type;
+    if (!request.params[3].isNull()) {
+        if (!ParseOutputType(request.params[3].get_str(), output_type)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strprintf("Unknown address type '%s'", request.params[3].get_str()));
+        }
+    }
+
+    // Construct using pay-to-script-hash:
+    CScript inner = (CScript() << CScriptNum(timelock) << OP_CHECKLOCKTIMEVERIFY << OP_DROP) + destinationScript;
+    CTxDestination dest = AddAndGetDestinationForScript(*pwallet, inner, output_type);
+    pwallet->SetAddressBook(dest, label, "timelock");
+
+    UniValue result(UniValue::VOBJ);
+    result.pushKV("address", EncodeDestination(dest));
+    result.pushKV("redeemScript", HexStr(inner.begin(), inner.end()));
+    return result;
+}
+
 struct tallyitem
 {
     CAmount nAmount{0};
@@ -4750,6 +4812,7 @@ static const CRPCCommand commands[] =
     { "wallet",             "abandontransaction",               &abandontransaction,            {"txid"} },
     { "wallet",             "abortrescan",                      &abortrescan,                   {} },
     { "wallet",             "addmultisigaddress",               &addmultisigaddress,            {"nrequired","keys","label","address_type"} },
+    { "wallet",             "addtimelockedaddress",             &addtimelockedaddress,          {"timelock", "address", "label|account","address_type"} },
     { "wallet",             "backupwallet",                     &backupwallet,                  {"destination"} },
     { "wallet",             "bumpfee",                          &bumpfee,                       {"txid", "options"} },
     { "wallet",             "createwallet",                     &createwallet,                  {"wallet_name", "disable_private_keys", "blank", "passphrase", "avoid_reuse"} },

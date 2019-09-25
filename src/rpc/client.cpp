@@ -73,6 +73,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "scantxoutset", 1, "scanobjects" },
     { "addmultisigaddress", 0, "nrequired" },
     { "addmultisigaddress", 1, "keys" },
+    { "addtimelockedaddress", 0, "timelock" },
     { "createmultisig", 0, "nrequired" },
     { "createmultisig", 1, "keys" },
     { "listunspent", 0, "minconf" },
