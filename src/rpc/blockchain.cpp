@@ -1311,16 +1311,18 @@ static UniValue getchaintips(const JSONRPCRequest& request)
                 RPCResult{
             "[\n"
             "  {\n"
-            "    \"height\": xxxx,         (numeric) height of the chain tip\n"
-            "    \"hash\": \"xxxx\",         (string) block hash of the tip\n"
-            "    \"branchlen\": 0          (numeric) zero for main chain\n"
-            "    \"status\": \"active\"      (string) \"active\" for the main chain\n"
+            "    \"height\": xxxx,             (numeric) height of the chain tip\n"
+            "    \"hash\": \"xxxx\",           (string) block hash of the tip\n"
+            "    \"branchlen\": 0              (numeric) zero for main chain\n"
+            "    \"status\": \"active\"        (string) \"active\" for the main chain\n"
             "  },\n"
             "  {\n"
             "    \"height\": xxxx,\n"
             "    \"hash\": \"xxxx\",\n"
-            "    \"branchlen\": 1          (numeric) length of branch connecting the tip to the main chain\n"
-            "    \"status\": \"xxxx\"        (string) status of the chain (active, valid-fork, valid-headers, headers-only, invalid)\n"
+            "    \"branchlen\": 1              (numeric) length of branch connecting the tip to the main chain\n"
+            "    \"branchhash\": \"xxxx\",     (string) hash of the historical block where we branched\n"
+            "    \"branchhashNext\": \"xxxx\", (string) block hash of the first block down this chain\n"
+            "    \"status\": \"xxxx\"          (string) status of the chain (active, valid-fork, valid-headers, headers-only, invalid)\n"
             "  }\n"
             "]\n"
             "Possible values for status:\n"
@@ -1375,8 +1377,19 @@ static UniValue getchaintips(const JSONRPCRequest& request)
         obj.pushKV("height", block->nHeight);
         obj.pushKV("hash", block->phashBlock->GetHex());
 
-        const int branchLen = block->nHeight - ::ChainActive().FindFork(block)->nHeight;
+        // not use ForkAt method because we need the previous one as well
+        const CBlockIndex *forkAt = block, *forkPrev = block;
+        while (forkAt && !::ChainActive().Contains(forkAt)) {
+            forkPrev = forkAt;
+            forkAt = forkAt->pprev;
+        }
+
+        const int branchLen = block->nHeight - forkAt->nHeight;
         obj.pushKV("branchlen", branchLen);
+        if (forkAt != forkPrev) {
+            obj.pushKV("branchhash", forkAt->phashBlock->GetHex());
+            obj.pushKV("branchhashNext", forkPrev->phashBlock->GetHex());
+        }
 
         std::string status;
         if (::ChainActive().Contains(block)) {

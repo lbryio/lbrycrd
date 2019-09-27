@@ -18,7 +18,7 @@ BITCOIN_DAEMON_NAME=lbrycrdd
 BITCOIN_GUI_NAME=lbrycrd-qt
 BITCOIN_CLI_NAME=lbrycrd-cli
 BITCOIN_TX_NAME=lbrycrd-tx
-BITCOIN_WALLET_TOOL_NAME=bitcoin-wallet
+BITCOIN_WALLET_TOOL_NAME=lbrycrd-wallet
 
 dnl Unless the user specified ARFLAGS, force it to be cr
 AC_ARG_VAR(ARFLAGS, [Flags for the archiver, defaults to <cr> if not set])
@@ -438,41 +438,35 @@ fi
 
 CPPFLAGS="$CPPFLAGS -DHAVE_BUILD_INFO -D__STDC_FORMAT_MACROS"
 
-AC_ARG_WITH([utils],
-  [AS_HELP_STRING([--with-utils],
-  [build lbrycrd-cli lbrycrd-wallet (default=yes)])],
-  [build_bitcoin_utils=$withval],
-  [build_bitcoin_utils=yes])
-
 AC_ARG_ENABLE([util-cli],
   [AS_HELP_STRING([--enable-util-cli],
-  [build bitcoin-cli])],
-  [build_bitcoin_cli=$enableval],
-  [build_bitcoin_cli=$build_bitcoin_utils])
+  [build lbrycrd-cli])],
+  [build_lbrycrd_cli=$enableval],
+  [build_lbrycrd_cli=$build_bitcoin_utils])
 
 AC_ARG_ENABLE([util-tx],
   [AS_HELP_STRING([--enable-util-tx],
-  [build bitcoin-tx])],
-  [build_bitcoin_tx=$enableval],
-  [build_bitcoin_tx=$build_bitcoin_utils])
+  [build lbrycrd-tx])],
+  [build_lbrycrd_tx=$enableval],
+  [build_lbrycrd_tx=$build_bitcoin_utils])
 
 AC_ARG_ENABLE([util-wallet],
   [AS_HELP_STRING([--enable-util-wallet],
-  [build bitcoin-wallet])],
-  [build_bitcoin_wallet=$enableval],
-  [build_bitcoin_wallet=$build_bitcoin_utils])
+  [build lbrycrd-wallet])],
+  [build_lbrycrd_wallet=$enableval],
+  [build_lbrycrd_wallet=$build_bitcoin_utils])
 
 AC_ARG_WITH([libs],
   [AS_HELP_STRING([--with-libs],
   [build libraries (default=yes)])],
-  [build_bitcoin_libs=$withval],
-  [build_bitcoin_libs=yes])
+  [build_lbrycrd_libs=$withval],
+  [build_lbrycrd_libs=yes])
 
 AC_ARG_WITH([daemon],
   [AS_HELP_STRING([--with-daemon],
-  [build bitcoind daemon (default=yes)])],
-  [build_bitcoind=$withval],
-  [build_bitcoind=yes])
+  [build lbrycrdd daemon (default=yes)])],
+  [build_lbrycrdd=$withval],
+  [build_lbrycrdd=yes])
 
 use_pkgconfig=yes
 case $host in
@@ -1004,11 +998,11 @@ dnl enable-fuzz should disable all other targets
 if test "x$enable_fuzz" = "xyes"; then
   AC_MSG_WARN(enable-fuzz will disable all other targets)
   build_bitcoin_utils=no
-  build_bitcoin_cli=no
-  build_bitcoin_tx=no
-  build_bitcoin_wallet=no
-  build_bitcoind=no
-  build_bitcoin_libs=no
+  build_lbrycrd_cli=no
+  build_lbrycrd_tx=no
+  build_lbrycrd_wallet=no
+  build_lbrycrdd=no
+  build_lbrycrd_libs=no
   bitcoin_enable_qt=no
   bitcoin_enable_qt_test=no
   bitcoin_enable_qt_dbus=no
@@ -1057,7 +1051,7 @@ if test x$have_miniupnpc != xno; then
 fi
 fi
 
-if test x$build_bitcoin_wallet$build_bitcoin_cli$build_bitcoin_tx$build_bitcoind$bitcoin_enable_qt$use_tests$use_bench = xnonononononono; then
+if test x$build_lbrycrd_wallet$build_lbrycrd_cli$build_lbrycrd_tx$build_lbrycrdd$bitcoin_enable_qt$use_tests$use_bench = xnonononononono; then
     use_boost=no
 else
     use_boost=yes
@@ -1267,7 +1261,7 @@ if test x$use_pkgconfig = xyes; then
       if test x$use_qr != xno; then
         BITCOIN_QT_CHECK([PKG_CHECK_MODULES([QR], [libqrencode], [have_qrencode=yes], [have_qrencode=no])])
       fi
-      if test x$build_bitcoin_cli$build_bitcoind$bitcoin_enable_qt$use_tests != xnononono; then
+      if test x$build_lbrycrd_cli$build_lbrycrdd$bitcoin_enable_qt$use_tests != xnononono; then
         PKG_CHECK_MODULES([EVENT], [libevent],, [AC_MSG_ERROR(libevent not found.)])
         if test x$TARGET_OS != xwindows; then
           PKG_CHECK_MODULES([EVENT_PTHREADS], [libevent_pthreads],, [AC_MSG_ERROR(libevent_pthreads not found.)])
@@ -1298,7 +1292,7 @@ else # probably compiling on Windows or cross-compiling for it:
   AC_CHECK_HEADER([openssl/ssl.h],, AC_MSG_ERROR(libssl headers missing),)
   AC_CHECK_LIB([ssl],         [main],SSL_LIBS=-lssl, AC_MSG_ERROR(libssl missing))
 
-  if test x$build_bitcoin_cli$build_bitcoind$bitcoin_enable_qt$use_tests != xnononono; then
+  if test x$build_lbrycrd_cli$build_lbrycrdd$bitcoin_enable_qt$use_tests != xnononono; then
     AC_CHECK_HEADER([event2/event.h],, AC_MSG_ERROR(libevent headers missing),)
     AC_CHECK_LIB([event],[main],EVENT_LIBS=-levent,AC_MSG_ERROR(libevent missing))
     if test x$TARGET_OS != xwindows; then
@@ -1368,7 +1362,7 @@ dnl univalue check
 
 need_bundled_univalue=yes
 
-if test x$build_bitcoin_wallet$build_bitcoin_cli$build_bitcoin_tx$build_bitcoind$bitcoin_enable_qt$use_tests$use_bench = xnonononononono; then
+if test x$build_lbrycrd_wallet$build_lbrycrd_cli$build_lbrycrd_tx$build_lbrycrdd$bitcoin_enable_qt$use_tests$use_bench = xnonononononono; then
   need_bundled_univalue=no
 else
 
@@ -1419,28 +1413,28 @@ if test x$have_protobuf != xno &&
 fi
 
 AC_MSG_CHECKING([whether to build bitcoind])
-AM_CONDITIONAL([BUILD_BITCOIND], [test x$build_bitcoind = xyes])
-AC_MSG_RESULT($build_bitcoind)
+AM_CONDITIONAL([BUILD_BITCOIND], [test x$build_lbrycrdd = xyes])
+AC_MSG_RESULT($build_lbrycrdd)
 
 AC_MSG_CHECKING([whether to build lbrycrd-cli])
-AM_CONDITIONAL([BUILD_BITCOIN_CLI], [test x$build_bitcoin_cli = xyes])
-AC_MSG_RESULT($build_bitcoin_cli)
+AM_CONDITIONAL([BUILD_BITCOIN_CLI], [test x$build_lbrycrd_cli = xyes])
+AC_MSG_RESULT($build_lbrycrd_cli)
 
-AC_MSG_CHECKING([whether to build bitcoin-tx])
-AM_CONDITIONAL([BUILD_BITCOIN_TX], [test x$build_bitcoin_tx = xyes])
-AC_MSG_RESULT($build_bitcoin_tx)
+AC_MSG_CHECKING([whether to build lbrycrd-tx])
+AM_CONDITIONAL([BUILD_BITCOIN_TX], [test x$build_lbrycrd_tx = xyes])
+AC_MSG_RESULT($build_lbrycrd_tx)
 
-AC_MSG_CHECKING([whether to build bitcoin-wallet])
-AM_CONDITIONAL([BUILD_BITCOIN_WALLET], [test x$build_bitcoin_wallet = xyes])
-AC_MSG_RESULT($build_bitcoin_wallet)
+AC_MSG_CHECKING([whether to build lbrycrd-wallet])
+AM_CONDITIONAL([BUILD_BITCOIN_WALLET], [test x$build_lbrycrd_wallet = xyes])
+AC_MSG_RESULT($build_lbrycrd_wallet)
 
 AC_MSG_CHECKING([whether to build libraries])
-AM_CONDITIONAL([BUILD_BITCOIN_LIBS], [test x$build_bitcoin_libs = xyes])
-if test x$build_bitcoin_libs = xyes; then
+AM_CONDITIONAL([BUILD_BITCOIN_LIBS], [test x$build_lbrycrd_libs = xyes])
+if test x$build_lbrycrd_libs = xyes; then
   AC_DEFINE(HAVE_CONSENSUS_LIB, 1, [Define this symbol if the consensus lib has been built])
   AC_CONFIG_FILES([libbitcoinconsensus.pc:libbitcoinconsensus.pc.in])
 fi
-AC_MSG_RESULT($build_bitcoin_libs)
+AC_MSG_RESULT($build_lbrycrd_libs)
 
 AC_LANG_POP
 
@@ -1576,7 +1570,7 @@ else
   AC_MSG_RESULT([no])
 fi
 
-if test x$build_bitcoin_wallet$build_bitcoin_cli$build_bitcoin_tx$build_bitcoin_libs$build_bitcoind$bitcoin_enable_qt$use_bench$use_tests = xnononononononono; then
+if test x$build_lbrycrd_wallet$build_lbrycrd_cli$build_lbrycrd_tx$build_lbrycrd_libs$build_lbrycrdd$bitcoin_enable_qt$use_bench$use_tests = xnononononononono; then
   AC_MSG_ERROR([No targets! Please specify at least one of: --with-utils --with-libs --with-daemon --with-gui --enable-bench or --enable-tests])
 fi
 
