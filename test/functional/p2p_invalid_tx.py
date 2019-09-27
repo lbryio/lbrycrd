@@ -70,7 +70,7 @@ class InvalidTxRequestTest(BitcoinTestFramework):
         # Transaction will be rejected with code 16 (REJECT_INVALID)
         # and we get disconnected immediately
         self.log.info('Test a transaction that is rejected')
-        tx1 = create_tx_with_script(block1.vtx[0], 0, script_sig=b'\x64' * 35, amount=int(0.9 * COIN))
+        tx1 = create_tx_with_script(block1.vtx[0], 0, script_sig=b'\x64' * 35, amount=int(1 * COIN - 240))
         node.p2p.send_txs_and_test([tx1], node, success=False, expect_disconnect=True)
 
         # Make two p2p connections to provide the node with orphans
@@ -84,7 +84,7 @@ class InvalidTxRequestTest(BitcoinTestFramework):
         SCRIPT_PUB_KEY_OP_TRUE = b'\x51\x75' * 15 + b'\x51'
         tx_withhold = CTransaction()
         tx_withhold.vin.append(CTxIn(outpoint=COutPoint(block1.vtx[0].sha256, 0)))
-        tx_withhold.vout.append(CTxOut(nValue=int(0.99 * COIN), scriptPubKey=SCRIPT_PUB_KEY_OP_TRUE))
+        tx_withhold.vout.append(CTxOut(nValue=int(1 * COIN) - 240, scriptPubKey=SCRIPT_PUB_KEY_OP_TRUE))
         tx_withhold.calc_sha256()
 
         # Our first orphan tx with some outputs to create further orphan txs
@@ -101,7 +101,7 @@ class InvalidTxRequestTest(BitcoinTestFramework):
         # A valid transaction with sufficient fee
         tx_orphan_2_valid = CTransaction()
         tx_orphan_2_valid.vin.append(CTxIn(outpoint=COutPoint(tx_orphan_1.sha256, 1)))
-        tx_orphan_2_valid.vout.append(CTxOut(nValue=int(0.2 * COIN), scriptPubKey=SCRIPT_PUB_KEY_OP_TRUE))
+        tx_orphan_2_valid.vout.append(CTxOut(nValue=int(0.2 * COIN) - 240, scriptPubKey=SCRIPT_PUB_KEY_OP_TRUE))
         tx_orphan_2_valid.calc_sha256()
 
         # An invalid transaction with negative fee
@@ -134,7 +134,7 @@ class InvalidTxRequestTest(BitcoinTestFramework):
         # tx_orphan_no_fee, because it has too low fee (p2ps[0] is not disconnected for relaying that tx)
         # tx_orphan_invaid, because it has negative fee (p2ps[1] is disconnected for relaying that tx)
 
-        wait_until(lambda: 1 == len(node.getpeerinfo()), timeout=12)  # p2ps[1] is no longer connected
+        wait_until(lambda: 1 == len(node.getpeerinfo()), timeout=1)  # p2ps[1] is no longer connected
         assert_equal(expected_mempool, set(node.getrawmempool()))
 
         # restart node with sending BIP61 messages disabled, check that it disconnects without sending the reject message

@@ -57,11 +57,11 @@ class NULLDUMMYTest(BitcoinTestFramework):
         coinbase_txid = []
         for i in self.coinbase_blocks:
             coinbase_txid.append(self.nodes[0].getblock(i)['tx'][0])
-        self.nodes[0].generate(427) # Block 429
+        self.nodes[0].generate(145) # Block 147
         self.lastblockhash = self.nodes[0].getbestblockhash()
         self.tip = int("0x" + self.lastblockhash, 0)
-        self.lastblockheight = 429
-        self.lastblocktime = int(time.time()) + 429
+        self.lastblockheight = 147
+        self.lastblocktime = int(time.time()) + 147
 
         self.log.info("Test 1: NULLDUMMY compliant base transactions should be accepted to mempool and mined before activation [430]")
         test1txs = [create_transaction(self.nodes[0], coinbase_txid[0], self.ms_address, amount=0.98)]
@@ -77,7 +77,7 @@ class NULLDUMMYTest(BitcoinTestFramework):
         trueDummy(test2tx)
         assert_raises_rpc_error(-26, NULLDUMMY_ERROR, self.nodes[0].sendrawtransaction, bytes_to_hex_str(test2tx.serialize_with_witness()), True)
 
-        self.log.info("Test 3: Non-NULLDUMMY base transactions should be accepted in a block before activation [431]")
+        self.log.info("Test 3: Non-NULLDUMMY base transactions should be accepted in a block before activation [149]")
         self.block_submit(self.nodes[0], [test2tx], False, True)
 
         self.log.info("Test 4: Non-NULLDUMMY base multisig transaction is invalid after activation")
@@ -94,7 +94,7 @@ class NULLDUMMYTest(BitcoinTestFramework):
         assert_raises_rpc_error(-26, NULLDUMMY_ERROR, self.nodes[0].sendrawtransaction, bytes_to_hex_str(test5tx.serialize_with_witness()), True)
         self.block_submit(self.nodes[0], [test5tx], True)
 
-        self.log.info("Test 6: NULLDUMMY compliant base/witness transactions should be accepted to mempool and in block after activation [432]")
+        self.log.info("Test 6: NULLDUMMY compliant base/witness transactions should be accepted to mempool and in block after activation [150]")
         for i in test6txs:
             self.nodes[0].sendrawtransaction(bytes_to_hex_str(i.serialize_with_witness()), True)
         self.block_submit(self.nodes[0], test6txs, True, True)
