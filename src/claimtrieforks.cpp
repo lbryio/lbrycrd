@@ -4,7 +4,6 @@
 #include <claimtrie.h>
 #include <hash.h>
 
-#include <boost/algorithm/string.hpp>
 #include <boost/foreach.hpp>
 #include <boost/locale.hpp>
 #include <boost/locale/conversion.hpp>
@@ -174,32 +173,26 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(insert
     // run the one-time upgrade of all names that need to change
     // it modifies the (cache) trie as it goes, so we need to grab everything to be modified first
 
-    boost::scoped_ptr<CDBIterator> pcursor(base->db->NewIterator());
-    for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next()) {
-        std::pair<uint8_t, std::string> key;
-        if (!pcursor->GetKey(key) || key.first != TRIE_NODE_CHILDREN)
+    for (auto it = base->begin(); it != base->end(); ++it) {
+        const std::string normalized = normalizeClaimName(it.key(), true);
+        if (normalized == it.key())
             continue;
 
-        const auto& name = key.second;
-        const std::string normalized = normalizeClaimName(name, true);
-        if (normalized == key.second)
-            continue;
-
-        auto supports = getSupportsForName(name);
+        auto supports = getSupportsForName(it.key());
         for (auto support : supports) {
             // if it's already going to expire just skip it
             if (support.nHeight + expirationTime() <= nNextHeight)
                 continue;
 
-            assert(removeSupportFromMap(name, support.outPoint, support, false));
-            expireSupportUndo.emplace_back(name, support);
+            assert(removeSupportFromMap(it.key(), support.outPoint, support, false));
+            expireSupportUndo.emplace_back(it.key(), support);
             assert(insertSupportIntoMap(normalized, support, false));
-            insertSupportUndo.emplace_back(name, support.outPoint, -1);
+            insertSupportUndo.emplace_back(it.key(), support.outPoint, -1);
         }
 
         namesToCheckForTakeover.insert(normalized);
 
-        auto cached = cacheData(name, false);
+        auto cached = cacheData(it.key(), false);
         if (!cached || cached->empty())
             continue;
 
@@ -209,13 +202,13 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(insert
             if (claim.nHeight + expirationTime() <= nNextHeight)
                 continue;
 
-            assert(removeClaimFromTrie(name, claim.outPoint, claim, false));
-            removeUndo.emplace_back(name, claim);
+            assert(removeClaimFromTrie(it.key(), claim.outPoint, claim, false));
+            removeUndo.emplace_back(it.key(), claim);
             assert(insertClaimIntoTrie(normalized, claim, true));
-            insertUndo.emplace_back(name, claim.outPoint, -1);
+            insertUndo.emplace_back(it.key(), claim.outPoint, -1);
         }
 
-        takeoverHeightUndo.emplace_back(name, takeoverHeightCopy);
+        takeoverHeightUndo.emplace_back(it.key(), takeoverHeightCopy);
     }
     return true;
 }
@@ -306,43 +299,33 @@ uint256 recursiveMerkleHash(const CClaimTrieData& data, Vector&& children, const
 
 extern const uint256 one;
 
-bool CClaimTrieHashFork::checkConsistency(const uint256& rootHash) const
+bool CClaimTrieCacheHashFork::checkConsistency(const uint256& rootHash) const
 {
     if (nNextHeight < Params().GetConsensus().nAllClaimsInMerkleForkHeight)
-        return CClaimTrie::checkConsistency(rootHash);
+        return CClaimTrieCacheNormalizationFork::checkConsistency(rootHash);
 
-    CClaimTrieDataNode node;
-    if (!find({}, node) || node.hash != rootHash) {
-        if (rootHash == one)
-            return true;
+    if (base->empty())
+        return true;
 
-        return error("Mismatched root claim trie hashes. This may happen when there is not a clean process shutdown. Please run with -reindex.");
-    }
+    auto it = base->begin();
 
-    bool success = true;
-    recurseNodes({}, node, [&success, this](const std::string& name, const CClaimTrieData& data, const std::vector<std::string>& children) {
-        if (!success) return;
-
-        iCbType<const std::string> callback = [&success, &name, this](const std::string& child) -> uint256 {
-            auto key = name + child;
-            CClaimTrieDataNode node;
-            success &= find(key, node);
-            return node.hash;
-        };
-
-        success &= !data.hash.IsNull();
-        success &= data.hash == recursiveMerkleHash(data, children, callback);
-    });
-
-    return success;
+    using iterator = CClaimTrie::iterator;
+    bool consistent = true;
+    iCbType<iterator> process = [&process, &consistent](iterator& it) -> uint256 {
+        if (!consistent) return it->hash;
+        auto found = recursiveMerkleHash(it.data(), it.children(), process);
+        consistent &= found == it->hash;
+        return found;
+    };
+    process(it);
+    return consistent;
 }
-
-uint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(CClaimPrefixTrie::iterator& it)
+uint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(CClaimTrie::iterator& it)
 {
     if (nNextHeight < Params().GetConsensus().nAllClaimsInMerkleForkHeight)
         return CClaimTrieCacheNormalizationFork::recursiveComputeMerkleHash(it);
 
-    using iterator = CClaimPrefixTrie::iterator;
+    using iterator = CClaimTrie::iterator;
     iCbType<iterator> process = [&process](iterator& it) -> uint256 {
         if (it->hash.IsNull())
             it->hash = recursiveMerkleHash(it.data(), it.children(), process);
@@ -426,7 +409,7 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, CClaimTri
     cacheData(name, false);
     getMerkleHash();
     proof = CClaimTrieProof();
-    for (auto& it : static_cast<const CClaimPrefixTrie&>(nodesToAddOrUpdate).nodes(name)) {
+    for (auto& it : static_cast<const CClaimTrie&>(nodesToAddOrUpdate).nodes(name)) {
         std::vector<uint256> childHashes;
         uint32_t nextCurrentIdx = 0;
         for (auto& child : it.children()) {
@@ -469,14 +452,15 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, CClaimTri
 
 void CClaimTrieCacheHashFork::copyAllBaseToCache()
 {
-    recurseNodes({}, [this](const std::string& name, const CClaimTrieData& data) {
-        if (nodesAlreadyCached.insert(name).second)
-            nodesToAddOrUpdate.insert(name, data);
-    });
-
-    for (auto it = nodesToAddOrUpdate.begin(); it != nodesToAddOrUpdate.end(); ++it) {
-        it->hash.SetNull();
-        it->flags |= CClaimTrieDataFlags::HASH_DIRTY;
+    for (auto it = base->begin(); it != base->end(); ++it) {
+        if (nodesAlreadyCached.insert(it.key()).second) {
+            auto cpy = nodesToAddOrUpdate.copy(it);
+            cpy->hash.SetNull();
+        }
+        else {
+            auto hit = nodesToAddOrUpdate.find(it.key());
+            if (hit) hit->hash.SetNull();
+        }
     }
 }
 

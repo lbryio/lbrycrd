@@ -319,7 +319,7 @@ typename CPrefixTrie<TKey, TData>::iterator CPrefixTrie<TKey, TData>::copy(CPref
     auto& key = it.key();
     auto& node = key.empty() ? root : insert(key, root);
     node->data = it.node.lock()->data;
-    return key.empty() ? begin() : iterator{key, node};
+    return iterator{key, node};
 }
 
 template <typename TKey, typename TData>

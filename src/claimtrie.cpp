@@ -271,8 +271,8 @@ bool CClaimTrieCacheBase::haveClaim(const std::string& name, const COutPoint& ou
         return true;
     if (it || nodesToDelete.count(name))
         return false;
-    CClaimTrieData data;
-    return base->find(name, data) && data.haveClaim(outPoint);
+    it = base->find(name);
+    return it && it->haveClaim(outPoint);
 }
 
 bool CClaimTrieCacheBase::haveSupport(const std::string& name, const COutPoint& outPoint) const
@@ -325,58 +325,32 @@ bool CClaimTrieCacheBase::haveSupportInQueue(const std::string& name, const COut
     return haveInQueue<CSupportValue>(name, outPoint, nValidAtHeight);
 }
 
-void CClaimTrie::recurseNodes(const std::string& name, const CClaimTrieDataNode& current, std::function<recurseNodesCB> function) const {
-    CClaimTrieData data;
-    find(name, data);
-
-    data.hash = current.hash;
-    data.flags |= current.children.empty() ? 0 : CClaimTrieDataFlags::POTENTIAL_CHILDREN;
-    function(name, data, current.children);
-
-    for (auto& child: current.children) {
-        CClaimTrieDataNode node;
-        auto childName = name + child;
-        if (find(childName, node))
-            recurseNodes(childName, node, function);
-    }
-}
-
 std::size_t CClaimTrie::getTotalNamesInTrie() const
 {
     std::size_t count = 0;
-    CClaimTrieDataNode node;
-    if (find({}, node))
-        recurseNodes({}, node, [&count](const std::string &name, const CClaimTrieData &data, const std::vector<std::string>& children) {
-            count += !data.empty();
-        });
+    for (auto it = begin(); it != end(); ++it)
+        if (!it->empty()) ++count;
     return count;
 }
 
 std::size_t CClaimTrie::getTotalClaimsInTrie() const
 {
     std::size_t count = 0;
-    CClaimTrieDataNode node;
-    if (find({}, node))
-        recurseNodes({}, node, [&count]
-        (const std::string &name, const CClaimTrieData &data, const std::vector<std::string>& children) {
-            count += data.claims.size();
-        });
+    for (auto it = begin(); it != end(); ++it)
+        count += it->claims.size();
     return count;
 }
 
 CAmount CClaimTrie::getTotalValueOfClaimsInTrie(bool fControllingOnly) const
 {
     CAmount value_in_subtrie = 0;
-    CClaimTrieDataNode node;
-    if (find({}, node))
-        recurseNodes({}, node, [&value_in_subtrie, fControllingOnly]
-        (const std::string &name, const CClaimTrieData &data, const std::vector<std::string>& children) {
-            for (const auto &claim : data.claims) {
-                value_in_subtrie += claim.nAmount;
-                if (fControllingOnly)
-                    break;
-            }
-        });
+    for (auto it = begin(); it != end(); ++it) {
+        for (const auto& claim : it->claims) {
+            value_in_subtrie += claim.nAmount;
+            if (fControllingOnly)
+                break;
+        }
+    }
     return value_in_subtrie;
 }
 
@@ -387,8 +361,8 @@ bool CClaimTrieCacheBase::getInfoForName(const std::string& name, CClaimValue& c
         return true;
     if (it || nodesToDelete.count(name))
         return false;
-    CClaimTrieData claims;
-    return base->find(name, claims) && claims.getBestClaim(claim);
+    it = base->find(name);
+    return it && it->getBestClaim(claim);
 }
 
 template <typename T>
@@ -414,10 +388,10 @@ CClaimSupportToName CClaimTrieCacheBase::getClaimsForName(const std::string& nam
         claims = it->claims;
         nLastTakeoverHeight = it->nHeightOfLastTakeover;
     } else if (!nodesToDelete.count(name)) {
-        CClaimTrieData data;
-        if (base->find(name, data)) {
-            claims = data.claims;
-            nLastTakeoverHeight = data.nHeightOfLastTakeover;
+        auto it = base->find(name);
+        if (it) {
+            claims = it->claims;
+            nLastTakeoverHeight = it->nHeightOfLastTakeover;
         }
     }
     insertRowsFromQueue(claims, name);
@@ -453,94 +427,92 @@ void completeHash(uint256& partialHash, const std::string& key, std::size_t to)
             .Finalize(partialHash.begin());
 }
 
-bool CClaimTrie::checkConsistency(const uint256& rootHash) const
+template <typename T>
+using iCbType = std::function<void(T&)>;
+
+template <typename TIterator>
+uint256 recursiveMerkleHash(TIterator& it, const iCbType<TIterator>& process, const iCbType<TIterator>& verify = {})
 {
-    CClaimTrieDataNode node;
-    if (!find({}, node) || node.hash != rootHash) {
-        if (rootHash == one)
-            return true;
-
-        return error("Mismatched root claim trie hashes. This may happen when there is not a clean process shutdown. Please run with -reindex.");
+    std::vector<uint8_t> vchToHash;
+    const auto pos = it.key().size();
+    for (auto& child : it.children()) {
+        process(child);
+        auto& key = child.key();
+        auto hash = child->hash;
+        completeHash(hash, key, pos);
+        vchToHash.push_back(key[pos]);
+        vchToHash.insert(vchToHash.end(), hash.begin(), hash.end());
     }
 
-    bool success = true;
-    recurseNodes({}, node, [&success, this](const std::string &name, const CClaimTrieData &data, const std::vector<std::string>& children) {
-        if (!success) return;
-
-        std::vector<uint8_t> vchToHash;
-        const auto pos = name.size();
-        for (auto &child : children) {
-            auto key = name + child;
-            CClaimTrieDataNode node;
-            success &= find(key, node);
-            auto hash = node.hash;
-            completeHash(hash, key, pos);
-            vchToHash.push_back(key[pos]);
-            vchToHash.insert(vchToHash.end(), hash.begin(), hash.end());
-        }
-
-        CClaimValue claim;
-        if (data.getBestClaim(claim)) {
-            uint256 valueHash = getValueHash(claim.outPoint, data.nHeightOfLastTakeover);
-            vchToHash.insert(vchToHash.end(), valueHash.begin(), valueHash.end());
-        } else {
-            success &= !children.empty(); // we disallow leaf nodes without claims
-        }
-        success &= data.hash == Hash(vchToHash.begin(), vchToHash.end());
-    });
-
-    return success;
-}
-
-std::vector<std::pair<std::string, CClaimTrieDataNode>> CClaimTrie::nodes(const std::string &key) const {
-    std::vector<std::pair<std::string, CClaimTrieDataNode>> ret;
-    CClaimTrieDataNode node;
-
-    if (!find({}, node))
-        return ret;
-
-    ret.emplace_back(std::string{}, node);
-
-    std::string partialKey = key;
-
-    while (!node.children.empty()) {
-        // auto it = node.children.lower_bound(partialKey); // for using a std::map
-        auto it = std::lower_bound(node.children.begin(), node.children.end(), partialKey);
-        if (it != node.children.end() && *it == partialKey) {
-            // we're completely done
-            if (find(key, node))
-                ret.emplace_back(key, node);
-            break;
-        }
-        if (it != node.children.begin()) --it;
-        const auto count = match(partialKey, *it);
-
-        if (count != it->size()) break;
-        if (count == partialKey.size()) break;
-        partialKey = partialKey.substr(count);
-        auto frontKey = key.substr(0, key.size() - partialKey.size());
-        if (find(frontKey, node))
-            ret.emplace_back(frontKey, node);
-        else break;
+    CClaimValue claim;
+    if (it->getBestClaim(claim)) {
+        uint256 valueHash = getValueHash(claim.outPoint, it->nHeightOfLastTakeover);
+        vchToHash.insert(vchToHash.end(), valueHash.begin(), valueHash.end());
+    } else if (verify) {
+        verify(it);
     }
 
-    return ret;
+    return Hash(vchToHash.begin(), vchToHash.end());
 }
 
-bool CClaimTrie::contains(const std::string &key) const {
-    return db->Exists(std::make_pair(TRIE_NODE_CHILDREN, key));
+bool recursiveCheckConsistency(CClaimTrie::const_iterator& it, std::string& failed)
+{
+    struct CRecursiveBreak : public std::exception {};
+
+    using iterator = CClaimTrie::const_iterator;
+    iCbType<iterator> verify = [&failed](iterator& it) {
+        if (!it.hasChildren()) {
+            // we don't allow a situation of no children and no claims; no empty leaf nodes allowed
+            failed = it.key();
+            throw CRecursiveBreak();
+        }
+    };
+
+    iCbType<iterator> process = [&failed, &process, &verify](iterator& it) {
+        if (it->hash != recursiveMerkleHash(it, process, verify)) {
+            failed = it.key();
+            throw CRecursiveBreak();
+        }
+    };
+
+    try {
+        process(it);
+    } catch (const CRecursiveBreak&) {
+        return false;
+    }
+    return true;
 }
 
-bool CClaimTrie::empty() const {
-    return !contains({});
-}
+bool CClaimTrieCacheBase::checkConsistency(const uint256& hash) const
+{
+    if (base->empty())
+        return true;
 
-bool CClaimTrie::find(const std::string& key, CClaimTrieDataNode &node) const {
-    return db->Read(std::make_pair(TRIE_NODE_CHILDREN, key), node);
-}
+    auto it = base->cbegin();
 
-bool CClaimTrie::find(const std::string& key, CClaimTrieData &data) const {
-    return db->Read(std::make_pair(TRIE_NODE_CLAIMS, key), data);
+    if (it->hash != hash)
+        return false;
+
+    std::string failed;
+    auto consistent = recursiveCheckConsistency(it, failed);
+    if (!consistent) {
+        LogPrintf("\nPrinting base tree from its parent:\n");
+        auto basePath = base->nodes(failed);
+        if (basePath.size() > 1) basePath.pop_back();
+        dumpToLog(basePath.back(), false);
+        auto cachePath = nodesToAddOrUpdate.nodes(failed);
+        if (!cachePath.empty()) {
+            LogPrintf("\nPrinting %s's parent from cache:\n", failed);
+            if (cachePath.size() > 1) cachePath.pop_back();
+            dumpToLog(cachePath.back(), false);
+        }
+        if (!nodesToDelete.empty()) {
+            std::string joined;
+            for (const auto &piece : nodesToDelete) joined += ", " + piece;
+            LogPrintf("Nodes to be deleted: %s\n", joined.substr(2));
+        }
+    }
+    return consistent;
 }
 
 template <typename K, typename T>
@@ -579,24 +551,22 @@ bool CClaimTrieCacheBase::flush()
 
     getMerkleHash();
 
-    for (auto it = nodesToAddOrUpdate.begin(); it != nodesToAddOrUpdate.end(); ++it) {
-        bool removed = forDeleteFromBase.erase(it.key());
-        if (it->flags & CClaimTrieDataFlags::HASH_DIRTY) {
-            CClaimTrieDataNode node;
-            node.hash = it->hash;
-            for (auto &child: it.children()) // ordering here is important
-                node.children.push_back(child.key().substr(it.key().size()));
-
-            batch.Write(std::make_pair(TRIE_NODE_CHILDREN, it.key()), node);
-
-            if (removed || (it->flags & CClaimTrieDataFlags::CLAIMS_DIRTY))
-                batch.Write(std::make_pair(TRIE_NODE_CLAIMS, it.key()), it.data());
-        }
+    for (const auto& nodeName : nodesToDelete) {
+        if (nodesToAddOrUpdate.contains(nodeName))
+            continue;
+        auto nodes = base->nodes(nodeName);
+        base->erase(nodeName);
+        for (auto& node : nodes)
+            if (!node)
+                batch.Erase(std::make_pair(TRIE_NODE, node.key()));
     }
 
-    for (auto& name: forDeleteFromBase) {
-        batch.Erase(std::make_pair(TRIE_NODE_CHILDREN, name));
-        batch.Erase(std::make_pair(TRIE_NODE_CLAIMS, name));
+    for (auto it = nodesToAddOrUpdate.begin(); it != nodesToAddOrUpdate.end(); ++it) {
+        auto old = base->find(it.key());
+        if (!old || old.data() != it.data()) {
+            base->copy(it);
+            batch.Write(std::make_pair(TRIE_NODE, it.key()), it.data());
+        }
     }
 
     BatchWriteQueue(batch, SUPPORT, supportCache);
@@ -626,7 +596,7 @@ bool CClaimTrieCacheBase::validateTrieConsistency(const CBlockIndex* tip)
         return true;
 
     LogPrintf("Checking claim trie consistency... ");
-    if (base->checkConsistency(tip->hashClaimTrie)) {
+    if (checkConsistency(tip->hashClaimTrie)) {
         LogPrintf("consistent\n");
         return true;
     }
@@ -636,13 +606,52 @@ bool CClaimTrieCacheBase::validateTrieConsistency(const CBlockIndex* tip)
 
 bool CClaimTrieCacheBase::ReadFromDisk(const CBlockIndex* tip)
 {
-    base->nNextHeight = nNextHeight = tip ? tip->nHeight + 1 : 0;
-    clear();
+    LogPrintf("Loading the claim trie from disk...\n");
 
-    if (tip && base->db->Exists(std::make_pair(TRIE_NODE, std::string()))) {
-        LogPrintf("The claim trie database contains deprecated data and will need to be rebuilt\n");
-        return false;
+    base->nNextHeight = nNextHeight = tip ? tip->nHeight + 1 : 0;
+
+    clear();
+    base->clear();
+    boost::scoped_ptr<CDBIterator> pcursor(base->db->NewIterator());
+
+    for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next()) {
+        std::pair<uint8_t, std::string> key;
+        if (!pcursor->GetKey(key) || key.first != TRIE_NODE)
+            continue;
+
+        CClaimTrieData data;
+        if (pcursor->GetValue(data)) {
+            if (data.empty()) {
+                // we have a situation where our old trie had many empty nodes
+                // we don't want to automatically throw those all into our prefix trie
+                // we'll run a second pass to clean them up
+                continue;
+            }
+
+            // nEffectiveAmount isn't serialized but it needs to be initialized (as done in reorderClaims):
+            auto supports = getSupportsForName(key.second);
+            data.reorderClaims(supports);
+            base->insert(key.second, std::move(data));
+        } else {
+            return error("%s(): error reading claim trie from disk", __func__);
+        }
     }
+
+    for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next()) {
+        std::pair<uint8_t, std::string> key;
+        if (!pcursor->GetKey(key) || key.first != TRIE_NODE)
+            continue;
+        auto hit = base->find(key.second);
+        if (hit) {
+            CClaimTrieData data;
+            if (pcursor->GetValue(data))
+                hit->hash = data.hash;
+        }
+        else {
+            base->db->Erase(key); // this uses a lot of memory and it's 1-time upgrade from 12.4 so we aren't going to batch it
+        }
+    }
+
     return validateTrieConsistency(tip);
 }
 
@@ -657,7 +666,7 @@ int CClaimTrieCacheBase::expirationTime() const
     return Params().GetConsensus().nOriginalClaimExpirationTime;
 }
 
-uint256 CClaimTrieCacheBase::recursiveComputeMerkleHash(CClaimPrefixTrie::iterator& it)
+uint256 CClaimTrieCacheBase::recursiveComputeMerkleHash(CClaimTrie::iterator& it)
 {
     if (!it->hash.IsNull())
         return it->hash;
@@ -686,19 +695,19 @@ uint256 CClaimTrieCacheBase::getMerkleHash()
     if (auto it = nodesToAddOrUpdate.begin())
         return recursiveComputeMerkleHash(it);
     if (nodesToDelete.empty() && nodesAlreadyCached.empty()) {
-        CClaimTrieDataNode node;
-        if (base->find({}, node))
-            return node.hash; // it may be valuable to have base cache its current root hash
+        auto it = base->find({});
+        if (it)
+            return it->hash; // it may be valuable to have base cache its current root hash
     }
     return one; // we have no data or we deleted everything
 }
 
-CClaimPrefixTrie::const_iterator CClaimTrieCacheBase::begin() const
+CClaimTrie::const_iterator CClaimTrieCacheBase::begin() const
 {
     return nodesToAddOrUpdate.begin();
 }
 
-CClaimPrefixTrie::const_iterator CClaimTrieCacheBase::end() const
+CClaimTrie::const_iterator CClaimTrieCacheBase::end() const
 {
     return nodesToAddOrUpdate.end();
 }
@@ -708,32 +717,19 @@ bool CClaimTrieCacheBase::empty() const
     return nodesToAddOrUpdate.empty();
 }
 
-CClaimPrefixTrie::iterator CClaimTrieCacheBase::cacheData(const std::string& name, bool create)
+CClaimTrie::iterator CClaimTrieCacheBase::cacheData(const std::string& name, bool create)
 {
     // we need all parent nodes and their one level deep children
     // to calculate merkle hash
     auto nodes = base->nodes(name);
     for (auto& node: nodes) {
-        if (nodesAlreadyCached.insert(node.first).second) {
+        if (nodesAlreadyCached.insert(node.key()).second) {
             // do not insert nodes that are already present
-            CClaimTrieData data;
-            base->find(node.first, data);
-            data.hash = node.second.hash;
-            data.flags = node.second.children.empty() ? 0 : CClaimTrieDataFlags::POTENTIAL_CHILDREN;
-            nodesToAddOrUpdate.insert(node.first, data);
+            nodesToAddOrUpdate.insert(node.key(), node.data());
         }
-        for (auto& child : node.second.children) {
-            auto childKey = node.first + child;
-            if (nodesAlreadyCached.insert(childKey).second) {
-                CClaimTrieData childData;
-                if (!base->find(childKey, childData))
-                    childData = {};
-                CClaimTrieDataNode childNode;
-                if (base->find(childKey, childNode)) {
-                    childData.hash = childNode.hash;
-                    childData.flags = childNode.children.empty() ? 0 : CClaimTrieDataFlags::POTENTIAL_CHILDREN;
-                }
-                nodesToAddOrUpdate.insert(childKey, childData);
+        for (auto& child : node.children()) {
+            if (nodesAlreadyCached.insert(child.key()).second) {
+                nodesToAddOrUpdate.insert(child.key(), child.data());
             }
         }
     }
@@ -763,11 +759,11 @@ bool CClaimTrieCacheBase::getLastTakeoverForName(const std::string& name, uint16
         std::tie(claimId, takeoverHeight) = cit->second;
         return true;
     }
-    CClaimTrieData data;
-    if (base->find(name, data)) {
-        takeoverHeight = data.nHeightOfLastTakeover;
+    auto bit = base->find(name);
+    if (bit) {
+        takeoverHeight = bit->nHeightOfLastTakeover;
         CClaimValue claim;
-        if (data.getBestClaim(claim)) {
+        if (bit->getBestClaim(claim)) {
             claimId = claim.claimId;
             return true;
         }
@@ -777,12 +773,8 @@ bool CClaimTrieCacheBase::getLastTakeoverForName(const std::string& name, uint16
 
 void CClaimTrieCacheBase::markAsDirty(const std::string& name, bool fCheckTakeover)
 {
-    for (auto& node : nodesToAddOrUpdate.nodes(name)) {
-        node->flags |= CClaimTrieDataFlags::HASH_DIRTY;
+    for (auto& node : nodesToAddOrUpdate.nodes(name))
         node->hash.SetNull();
-        if (node.key() == name)
-            node->flags |= CClaimTrieDataFlags::CLAIMS_DIRTY;
-    }
 
     if (fCheckTakeover)
         namesToCheckForTakeover.insert(name);
@@ -815,9 +807,6 @@ bool CClaimTrieCacheBase::removeClaimFromTrie(const std::string& name, const COu
         bool hasChild = it.hasChildren();
         for (auto& child: it.children())
             cacheData(child.key(), false);
-
-        for (auto& node : nodesToAddOrUpdate.nodes(name))
-            forDeleteFromBase.emplace(node.key());
 
         nodesToAddOrUpdate.erase(name);
         nodesToDelete.insert(name);
@@ -1055,13 +1044,13 @@ bool CClaimTrieCacheBase::removeSupportFromMap(const std::string& name, const CO
     return false;
 }
 
-void CClaimTrieCacheBase::dumpToLog(CClaimPrefixTrie::const_iterator it, bool diffFromBase) const
+void CClaimTrieCacheBase::dumpToLog(CClaimTrie::const_iterator it, bool diffFromBase) const
 {
     if (!it) return;
 
     if (diffFromBase) {
-        CClaimTrieDataNode node;
-        if (base->find(it.key(), node) && node.hash == it->hash)
+        auto bit = base->find(it.key());
+        if (bit && bit->hash == it->hash)
             return;
     }
 
@@ -1377,9 +1366,9 @@ int CClaimTrieCacheBase::getNumBlocksOfContinuousOwnership(const std::string& na
     }
     if (auto it = nodesToAddOrUpdate.find(name))
         return it->empty() ? 0 : nNextHeight - it->nHeightOfLastTakeover;
-    CClaimTrieData data;
-    if (base->find(name, data) && !data.empty())
-        return nNextHeight - data.nHeightOfLastTakeover;
+    auto bit = base->find(name);
+    if (bit && !bit->empty())
+        return nNextHeight - bit->nHeightOfLastTakeover;
     return 0;
 }
 
@@ -1407,7 +1396,6 @@ std::string CClaimTrieCacheBase::adjustNameForValidHeight(const std::string& nam
 
 bool CClaimTrieCacheBase::clear()
 {
-    forDeleteFromBase.clear();
     nodesToAddOrUpdate.clear();
     claimsToAddToByIdIndex.clear();
     supportCache.clear();
@@ -1433,7 +1421,7 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, CClaimTriePro
     cacheData(name, false);
     getMerkleHash();
     proof = CClaimTrieProof();
-    for (auto& it : static_cast<const CClaimPrefixTrie&>(nodesToAddOrUpdate).nodes(name)) {
+    for (auto& it : static_cast<const CClaimTrie&>(nodesToAddOrUpdate).nodes(name)) {
         CClaimValue claim;
         const auto& key = it.key();
         bool fNodeHasValue = it->getBestClaim(claim);
@@ -1476,29 +1464,26 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, CClaimTriePro
 void CClaimTrieCacheBase::recurseNodes(const std::string &name,
         std::function<void(const std::string &, const CClaimTrieData &)> function) const {
 
-    std::function<CClaimTrie::recurseNodesCB> baseFunction = [this, &function]
-            (const std::string& name, const CClaimTrieData& data, const std::vector<std::string>&) {
-        if (nodesToDelete.find(name) == nodesToDelete.end())
-            function(name, data);
-    };
-
     if (empty()) {
-        CClaimTrieDataNode node;
-        if (base->find(name, node))
-            base->recurseNodes(name, node, baseFunction);
+        for (auto it = base->cbegin(); it != base->cend(); ++it) {
+            if (!nodesToDelete.count(it.key()))
+                function(it.key(), it.data());
+        }
     }
     else {
         for (auto it = begin(); it != end(); ++it) {
-            function(it.key(), it.data());
-            if ((it->flags & CClaimTrieDataFlags::POTENTIAL_CHILDREN) && !it.hasChildren()) {
-                CClaimTrieDataNode node;
-                if (base->find(it.key(), node))
-                    for (auto& partialKey: node.children) {
-                        auto childKey = it.key() + partialKey;
-                        CClaimTrieDataNode childNode;
-                        if (base->find(childKey, childNode))
-                            base->recurseNodes(childKey, childNode, baseFunction);
+            if (!nodesToDelete.count(it.key()))
+                function(it.key(), it.data());
+            if (!it.hasChildren()) {
+                auto bit = base->find(it.key());
+                if (bit) {
+                    for (auto child: bit.children()) {
+                        do {
+                            if (!nodesToDelete.count(child.key()))
+                                function(child.key(), child.data());
+                        } while (++child);
                     }
+                }
             }
         }
     }
