@@ -29,7 +29,8 @@ static managed_mapped_file::segment_manager* segmentManager()
         {
             fs::remove(file);
             auto size = (uint64_t)g_memfileSize * 1024ULL * 1024ULL * 1024ULL;
-            menaged_file.reset(new managed_mapped_file(bip::create_only, file.c_str(), size));
+            // using string() to remove w_char filename encoding on Windows
+            menaged_file.reset(new managed_mapped_file(bip::create_only, file.string().c_str(), size));
         }
         ~CSharedMemoryFile()
         {
