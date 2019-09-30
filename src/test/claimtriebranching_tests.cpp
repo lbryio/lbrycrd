@@ -18,7 +18,7 @@ BOOST_AUTO_TEST_CASE(claim_replace_test) {
     fixture.Spend(tx1);
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "bassfisher", "one", 1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(pclaimTrie->checkConsistency(fixture.getMerkleHash()));
+    BOOST_CHECK(fixture.checkConsistency());
     BOOST_CHECK(!fixture.is_best_claim("bass", tx1));
     BOOST_CHECK(fixture.is_best_claim("bassfisher", tx2));
 }
@@ -1852,17 +1852,18 @@ BOOST_AUTO_TEST_CASE(update_on_support2_test)
     CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, name, 1);
     fixture.IncrementBlocks(1);
 
-    CClaimTrieData node;
-    BOOST_CHECK(pclaimTrie->find(name, node));
-    BOOST_CHECK_EQUAL(node.nHeightOfLastTakeover, height + 1);
+    auto it = pclaimTrie->find(name);
+    BOOST_CHECK(it);
+    BOOST_CHECK_EQUAL(it->nHeightOfLastTakeover, height + 1);
 
     fixture.Spend(s1);
     fixture.Spend(s2);
     CMutableTransaction u1 = fixture.MakeUpdate(tx1, name, value, ClaimIdHash(tx1.GetHash(), 0), 3);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(pclaimTrie->find(name, node));
-    BOOST_CHECK_EQUAL(node.nHeightOfLastTakeover, height + 1);
+    it = pclaimTrie->find(name);
+    BOOST_CHECK(it);
+    BOOST_CHECK_EQUAL(it->nHeightOfLastTakeover, height + 1);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

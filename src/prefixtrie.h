@@ -27,9 +27,9 @@ class CPrefixTrie
         Node() = default;
         Node(const Node&) = delete;
         Node(Node&& o) noexcept = default;
-        Node& operator=(Node&& o) noexcept = default;
+        Node& operator=(Node&&) noexcept = default;
         Node& operator=(const Node&) = delete;
-        TData data;
+        std::shared_ptr<TData> data;
     };
 
     using TChildren = decltype(Node::children);
@@ -42,15 +42,15 @@ class CPrefixTrie
         friend class CPrefixTrie<TKey, TData>;
 
         using TKeyRef = std::reference_wrapper<const TKey>;
-        using TDataRef = std::reference_wrapper<TData>;
+        using TDataRef = std::reference_wrapper<typename std::conditional<IsConst, const TData, TData>::type>;
         using TPair = std::pair<TKeyRef, TDataRef>;
+        using ConstTPair = std::pair<TKeyRef, const TData>;
 
         TKey name;
         std::weak_ptr<Node> node;
 
         struct Bookmark {
             TKey name;
-            std::weak_ptr<Node> parent;
             typename TChildren::iterator it;
             typename TChildren::iterator end;
         };
@@ -60,8 +60,11 @@ class CPrefixTrie
     public:
         // Iterator traits
         using value_type = TPair;
+        using const_pointer = const TData* const;
+        using const_reference = ConstTPair;
+        using data_reference = typename std::conditional<IsConst, const TData&, TData&>::type;
         using pointer = typename std::conditional<IsConst, const TData* const, TData* const>::type;
-        using reference = typename std::conditional<IsConst, const TPair, TPair>::type;
+        using reference = typename std::conditional<IsConst, ConstTPair, TPair>::type;
         using difference_type = std::ptrdiff_t;
         using iterator_category = std::forward_iterator_tag;
 
@@ -89,12 +92,15 @@ class CPrefixTrie
         bool operator==(const Iterator& o) const;
         bool operator!=(const Iterator& o) const;
 
-        reference operator*() const;
-        pointer operator->() const;
+        reference operator*();
+        const_reference operator*() const;
+
+        pointer operator->();
+        const_pointer operator->() const;
 
         const TKey& key() const;
 
-        TData& data();
+        data_reference data();
         const TData& data() const;
 
         std::size_t depth() const;

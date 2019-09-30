@@ -307,7 +307,7 @@ static UniValue getclaimsintrie(const JSONRPCRequest& request)
     }
 
     UniValue ret(UniValue::VARR);
-    trieCache.recurseNodes({}, [&ret, &trieCache, &coinsCache] (const std::string& name, const CClaimTrieData& data) {
+    trieCache.iterate([&ret, &trieCache, &coinsCache] (const std::string& name, const CClaimTrieData& data) {
         if (ShutdownRequested())
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Shutdown requested");
 
@@ -348,7 +348,7 @@ static UniValue getnamesintrie(const JSONRPCRequest& request)
     }
 
     UniValue ret(UniValue::VARR);
-    trieCache.recurseNodes({}, [&ret](const std::string &name, const CClaimTrieData &data) {
+    trieCache.iterate([&ret](const std::string &name, const CClaimTrieData &data) {
         if (!data.empty())
             ret.push_back(escapeNonUtf8(name));
         if (ShutdownRequested())

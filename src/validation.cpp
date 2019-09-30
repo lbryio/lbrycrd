@@ -1562,12 +1562,8 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
     assert(trieCache.finalizeDecrement(blockUndo.takeoverHeightUndo));
     auto merkleHash = trieCache.getMerkleHash();
     if (merkleHash != pindex->pprev->hashClaimTrie) {
-        for (auto cit = trieCache.begin(); cit != trieCache.end(); ++cit) {
-            if (cit->claims.size() && cit->nHeightOfLastTakeover <= 0)
-                LogPrintf("Invalid takeover height discovered in cache for %s\n", cit.key());
-            if (cit->hash.IsNull())
-                LogPrintf("Invalid hash discovered in cache for %s\n", cit.key());
-        }
+        if (!trieCache.empty())
+            trieCache.dumpToLog(trieCache.find({}));
         LogPrintf("Hash comparison failure at block %d\n", pindex->nHeight);
         assert(merkleHash == pindex->pprev->hashClaimTrie);
     }
@@ -2045,7 +2041,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     if (trieCache.getMerkleHash() != block.hashClaimTrie)
     {
         if (!trieCache.empty()) // we could run checkConsistency here, but it would take a while
-            trieCache.dumpToLog(trieCache.begin());
+            trieCache.dumpToLog(trieCache.find({}));
         return state.DoS(100, error("ConnectBlock() : the merkle root of the claim trie does not match "
                                "(actual=%s vs block=%s on height=%d)", trieCache.getMerkleHash().GetHex(),
                                block.hashClaimTrie.GetHex(), pindex->nHeight), REJECT_INVALID, "bad-claim-merkle-hash");
@@ -2188,7 +2184,7 @@ bool static FlushStateToDisk(const CChainParams& chainparams, CValidationState &
             // overwrite one. Still, use a conservative safety factor of 2.
             if (!CheckDiskSpace(48 * 2 * 2 * pcoinsTip->GetCacheSize()))
                 return state.Error("out of disk space");
-            if (!pclaimTrie->SyncToDisk())
+            if (mode == FlushStateMode::ALWAYS && !pclaimTrie->SyncToDisk())
                 return state.Error("Failed to write to claim trie database");
             // Flush the chainstate (which may refer to block index entries).
             if (!pcoinsTip->Flush())
