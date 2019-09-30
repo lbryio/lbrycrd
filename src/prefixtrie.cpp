@@ -1,6 +1,78 @@
 
-#include "prefixtrie.h"
-#include "claimtrie.h"
+#include <claimtrie.h>
+#include <fs.h>
+#include <lbry.h>
+#include <limits>
+#include <memory>
+#include <prefixtrie.h>
+
+#include <boost/interprocess/allocators/private_node_allocator.hpp>
+#include <boost/interprocess/indexes/null_index.hpp>
+#include <boost/interprocess/managed_mapped_file.hpp>
+
+namespace bip = boost::interprocess;
+
+typedef bip::basic_managed_mapped_file <
+    char,
+    bip::rbtree_best_fit<bip::null_mutex_family, bip::offset_ptr<void>>,
+    bip::null_index
+> managed_mapped_file;
+
+template <typename T>
+using node_allocator = bip::private_node_allocator<T, managed_mapped_file::segment_manager>;
+
+static managed_mapped_file::segment_manager* segmentManager()
+{
+    struct CSharedMemoryFile
+    {
+        CSharedMemoryFile() : file(GetDataDir() / "shared.mem")
+        {
+            std::remove(file.c_str());
+            auto size = (uint64_t)g_memfileSize * 1024ULL * 1024ULL * 1024ULL;
+            menaged_file.reset(new managed_mapped_file(bip::create_only, file.c_str(), size));
+        }
+        ~CSharedMemoryFile()
+        {
+            menaged_file.reset();
+            std::remove(file.c_str());
+        }
+        managed_mapped_file::segment_manager* segmentManager()
+        {
+            return menaged_file->get_segment_manager();
+        }
+        const fs::path file;
+        std::unique_ptr<managed_mapped_file> menaged_file;
+    };
+    static CSharedMemoryFile shem;
+    return shem.segmentManager();
+}
+
+template <typename T>
+static node_allocator<T>& nodeAllocator()
+{
+    static node_allocator<T> allocator(segmentManager());
+    return allocator;
+}
+
+template <typename T, class... Args>
+static std::shared_ptr<T> nodeAllocate(Args&&... args)
+{
+    return std::allocate_shared<T>(nodeAllocator<T>(), std::forward<Args>(args)...);
+}
+
+template <typename T, class... Args>
+static std::shared_ptr<T> allocateShared(Args&&... args)
+{
+    static auto allocate = g_memfileSize ? nodeAllocate<T, Args...> : std::make_shared<T, Args...>;
+    try {
+        return allocate(std::forward<Args>(args)...);
+    }
+    catch (const bip::bad_alloc&) {
+        allocate = std::make_shared<T, Args...>; // in case we fill up the memfile
+        LogPrint(BCLog::BENCH, "WARNING: The memfile is full; reverting to the RAM allocator for %s.\n", typeid(T).name());
+        return allocate(std::forward<Args>(args)...);
+    }
+}
 
 template <typename TKey, typename TData>
 template <bool IsConst>
@@ -18,7 +90,7 @@ typename CPrefixTrie<TKey, TData>::template Iterator<IsConst>& CPrefixTrie<TKey,
     stack.clear();
     stack.reserve(o.stack.size());
     for (auto& i : o.stack)
-        stack.push_back(Bookmark{i.name, i.parent, i.it, i.end});
+        stack.push_back(Bookmark{i.name, i.it, i.end});
     return *this;
 }
 
@@ -48,7 +120,7 @@ typename CPrefixTrie<TKey, TData>::template Iterator<IsConst>& CPrefixTrie<TKey,
     if (!shared->children.empty()) {
         auto& children = shared->children;
         auto it = children.begin();
-        stack.emplace_back(Bookmark{name, shared, it, children.end()});
+        stack.emplace_back(Bookmark{name, it, children.end()});
         auto& postfix = it->first;
         name.insert(name.end(), postfix.begin(), postfix.end());
         node = it->second;
@@ -106,18 +178,30 @@ bool CPrefixTrie<TKey, TData>::Iterator<IsConst>::operator!=(const Iterator& o) 
 
 template <typename TKey, typename TData>
 template <bool IsConst>
-typename CPrefixTrie<TKey, TData>::template Iterator<IsConst>::reference CPrefixTrie<TKey, TData>::Iterator<IsConst>::operator*() const
+typename CPrefixTrie<TKey, TData>::template Iterator<IsConst>::reference CPrefixTrie<TKey, TData>::Iterator<IsConst>::operator*()
 {
-    assert(!node.expired());
-    return TPair(name, node.lock()->data);
+    return reference{name, data()};
 }
 
 template <typename TKey, typename TData>
 template <bool IsConst>
-typename CPrefixTrie<TKey, TData>::template Iterator<IsConst>::pointer CPrefixTrie<TKey, TData>::Iterator<IsConst>::operator->() const
+typename CPrefixTrie<TKey, TData>::template Iterator<IsConst>::const_reference CPrefixTrie<TKey, TData>::Iterator<IsConst>::operator*() const
 {
-    assert(!node.expired());
-    return &(node.lock()->data);
+    return const_reference{name, data()};
+}
+
+template <typename TKey, typename TData>
+template <bool IsConst>
+typename CPrefixTrie<TKey, TData>::template Iterator<IsConst>::pointer CPrefixTrie<TKey, TData>::Iterator<IsConst>::operator->()
+{
+    return &(data());
+}
+
+template <typename TKey, typename TData>
+template <bool IsConst>
+typename CPrefixTrie<TKey, TData>::template Iterator<IsConst>::const_pointer CPrefixTrie<TKey, TData>::Iterator<IsConst>::operator->() const
+{
+    return &(data());
 }
 
 template <typename TKey, typename TData>
@@ -129,18 +213,20 @@ const TKey& CPrefixTrie<TKey, TData>::Iterator<IsConst>::key() const
 
 template <typename TKey, typename TData>
 template <bool IsConst>
-TData& CPrefixTrie<TKey, TData>::Iterator<IsConst>::data()
+typename CPrefixTrie<TKey, TData>::template Iterator<IsConst>::data_reference CPrefixTrie<TKey, TData>::Iterator<IsConst>::data()
 {
-    assert(!node.expired());
-    return node.lock()->data;
+    auto shared = node.lock();
+    assert(shared);
+    return *(shared->data);
 }
 
 template <typename TKey, typename TData>
 template <bool IsConst>
 const TData& CPrefixTrie<TKey, TData>::Iterator<IsConst>::data() const
 {
-    assert(!node.expired());
-    return node.lock()->data;
+    auto shared = node.lock();
+    assert(shared);
+    return *(shared->data);
 }
 
 template <typename TKey, typename TData>
@@ -240,19 +326,20 @@ std::shared_ptr<typename CPrefixTrie<TKey, TData>::Node>& CPrefixTrie<TKey, TDat
     }
     if (count == 0) {
         ++size;
-        it = children.emplace(key, std::make_shared<Node>()).first;
+        it = children.emplace(key, allocateShared<Node>()).first;
         return it->second;
     }
     if (count < it->first.size()) {
-        const TKey prefix(key.begin(), key.begin() + count);
-        const TKey postfix(it->first.begin() + count, it->first.end());
+        TKey prefix(key.begin(), key.begin() + count);
+        TKey postfix(it->first.begin() + count, it->first.end());
         auto nodes = std::move(it->second);
         children.erase(it);
         ++size;
-        it = children.emplace(prefix, std::make_shared<Node>()).first;
-        it->second->children.emplace(postfix, std::move(nodes));
+        it = children.emplace(std::move(prefix), allocateShared<Node>()).first;
+        it->second->children.emplace(std::move(postfix), std::move(nodes));
         if (key.size() == count)
             return it->second;
+        it->second->data = allocateShared<TData>();
     }
     return insert(TKey(key.begin() + count, key.end()), it->second);
 }
@@ -269,12 +356,12 @@ void CPrefixTrie<TKey, TData>::erase(const TKey& key, std::shared_ptr<Node>& nod
     if (!find(key, node, cb))
         return;
 
-    nodes.back().second->data = {};
+    nodes.back().second->data = allocateShared<TData>();
     for (; nodes.size() > 1; nodes.pop_back()) {
         // if we have only one child and no data ourselves, bring them up to our level
         auto& cNode = nodes.back().second;
         auto onlyOneChild = cNode->children.size() == 1;
-        auto noData = cNode->data.empty();
+        auto noData = cNode->data->empty();
         if (onlyOneChild && noData) {
             auto child = cNode->children.begin();
             auto& prefix = nodes.back().first;
@@ -282,7 +369,7 @@ void CPrefixTrie<TKey, TData>::erase(const TKey& key, std::shared_ptr<Node>& nod
             auto& postfix = child->first;
             newKey.insert(newKey.end(), postfix.begin(), postfix.end());
             auto& pNode = nodes[nodes.size() - 2].second;
-            pNode->children.emplace(newKey, std::move(child->second));
+            pNode->children.emplace(std::move(newKey), std::move(child->second));
             pNode->children.erase(prefix);
             --size;
             continue;
@@ -300,8 +387,9 @@ void CPrefixTrie<TKey, TData>::erase(const TKey& key, std::shared_ptr<Node>& nod
 }
 
 template <typename TKey, typename TData>
-CPrefixTrie<TKey, TData>::CPrefixTrie() : size(0), root(std::make_shared<Node>())
+CPrefixTrie<TKey, TData>::CPrefixTrie() : size(0), root(allocateShared<Node>())
 {
+    root->data = allocateShared<TData>();
 }
 
 template <typename TKey, typename TData>
@@ -309,7 +397,7 @@ template <typename TDataUni>
 typename CPrefixTrie<TKey, TData>::iterator CPrefixTrie<TKey, TData>::insert(const TKey& key, TDataUni&& data)
 {
     auto& node = key.empty() ? root : insert(key, root);
-    node->data = std::forward<TDataUni>(data);
+    node->data = allocateShared<TData>(std::forward<TDataUni>(data));
     return key.empty() ? begin() : iterator{key, node};
 }
 
@@ -333,9 +421,9 @@ typename CPrefixTrie<TKey, TData>::iterator CPrefixTrie<TKey, TData>::insert(CPr
         auto name = it.key();
         name.insert(name.end(), key.begin(), key.end());
         auto& node = insert(key, shared);
-        copy = iterator{name, node};
+        copy = iterator{std::move(name), node};
     }
-    copy.node.lock()->data = std::forward<TDataUni>(data);
+    copy.node.lock()->data = allocateShared<TData>(std::forward<TDataUni>(data));
     return copy;
 }
 
@@ -404,7 +492,7 @@ bool CPrefixTrie<TKey, TData>::erase(const TKey& key)
 {
     auto size_was = height();
     if (key.empty()) {
-        root->data = {};
+        root->data = allocateShared<TData>();
     } else {
         erase(key, root);
     }
@@ -415,7 +503,7 @@ template <typename TKey, typename TData>
 void CPrefixTrie<TKey, TData>::clear()
 {
     size = 0;
-    root->data = {};
+    root->data = allocateShared<TData>();
     root->children.clear();
 }
 
@@ -428,7 +516,7 @@ bool CPrefixTrie<TKey, TData>::empty() const
 template <typename TKey, typename TData>
 std::size_t CPrefixTrie<TKey, TData>::height() const
 {
-    return size + (root->data.empty() ? 0 : 1);
+    return size + (root->data->empty() ? 0 : 1);
 }
 
 template <typename TKey, typename TData>

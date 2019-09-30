@@ -4,8 +4,6 @@
 #include <claimtrie.h>
 #include <hash.h>
 
-#include <boost/algorithm/string.hpp>
-#include <boost/foreach.hpp>
 #include <boost/locale.hpp>
 #include <boost/locale/conversion.hpp>
 #include <boost/locale/localization_backend.hpp>
@@ -174,17 +172,12 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(insert
     // run the one-time upgrade of all names that need to change
     // it modifies the (cache) trie as it goes, so we need to grab everything to be modified first
 
-    boost::scoped_ptr<CDBIterator> pcursor(base->db->NewIterator());
-    for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next()) {
-        std::pair<uint8_t, std::string> key;
-        if (!pcursor->GetKey(key) || key.first != TRIE_NODE_CHILDREN)
+    for (auto it = base->cbegin(); it != base->cend(); ++it) {
+        const std::string normalized = normalizeClaimName(it.key(), true);
+        if (normalized == it.key())
             continue;
 
-        const auto& name = key.second;
-        const std::string normalized = normalizeClaimName(name, true);
-        if (normalized == key.second)
-            continue;
-
+        auto& name = it.key();
         auto supports = getSupportsForName(name);
         for (auto support : supports) {
             // if it's already going to expire just skip it
@@ -279,23 +272,17 @@ std::vector<uint256> getClaimHashes(const CClaimTrieData& data)
 template <typename T>
 using iCbType = std::function<uint256(T&)>;
 
-template <typename T>
-using decay = typename std::decay<T>::type;
-
-template <typename Vector, typename T>
-uint256 recursiveMerkleHash(const CClaimTrieData& data, Vector&& children, const iCbType<T>& childHash)
+template <typename TIterator>
+uint256 recursiveBinaryTreeHash(TIterator& it, const iCbType<TIterator>& process)
 {
-    static_assert(std::is_same<decay<Vector>, std::vector<decay<T>>>::value, "Vector should be std vector");
-    static_assert(std::is_same<decltype(children[0]), T&>::value, "Vector element type should match callback type");
-
     std::vector<uint256> childHashes;
-    for (auto& child : children)
-        childHashes.emplace_back(childHash(child));
+    for (auto& child : it.children())
+        childHashes.emplace_back(process(child));
 
     std::vector<uint256> claimHashes;
-    if (!data.empty())
-        claimHashes = getClaimHashes(data);
-    else if (children.empty())
+    if (!it->empty())
+        claimHashes = getClaimHashes(it.data());
+    else if (!it.hasChildren())
         return {};
 
     auto left = childHashes.empty() ? leafHash : ComputeMerkleRoot(childHashes);
@@ -304,51 +291,42 @@ uint256 recursiveMerkleHash(const CClaimTrieData& data, Vector&& children, const
     return Hash(left.begin(), left.end(), right.begin(), right.end());
 }
 
-extern const uint256 one;
-
-bool CClaimTrieHashFork::checkConsistency(const uint256& rootHash) const
-{
-    if (nNextHeight < Params().GetConsensus().nAllClaimsInMerkleForkHeight)
-        return CClaimTrie::checkConsistency(rootHash);
-
-    CClaimTrieDataNode node;
-    if (!find({}, node) || node.hash != rootHash) {
-        if (rootHash == one)
-            return true;
-
-        return error("Mismatched root claim trie hashes. This may happen when there is not a clean process shutdown. Please run with -reindex.");
-    }
-
-    bool success = true;
-    recurseNodes({}, node, [&success, this](const std::string& name, const CClaimTrieData& data, const std::vector<std::string>& children) {
-        if (!success) return;
-
-        iCbType<const std::string> callback = [&success, &name, this](const std::string& child) -> uint256 {
-            auto key = name + child;
-            CClaimTrieDataNode node;
-            success &= find(key, node);
-            return node.hash;
-        };
-
-        success &= !data.hash.IsNull();
-        success &= data.hash == recursiveMerkleHash(data, children, callback);
-    });
-
-    return success;
-}
-
-uint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(CClaimPrefixTrie::iterator& it)
+uint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(CClaimTrie::iterator& it)
 {
     if (nNextHeight < Params().GetConsensus().nAllClaimsInMerkleForkHeight)
         return CClaimTrieCacheNormalizationFork::recursiveComputeMerkleHash(it);
 
-    using iterator = CClaimPrefixTrie::iterator;
+    using iterator = CClaimTrie::iterator;
     iCbType<iterator> process = [&process](iterator& it) -> uint256 {
         if (it->hash.IsNull())
-            it->hash = recursiveMerkleHash(it.data(), it.children(), process);
+            it->hash = recursiveBinaryTreeHash(it, process);
+        assert(!it->hash.IsNull());
         return it->hash;
     };
     return process(it);
+}
+
+bool CClaimTrieCacheHashFork::recursiveCheckConsistency(CClaimTrie::const_iterator& it, std::string& failed) const
+{
+    if (nNextHeight < Params().GetConsensus().nAllClaimsInMerkleForkHeight)
+        return CClaimTrieCacheNormalizationFork::recursiveCheckConsistency(it, failed);
+
+    struct CRecursiveBreak {};
+    using iterator = CClaimTrie::const_iterator;
+    iCbType<iterator> process = [&failed, &process](iterator& it) -> uint256 {
+        if (it->hash.IsNull() || it->hash != recursiveBinaryTreeHash(it, process)) {
+            failed = it.key();
+            throw CRecursiveBreak();
+        }
+        return it->hash;
+    };
+
+    try {
+        process(it);
+    } catch (const CRecursiveBreak&) {
+        return false;
+    }
+    return true;
 }
 
 std::vector<uint256> ComputeMerklePath(const std::vector<uint256>& hashes, uint32_t idx)
@@ -426,7 +404,7 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, CClaimTri
     cacheData(name, false);
     getMerkleHash();
     proof = CClaimTrieProof();
-    for (auto& it : static_cast<const CClaimPrefixTrie&>(nodesToAddOrUpdate).nodes(name)) {
+    for (auto& it : static_cast<const CClaimTrie&>(nodesToAddOrUpdate).nodes(name)) {
         std::vector<uint256> childHashes;
         uint32_t nextCurrentIdx = 0;
         for (auto& child : it.children()) {
@@ -469,15 +447,12 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, CClaimTri
 
 void CClaimTrieCacheHashFork::copyAllBaseToCache()
 {
-    recurseNodes({}, [this](const std::string& name, const CClaimTrieData& data) {
-        if (nodesAlreadyCached.insert(name).second)
-            nodesToAddOrUpdate.insert(name, data);
-    });
+    for (auto it = base->cbegin(); it != base->cend(); ++it)
+        if (nodesAlreadyCached.insert(it.key()).second)
+            nodesToAddOrUpdate.insert(it.key(), it.data());
 
-    for (auto it = nodesToAddOrUpdate.begin(); it != nodesToAddOrUpdate.end(); ++it) {
+    for (auto it = nodesToAddOrUpdate.begin(); it != nodesToAddOrUpdate.end(); ++it)
         it->hash.SetNull();
-        it->flags |= CClaimTrieDataFlags::HASH_DIRTY;
-    }
 }
 
 void CClaimTrieCacheHashFork::initializeIncrement()
@@ -500,6 +475,7 @@ bool CClaimTrieCacheHashFork::finalizeDecrement(std::vector<std::pair<std::strin
     return ret;
 }
 
-bool CClaimTrieCacheHashFork::allowSupportMetadata() const {
+bool CClaimTrieCacheHashFork::allowSupportMetadata() const
+{
     return nNextHeight >= Params().GetConsensus().nAllClaimsInMerkleForkHeight;
 }

@@ -22,6 +22,7 @@
 #include <httprpc.h>
 #include <index/txindex.h>
 #include <key.h>
+#include <lbry.h>
 #include <validation.h>
 #include <miner.h>
 #include <netbase.h>
@@ -398,6 +399,7 @@ void SetupServerArgs()
     hidden_args.emplace_back("-sysperms");
 #endif
     gArgs.AddArg("-txindex", strprintf("Maintain a full transaction index, used by the getrawtransaction rpc call (default: %u)", DEFAULT_TXINDEX), false, OptionsCategory::OPTIONS);
+    gArgs.AddArg("-memfile=<GiB>", "Use a memory mapped file for the claimtrie allocations (default: use RAM instead)", false, OptionsCategory::OPTIONS);
 
     gArgs.AddArg("-addnode=<ip>", "Add a node to connect to and attempt to keep the connection open (see the `addnode` RPC command help for more info). This option can be specified multiple times to add multiple nodes.", false, OptionsCategory::CONNECTION);
     gArgs.AddArg("-banscore=<n>", strprintf("Threshold for disconnecting misbehaving peers (default: %u)", DEFAULT_BANSCORE_THRESHOLD), false, OptionsCategory::CONNECTION);
@@ -1441,6 +1443,8 @@ bool AppInitMain()
     LogPrintf("* Using %.1fMiB for chain state database\n", nCoinDBCache * (1.0 / 1024 / 1024));
     LogPrintf("* Using %.1fMiB for in-memory UTXO set (plus up to %.1fMiB of unused mempool space)\n", nCoinCacheUsage * (1.0 / 1024 / 1024), nMempoolSizeMax * (1.0 / 1024 / 1024));
 
+    g_memfileSize = gArgs.GetArg("-memfile", 0u);
+
     bool fLoaded = false;
     while (!fLoaded && !ShutdownRequested()) {
         bool fReset = fReindex;
@@ -1465,7 +1469,7 @@ bool AppInitMain()
                 int64_t trieCacheMB = gArgs.GetArg("-claimtriecache", nDefaultDbCache);
                 trieCacheMB = std::min(trieCacheMB, nMaxDbCache);
                 trieCacheMB = std::max(trieCacheMB, nMinDbCache);
-                pclaimTrie = new CClaimTrieHashFork(false, fReindex || fReindexChainState, 32, trieCacheMB);
+                pclaimTrie = new CClaimTrie(false, fReindex || fReindexChainState, 32, trieCacheMB);
 
                 if (fReset) {
                     pblocktree->WriteReindexing(true);
