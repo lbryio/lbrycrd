@@ -3,6 +3,8 @@
 
 #include <cstdio>
 
+uint32_t g_memfileSize = 0;
+
 unsigned int CalculateLbryNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlockTime, const Consensus::Params& params)
 {
     if (params.fPowNoRetargeting)

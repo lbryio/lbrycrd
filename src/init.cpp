@@ -25,6 +25,7 @@
 #include <index/txindex.h>
 #include <interfaces/chain.h>
 #include <key.h>
+#include <lbry.h>
 #include <miner.h>
 #include <net.h>
 #include <net_permissions.h>
@@ -404,6 +405,7 @@ void SetupServerArgs()
     hidden_args.emplace_back("-sysperms");
 #endif
     gArgs.AddArg("-txindex", strprintf("Maintain a full transaction index, used by the getrawtransaction rpc call (default: %u)", DEFAULT_TXINDEX), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
+    gArgs.AddArg("-memfile=<GiB>", "Use a memory mapped file for the claimtrie allocations (default: use RAM instead)", false, OptionsCategory::OPTIONS);
     gArgs.AddArg("-blockfilterindex=<type>",
                  strprintf("Maintain an index of compact filters by block (default: %s, values: %s).", DEFAULT_BLOCKFILTERINDEX, ListBlockFilterTypes()) +
                  " If <type> is not supplied or if <type> = 1, indexes for all known types are enabled.",
@@ -1470,6 +1472,8 @@ bool AppInitMain(InitInterfaces& interfaces)
     LogPrintf("* Using %.1f MiB for chain state database\n", nCoinDBCache * (1.0 / 1024 / 1024));
     LogPrintf("* Using %.1f MiB for in-memory UTXO set (plus up to %.1f MiB of unused mempool space)\n", nCoinCacheUsage * (1.0 / 1024 / 1024), nMempoolSizeMax * (1.0 / 1024 / 1024));
 
+    g_memfileSize = gArgs.GetArg("-memfile", 0u);
+
     bool fLoaded = false;
     while (!fLoaded && !ShutdownRequested()) {
         bool fReset = fReindex;
@@ -1494,7 +1498,7 @@ bool AppInitMain(InitInterfaces& interfaces)
                 int64_t trieCacheMB = gArgs.GetArg("-claimtriecache", nDefaultDbCache);
                 trieCacheMB = std::min(trieCacheMB, nMaxDbCache);
                 trieCacheMB = std::max(trieCacheMB, nMinDbCache);
-                pclaimTrie = new CClaimTrieHashFork(false, fReindex || fReindexChainState, 32, trieCacheMB);
+                pclaimTrie = new CClaimTrie(false, fReindex || fReindexChainState, 32, trieCacheMB);
 
                 if (fReset) {
                     pblocktree->WriteReindexing(true);

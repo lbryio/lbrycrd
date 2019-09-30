@@ -93,8 +93,7 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_normalization)
     BOOST_CHECK(fixture.is_best_claim("normalizetest", tx1));
     BOOST_CHECK(fixture.best_claim_effective_amount_equals("normalizetest", 3));
 
-    CClaimTrieData data;
-    BOOST_CHECK(!pclaimTrie->find("normalizeTest", data));
+    BOOST_CHECK(!pclaimTrie->find("normalizeTest"));
 
     // Check equivalence of normalized claim names
     BOOST_CHECK(fixture.is_best_claim("normalizetest", tx1)); // collapsed tx2
@@ -223,8 +222,7 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
     BOOST_CHECK(!trieCache.spendClaim(name_normd, COutPoint(tx2.GetHash(), 0), currentHeight, amelieValidHeight));
     BOOST_CHECK(trieCache.spendClaim(name_upper, COutPoint(tx2.GetHash(), 0), currentHeight, amelieValidHeight));
 
-    CClaimTrieData data;
-    BOOST_CHECK(!pclaimTrie->find(name, data));
+    BOOST_CHECK(!pclaimTrie->find(name));
     BOOST_CHECK(trieCache.getInfoForName(name, nval1));
     BOOST_CHECK(trieCache.addClaim(name, COutPoint(tx1.GetHash(), 0), ClaimIdHash(tx1.GetHash(), 0), CAmount(2), currentHeight + 1));
     BOOST_CHECK(trieCache.getInfoForName(name, nval1));
@@ -236,8 +234,9 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
     BOOST_CHECK(trieCache.incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverHeightUndo));
     BOOST_CHECK(trieCache.shouldNormalize());
 
-    CClaimTrieDataNode node;
-    BOOST_CHECK(!pclaimTrie->find(name, node));
+    // we cannot use getXXXForName cause they will normalized name
+    for (auto it = pclaimTrie->cbegin(); it != pclaimTrie->cend(); ++it)
+        BOOST_CHECK(it.key() != name);
 }
 
 BOOST_AUTO_TEST_CASE(undo_normalization_does_not_kill_claim_order)
