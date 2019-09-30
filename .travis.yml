@@ -7,7 +7,6 @@ cache:
 stages:
   - build
   - test
-  - quality
 
 jobs:
   include:
@@ -85,13 +84,3 @@ jobs:
       os: osx
       osx_image: xcode8.3
       env: NAME=darwin
-
-
-    - stage: quality
-      name: "check format"
-      os: linux
-      dist: xenial
-      language: minimal
-      install:
-        - sudo apt-get install -y clang-format-3.9
-      script: git diff -U0 origin/master -- '*.h' '*.cpp' | ./contrib/devtools/clang-format-diff.py -p1
