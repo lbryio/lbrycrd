@@ -225,6 +225,10 @@ It is easy to solo mine on testnet. (It's easy on mainnet too, but much harder t
 
 We maintain a mailing list for notifications of upgrades, security issues, and soft/hard forks. To join, visit [https://lbry.com/forklist](https://lbry.com/forklist).
 
+## Mailing List
+
+We maintain a mailing list for notifications of upgrades, security issues, and soft/hard forks. To join, visit [https://lbry.com/forklist](https://lbry.com/forklist).
+
 ## License
 
 This project is MIT licensed. For the full license, see [LICENSE](LICENSE).
