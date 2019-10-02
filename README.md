@@ -178,6 +178,10 @@ Testnet is maintained for testing purposes and can be accessed using the command
 
 It is easy to solo mine on testnet. (It's easy on mainnet too, but much harder to win.) For instructions see https://github.com/lbryio/sgminer-gm and https://github.com/lbryio/lbrycrd/tree/master/contrib/mining 
 
+## Mailing List
+
+We maintain a mailing list for notifications of upgrades, security issues, and soft/hard forks. To join, visit [https://lbry.com/forklist](https://lbry.com/forklist).
+
 ## License
 
 This project is MIT licensed. For the full license, see [LICENSE](LICENSE).
