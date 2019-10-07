@@ -8,7 +8,7 @@ Please read the [lbry.tech overview](https://lbry.tech/overview) for a general u
 
 ## Installation
 
-Latest binaries are available from https://github.com/lbryio/lbrycrd/releases. There is no installation procedure; the CLI binaries will run as-is and will have any uncommon dependencies statically linked into the binary. The QT GUI is not supported. LBRYcrd is distributed as a collection of executable files; traditional installers are not provided. 
+The latest binaries are available from https://github.com/lbryio/lbrycrd/releases. There is no installation procedure; the CLI binaries will run as-is and will have any uncommon dependencies statically linked into the binary. The QT GUI is not supported. LBRYcrd is distributed as a collection of executable files; traditional installers are not provided. 
 
 ## Usage
 
@@ -150,7 +150,7 @@ pip install --user compiledb
 ./autogen.sh && ./configure --enable-static=no --enable-shared --with-pic --without-gui CXXFLAGS="-O0 -g" CFLAGS="-O0 -g" # or whatever normal lbrycrd config
 compiledb make -j10
 ```
-Then open the newly generated compile_commands.json file as a project in CLion. Debugging is supported if you compiled with `-g`. To enable that you will need to create a target in CLion by going to File -> Settings -> Build -> Custom Build Targets. Add an empty target with your choice of name. From there you can go to "Edit Configurations", typically found in a drop-down at the top of the editor. Add a Custom Build Application, select your new target, select the compiled file (i.e. test_lbrycrd or lbrycrdd, etc), and then add any necessary command line parameters. Ensure that there is nothing in the "Before launch" section.
+Then open the newly generated compile_commands.json file as a project in CLion. Debugging is supported if you compiled with `-g`. To enable that you will need to create a target in CLion by going to File -> Settings -> Build -> Custom Build Targets. Add an empty target with your choice of name. From there you can go to "Edit Configurations", typically found in a drop-down at the top of the editor. Add a Custom Build Application, select your new target, select the compiled file (i.e. test_lbrycrd or lbrycrdd, etc), and then add any necessary command-line parameters. Ensure that there is nothing in the "Before launch" section.
 
 ## Contributing
 
@@ -158,9 +158,9 @@ Contributions to this project are welcome, encouraged, and compensated. For more
 
 We follow the same coding guidelines as documented by Bitcoin Core, see [here](/doc/developer-notes.md). To run an automated code formatting check, try:
 `git diff -U0 master -- '*.h' '*.cpp' | ./contrib/devtools/clang-format-diff.py -p1`. This will check any commits not on master for proper code formatting.
-We try to avoid altering parts of the code that is inherited from Bitcoin Core unless absolutely necessary. This will make it easier to merge changes from Bitcoin Core. If commits are expected not to be merged upstream (i.e. we broke up a commit from Bitcoin Core in order to use a single feature in it), the commit message must contain the string "NOT FOR UPSTREAM MERGE".
+We try to avoid altering parts of the code that is inherited from Bitcoin Core unless necessary. This will make it easier to merge changes from Bitcoin Core. If commits are expected not to be merged upstream (i.e. we broke up a commit from Bitcoin Core to use a single feature in it), the commit message must contain the string "NOT FOR UPSTREAM MERGE".
 
-The `master` branch is regularly built and tested, but is not guaranteed to be
+The `master` branch is regularly built and tested but is not guaranteed to be
 completely stable. [Releases](https://github.com/lbryio/lbrycrd/releases) are created
 regularly to indicate new official, stable release versions.
 
