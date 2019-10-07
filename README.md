@@ -1,16 +1,33 @@
 # LBRYcrd - The LBRY blockchain
 
 [![Build Status](https://travis-ci.org/lbryio/lbrycrd.svg?branch=master)](https://travis-ci.org/lbryio/lbrycrd)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://lbry.tech/contribute)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/lbryio/lbrycrd/blob/master/LICENSE)
 
 LBRYcrd uses a blockchain similar to bitcoin's to implement an index and payment system for content on the LBRY network. It is a fork of bitcoin core. In addition to the libraries used by bitcoin, LBRYcrd also uses icu4c.
 
 Please read the [lbry.tech overview](https://lbry.tech/overview) for a general understanding of the LBRY pieces. From there you could read the [LBRY spec](https://spec.lbry.com/) for specifics on the data in the blockchain. 
 
-## Installation
+## Table of Contents
+
+1. [Install](#installation)
+2. [Usage](#usage)
+3. [Running from Source](#running-from-source)
+4. [Contributing](#contributing)
+5. [Mailing List](#mailing-list)
+6. [License](#license)
+7. [Security](#security)
+8. [Contact](#contact)
+
+
+
+
+<h2 align="left">Installation</h2>
 
 Latest binaries are available from https://github.com/lbryio/lbrycrd/releases. There is no installation procedure; the CLI binaries will run as-is and will have any uncommon dependencies statically linked into the binary. The QT GUI is not supported. LBRYcrd is distributed as a collection of executable files; traditional installers are not provided. 
 
-## Usage
+
+<h2 align="left">Usage</h2>
 
 The `lbrycrdd` executable will start a LBRYcrd node and connect you to the LBRYcrd network. Use the `lbrycrd-cli` executable
 to interact with lbrycrdd through the command line. Command-line help for both executables are available through
@@ -60,7 +77,9 @@ server=1
 txindex=1
 ```
 
-## Running from Source
+
+<h2 align="left">Running from Source</h2>
+
 The easiest way to compile is to utilize the Docker image that contains the necessary compilers: lbry/build_lbrycrd. This will allow you to reproduce the build as made on our build servers. I this sample we map a local lbrycrd folder and a local ccache folder inside the image:
 ```
 git clone https://github.com/lbryio/lbrycrd.git
@@ -152,7 +171,7 @@ compiledb make -j10
 ```
 Then open the newly generated compile_commands.json file as a project in CLion. Debugging is supported if you compiled with `-g`. To enable that you will need to create a target in CLion by going to File -> Settings -> Build -> Custom Build Targets. Add an empty target with your choice of name. From there you can go to "Edit Configurations", typically found in a drop-down at the top of the editor. Add a Custom Build Application, select your new target, select the compiled file (i.e. test_lbrycrd or lbrycrdd, etc), and then add any necessary command line parameters. Ensure that there is nothing in the "Before launch" section.
 
-## Contributing
+<h2 align="left">Contributing</h2>
 
 Contributions to this project are welcome, encouraged, and compensated. For more details, see [https://lbry.tech/contribute](https://lbry.tech/contribute)
 
@@ -178,20 +197,20 @@ Testnet is maintained for testing purposes and can be accessed using the command
 
 It is easy to solo mine on testnet. (It's easy on mainnet too, but much harder to win.) For instructions see https://github.com/lbryio/sgminer-gm and https://github.com/lbryio/lbrycrd/tree/master/contrib/mining 
 
-## Mailing List
+<h2 align="left">Mailing List</h2>
 
 We maintain a mailing list for notifications of upgrades, security issues, and soft/hard forks. To join, visit [https://lbry.com/forklist](https://lbry.com/forklist).
 
-## License
+<h2 align="left">License</h2>
 
 This project is MIT licensed. For the full license, see [LICENSE](LICENSE).
 
-## Security
+<h2 align="left">Security</h2>
 
 We take security seriously. Please contact security@lbry.com regarding any security issues.
 Our PGP key is [here](https://keybase.io/lbry/key.asc) if you need it.
 
-## Contact
+<h2 align="left">Contact</h2>
 
 The primary contact for this project is [@BrannonKing](https://github.com/BrannonKing) (brannon@lbry.com)
 
