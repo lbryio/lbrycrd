@@ -22,12 +22,12 @@ Please read the [lbry.tech overview](https://lbry.tech/overview) for a general u
 
 
 
-<h2 align="left">Installation</h2>
+## Installation
 
 Latest binaries are available from https://github.com/lbryio/lbrycrd/releases. There is no installation procedure; the CLI binaries will run as-is and will have any uncommon dependencies statically linked into the binary. The QT GUI is not supported. LBRYcrd is distributed as a collection of executable files; traditional installers are not provided. 
 
 
-<h2 align="left">Usage</h2>
+## Usage
 
 The `lbrycrdd` executable will start a LBRYcrd node and connect you to the LBRYcrd network. Use the `lbrycrd-cli` executable
 to interact with lbrycrdd through the command line. Command-line help for both executables are available through
@@ -78,7 +78,7 @@ txindex=1
 ```
 
 
-<h2 align="left">Running from Source</h2>
+## Running from Source
 
 The easiest way to compile is to utilize the Docker image that contains the necessary compilers: lbry/build_lbrycrd. This will allow you to reproduce the build as made on our build servers. I this sample we map a local lbrycrd folder and a local ccache folder inside the image:
 ```
@@ -197,20 +197,20 @@ Testnet is maintained for testing purposes and can be accessed using the command
 
 It is easy to solo mine on testnet. (It's easy on mainnet too, but much harder to win.) For instructions see https://github.com/lbryio/sgminer-gm and https://github.com/lbryio/lbrycrd/tree/master/contrib/mining 
 
-<h2 align="left">Mailing List</h2>
+## Mailing List
 
 We maintain a mailing list for notifications of upgrades, security issues, and soft/hard forks. To join, visit [https://lbry.com/forklist](https://lbry.com/forklist).
 
-<h2 align="left">License</h2>
+## License
 
 This project is MIT licensed. For the full license, see [LICENSE](LICENSE).
 
-<h2 align="left">Security</h2>
+## Security
 
 We take security seriously. Please contact security@lbry.com regarding any security issues.
 Our PGP key is [here](https://keybase.io/lbry/key.asc) if you need it.
 
-<h2 align="left">Contact</h2>
+## Contact
 
 The primary contact for this project is [@BrannonKing](https://github.com/BrannonKing) (brannon@lbry.com)
 
