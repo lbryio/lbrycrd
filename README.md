@@ -193,6 +193,9 @@ Our PGP key is [here](https://keybase.io/lbry/key.asc) if you need it.
 
 ## Contact
 
-The primary contact for this project is [@BrannonKing](https://github.com/BrannonKing) (brannon@lbry.com)
+The primary contact for this project is 
+
+[<img src="https://avatars0.githubusercontent.com/u/1509322?s=400&v=4" width="100" title="BrannonKing">
+@BrannonKing](https://github.com/BrannonKing) [brannon@lbry.com](brannon@lbry.com)
 
 
