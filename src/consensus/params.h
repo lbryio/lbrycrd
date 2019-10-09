@@ -85,9 +85,6 @@ struct Params {
     int nAllowMinDiffMaxHeight;
     int nNormalizedNameForkHeight;
 
-    int nMinTakeoverWorkaroundHeight;
-    int nMaxTakeoverWorkaroundHeight;
-
     int nWitnessForkHeight;
 
     int64_t nPowTargetSpacing;

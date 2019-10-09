@@ -29,6 +29,7 @@ LIBBITCOIN_COMMON=libbitcoin_common.a
 LIBBITCOIN_CONSENSUS=libbitcoin_consensus.a
 LIBBITCOIN_CLI=libbitcoin_cli.a
 LIBBITCOIN_UTIL=libbitcoin_util.a
+LIBCLAIMTRIE=claimtrie/libclaimtrie.a
 LIBBITCOIN_CRYPTO_BASE=crypto/libbitcoin_crypto_base.a
 LIBBITCOINQT=qt/libbitcoinqt.a
 LIBSECP256K1=secp256k1/libsecp256k1.la
@@ -64,6 +65,7 @@ $(LIBSECP256K1): $(wildcard secp256k1/src/*.h) $(wildcard secp256k1/src/*.c) $(w
 # Make is not made aware of per-object dependencies to avoid limiting building parallelization
 # But to build the less dependent modules first, we manually select their order here:
 EXTRA_LIBRARIES += \
+  $(LIBCLAIMTRIE) \
   $(LIBBITCOIN_CRYPTO) \
   $(LIBBITCOIN_UTIL) \
   $(LIBBITCOIN_COMMON) \
@@ -115,7 +117,7 @@ BITCOIN_CORE_H = \
   chainparamsseeds.h \
   checkqueue.h \
   claimscriptop.h \
-  claimtrie.h \
+  claimtrie_serial.h \
   clientversion.h \
   coins.h \
   compat.h \
@@ -195,8 +197,6 @@ BITCOIN_CORE_H = \
   script/standard.h \
   shutdown.h \
   streams.h \
-  sqlite/sqlite3.h \
-  sqlite/hdr/sqlite_modern_cpp.h \
   support/allocators/secure.h \
   support/allocators/zeroafterfree.h \
   support/cleanse.h \
@@ -265,7 +265,6 @@ libbitcoin_util_a-clientversion.$(OBJEXT): obj/build.h
 # libbitcoin_common or libbitcoin_util libraries, instead.
 libbitcoin_server_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(MINIUPNPC_CPPFLAGS) $(EVENT_CFLAGS) $(EVENT_PTHREADS_CFLAGS)
 libbitcoin_server_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-libbitcoin_server_a_CFLAGS = $(PIE_FLAGS)
 libbitcoin_server_a_SOURCES = \
   addrdb.cpp \
   addrman.cpp \
@@ -274,8 +273,6 @@ libbitcoin_server_a_SOURCES = \
   blockfilter.cpp \
   chain.cpp \
   claimscriptop.cpp \
-  claimtrie.cpp \
-  claimtrieforks.cpp \
   consensus/tx_verify.cpp \
   flatfile.cpp \
   httprpc.cpp \
@@ -310,7 +307,6 @@ libbitcoin_server_a_SOURCES = \
   rpc/rawtransaction.cpp \
   rpc/server.cpp \
   script/sigcache.cpp \
-  sqlite/sqlite3.c \
   shutdown.cpp \
   timedata.cpp \
   torcontrol.cpp \
@@ -494,6 +490,20 @@ libbitcoin_common_a_SOURCES = \
   warnings.cpp \
   $(BITCOIN_CORE_H)
 
+# claimtrie: shared between all executables.
+claimtrie_libclaimtrie_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
+claimtrie_libclaimtrie_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+claimtrie_libclaimtrie_a_CFLAGS = $(PIE_FLAGS)
+claimtrie_libclaimtrie_a_SOURCES = \
+  claimtrie/sqlite/sqlite3.c \
+  claimtrie/data.cpp \
+  claimtrie/forks.cpp \
+  claimtrie/hash.cpp \
+  claimtrie/log.cpp \
+  claimtrie/trie.cpp \
+  claimtrie/txoutpoint.cpp \
+  claimtrie/uints.cpp
+
 # util: shared between all executables.
 # This library *must* be included to make sure that the glibc
 # backward-compatibility objects and their sanity checks are linked.
@@ -572,7 +582,7 @@ lbrycrdd_LDADD = \
   $(LIBMEMENV) \
   $(LIBSECP256K1)
 
-lbrycrdd_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(CRYPTO_LIBS) $(ICU_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS)
+lbrycrdd_LDADD += $(BOOST_LIBS) $(LIBCLAIMTRIE) $(BOOST_LOCALE_LIB) $(BDB_LIBS) $(CRYPTO_LIBS) $(ICU_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS)
 
 # lbrycrd-cli binary #
 lbrycrd_cli_SOURCES = bitcoin-cli.cpp
@@ -590,7 +600,7 @@ lbrycrd_cli_LDADD = \
   $(LIBBITCOIN_UTIL) \
   $(LIBBITCOIN_CRYPTO)
 
-lbrycrd_cli_LDADD += $(BOOST_LIBS) $(CRYPTO_LIBS) $(ICU_LIBS) $(EVENT_LIBS)
+lbrycrd_cli_LDADD += $(BOOST_LIBS) $(LIBCLAIMTRIE) $(BOOST_LOCALE_LIB) $(CRYPTO_LIBS) $(ICU_LIBS) $(EVENT_LIBS)
 #
 
 # lbrycrd-tx binary #
@@ -611,7 +621,7 @@ lbrycrd_tx_LDADD = \
   $(LIBBITCOIN_CRYPTO) \
   $(LIBSECP256K1)
 
-lbrycrd_tx_LDADD += $(BOOST_LIBS) $(ICU_LIBS) $(CRYPTO_LIBS)
+lbrycrd_tx_LDADD += $(BOOST_LIBS) $(LIBCLAIMTRIE) $(BOOST_LOCALE_LIB) $(ICU_LIBS) $(CRYPTO_LIBS)
 #
 
 # lbrycrd-wallet binary #
@@ -638,7 +648,7 @@ lbrycrd_wallet_LDADD = \
   $(LIBSECP256K1) \
   $(LIBUNIVALUE)
 
-lbrycrd_wallet_LDADD += $(BOOST_LIBS) $(ICU_LIBS) $(BDB_LIBS) $(CRYPTO_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(MINIUPNPC_LIBS) $(ZMQ_LIBS)
+lbrycrd_wallet_LDADD += $(BOOST_LIBS) $(LIBCLAIMTRIE) $(BOOST_LOCALE_LIB) $(ICU_LIBS) $(BDB_LIBS) $(CRYPTO_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(MINIUPNPC_LIBS) $(ZMQ_LIBS)
 #
 
 # bitcoinconsensus library #

@@ -6,6 +6,7 @@
 #include <amount.h>
 #include <consensus/validation.h>
 #include <core_io.h>
+#include <claimtrie/forks.h>
 #include <init.h>
 #include <interfaces/chain.h>
 #include <key_io.h>
@@ -798,7 +799,7 @@ UniValue supportclaim(const JSONRPCRequest& request)
     if (isTip) {
         CTransactionRef ref;
         uint256 block;
-        if (!GetTransaction(claimNsupports.claim.outPoint.hash, ref, Params().GetConsensus(), block, true))
+        if (!GetTransaction(uint256(claimNsupports.claim.outPoint.hash), ref, Params().GetConsensus(), block, true))
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Unable to locate the TX with the claim's output.");
         if (!ExtractDestination(ref->vout[claimNsupports.claim.outPoint.n].scriptPubKey, dest))
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Unable to extract the destination from the chosen claim.");

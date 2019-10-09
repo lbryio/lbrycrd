@@ -9,6 +9,7 @@
 #include <chain.h>
 #include <chainparams.h>
 #include <claimscriptop.h>
+#include <claimtrie/forks.h>
 #include <coins.h>
 #include <consensus/consensus.h>
 #include <consensus/merkle.h>
@@ -196,7 +197,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     {
         CClaimTrieCache trieCache(pclaimTrie);
         blockToCache(pblock, trieCache, nHeight);
-        pblock->hashClaimTrie = trieCache.getMerkleHash();
+        pblock->hashClaimTrie = uint256(trieCache.getMerkleHash());
     }
     CValidationState state;
     if (!TestBlockValidity(state, chainparams, *pblock, pindexPrev, false, false)) {

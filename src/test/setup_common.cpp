@@ -29,7 +29,6 @@
 #include <validationinterface.h>
 
 #include <functional>
-#include "claimtrie.h"
 #include <boost/test/unit_test.hpp>
 #include <boost/test/unit_test_parameters.hpp>
 
@@ -56,24 +55,33 @@ std::ostream& operator<<(std::ostream& os, const COutPoint& point)
     return os;
 }
 
+std::ostream& operator<<(std::ostream& os, const CUint256& num)
+{
+    os << num.ToString();
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const CUint160& num)
+{
+    os << num.ToString();
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const CTxOutPoint& point)
+{
+    os << point.ToString();
+    return os;
+}
+
 std::ostream& operator<<(std::ostream& os, const CClaimValue& claim)
 {
-    os << "claim(" << claim.outPoint.ToString()
-       << ", " << claim.claimId.ToString()
-       << ", " << claim.nAmount
-       << ", " << claim.nEffectiveAmount
-       << ", " << claim.nHeight
-       << ", " << claim.nValidAtHeight << ')';
+    os << claim.ToString();
     return os;
 }
 
 std::ostream& operator<<(std::ostream& os, const CSupportValue& support)
 {
-    os << "support(" << support.outPoint.ToString()
-       << ", " << support.supportedClaimId.ToString()
-       << ", " << support.nAmount
-       << ", " << support.nHeight
-       << ", " << support.nValidAtHeight << ')';
+    os << support.ToString();
     return os;
 }
 
@@ -86,6 +94,7 @@ BasicTestingSetup::BasicTestingSetup(const std::string& chainName)
         g_logger->m_print_to_console = true;
         g_logger->m_log_time_micros = true;
         g_logger->EnableCategory(BCLog::ALL);
+        CLogPrint::global().setLogger(g_logger);
     }
     fs::create_directories(m_path_root);
     gArgs.ForceSetArg("-datadir", m_path_root.string());
@@ -133,7 +142,13 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
     g_chainstate = MakeUnique<CChainState>();
     ::ChainstateActive().InitCoinsDB(
         /* cache_size_bytes */ 1 << 23, /* in_memory */ true, /* should_wipe */ false);
-        pclaimTrie = new CClaimTrie(true, 0, 1);
+    auto& consensus = chainparams.GetConsensus();
+    pclaimTrie = new CClaimTrie(true, false,
+                                    consensus.nNormalizedNameForkHeight,
+                                    consensus.nOriginalClaimExpirationTime,
+                                    consensus.nExtendedClaimExpirationTime,
+                                    consensus.nExtendedClaimExpirationForkHeight,
+                                    consensus.nAllClaimsInMerkleForkHeight, 1);
     assert(!::ChainstateActive().CanFlushToDisk());
     ::ChainstateActive().InitCoinsCache();
     assert(::ChainstateActive().CanFlushToDisk());

@@ -6,6 +6,7 @@
 #ifndef BITCOIN_LOGGING_H
 #define BITCOIN_LOGGING_H
 
+#include <claimtrie/log.h>
 #include <fs.h>
 #include <tinyformat.h>
 
@@ -58,7 +59,7 @@ namespace BCLog {
         ALL         = ~(uint32_t)0,
     };
 
-    class Logger
+    class Logger : public ClogBase
     {
     private:
         mutable std::mutex m_cs;                   // Can not use Mutex from sync.h because in debug mode it would cause a deadlock when a potential deadlock was detected
@@ -90,7 +91,7 @@ namespace BCLog {
         std::atomic<bool> m_reopen_file{false};
 
         /** Send a string to the log output */
-        void LogPrintStr(const std::string& str);
+        void LogPrintStr(const std::string& str) override;
 
         /** Returns whether logs will be written to any output */
         bool Enabled() const

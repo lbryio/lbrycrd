@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <assert.h>
+#include <claimtrie_serial.h>
 #include <ios>
 #include <limits>
 #include <map>
