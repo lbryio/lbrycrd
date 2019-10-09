@@ -509,7 +509,7 @@ Wallet:
 - `c898846` Add support for watch-only addresses
 - `d5087d1` Use script matching rather than destination matching for watch-only
 - `d88af56` Fee fixes
-- `a35b55b` Dont run full check every time we decrypt wallet
+- `a35b55b` Don't run a full check every time we decrypt wallet
 - `3a7c348` Fix make_change to not create half-satoshis
 - `f606bb9` fix a possible memory leak in CWalletDB::Recover
 - `870da77` fix possible memory leaks in CWallet::EncryptWallet
@@ -521,7 +521,7 @@ Wallet:
 
 GUI:
 - `c21c74b` osx: Fix missing dock menu with qt5
-- `b90711c` Fix Transaction details shows wrong To:
+- `b90711c` Fix Transaction details show wrong To:
 - `516053c` Make links in 'About Bitcoin Core' clickable
 - `bdc83e8` Ensure payment request network matches client network
 - `65f78a1` Add GUI view of peer information
@@ -536,12 +536,12 @@ GUI:
 - `674c070` seed OpenSSL PNRG with Windows event data
 - `509f926` Payment request parsing on startup now only changes network if a valid network name is specified
 - `acd432b` Prevent balloon-spam after rescan
-- `7007402` Implement SI-style (thin space) thoudands separator
+- `7007402` Implement SI-style (thin space) thousands separator
 - `91cce17` Use fixed-point arithmetic in amount spinbox
 - `bdba2dd` Remove an obscure option no-one cares about
 - `bd0aa10` Replace the temporary file hack currently used to change Bitcoin-Qt's dock icon (OS X) with a buffer-based solution
 - `94e1b9e` Re-work overviewpage UI
-- `8bfdc9a` Better looking trayicon
+- `8bfdc9a` Better looking tray icon
 - `b197bf3` disable tray interactions when client model set to 0
 - `1c5f0af` Add column Watch-only to transactions list
 - `21f139b` Fix tablet crash. closes #4854
