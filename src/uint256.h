@@ -14,6 +14,8 @@
 #include <vector>
 #include <crypto/common.h>
 
+#include <claimtrie/uints.h>
+
 /** Template base class for fixed-sized opaque blobs. */
 template<unsigned int BITS>
 class base_blob
@@ -25,6 +27,11 @@ public:
     base_blob()
     {
         memset(data, 0, sizeof(data));
+    }
+
+    explicit base_blob(const CBaseBlob<BITS>& b)
+    {
+        std::copy(b.begin(), b.end(), begin());
     }
 
     explicit base_blob(const std::vector<unsigned char>& vch);
@@ -102,6 +109,13 @@ public:
     {
         s.read((char*)data, sizeof(data));
     }
+
+    operator CBaseBlob<BITS>() const
+    {
+        CBaseBlob<BITS> c;
+        std::copy(begin(), end(), c.begin());
+        return c;
+    }
 };
 
 /** 160-bit opaque blob.
@@ -110,8 +124,7 @@ public:
  */
 class uint160 : public base_blob<160> {
 public:
-    uint160() {}
-    explicit uint160(const std::vector<unsigned char>& vch) : base_blob<160>(vch) {}
+    using base_blob<160>::base_blob;
 };
 
 /** 256-bit opaque blob.
@@ -121,8 +134,7 @@ public:
  */
 class uint256 : public base_blob<256> {
 public:
-    uint256() {}
-    explicit uint256(const std::vector<unsigned char>& vch) : base_blob<256>(vch) {}
+    using base_blob<256>::base_blob;
 
     /** A cheap hash function that just returns 64 bits from the result, it can be
      * used when the contents are considered uniformly random. It is not appropriate

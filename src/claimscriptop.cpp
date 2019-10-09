@@ -39,7 +39,7 @@ bool CClaimScriptAddOp::supportClaim(CClaimTrieCache& trieCache, const std::stri
 {
     LogPrint(BCLog::CLAIMS, "+++ Support added: %s, c: %.6s, t: %.6s:%d, h: %.6d, a: %d\n",
              name, claimId.GetHex(), point.hash.GetHex(), point.n, nHeight, nValue);
-    return trieCache.addSupport(name, point, nValue, claimId, nHeight, -1, metadata);
+    return trieCache.addSupport(name, point, claimId, nValue, nHeight, -1, metadata);
 }
 
 CClaimScriptUndoAddOp::CClaimScriptUndoAddOp(const COutPoint& point, int nHeight) : point(point), nHeight(nHeight)
@@ -164,7 +164,7 @@ bool CClaimScriptUndoSpendOp::supportClaim(CClaimTrieCache& trieCache, const std
 {
     LogPrint(BCLog::CLAIMS, "+++ Undoing support spend: %s, c: %.6s, t: %.6s:%d, h: %.6d, vh: %d\n",
              name, claimId.GetHex(), point.hash.GetHex(), point.n, nHeight, nValidHeight);
-    return trieCache.addSupport(name, point, nValue, claimId, nHeight, nValidHeight, metadata);
+    return trieCache.addSupport(name, point, claimId, nValue, nHeight, nValidHeight, metadata);
 }
 
 static std::string vchToString(const std::vector<unsigned char>& name)

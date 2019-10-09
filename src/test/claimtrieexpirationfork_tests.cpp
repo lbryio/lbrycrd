@@ -276,7 +276,8 @@ BOOST_AUTO_TEST_CASE(hardfork_disk_test)
     BOOST_CHECK_EQUAL(fixture.expirationTime(), 3);
     fixture.IncrementBlocks(7, true);
     BOOST_CHECK_EQUAL(fixture.expirationTime(), 6);
-    fixture.ValidateTipMatches(chainActive.Tip());
+    auto tip = chainActive.Tip();
+    fixture.ReadFromDisk(tip->nHeight, tip->hashClaimTrie);
     BOOST_CHECK_EQUAL(fixture.expirationTime(), 6);
 
     // Create a claim and support 1 block before the fork height that will expire after the fork height.
@@ -287,7 +288,8 @@ BOOST_AUTO_TEST_CASE(hardfork_disk_test)
     CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, "test", 1);
     fixture.IncrementBlocks(1);
 
-    fixture.ValidateTipMatches(chainActive.Tip());
+    tip = chainActive.Tip();
+    fixture.ReadFromDisk(tip->nHeight, tip->hashClaimTrie);
     BOOST_CHECK_EQUAL(fixture.expirationTime(), 3);
     fixture.IncrementBlocks(1);
     BOOST_CHECK_EQUAL(fixture.expirationTime(), 6);
@@ -308,7 +310,8 @@ BOOST_AUTO_TEST_CASE(hardfork_disk_test)
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test2","one",1);
     CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(),tx2,"test2",1);
     fixture.IncrementBlocks(1);
-    fixture.ValidateTipMatches(chainActive.Tip());
+    tip = chainActive.Tip();
+    fixture.ReadFromDisk(tip->nHeight, tip->hashClaimTrie);
     CMutableTransaction u2 = fixture.MakeUpdate(tx2, "test2", "two", ClaimIdHash(tx2.GetHash(), 0), 1);
     // increment to fork
     fixture.IncrementBlocks(2);
@@ -503,7 +506,7 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     BOOST_CHECK(!fixture.expirationQueueEmpty());
     BOOST_CHECK(fixture.getInfoForName(sName, val));
     BOOST_CHECK_EQUAL(val.outPoint, tx1OutPoint);
-    uint256 tx1MerkleHash = fixture.getMerkleHash();
+    auto tx1MerkleHash = fixture.getMerkleHash();
 
     // roll back to before tx3 is valid
     fixture.DecrementBlocks(1); // 10
@@ -601,7 +604,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     BOOST_CHECK(!fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
-    uint256 rootMerkleHash = fixture.getMerkleHash();
+    auto rootMerkleHash = fixture.getMerkleHash();
 
     // Advance until tx2 is valid
     fixture.IncrementBlocks(20); // 42

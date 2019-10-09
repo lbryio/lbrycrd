@@ -49,7 +49,7 @@ namespace sqlite
     typedef const std::u16string& u16str_ref;
 }
 #endif
-#include <sqlite/sqlite3.h>
+#include "../../sqlite3.h"
 #include "errors.h"
 
 namespace sqlite {

@@ -6,7 +6,7 @@
 #define CLAIMSCRIPTOP_H
 
 #include "amount.h"
-#include "claimtrie.h"
+#include "claimtrie/forks.h"
 #include "hash.h"
 #include "primitives/transaction.h"
 #include "script/script.h"

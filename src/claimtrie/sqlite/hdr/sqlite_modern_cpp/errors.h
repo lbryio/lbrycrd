@@ -3,7 +3,7 @@
 #include <string>
 #include <stdexcept>
 
-#include <sqlite/sqlite3.h>
+#include "../../sqlite3.h"
 
 namespace sqlite {
 

@@ -307,8 +307,8 @@ BOOST_AUTO_TEST_CASE(normalization_removal_test)
     cache.addClaim("AB", COutPoint(tx1.GetHash(), 0), ClaimIdHash(tx1.GetHash(), 0), 1, height);
     cache.addClaim("Ab", COutPoint(tx2.GetHash(), 0), ClaimIdHash(tx2.GetHash(), 0), 2, height);
     cache.addClaim("aB", COutPoint(tx3.GetHash(), 0), ClaimIdHash(tx3.GetHash(), 0), 3, height);
-    cache.addSupport("AB", COutPoint(sx1.GetHash(), 0), 1, ClaimIdHash(tx1.GetHash(), 0), height);
-    cache.addSupport("Ab", COutPoint(sx2.GetHash(), 0), 1, ClaimIdHash(tx2.GetHash(), 0), height);
+    cache.addSupport("AB", COutPoint(sx1.GetHash(), 0), ClaimIdHash(tx1.GetHash(), 0), 1, height);
+    cache.addSupport("Ab", COutPoint(sx2.GetHash(), 0), ClaimIdHash(tx2.GetHash(), 0), 1, height);
     insertUndoType insertUndo;
     claimUndoType expireUndo;
     insertUndoType insertSupportUndo;

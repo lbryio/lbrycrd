@@ -14,7 +14,7 @@
 #include <chain.h>
 #include <chainparams.h>
 #include <checkpoints.h>
-#include <claimtrie.h>
+#include <claimtrie/forks.h>
 #include <compat/sanity.h>
 #include <consensus/validation.h>
 #include <fs.h>
@@ -1455,7 +1455,16 @@ bool AppInitMain()
                 pblocktree.reset();
                 pblocktree.reset(new CBlockTreeDB(nBlockTreeDBCache, false, fReset));
                 delete pclaimTrie;
-                pclaimTrie = new CClaimTrie(fReindex || fReindexChainState, 0);
+                auto& consensus = chainparams.GetConsensus();
+                if (g_logger->Enabled() && LogAcceptCategory(BCLog::CLAIMS))
+                    CLogPrint::global().setLogger(g_logger);
+                pclaimTrie = new CClaimTrie(fReindex || fReindexChainState, 0,
+                                            consensus.nNormalizedNameForkHeight,
+                                            consensus.nOriginalClaimExpirationTime,
+                                            consensus.nExtendedClaimExpirationTime,
+                                            consensus.nExtendedClaimExpirationForkHeight,
+                                            consensus.nAllClaimsInMerkleForkHeight,
+                                            32);
 
                 if (fReset) {
                     pblocktree->WriteReindexing(true);
@@ -1528,12 +1537,12 @@ bool AppInitMain()
                     }
                     assert(chainActive.Tip() != nullptr);
                 }
-                {
-                    CClaimTrieCache trieCache(pclaimTrie);
-                    if (!trieCache.ValidateTipMatches(chainActive.Tip())) {
-                        strLoadError = _("Error loading the claim trie from disk");
-                        break;
-                    }
+                auto tip = chainActive.Tip();
+                assert(tip);
+                CClaimTrieCache trieCache(pclaimTrie);
+                if (!trieCache.ReadFromDisk(tip->nHeight, tip->hashClaimTrie)) {
+                    strLoadError = _("Error loading the claim trie from disk");
+                    break;
                 }
                 if (!fReset) {
                     // Note that RewindBlockIndex MUST run even if we're about to -reindex-chainstate.
