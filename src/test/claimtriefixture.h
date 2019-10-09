@@ -6,7 +6,7 @@
 #define _CLAIMTRIEFIXTURE_H_
 
 #include <chainparams.h>
-#include <claimtrie.h>
+#include <claimtrie/forks.h>
 #include <coins.h>
 #include <consensus/merkle.h>
 #include <consensus/validation.h>

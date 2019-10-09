@@ -1,4 +1,5 @@
-#include <claimtrie.h>
+
+#include <claimtrie/forks.h>
 #include <coins.h>
 #include <core_io.h>
 #include <key_io.h>
@@ -19,13 +20,6 @@
 #include <cmath>
 
 static constexpr size_t claimIdHexLength = 40;
-
-uint160 uint160S(const std::string& str)
-{
-    uint160 s;
-    s.SetHex(str);
-    return s;
-}
 
 void ParseClaimtrieId(const UniValue& v, std::string& claimId, const std::string& strName)
 {
@@ -137,7 +131,7 @@ std::vector<CClaimNsupports> seqSort(const std::vector<CClaimNsupports>& source)
     return claimsNsupports;
 }
 
-std::size_t indexOf(const std::vector<CClaimNsupports>& source, const uint160& claimId)
+std::size_t indexOf(const std::vector<CClaimNsupports>& source, const CUint160& claimId)
 {
     auto it = std::find_if(source.begin(), source.end(), [&claimId](const CClaimNsupports& claimNsupports) {
         return claimNsupports.claim.claimId == claimId;
@@ -150,7 +144,7 @@ UniValue claimToJSON(const CCoinsViewCache& coinsCache, const CClaimValue& claim
 {
     UniValue result(UniValue::VOBJ);
 
-    auto& coin = coinsCache.AccessCoin(claim.outPoint);
+    auto& coin = coinsCache.AccessCoin(COutPoint(claim.outPoint));
     if (!coin.IsSpent()) {
         std::string name, value;
         if (extractValue(coin.out.scriptPubKey, name, value)) {
@@ -177,7 +171,7 @@ UniValue supportToJSON(const CCoinsViewCache& coinsCache, const CSupportValue& s
 {
     UniValue ret(UniValue::VOBJ);
 
-    auto& coin = coinsCache.AccessCoin(support.outPoint);
+    auto& coin = coinsCache.AccessCoin(COutPoint(support.outPoint));
     if (!coin.IsSpent()) {
         std::string name, value;
         if (extractValue(coin.out.scriptPubKey, name, value)) {
@@ -296,7 +290,7 @@ static UniValue getvalueforname(const JSONRPCRequest& request)
         return ret;
 
     auto& claimNsupports =
-        claimId.length() == claimIdHexLength ? csToName.find(uint160S(claimId)) :
+        claimId.length() == claimIdHexLength ? csToName.find(CUint160S(claimId)) :
         !claimId.empty() ? csToName.find(claimId) : csToName.claimsNsupports[0];
 
     if (claimNsupports.IsNull())
@@ -546,11 +540,11 @@ UniValue getclaimsfortx(const JSONRPCRequest& request)
         std::string sName(vvchParams[0].begin(), vvchParams[0].end());
         o.pushKV(T_NAME, escapeNonUtf8(sName));
         if (op == OP_CLAIM_NAME) {
-            uint160 claimId = ClaimIdHash(hash, i);
+            CUint160 claimId = ClaimIdHash(hash, i);
             o.pushKV(T_CLAIMID, claimId.GetHex());
             o.pushKV(T_VALUE, HexStr(vvchParams[1].begin(), vvchParams[1].end()));
         } else if (op == OP_UPDATE_CLAIM || op == OP_SUPPORT_CLAIM) {
-            uint160 claimId(vvchParams[1]);
+            CUint160 claimId(vvchParams[1]);
             o.pushKV(T_CLAIMID, claimId.GetHex());
             if (vvchParams.size() > 2)
                 o.pushKV(T_VALUE, HexStr(vvchParams[2].begin(), vvchParams[2].end()));
@@ -755,7 +749,7 @@ UniValue removedToJSON(const std::vector<queueEntryType<T>>& undo)
 {
     UniValue ret(UniValue::VARR);
     for (auto& u : undo) {
-        auto& outPoint = u.second.outPoint;
+        auto outPoint = COutPoint(u.second.outPoint);
         ret.push_back(ClaimIdHash(outPoint.hash, outPoint.n).ToString());
     }
     return ret;
@@ -780,7 +774,7 @@ UniValue getchangesinblock(const JSONRPCRequest& request)
     auto addedUpdated = [](const insertUndoType& insertUndo) {
         UniValue added(UniValue::VARR);
         for (auto& a : insertUndo)
-            added.push_back(ClaimIdHash(a.outPoint.hash, a.outPoint.n).ToString());
+            added.push_back(ClaimIdHash(uint256(a.outPoint.hash), a.outPoint.n).ToString());
         return added;
     };
 

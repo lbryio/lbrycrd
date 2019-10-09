@@ -1,7 +1,7 @@
 #pragma once
 
 #include <tuple>
-#include<type_traits>
+#include <type_traits>
 
 namespace sqlite {
 	namespace utility {

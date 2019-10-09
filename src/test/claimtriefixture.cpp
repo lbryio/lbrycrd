@@ -95,16 +95,22 @@ ClaimTrieChainFixture::~ClaimTrieChainFixture()
     added_unchecked = false;
     DecrementBlocks(chainActive.Height());
     auto& consensus = const_cast<Consensus::Params&>(Params().GetConsensus());
-    if (normalization_original >= 0)
+    if (normalization_original >= 0) {
         consensus.nNormalizedNameForkHeight = normalization_original;
-
+        const_cast<int&>(base->nNormalizedNameForkHeight) = normalization_original;
+    }
     if (expirationForkHeight >= 0) {
         consensus.nExtendedClaimExpirationForkHeight = expirationForkHeight;
         consensus.nExtendedClaimExpirationTime = extendedExpiration;
         consensus.nOriginalClaimExpirationTime = originalExpiration;
+        const_cast<int64_t&>(base->nExtendedClaimExpirationForkHeight) = expirationForkHeight;
+        const_cast<int64_t&>(base->nOriginalClaimExpirationTime) = originalExpiration;
+        const_cast<int64_t&>(base->nExtendedClaimExpirationTime) = extendedExpiration;
     }
-    if (forkhash_original >= 0)
+    if (forkhash_original >= 0) {
         consensus.nAllClaimsInMerkleForkHeight = forkhash_original;
+        const_cast<int64_t&>(base->nAllClaimsInMerkleForkHeight) = forkhash_original;
+    }
 }
 
 void ClaimTrieChainFixture::setExpirationForkHeight(int targetMinusCurrent, int64_t preForkExpirationTime, int64_t postForkExpirationTime)
@@ -119,7 +125,9 @@ void ClaimTrieChainFixture::setExpirationForkHeight(int targetMinusCurrent, int6
     consensus.nExtendedClaimExpirationForkHeight = target;
     consensus.nExtendedClaimExpirationTime = postForkExpirationTime;
     consensus.nOriginalClaimExpirationTime = preForkExpirationTime;
-    setExpirationTime(targetMinusCurrent >= 0 ? preForkExpirationTime : postForkExpirationTime);
+    const_cast<int64_t&>(base->nExtendedClaimExpirationForkHeight) = target;
+    const_cast<int64_t&>(base->nOriginalClaimExpirationTime) = preForkExpirationTime;
+    const_cast<int64_t&>(base->nExtendedClaimExpirationTime) = postForkExpirationTime;
 }
 
 void ClaimTrieChainFixture::setNormalizationForkHeight(int targetMinusCurrent)
@@ -129,6 +137,7 @@ void ClaimTrieChainFixture::setNormalizationForkHeight(int targetMinusCurrent)
     if (normalization_original < 0)
         normalization_original = consensus.nNormalizedNameForkHeight;
     consensus.nNormalizedNameForkHeight = target;
+    const_cast<int&>(base->nNormalizedNameForkHeight) = target;
 }
 
 void ClaimTrieChainFixture::setHashForkHeight(int targetMinusCurrent)
@@ -138,6 +147,7 @@ void ClaimTrieChainFixture::setHashForkHeight(int targetMinusCurrent)
     if (forkhash_original < 0)
         forkhash_original = consensus.nAllClaimsInMerkleForkHeight;
     consensus.nAllClaimsInMerkleForkHeight = target;
+    const_cast<int64_t&>(base->nAllClaimsInMerkleForkHeight) = target;
 }
 
 bool ClaimTrieChainFixture::CreateBlock(const std::unique_ptr<CBlockTemplate>& pblocktemplate)
@@ -277,9 +287,9 @@ void ClaimTrieChainFixture::IncrementBlocks(int num_blocks, bool mark)
             BOOST_CHECK_EQUAL(pblocktemplate->block.vtx.size(), num_txs_for_next_block + 1);
         BOOST_REQUIRE(CreateBlock(pblocktemplate));
         num_txs_for_next_block = 0;
+        expirationHeight = chainActive.Height();
         nNextHeight = chainActive.Height() + 1;
     }
-    setExpirationTime(Params().GetConsensus().GetExpirationTime(nNextHeight - 1));
 }
 
 // disconnect i blocks from tip
@@ -295,8 +305,8 @@ void ClaimTrieChainFixture::DecrementBlocks(int num_blocks)
     BOOST_CHECK_EQUAL(ActivateBestChain(state, Params()), true);
     mempool.clear();
     num_txs_for_next_block = 0;
+    expirationHeight = chainActive.Height();
     nNextHeight = chainActive.Height() + 1;
-    setExpirationTime(Params().GetConsensus().GetExpirationTime(nNextHeight - 1));
 }
 
 // decrement back to last mark

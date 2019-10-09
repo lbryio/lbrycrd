@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include <amount.h>
+#include <claimtrie/txoutpoint.h>
 #include <script/script.h>
 #include <serialize.h>
 #include <uint256.h>
@@ -22,6 +23,7 @@ public:
     uint32_t n;
 
     COutPoint(): n((uint32_t) -1) { }
+    explicit COutPoint(const CTxOutPoint& c) : hash(c.hash), n(c.n) { }
     COutPoint(const uint256& hashIn, uint32_t nIn): hash(hashIn), n(nIn) { }
 
     ADD_SERIALIZE_METHODS;
@@ -52,6 +54,11 @@ public:
     }
 
     std::string ToString() const;
+
+    operator CTxOutPoint() const
+    {
+        return CTxOutPoint{hash, n};
+    }
 };
 
 /** An input of a transaction.  It contains the location of the previous

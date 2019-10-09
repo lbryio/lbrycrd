@@ -9,7 +9,7 @@
 
 #define MODERN_SQLITE_VERSION 3002008
 
-#include <sqlite/sqlite3.h>
+#include "../sqlite3.h"
 
 #include "sqlite_modern_cpp/type_wrapper.h"
 #include "sqlite_modern_cpp/errors.h"

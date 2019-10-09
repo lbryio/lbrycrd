@@ -68,14 +68,10 @@ bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector
     op = -1;
     opcodetype opcode;
     if (!scriptIn.GetOp(pc, opcode))
-    {
         return false;
-    }
-    
+
     if (opcode != OP_CLAIM_NAME && opcode != OP_SUPPORT_CLAIM && opcode != OP_UPDATE_CLAIM)
-    {
         return false;
-    }
 
     op = opcode;
 
@@ -90,57 +86,40 @@ bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector
     // All others are invalid.
 
     if (!scriptIn.GetOp(pc, opcode, vchParam1) || opcode < 0 || opcode > OP_PUSHDATA4)
-    {
         return false;
-    }
+
     if (!scriptIn.GetOp(pc, opcode, vchParam2) || opcode < 0 || opcode > OP_PUSHDATA4)
-    {
         return false;
-    }
+
     if (op == OP_UPDATE_CLAIM || op == OP_SUPPORT_CLAIM)
-    {
-        static const size_t claimIdHashSize = sizeof(uint160);
-        if (vchParam2.size() != claimIdHashSize) {
+        if (vchParam2.size() != sizeof(uint160))
             return false;
-        }
-    }
 
     if (!scriptIn.GetOp(pc, opcode, vchParam3))
-    {
         return false;
-    }
+
     auto last_drop = OP_DROP;
-    if (opcode >= 0 && opcode <= OP_PUSHDATA4 && op != OP_CLAIM_NAME)
-    {
+    if (opcode >= 0 && opcode <= OP_PUSHDATA4 && op != OP_CLAIM_NAME) {
         if (!scriptIn.GetOp(pc, opcode))
-        {
             return false;
-        }
         last_drop = OP_2DROP;
-    }
-    else if (op == OP_UPDATE_CLAIM)
-    {
+    } else if (op == OP_UPDATE_CLAIM)
         return false;
-    }
+
     if (opcode != OP_2DROP)
-    {
         return false;
-    }
+
     if (!scriptIn.GetOp(pc, opcode) || opcode != last_drop)
-    {
         return false;
-    }
+
     if (op == OP_SUPPORT_CLAIM && last_drop == OP_2DROP && !allowSupportMetadata)
-    {
         return false;
-    }
 
     vvchParams.push_back(std::move(vchParam1));
     vvchParams.push_back(std::move(vchParam2));
     if (last_drop == OP_2DROP)
-    {
         vvchParams.push_back(std::move(vchParam3));
-    }
+
     return true;
 }
 
@@ -164,9 +143,7 @@ CScript StripClaimScriptPrefix(const CScript& scriptIn, int& op)
     CScript::const_iterator pc = scriptIn.begin();
 
     if (!DecodeClaimScript(scriptIn, op, vvchParams, pc))
-    {
         return scriptIn;
-    }
 
     return CScript(pc, scriptIn.end());
 }
@@ -183,31 +160,21 @@ size_t ClaimNameSize(const CScript& scriptIn)
     CScript::const_iterator pc = scriptIn.begin();
     int op;
     if (!DecodeClaimScript(scriptIn, op, vvchParams, pc))
-    {
         return 0;
-    }
-    else
-    {
-        return vvchParams[0].size();
-    }
+    return vvchParams[0].size();
 }
 
 CAmount CalcMinClaimTrieFee(const CTransaction& tx, const CAmount &minFeePerNameClaimChar)
 {
     if (minFeePerNameClaimChar == 0)
-    {
         return 0;
-    }
 
     CAmount min_fee = 0;
-    for (const CTxOut& txout: tx.vout)
-    {
+    for (const CTxOut& txout: tx.vout) {
         int op;
         std::vector<std::vector<unsigned char> > vvchParams;
-        if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams))
-        {
-            if (op == OP_CLAIM_NAME)
-            {
+        if (DecodeClaimScript(txout.scriptPubKey, op, vvchParams)) {
+            if (op == OP_CLAIM_NAME) {
                 int claim_name_size = vvchParams[0].size();
                 min_fee += claim_name_size*minFeePerNameClaimChar;
             }

@@ -6,7 +6,7 @@
 
 using namespace std;
 
-extern void ValidatePairs(CClaimTrieCache& cache, const std::vector<std::pair<bool, uint256>>& pairs, uint256 claimHash);
+extern void ValidatePairs(CClaimTrieCache& cache, const std::vector<std::pair<bool, CUint256>>& pairs, CUint256 claimHash);
 
 BOOST_FIXTURE_TEST_SUITE(claimtrierpc_tests, RegTestingSetup)
 
@@ -190,12 +190,12 @@ BOOST_AUTO_TEST_CASE(claim_rpcs_rollback3_test)
     BOOST_CHECK_EQUAL(valueResults[T_AMOUNT].get_int(), 3);
 }
 
-std::vector<std::pair<bool, uint256>> jsonToPairs(const UniValue& jsonPair)
+std::vector<std::pair<bool, CUint256>> jsonToPairs(const UniValue& jsonPair)
 {
-    std::vector<std::pair<bool, uint256>> pairs;
+    std::vector<std::pair<bool, CUint256>> pairs;
     for (std::size_t i = 0; i < jsonPair.size(); ++i) {
         auto& jpair = jsonPair[i];
-        pairs.emplace_back(jpair[T_ODD].get_bool(), uint256S(jpair[T_HASH].get_str()));
+        pairs.emplace_back(jpair[T_ODD].get_bool(), CUint256S(jpair[T_HASH].get_str()));
     }
     return pairs;
 }

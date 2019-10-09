@@ -11,7 +11,7 @@
 #endif
 
 #include <amount.h>
-#include <claimtrie.h>
+#include <claimtrie/forks.h>
 #include <coins.h>
 #include <fs.h>
 #include <index/txindex.h>

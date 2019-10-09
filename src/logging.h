@@ -6,6 +6,7 @@
 #ifndef BITCOIN_LOGGING_H
 #define BITCOIN_LOGGING_H
 
+#include <claimtrie/log.h>
 #include <fs.h>
 #include <tinyformat.h>
 
@@ -57,7 +58,7 @@ namespace BCLog {
         ALL         = ~(uint32_t)0,
     };
 
-    class Logger
+    class Logger : public ClogBase
     {
     private:
         FILE* m_fileout = nullptr;
@@ -87,7 +88,7 @@ namespace BCLog {
         std::atomic<bool> m_reopen_file{false};
 
         /** Send a string to the log output */
-        void LogPrintStr(const std::string &str);
+        void LogPrintStr(const std::string &str) override;
 
         /** Returns whether logs will be written to any output */
         bool Enabled() const { return m_print_to_console || m_print_to_file; }
