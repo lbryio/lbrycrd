@@ -14,7 +14,7 @@ Latest binaries are available from https://github.com/lbryio/lbrycrd/releases. T
 
 The `lbrycrdd` executable will start a LBRYcrd node and connect you to the LBRYcrd network. Use the `lbrycrd-cli` executable
 to interact with lbrycrdd through the command line. Command-line help for both executables are available through
-the "--help" flag (e.g. `lbrycrdd --help`). Examples:
+the "--help" flag (e.g. `lbrycrdd --help`).
 
 #### Examples:
 
