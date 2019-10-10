@@ -451,7 +451,7 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
     if (strMode != "template")
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid mode");
 
-    if (Params().NetworkIDString() != CBaseChainParams::REGTEST) // who should own this constant?
+    if (Params().NetworkIDString() == CBaseChainParams::MAIN)
     {
         if (!g_connman)
             throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
@@ -585,7 +585,7 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
 
         UniValue entry(UniValue::VOBJ);
 
-        entry.pushKV("data", EncodeHexTx(tx));
+        entry.pushKV("data", EncodeHexTx(tx, fSupportsSegwit ? 0 : SERIALIZE_TRANSACTION_NO_WITNESS));
         entry.pushKV("txid", txHash.GetHex());
         entry.pushKV("hash", tx.GetWitnessHash().GetHex());
 
