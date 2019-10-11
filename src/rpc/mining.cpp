@@ -567,8 +567,6 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
 
     // NOTE: If at some point we support pre-segwit miners post-segwit-activation, this needs to take segwit support into consideration
     const bool fPreSegWit = (ThresholdState::ACTIVE != VersionBitsState(pindexPrev, consensusParams, Consensus::DEPLOYMENT_SEGWIT, versionbitscache));
-    if (!fPreSegWit && !fSupportsSegwit)
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "Segwit support is now required. Please include \"segwit\" in the client's rules.");
 
     UniValue aCaps(UniValue::VARR); aCaps.push_back("proposal");
     UniValue result(UniValue::VOBJ);
@@ -587,7 +585,7 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
 
         UniValue entry(UniValue::VOBJ);
 
-        entry.pushKV("data", EncodeHexTx(tx));
+        entry.pushKV("data", EncodeHexTx(tx, fSupportsSegwit ? 0 : SERIALIZE_TRANSACTION_NO_WITNESS));
         entry.pushKV("txid", txHash.GetHex());
         entry.pushKV("hash", tx.GetWitnessHash().GetHex());
 
@@ -624,8 +622,6 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
     aMutable.push_back("transactions");
     aMutable.push_back("prevblock");
 
-    result.pushKV("capabilities", aCaps);
-
     UniValue aRules(UniValue::VARR);
     UniValue vbavailable(UniValue::VOBJ);
     for (int j = 0; j < (int)Consensus::MAX_VERSION_BITS_DEPLOYMENTS; ++j) {
@@ -656,7 +652,10 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
             {
                 // Add to rules only
                 const struct VBDeploymentInfo& vbinfo = VersionBitsDeploymentInfo[pos];
-                aRules.push_back(gbt_vb_name(pos));
+                if (pos == Consensus::DEPLOYMENT_SEGWIT && !fSupportsSegwit)
+                    aCaps.push_back(gbt_vb_name(pos));
+                else
+                    aRules.push_back(gbt_vb_name(pos));
                 if (setClientRules.find(vbinfo.name) == setClientRules.end()) {
                     // Not supported by the client; make sure it's safe to proceed
                     if (!vbinfo.gbt_force) {
@@ -668,6 +667,7 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
             }
         }
     }
+    result.pushKV("capabilities", aCaps);
     result.pushKV("version", pblock->nVersion);
     result.pushKV("rules", aRules);
     result.pushKV("vbavailable", vbavailable);
