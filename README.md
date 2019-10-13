@@ -111,7 +111,7 @@ tar ... extract SDK to depends/SDKs/MacOSX10.11.sdk
 
 ```
 Look in packaging/build_darwin_64bit.sh for further understanding.
-#### MacOS with local shared dependencies:
+#### macOS with local shared dependencies:
 ```
 brew install boost berkeley-db@4 icu4c libevent
 # fix conflict with gawk pulled first:
