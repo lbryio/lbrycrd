@@ -113,7 +113,7 @@ tar ... extract SDK to depends/SDKs/MacOSX10.11.sdk
 Look in packaging/build_darwin_64bit.sh for further understanding.
 #### MacOS with local shared dependencies:
 ```
-brew install boost berkeley-db@4 icu4c libevent
+brew install boost Berkeley-db@4 icu4c libevent
 # fix conflict with gawk pulled first:
 brew reinstall readline
 brew reinstall gawk
@@ -174,7 +174,7 @@ The Travis CI system makes sure that every pull request is built, and that unit 
 
 ### Testnet
 
-Testnet is maintained for testing purposes and can be accessed using the command `./lbrycrdd -testnet`. If you would like to obtain testnet credits, please contact brannon@lbry.com or grin@lbry.com .
+Testnet is maintained for testing purposes and can be accessed using the command `./lbrycrdd -testnet`. If you would like to obtain testnet credits, please contact brannon@lbry.com or grin@lbry.com.
 
 It is easy to solo mine on testnet. (It's easy on mainnet too, but much harder to win.) For instructions see https://github.com/lbryio/sgminer-gm and https://github.com/lbryio/lbrycrd/tree/master/contrib/mining 
 
