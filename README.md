@@ -6,6 +6,26 @@ LBRYcrd uses a blockchain similar to bitcoin's to implement an index and payment
 
 Please read the [lbry.tech overview](https://lbry.tech/overview) for a general understanding of the LBRY pieces. From there you could read the [LBRY spec](https://spec.lbry.com/) for specifics on the data in the blockchain. 
 
+## Table of Contents
+
+1. [Installation](#installation)
+2. [Usage](#usage)
+   1. [Examples](#examples)
+   2. [Data directory](#data-directory)
+3. [Running from Source](#running-from-source)
+   1. [Ubuntu with pulled static dependencies](#ubuntu-with-pulled-static-dependencies)
+   2. [Ubuntu with local shared dependencies](#ubuntu-with-local-shared-dependencies)
+   3. [MacOS (cross-compiled)](#macos-(cross-compiled))
+   4. [MacOS with local shared dependencies](#macos-with-local-shared-dependencies)
+   5. [Windows (cross-compiled)](#windows-(cross-compiled))
+   6. [Use with CLion](#use-with-clion)
+4. [Contributing](#contributing)
+    * [Testnet](#testnet)
+5. [Mailing List](#mailing-list)
+6. [License](#license)
+7. [Security](#security)
+8. [Contact](#contact)
+
 ## Installation
 
 Latest binaries are available from https://github.com/lbryio/lbrycrd/releases. There is no installation procedure; the CLI binaries will run as-is and will have any uncommon dependencies statically linked into the binary. The QT GUI is not supported. LBRYcrd is distributed as a collection of executable files; traditional installers are not provided. 
