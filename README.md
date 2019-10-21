@@ -80,8 +80,8 @@ txindex=1
 
 ## Running from Source
 
-The easiest way to compile is to utilize the Docker image that contains the necessary compilers: lbry/build_lbrycrd. This will allow you to reproduce the build as made on our build servers. I this sample we map a local lbrycrd folder and a local ccache folder inside the image:
-```
+The easiest way to compile is to utilize the Docker image that contains the necessary compilers: lbry/build_lbrycrd. This will allow you to reproduce the build as made on our build servers. In this sample we map a local lbrycrd folder and a local ccache folder inside the image:
+
 git clone https://github.com/lbryio/lbrycrd.git
 cd lbrycrd
 docker run -v "$(pwd):/lbrycrd" --rm -v "${HOME}/ccache:/ccache" -w /lbrycrd -e CCACHE_DIR=/ccache lbry/build_lbrycrd packaging/build_linux_64bit.sh

@@ -36,7 +36,7 @@ insert into coins(name, symbol, symbol2, algo, enable, auto_ready, rpcuser, rpcp
   values('Local LBRY Instance', 'LBC', 'LBC', 'lbry', 1, 1, 'ruser', 'rpswd', '127.0.0.1', 19245, 1, 'utf-8', 0, 1, 0, 0, 0);
 exit
 ```
-Use port 19245 for testnet, port 9245 for main.
+Use port 19245 for testnet, port 9245 for main. Set usesegwit to 1 after the segwit fork is enabled on December 11, 2019.
 #### 3. Run the stratum server:
 ```
 docker run --network host -d lbry/yiimp_stratum
@@ -47,6 +47,7 @@ docker run --network host -it lbry/yiimp_stratum bash
 cat config/lbry.conf
 ./stratum config/lbry
 ```
+When testing with an ASIC you may need to modify the TCP server address in said lbry.conf file to be an external IP address.
 
 #### 4. Connect sgminer to it:
 ```
