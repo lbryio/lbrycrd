@@ -1,5 +1,5 @@
 
-#include <claimtrie/log.h>
+#include <log.h>
 
 void CLogPrint::setLogger(ClogBase* log)
 {

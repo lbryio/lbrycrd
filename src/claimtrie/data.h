@@ -3,8 +3,8 @@
 #define CLAIMTRIE_DATA_H
 
 #include <claimtrie/sqlite/sqlite3.h>
-#include <claimtrie/txoutpoint.h>
-#include <claimtrie/uints.h>
+#include <txoutpoint.h>
+#include <uints.h>
 
 #include <cstring>
 #include <string>

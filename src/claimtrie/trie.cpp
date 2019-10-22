@@ -1,11 +1,13 @@
 
-#include <claimtrie/hash.h>
-#include <claimtrie/log.h>
-#include <claimtrie/trie.h>
+#include <forks.h>
+#include <hashes.h>
+#include <log.h>
+#include <trie.h>
 
 #include <algorithm>
 #include <memory>
 #include <iomanip>
+#include <tuple>
 
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
@@ -446,23 +448,21 @@ CUint256 CClaimTrieCacheBase::recursiveComputeMerkleHash(const std::string& name
     std::vector<uint8_t> vchToHash;
     const auto pos = name.size();
     // we have to free up the hash query so it can be reused by a child
-    struct Triple { std::string name; std::unique_ptr<CUint256> hash; int takeoverHeight; };
-    std::vector<Triple> children;
-    for (auto&& row : childHashQuery << name) {
-        children.emplace_back();
-        auto& b = children.back();
-        row >> b.name >> b.hash >> b.takeoverHeight;
+    std::vector<std::tuple<std::string, std::unique_ptr<CUint256>, int>> children;
+    childHashQuery << name >> [&children](std::string name, std::unique_ptr<CUint256> hash, int takeoverHeight) {
+        children.push_back(std::make_tuple(std::move(name), std::move(hash), takeoverHeight));
     }
     childHashQuery++;
 
     for (auto& child: children) {
-        if (child.hash == nullptr) child.hash = std::make_unique<CUint256>();
-        if (child.hash->IsNull()) {
-            *child.hash = recursiveComputeMerkleHash(child.name, child.takeoverHeight, checkOnly);
-        }
-        completeHash(*child.hash, child.name, pos);
-        vchToHash.push_back(child.name[pos]);
-        vchToHash.insert(vchToHash.end(), child.hash->begin(), child.hash->end());
+        auto& name = std::get<0>(child);
+        auto& hash = std::get<1>(child);
+        if (!hash) hash = std::make_unique<CUint256>();
+        if (hash->IsNull())
+            hash = recursiveComputeMerkleHash(name, std::get<2>(child), checkOnly);
+        completeHash(*hash, name, pos);
+        vchToHash.push_back(name[pos]);
+        vchToHash.insert(vchToHash.end(), hash->begin(), hash->end());
     }
 
     CClaimValue claim;
@@ -494,6 +494,21 @@ bool CClaimTrieCacheBase::checkConsistency()
     return true;
 }
 
+bool CClaimTrieCacheBase::validateDb(const CUint256& rootHash)
+{
+    logPrint << "Checking claim trie consistency... ";
+    if (checkConsistency()) {
+        logPrint << "consistent" << Clog::endl;
+        if (rootHash != getMerkleHash()) {
+            logPrint << "CClaimTrieCacheBase::" << __func__ << "(): the block's root claim hash doesn't match the persisted claim root hash." << Clog::endl;
+            return false;
+        }
+        return true;
+    }
+    logPrint << "inconsistent!" << Clog::endl;
+    return false;
+}
+
 bool CClaimTrieCacheBase::flush()
 {
     if (transacting) {
@@ -517,23 +532,6 @@ bool CClaimTrieCacheBase::flush()
     base->nNextHeight = nNextHeight;
     removalWorkaround.clear();
     return true;
-}
-
-bool CClaimTrieCacheBase::ReadFromDisk(int nHeight, const CUint256& rootHash)
-{
-    base->nNextHeight = nNextHeight = nHeight + 1;
-
-    logPrint << "Checking claim trie consistency... " << Clog::endl;
-    if (checkConsistency()) {
-        logPrint << "consistent" << Clog::endl;
-        if (rootHash != getMerkleHash()) {
-            logPrint << "Merkle hash does not match root hash" << Clog::endl;
-            return false;
-        }
-        return true;
-    }
-    logPrint << "inconsistent!" << Clog::endl;
-    return false;
 }
 
 CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)

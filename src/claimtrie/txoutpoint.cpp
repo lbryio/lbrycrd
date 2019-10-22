@@ -1,5 +1,5 @@
 
-#include <claimtrie/txoutpoint.h>
+#include <txoutpoint.h>
 
 #include <sstream>
 
