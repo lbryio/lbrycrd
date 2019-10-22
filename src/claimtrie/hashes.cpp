@@ -1,6 +1,7 @@
 
-#include <claimtrie/hash.h>
+#include <hashes.h>
 
+// Bitcoin doubles hash
 CUint256 CalcHash(SHA256_CTX* sha)
 {
     CUint256 result;

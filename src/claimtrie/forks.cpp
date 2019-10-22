@@ -1,8 +1,8 @@
 
-#include <claimtrie/forks.h>
-#include <claimtrie/hash.h>
-#include <claimtrie/log.h>
-#include <claimtrie/trie.h>
+#include <forks.h>
+#include <hashes.h>
+#include <log.h>
+#include <trie.h>
 
 #include <boost/locale.hpp>
 #include <boost/locale/conversion.hpp>

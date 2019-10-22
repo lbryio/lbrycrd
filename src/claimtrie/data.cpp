@@ -1,6 +1,6 @@
 
-#include <claimtrie/data.h>
-#include <claimtrie/log.h>
+#include <data.h>
+#include <log.h>
 
 #include <algorithm>
 #include <sstream>

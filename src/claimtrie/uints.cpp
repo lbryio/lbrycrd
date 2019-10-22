@@ -1,5 +1,5 @@
 
-#include <claimtrie/uints.h>
+#include <uints.h>
 
 #include <algorithm>
 #include <cassert>

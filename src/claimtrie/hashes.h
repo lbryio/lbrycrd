@@ -4,9 +4,8 @@
 
 #include <openssl/sha.h>
 
-#include <claimtrie/uints.h>
+#include <uints.h>
 
-// Bitcoin doubles hashes
 CUint256 CalcHash(SHA256_CTX* sha);
 
 template<typename TIterator, typename... Args>
