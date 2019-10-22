@@ -37,6 +37,12 @@ bool BCLog::Logger::OpenDebugLog()
     assert(m_fileout == nullptr);
     assert(!m_file_path.empty());
 
+    if (fs::exists(m_file_path)) {
+        fs::path old_file_path(m_file_path);
+        old_file_path.append(".old");
+        fs::rename(m_file_path, old_file_path);
+    }
+
     m_fileout = fsbridge::fopen(m_file_path, "a");
     if (!m_fileout) {
         return false;
