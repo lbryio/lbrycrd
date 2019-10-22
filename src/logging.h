@@ -93,7 +93,6 @@ namespace BCLog {
         bool Enabled() const { return m_print_to_console || m_print_to_file; }
 
         bool OpenDebugLog();
-        void ShrinkDebugFile();
 
         uint32_t GetCategoryMask() const { return m_categories.load(); }
 
@@ -103,8 +102,6 @@ namespace BCLog {
         bool DisableCategory(const std::string& str);
 
         bool WillLogCategory(LogFlags category) const;
-
-        bool DefaultShrinkDebugFile() const;
     };
 
 } // namespace BCLog
