@@ -2,7 +2,7 @@
 #ifndef CLAIMTRIE_FORKS_H
 #define CLAIMTRIE_FORKS_H
 
-#include <claimtrie/trie.h>
+#include <trie.h>
 
 class CClaimTrieCacheExpirationFork : public CClaimTrieCacheBase
 {

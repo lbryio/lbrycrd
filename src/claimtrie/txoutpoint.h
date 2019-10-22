@@ -2,7 +2,7 @@
 #ifndef CLAIMTRIE_TXOUTPUT_H
 #define CLAIMTRIE_TXOUTPUT_H
 
-#include <claimtrie/uints.h>
+#include <uints.h>
 
 #include <algorithm>
 #include <type_traits>

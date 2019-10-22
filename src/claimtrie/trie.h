@@ -1,9 +1,9 @@
 #ifndef CLAIMTRIE_TRIE_H
 #define CLAIMTRIE_TRIE_H
 
-#include <claimtrie/data.h>
-#include <claimtrie/txoutpoint.h>
-#include <claimtrie/uints.h>
+#include <data.h>
+#include <txoutpoint.h>
+#include <uints.h>
 
 #include <functional>
 #include <map>
@@ -133,7 +133,7 @@ public:
     bool flush();
     bool empty() const;
     bool checkConsistency();
-    bool ReadFromDisk(int nHeight, const CUint256& rootHash);
+    bool validateDb(const CUint256& rootHash);
 
     std::size_t getTotalNamesInTrie() const;
     std::size_t getTotalClaimsInTrie() const;
@@ -197,6 +197,7 @@ protected:
     void ensureTreeStructureIsUpToDate();
 
 private:
+    std::unordered_map<std::string, std::pair<CUint160, int>> takeoverCache;
     // for unit test
     friend struct ClaimTrieChainFixture;
     friend class CClaimTrieCacheTest;

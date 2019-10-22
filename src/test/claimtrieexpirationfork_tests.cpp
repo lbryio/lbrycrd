@@ -277,7 +277,7 @@ BOOST_AUTO_TEST_CASE(hardfork_disk_test)
     fixture.IncrementBlocks(7, true);
     BOOST_CHECK_EQUAL(fixture.expirationTime(), 6);
     auto tip = chainActive.Tip();
-    fixture.ReadFromDisk(tip->nHeight, tip->hashClaimTrie);
+    pclaimTrie->ReadFromDisk(tip->nHeight, tip->hashClaimTrie);
     BOOST_CHECK_EQUAL(fixture.expirationTime(), 6);
 
     // Create a claim and support 1 block before the fork height that will expire after the fork height.
@@ -289,7 +289,7 @@ BOOST_AUTO_TEST_CASE(hardfork_disk_test)
     fixture.IncrementBlocks(1);
 
     tip = chainActive.Tip();
-    fixture.ReadFromDisk(tip->nHeight, tip->hashClaimTrie);
+    pclaimTrie->ReadFromDisk(tip->nHeight, tip->hashClaimTrie);
     BOOST_CHECK_EQUAL(fixture.expirationTime(), 3);
     fixture.IncrementBlocks(1);
     BOOST_CHECK_EQUAL(fixture.expirationTime(), 6);
@@ -311,7 +311,7 @@ BOOST_AUTO_TEST_CASE(hardfork_disk_test)
     CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(),tx2,"test2",1);
     fixture.IncrementBlocks(1);
     tip = chainActive.Tip();
-    fixture.ReadFromDisk(tip->nHeight, tip->hashClaimTrie);
+    pclaimTrie->ReadFromDisk(tip->nHeight, tip->hashClaimTrie);
     CMutableTransaction u2 = fixture.MakeUpdate(tx2, "test2", "two", ClaimIdHash(tx2.GetHash(), 0), 1);
     // increment to fork
     fixture.IncrementBlocks(2);
