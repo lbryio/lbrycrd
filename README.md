@@ -159,6 +159,7 @@ Contributions to this project are welcome, encouraged, and compensated. For more
 
 We follow the same coding guidelines as documented by Bitcoin Core, see [here](/doc/developer-notes.md). To run an automated code formatting check, try:
 `git diff -U0 master -- '*.h' '*.cpp' | ./contrib/devtools/clang-format-diff.py -p1`. This will check any commits not on master for proper code formatting.
+The guidelines to make a contribution can be found [here](/CONTRIBUTING.md)
 We try to avoid altering parts of the code that is inherited from Bitcoin Core unless absolutely necessary. This will make it easier to merge changes from Bitcoin Core. If commits are expected not to be merged upstream (i.e. we broke up a commit from Bitcoin Core in order to use a single feature in it), the commit message must contain the string "NOT FOR UPSTREAM MERGE".
 
 The `master` branch is regularly built and tested, but is not guaranteed to be
