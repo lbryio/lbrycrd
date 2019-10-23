@@ -28,8 +28,6 @@
 
 extern ::CChainState g_chainstate;
 extern ::ArgsManager gArgs;
-extern std::vector<std::string> random_strings(std::size_t count);
-extern bool getClaimById(const uint160&, std::string&, CClaimValue*);
 
 CMutableTransaction BuildTransaction(const uint256& prevhash);
 CMutableTransaction BuildTransaction(const CTransaction& prev, uint32_t prevout=0, unsigned int numOutputs=1, int locktime=0);
@@ -56,7 +54,7 @@ struct ClaimTrieChainFixture: public CClaimTrieCache
 
     ClaimTrieChainFixture();
 
-    ~ClaimTrieChainFixture();
+    ~ClaimTrieChainFixture() override;
 
     void setExpirationForkHeight(int targetMinusCurrent, int64_t preForkExpirationTime, int64_t postForkExpirationTime);
 
@@ -105,6 +103,8 @@ struct ClaimTrieChainFixture: public CClaimTrieCache
 
     int proportionalDelayFactor();
 
+    bool getClaimById(const uint160& claimId, std::string& name, CClaimValue& value);
+
     // is a claim in queue
     boost::test_tools::predicate_result is_claim_in_queue(const std::string& name, const CTransaction &tx);
 
@@ -113,12 +113,6 @@ struct ClaimTrieChainFixture: public CClaimTrieCache
 
     // check effective quantity of best claim
     boost::test_tools::predicate_result best_claim_effective_amount_equals(const std::string& name, CAmount amount);
-
-    std::size_t getTotalNamesInTrie() const;
-
-private:
-    template <typename K>
-    bool keyTypeEmpty(uint8_t keyType);
 };
 
 #endif // _CLAIMTRIEFIXTURE_H_

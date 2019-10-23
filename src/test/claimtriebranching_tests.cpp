@@ -363,7 +363,7 @@ BOOST_AUTO_TEST_CASE(support_spend_test)
     uint32_t prevout = 0;
     CMutableTransaction tx;
     tx.nVersion = CTransaction::CURRENT_VERSION;
-    tx.nLockTime = 1 << 31; // Disable BIP68
+    tx.nLockTime = 1U << 31; // Disable BIP68
     tx.vin.resize(2);
     tx.vout.resize(1);
     tx.vin[0].prevout.hash = tx3.GetHash();
@@ -447,7 +447,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
 
     CMutableTransaction tx;
     tx.nVersion = CTransaction::CURRENT_VERSION;
-    tx.nLockTime = 1 << 31; // Disable BIP68
+    tx.nLockTime = 1U << 31; // Disable BIP68
     tx.vin.resize(2);
     tx.vout.resize(1);
     tx.vin[0].prevout.hash = tx8.GetHash();
@@ -530,7 +530,7 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
 
     CClaimValue claimValue;
     std::string claimName;
-    BOOST_CHECK(getClaimById(claimId, claimName, &claimValue));
+    BOOST_CHECK(fixture.getClaimById(claimId, claimName, claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId);
 
@@ -541,14 +541,14 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
     uint160 claimId2 = ClaimIdHash(tx2.GetHash(), 0);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(getClaimById(claimId2, claimName, &claimValue));
+    BOOST_CHECK(fixture.getClaimById(claimId2, claimName, claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId2);
 
 
     CMutableTransaction u1 = fixture.MakeUpdate(tx1, name, "updated one", claimId, 1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(getClaimById(claimId, claimName, &claimValue));
+    BOOST_CHECK(fixture.getClaimById(claimId, claimName, claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId);
     BOOST_CHECK_EQUAL(claimValue.nAmount, 1);
@@ -556,24 +556,24 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
 
     fixture.Spend(u1);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(!getClaimById(claimId, claimName, &claimValue));
+    BOOST_CHECK(!fixture.getClaimById(claimId, claimName, claimValue));
 
     fixture.DecrementBlocks(3);
 
     CClaimValue claimValue2;
     claimName = "";
-    BOOST_CHECK(!getClaimById(claimId2, claimName, &claimValue2));
+    BOOST_CHECK(!fixture.getClaimById(claimId2, claimName, claimValue2));
     BOOST_CHECK(claimName != name);
     BOOST_CHECK(claimValue2.claimId != claimId2);
 
-    BOOST_CHECK(getClaimById(claimId, claimName, &claimValue));
+    BOOST_CHECK(fixture.getClaimById(claimId, claimName, claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId);
 
     fixture.DecrementBlocks(2);
 
     claimName = "";
-    BOOST_CHECK(!getClaimById(claimId, claimName, &claimValue2));
+    BOOST_CHECK(!fixture.getClaimById(claimId, claimName, claimValue2));
     BOOST_CHECK(claimName != name);
     BOOST_CHECK(claimValue2.claimId != claimId);
 }
@@ -1816,7 +1816,7 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test_2)
 
     CClaimValue claimValue;
     std::string claimName;
-    BOOST_CHECK(getClaimById(claimId, claimName, &claimValue));
+    BOOST_CHECK(fixture.getClaimById(claimId, claimName, claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId);
 
@@ -1824,16 +1824,16 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test_2)
     CMutableTransaction txb = fixture.Spend(txx);
 
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(!getClaimById(claimId, claimName, &claimValue));
-    BOOST_CHECK(!getClaimById(claimIdx, claimName, &claimValue));
+    BOOST_CHECK(!fixture.getClaimById(claimId, claimName, claimValue));
+    BOOST_CHECK(!fixture.getClaimById(claimIdx, claimName, claimValue));
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(getClaimById(claimId, claimName, &claimValue));
+    BOOST_CHECK(fixture.getClaimById(claimId, claimName, claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId);
 
     // this test fails
-    BOOST_CHECK(getClaimById(claimIdx, claimName, &claimValue));
+    BOOST_CHECK(fixture.getClaimById(claimIdx, claimName, claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimIdx);
 }
@@ -1852,18 +1852,19 @@ BOOST_AUTO_TEST_CASE(update_on_support2_test)
     CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, name, 1);
     fixture.IncrementBlocks(1);
 
-    auto it = pclaimTrie->find(name);
-    BOOST_CHECK(it);
-    BOOST_CHECK_EQUAL(it->nHeightOfLastTakeover, height + 1);
+    uint160 claimId;
+    int lastTakeover;
+    BOOST_CHECK(fixture.getLastTakeoverForName(name, claimId, lastTakeover));
+    BOOST_CHECK_EQUAL(lastTakeover, height + 1);
+    BOOST_CHECK_EQUAL(ClaimIdHash(tx1.GetHash(), 0), claimId);
 
     fixture.Spend(s1);
     fixture.Spend(s2);
     CMutableTransaction u1 = fixture.MakeUpdate(tx1, name, value, ClaimIdHash(tx1.GetHash(), 0), 3);
     fixture.IncrementBlocks(1);
 
-    it = pclaimTrie->find(name);
-    BOOST_CHECK(it);
-    BOOST_CHECK_EQUAL(it->nHeightOfLastTakeover, height + 1);
+    BOOST_CHECK(fixture.getLastTakeoverForName(name, claimId, lastTakeover));
+    BOOST_CHECK_EQUAL(lastTakeover, height + 1);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

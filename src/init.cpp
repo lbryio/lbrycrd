@@ -1538,7 +1538,7 @@ bool AppInitMain()
                 }
 
                 CClaimTrieCache trieCache(pclaimTrie);
-                if (!trieCache.ReadFromDisk(chainActive.Tip()))
+                if (!trieCache.ValidateTipMatches(chainActive.Tip()))
                 {
                     strLoadError = _("Error loading the claim trie from disk");
                     break;

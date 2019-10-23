@@ -7,7 +7,6 @@
 #include <boost/locale.hpp>
 #include <boost/locale/conversion.hpp>
 #include <boost/locale/localization_backend.hpp>
-#include <boost/scope_exit.hpp>
 #include <boost/scoped_ptr.hpp>
 
 CClaimTrieCacheExpirationFork::CClaimTrieCacheExpirationFork(CClaimTrie* base)
@@ -71,30 +70,12 @@ bool CClaimTrieCacheExpirationFork::forkForExpirationChange(bool increment)
     will have their expiration extension removed.
     */
 
-    //look through db for expiration queues, if we haven't already found it in dirty expiration queue
-    boost::scoped_ptr<CDBIterator> pcursor(base->db->NewIterator());
-    for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next()) {
-        std::pair<uint8_t, int> key;
-        if (!pcursor->GetKey(key))
-            continue;
-        int height = key.second;
-        if (key.first == CLAIM_EXP_QUEUE_ROW) {
-            expirationQueueRowType row;
-            if (pcursor->GetValue(row)) {
-                reactivateClaim(row, height, increment);
-            } else {
-                return error("%s(): error reading expiration queue rows from disk", __func__);
-            }
-        } else if (key.first == SUPPORT_EXP_QUEUE_ROW) {
-            expirationQueueRowType row;
-            if (pcursor->GetValue(row)) {
-                reactivateSupport(row, height, increment);
-            } else {
-                return error("%s(): error reading support expiration queue rows from disk", __func__);
-            }
-        }
-    }
-
+    auto extension = Params().GetConsensus().nExtendedClaimExpirationTime - Params().GetConsensus().nOriginalClaimExpirationTime;
+    if (!increment) extension = -extension;
+    base->_db << "UPDATE claims SET expirationHeight = expirationHeight + ? WHERE expirationHeight >= ?" << extension << nNextHeight;
+    base->_db << "UPDATE supports SET expirationHeight = expirationHeight + ? WHERE expirationHeight >= ?" << extension << nNextHeight;
+    base->_db << "UPDATE nodes SET hash = NULL, claimHash = NULL"; // recompute all hashes (as there aren't that many at this point)
+    dirtyNodes = true;
     return true;
 }
 
@@ -144,27 +125,7 @@ std::string CClaimTrieCacheNormalizationFork::normalizeClaimName(const std::stri
     return normalized;
 }
 
-bool CClaimTrieCacheNormalizationFork::insertClaimIntoTrie(const std::string& name, const CClaimValue& claim, bool fCheckTakeover)
-{
-    return CClaimTrieCacheExpirationFork::insertClaimIntoTrie(normalizeClaimName(name, overrideInsertNormalization), claim, fCheckTakeover);
-}
-
-bool CClaimTrieCacheNormalizationFork::removeClaimFromTrie(const std::string& name, const COutPoint& outPoint, CClaimValue& claim, bool fCheckTakeover)
-{
-    return CClaimTrieCacheExpirationFork::removeClaimFromTrie(normalizeClaimName(name, overrideRemoveNormalization), outPoint, claim, fCheckTakeover);
-}
-
-bool CClaimTrieCacheNormalizationFork::insertSupportIntoMap(const std::string& name, const CSupportValue& support, bool fCheckTakeover)
-{
-    return CClaimTrieCacheExpirationFork::insertSupportIntoMap(normalizeClaimName(name, overrideInsertNormalization), support, fCheckTakeover);
-}
-
-bool CClaimTrieCacheNormalizationFork::removeSupportFromMap(const std::string& name, const COutPoint& outPoint, CSupportValue& support, bool fCheckTakeover)
-{
-    return CClaimTrieCacheExpirationFork::removeSupportFromMap(normalizeClaimName(name, overrideRemoveNormalization), outPoint, support, fCheckTakeover);
-}
-
-bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(insertUndoType& insertUndo, claimQueueRowType& removeUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo, std::vector<std::pair<std::string, int>>& takeoverHeightUndo)
+bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(bool forward)
 {
     if (nNextHeight != Params().GetConsensus().nNormalizedNameForkHeight)
         return false;
@@ -172,66 +133,40 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(insert
     // run the one-time upgrade of all names that need to change
     // it modifies the (cache) trie as it goes, so we need to grab everything to be modified first
 
-    for (auto it = base->cbegin(); it != base->cend(); ++it) {
-        const std::string normalized = normalizeClaimName(it.key(), true);
-        if (normalized == it.key())
-            continue;
+    base->_db.define("NORMALIZED", [this](const std::string& str) { return normalizeClaimName(str, true); });
 
-        auto& name = it.key();
-        auto supports = getSupportsForName(name);
-        for (auto support : supports) {
-            // if it's already going to expire just skip it
-            if (support.nHeight + expirationTime() <= nNextHeight)
-                continue;
-
-            assert(removeSupportFromMap(name, support.outPoint, support, false));
-            expireSupportUndo.emplace_back(name, support);
-            assert(insertSupportIntoMap(normalized, support, false));
-            insertSupportUndo.emplace_back(name, support.outPoint, -1);
-        }
-
-        namesToCheckForTakeover.insert(normalized);
-
-        auto cached = cacheData(name, false);
-        if (!cached || cached->empty())
-            continue;
-
-        auto claimsCopy = cached->claims;
-        auto takeoverHeightCopy = cached->nHeightOfLastTakeover;
-        for (auto claim : claimsCopy) {
-            if (claim.nHeight + expirationTime() <= nNextHeight)
-                continue;
-
-            assert(removeClaimFromTrie(name, claim.outPoint, claim, false));
-            removeUndo.emplace_back(name, claim);
-            assert(insertClaimIntoTrie(normalized, claim, true));
-            insertUndo.emplace_back(name, claim.outPoint, -1);
-        }
-
-        takeoverHeightUndo.emplace_back(name, takeoverHeightCopy);
+    auto query = base->_db << "SELECT NORMALIZED(name), name, claimID as nn FROM claims HAVING nodeName != nn";
+    for(auto&& row: query) {
+        std::string newName, oldName;
+        uint160 claimID;
+        row >> newName >> oldName >> claimID;
+        if (!forward) std::swap(newName, oldName);
+        base->_db << "UPDATE claims SET nodeName = ? WHERE claimID = ?" << newName << claimID;
+        base->_db << "DELETE FROM nodes WHERE name = ?" << oldName;
+        base->_db << "INSERT INTO nodes(name) VALUES(?) ON CONFLICT DO UPDATE hash = NULL, claimHash = NULL" << newName;
     }
+    dirtyNodes = true;
+
     return true;
 }
 
 bool CClaimTrieCacheNormalizationFork::incrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo, std::vector<std::pair<std::string, int>>& takeoverHeightUndo)
 {
-    overrideInsertNormalization = normalizeAllNamesInTrieIfNecessary(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverHeightUndo);
-    BOOST_SCOPE_EXIT(&overrideInsertNormalization) { overrideInsertNormalization = false; }
-    BOOST_SCOPE_EXIT_END
+    normalizeAllNamesInTrieIfNecessary(true);
     return CClaimTrieCacheExpirationFork::incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverHeightUndo);
 }
 
 bool CClaimTrieCacheNormalizationFork::decrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo)
 {
-    overrideRemoveNormalization = shouldNormalize();
-    BOOST_SCOPE_EXIT(&overrideRemoveNormalization) { overrideRemoveNormalization = false; }
-    BOOST_SCOPE_EXIT_END
-    return CClaimTrieCacheExpirationFork::decrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo);
+    auto ret = CClaimTrieCacheExpirationFork::decrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo);
+    if (ret)
+        normalizeAllNamesInTrieIfNecessary(false);
+    return ret;
 }
 
-bool CClaimTrieCacheNormalizationFork::getProofForName(const std::string& name, CClaimTrieProof& proof)
+bool CClaimTrieCacheNormalizationFork::getProofForName(const std::string& name, const uint160& finalClaim, CClaimTrieProof& proof)
 {
-    return CClaimTrieCacheExpirationFork::getProofForName(normalizeClaimName(name), proof);
+    return CClaimTrieCacheExpirationFork::getProofForName(normalizeClaimName(name), finalClaim, proof);
 }
 
 bool CClaimTrieCacheNormalizationFork::getInfoForName(const std::string& name, CClaimValue& claim) const
@@ -261,72 +196,46 @@ CClaimTrieCacheHashFork::CClaimTrieCacheHashFork(CClaimTrie* base) : CClaimTrieC
 static const uint256 leafHash = uint256S("0000000000000000000000000000000000000000000000000000000000000002");
 static const uint256 emptyHash = uint256S("0000000000000000000000000000000000000000000000000000000000000003");
 
-std::vector<uint256> getClaimHashes(const CClaimTrieData& data)
+uint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(const std::string& name, int lastTakeoverHeight, bool checkOnly)
 {
-    std::vector<uint256> hashes;
-    for (auto& claim : data.claims)
-        hashes.push_back(getValueHash(claim.outPoint, data.nHeightOfLastTakeover));
-    return hashes;
-}
+    if (nNextHeight < Params().GetConsensus().nAllClaimsInMerkleForkHeight)
+        return CClaimTrieCacheNormalizationFork::recursiveComputeMerkleHash(name, lastTakeoverHeight, checkOnly);
 
-template <typename T>
-using iCbType = std::function<uint256(T&)>;
+    auto childQuery = base->_db << "SELECT name, hash, lastTakeoverHeight FROM nodes WHERE parent = ? ORDER BY name" << name;
 
-template <typename TIterator>
-uint256 recursiveBinaryTreeHash(TIterator& it, const iCbType<TIterator>& process)
-{
     std::vector<uint256> childHashes;
-    for (auto& child : it.children())
-        childHashes.emplace_back(process(child));
+    for (auto&& row: childQuery) {
+        std::string key;
+        int keyLastTakeoverHeight;
+        std::unique_ptr<uint256> hash;
+        row >> key >> hash >> keyLastTakeoverHeight;
+        if (hash == nullptr) hash = std::make_unique<uint256>();
+        if (hash->IsNull()) {
+            *hash = recursiveComputeMerkleHash(key, keyLastTakeoverHeight, checkOnly);
+        }
+        childHashes.push_back(*hash);
+    }
+
+    auto claimQuery = base->_db << "SELECT c.txID, c.txN, c.validHeight, c.amount + "
+                      "SUM(SELECT s.amount FROM supports s WHERE s.supportedClaimID = c.claimID AND s.validHeight < ?) as effectiveAmount"
+                      "FROM claims c WHERE c.nodeName = ? AND c.validHeight < ? "
+                      "ORDER BY effectiveAmount DESC, c.blockHeight, c.txID, c.txN" << nNextHeight << name << nNextHeight;
 
     std::vector<uint256> claimHashes;
-    if (!it->empty())
-        claimHashes = getClaimHashes(it.data());
-    else if (!it.hasChildren())
-        return {};
+    for (auto&& row: claimQuery) {
+        COutPoint p;
+        row >> p.hash >> p.n;
+        auto claimHash = getValueHash(p, lastTakeoverHeight);
+        claimHashes.push_back(claimHash);
+    }
 
     auto left = childHashes.empty() ? leafHash : ComputeMerkleRoot(childHashes);
     auto right = claimHashes.empty() ? emptyHash : ComputeMerkleRoot(claimHashes);
 
-    return Hash(left.begin(), left.end(), right.begin(), right.end());
-}
-
-uint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(CClaimTrie::iterator& it)
-{
-    if (nNextHeight < Params().GetConsensus().nAllClaimsInMerkleForkHeight)
-        return CClaimTrieCacheNormalizationFork::recursiveComputeMerkleHash(it);
-
-    using iterator = CClaimTrie::iterator;
-    iCbType<iterator> process = [&process](iterator& it) -> uint256 {
-        if (it->hash.IsNull())
-            it->hash = recursiveBinaryTreeHash(it, process);
-        assert(!it->hash.IsNull());
-        return it->hash;
-    };
-    return process(it);
-}
-
-bool CClaimTrieCacheHashFork::recursiveCheckConsistency(CClaimTrie::const_iterator& it, std::string& failed) const
-{
-    if (nNextHeight < Params().GetConsensus().nAllClaimsInMerkleForkHeight)
-        return CClaimTrieCacheNormalizationFork::recursiveCheckConsistency(it, failed);
-
-    struct CRecursiveBreak {};
-    using iterator = CClaimTrie::const_iterator;
-    iCbType<iterator> process = [&failed, &process](iterator& it) -> uint256 {
-        if (it->hash.IsNull() || it->hash != recursiveBinaryTreeHash(it, process)) {
-            failed = it.key();
-            throw CRecursiveBreak();
-        }
-        return it->hash;
-    };
-
-    try {
-        process(it);
-    } catch (const CRecursiveBreak&) {
-        return false;
-    }
-    return true;
+    auto computedHash = Hash(left.begin(), left.end(), right.begin(), right.end());
+    if (!checkOnly)
+        base->_db << "UPDATE nodes SET hash = ? WHERE name = ?" << computedHash << name;
+    return computedHash;
 }
 
 std::vector<uint256> ComputeMerklePath(const std::vector<uint256>& hashes, uint32_t idx)
@@ -384,15 +293,10 @@ std::vector<uint256> ComputeMerklePath(const std::vector<uint256>& hashes, uint3
     return res;
 }
 
-bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, CClaimTrieProof& proof)
-{
-    return getProofForName(name, proof, nullptr);
-}
-
-bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, CClaimTrieProof& proof, const std::function<bool(const CClaimValue&)>& comp)
+bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const uint160& finalClaim, CClaimTrieProof& proof)
 {
     if (nNextHeight < Params().GetConsensus().nAllClaimsInMerkleForkHeight)
-        return CClaimTrieCacheNormalizationFork::getProofForName(name, proof);
+        return CClaimTrieCacheNormalizationFork::getProofForName(name, finalClaim, proof);
 
     auto fillPairs = [&proof](const std::vector<uint256>& hashes, uint32_t idx) {
         auto partials = ComputeMerklePath(hashes, idx);
@@ -401,39 +305,51 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, CClaimTri
     };
 
     // cache the parent nodes
-    cacheData(name, false);
     getMerkleHash();
     proof = CClaimTrieProof();
-    for (auto& it : static_cast<const CClaimTrie&>(nodesToAddOrUpdate).nodes(name)) {
+    auto nodeQuery = base->_db << "SELECT name, lastTakeoverHeight FROM nodes WHERE "
+                                  "name IN (WITH RECURSIVE prefix(p) AS (VALUES(?) UNION ALL "
+                                  "SELECT SUBSTR(p, 0, LENGTH(p)) FROM prefix WHERE p != '') SELECT p FROM prefix) "
+                                  "ORDER BY LENGTH(name)" << name;
+    for (auto&& row: nodeQuery) {
+        std::string key; int lastTakeover;
+        row >> key >> lastTakeover;
         std::vector<uint256> childHashes;
         uint32_t nextCurrentIdx = 0;
-        for (auto& child : it.children()) {
-            if (name.find(child.key()) == 0)
+        auto childQuery = base->_db << "SELECT name, hash FROM nodes WHERE parent = ?" << key;
+        for (auto&& child : childQuery) {
+            std::string childKey;
+            uint256 childHash;
+            child >> childKey >> childHash;
+            if (name.find(childKey) == 0)
                 nextCurrentIdx = uint32_t(childHashes.size());
-            childHashes.push_back(child->hash);
+            childHashes.push_back(childHash);
         }
 
+        auto cns = getClaimsForName(key);
         std::vector<uint256> claimHashes;
-        if (!it->empty())
-            claimHashes = getClaimHashes(it.data());
+        uint32_t finalClaimIdx = 0;
+        COutPoint finalOutPoint;
+        for (uint32_t i = 0; i < cns.claimsNsupports.size(); ++i) {
+            auto& child = cns.claimsNsupports[i].claim;
+            claimHashes.push_back(getValueHash(child.outPoint, lastTakeover));
+            if (child.claimId == finalClaim) {
+                finalClaimIdx = i;
+                finalOutPoint = child.outPoint;
+            }
+        }
 
         // I am on a node; I need a hash(children, claims)
         // if I am the last node on the list, it will be hash(children, x)
         // else it will be hash(x, claims)
-        if (it.key() == name) {
-            uint32_t nClaimIndex = 0;
-            auto& claims = it->claims;
-            auto itClaim = !comp ? claims.begin() : std::find_if(claims.begin(), claims.end(), comp);
-            if (itClaim != claims.end()) {
-                proof.hasValue = true;
-                proof.outPoint = itClaim->outPoint;
-                proof.nHeightOfLastTakeover = it->nHeightOfLastTakeover;
-                nClaimIndex = std::distance(claims.begin(), itClaim);
-            }
+        if (key == name) {
+            proof.outPoint = finalOutPoint;
+            proof.nHeightOfLastTakeover = lastTakeover;
+            proof.hasValue = true;
             auto hash = childHashes.empty() ? leafHash : ComputeMerkleRoot(childHashes);
             proof.pairs.emplace_back(true, hash);
             if (!claimHashes.empty())
-                fillPairs(claimHashes, nClaimIndex);
+                fillPairs(claimHashes, finalClaimIdx);
         } else {
             auto hash = claimHashes.empty() ? emptyHash : ComputeMerkleRoot(claimHashes);
             proof.pairs.emplace_back(false, hash);
@@ -445,33 +361,19 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, CClaimTri
     return true;
 }
 
-void CClaimTrieCacheHashFork::copyAllBaseToCache()
-{
-    for (auto it = base->cbegin(); it != base->cend(); ++it)
-        if (nodesAlreadyCached.insert(it.key()).second)
-            nodesToAddOrUpdate.insert(it.key(), it.data());
-
-    for (auto it = nodesToAddOrUpdate.begin(); it != nodesToAddOrUpdate.end(); ++it)
-        it->hash.SetNull();
-}
-
 void CClaimTrieCacheHashFork::initializeIncrement()
 {
     CClaimTrieCacheNormalizationFork::initializeIncrement();
     // we could do this in the constructor, but that would not allow for multiple increments in a row (as done in unit tests)
-    if (nNextHeight != Params().GetConsensus().nAllClaimsInMerkleForkHeight - 1)
-        return;
-
-    // if we are forking, we load the entire base trie into the cache trie
-    // we reset its hash computation so it can be recomputed completely
-    copyAllBaseToCache();
+    if (nNextHeight == Params().GetConsensus().nAllClaimsInMerkleForkHeight - 1)
+        base->_db << "UPDATE nodes SET hash = NULL";
 }
 
 bool CClaimTrieCacheHashFork::finalizeDecrement(std::vector<std::pair<std::string, int>>& takeoverHeightUndo)
 {
     auto ret = CClaimTrieCacheNormalizationFork::finalizeDecrement(takeoverHeightUndo);
     if (ret && nNextHeight == Params().GetConsensus().nAllClaimsInMerkleForkHeight - 1)
-        copyAllBaseToCache();
+        base->_db << "UPDATE nodes SET hash = NULL";
     return ret;
 }
 

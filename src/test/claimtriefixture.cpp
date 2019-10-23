@@ -268,7 +268,6 @@ void ClaimTrieChainFixture::IncrementBlocks(int num_blocks, bool mark)
     if (mark)
         marks.push_back(chainActive.Height());
 
-    clear(); // clears the internal cache
     for (int i = 0; i < num_blocks; ++i) {
         CScript coinbase_scriptpubkey;
         coinbase_scriptpubkey << CScriptNum(chainActive.Height());
@@ -286,7 +285,6 @@ void ClaimTrieChainFixture::IncrementBlocks(int num_blocks, bool mark)
 // disconnect i blocks from tip
 void ClaimTrieChainFixture::DecrementBlocks(int num_blocks)
 {
-    clear(); // clears the internal cache
     CValidationState state;
     {
         LOCK(cs_main);
@@ -309,52 +307,32 @@ void ClaimTrieChainFixture::DecrementBlocks()
     DecrementBlocks(chainActive.Height() - mark);
 }
 
-template <typename K>
-bool ClaimTrieChainFixture::keyTypeEmpty(uint8_t keyType)
-{
-    boost::scoped_ptr<CDBIterator> pcursor(base->db->NewIterator());
-    pcursor->SeekToFirst();
-
-    while (pcursor->Valid()) {
-        std::pair<uint8_t, K> key;
-        if (pcursor->GetKey(key))
-            if (key.first == keyType)
-                return false;
-        pcursor->Next();
-    }
-    return true;
-}
-
 bool ClaimTrieChainFixture::queueEmpty()
 {
-    for (const auto& claimQueue: claimQueueCache)
-        if (!claimQueue.second.empty())
-            return false;
-    return keyTypeEmpty<int>(CLAIM_QUEUE_ROW);
+    int64_t count;
+    base->_db << "SELECT COUNT(*) FROM claims WHERE validHeight >= ?" << nNextHeight >> count;
+    return count == 0;
 }
 
 bool ClaimTrieChainFixture::expirationQueueEmpty()
 {
-    for (const auto& expirationQueue: expirationQueueCache)
-        if (!expirationQueue.second.empty())
-            return false;
-    return keyTypeEmpty<int>(CLAIM_EXP_QUEUE_ROW);
+    int64_t count;
+    base->_db << "SELECT COUNT(*) FROM claims WHERE expirationHeight >= ?" << nNextHeight >> count;
+    return count == 0;
 }
 
 bool ClaimTrieChainFixture::supportEmpty()
 {
-    for (const auto& entry: supportCache)
-        if (!entry.second.empty())
-            return false;
-    return supportCache.empty() && keyTypeEmpty<std::string>(SUPPORT);
+    int64_t count;
+    base->_db << "SELECT COUNT(*) FROM supports" >> count;
+    return count == 0;
 }
 
 bool ClaimTrieChainFixture::supportQueueEmpty()
 {
-    for (const auto& support: supportQueueCache)
-        if (!support.second.empty())
-            return false;
-    return keyTypeEmpty<int>(SUPPORT_QUEUE_ROW);
+    int64_t count;
+    base->_db << "SELECT COUNT(*) FROM supports WHERE validHeight >= ?" << nNextHeight >> count;
+    return count == 0;
 }
 
 int ClaimTrieChainFixture::proportionalDelayFactor()
@@ -413,7 +391,7 @@ boost::test_tools::predicate_result ClaimTrieChainFixture::best_claim_effective_
     return true;
 }
 
-std::size_t ClaimTrieChainFixture::getTotalNamesInTrie() const
-{
-    return base->getTotalNamesInTrie();
+bool ClaimTrieChainFixture::getClaimById(const uint160 &claimId, std::string &name, CClaimValue &value) {
+    std::vector<unsigned char> claim(claimId.begin(), claimId.end());
+    return findNameForClaim(claim, value, name);
 }

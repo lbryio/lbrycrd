@@ -48,8 +48,7 @@
 #define T_PENDINGAMOUNT                 "pendingAmount"
 
 enum {
-    GETCLAIMSINTRIE = 0,
-    GETNAMESINTRIE,
+    GETNAMESINTRIE = 0,
     GETVALUEFORNAME,
     GETCLAIMSFORNAME,
     GETCLAIMBYID,
@@ -126,26 +125,6 @@ S3("    ", T_N, "                      (numeric) the index of the claim in the t
 S3("    ", T_LASTTAKEOVERHEIGHT, "     (numeric) the last height at which ownership of the name changed")
 
 static const char* const rpc_help[] = {
-
-// GETCLAIMSINTRIE
-S1("getclaimsintrie ( \"" T_BLOCKHASH R"(" )
-Return all claims in the name trie. Deprecated
-Arguments:)")
-S3("1. ", T_BLOCKHASH, BLOCKHASH_TEXT)
-S1("Result: [")
-S3("    ", T_NORMALIZEDNAME, "         (string) the name of the claim(s) (after normalization)")
-S3("    ", T_CLAIMS, ": [              (array of object) the claims for this name")
-S3("        ", T_NAME, "               (string) the original name of this claim (before normalization)")
-S3("        ", T_VALUE, "              (string) the value of this claim")
-S3("        ", T_ADDRESS, "            (string) the destination address of this claim")
-S3("        ", T_CLAIMID, "            (string) the claimId of the claim")
-S3("        ", T_TXID, "               (string) the txid of the claim")
-S3("        ", T_N, "                  (numeric) the index of the claim in the transaction's list of outputs")
-S3("        ", T_HEIGHT, "             (numeric) the height of the block in which this transaction is located")
-S3("        ", T_VALIDATHEIGHT, "      (numeric) the height at which the claim became/becomes valid")
-S3("        ", T_AMOUNT, "             (numeric) the amount of the claim")
-S1("    ]")
-"]",
 
 // GETNAMESINTRIE
 S1("getnamesintrie ( \"" T_BLOCKHASH R"(" )
