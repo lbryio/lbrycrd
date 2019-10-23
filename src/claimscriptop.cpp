@@ -11,38 +11,44 @@ CClaimScriptAddOp::CClaimScriptAddOp(const COutPoint& point, CAmount nValue, int
 {
 }
 
-bool CClaimScriptAddOp::claimName(CClaimTrieCache& trieCache, const std::string& name)
+bool CClaimScriptAddOp::claimName(CClaimTrieCache& trieCache, const std::string& name,
+        const std::vector<unsigned char>& metadata)
 {
-    return addClaim(trieCache, name, ClaimIdHash(point.hash, point.n));
+    return addClaim(trieCache, name, ClaimIdHash(point.hash, point.n), metadata);
 }
 
-bool CClaimScriptAddOp::updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId)
+bool CClaimScriptAddOp::updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
+        const std::vector<unsigned char>& metadata)
 {
-    return addClaim(trieCache, name, claimId);
+    return addClaim(trieCache, name, claimId, metadata);
 }
 
-bool CClaimScriptAddOp::addClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId)
+bool CClaimScriptAddOp::addClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
+        const std::vector<unsigned char>& metadata)
 {
-    return trieCache.addClaim(name, point, claimId, nValue, nHeight);
+    return trieCache.addClaim(name, point, claimId, nValue, nHeight, metadata);
 }
 
-bool CClaimScriptAddOp::supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId)
+bool CClaimScriptAddOp::supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
+                                     const std::vector<unsigned char>& metadata)
 {
-    return trieCache.addSupport(name, point, nValue, claimId, nHeight);
+    return trieCache.addSupport(name, point, nValue, claimId, nHeight, metadata);
 }
 
 CClaimScriptUndoAddOp::CClaimScriptUndoAddOp(const COutPoint& point, int nHeight) : point(point), nHeight(nHeight)
 {
 }
 
-bool CClaimScriptUndoAddOp::claimName(CClaimTrieCache& trieCache, const std::string& name)
+bool CClaimScriptUndoAddOp::claimName(CClaimTrieCache& trieCache, const std::string& name,
+        const std::vector<unsigned char>& metadata)
 {
     auto claimId = ClaimIdHash(point.hash, point.n);
     LogPrint(BCLog::CLAIMS, "--- [%lu]: OP_CLAIM_NAME \"%s\" with claimId %s and tx prevout %s at index %d\n", nHeight, name, claimId.GetHex(), point.hash.ToString(), point.n);
     return undoAddClaim(trieCache, name, claimId);
 }
 
-bool CClaimScriptUndoAddOp::updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId)
+bool CClaimScriptUndoAddOp::updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
+        const std::vector<unsigned char>& metadata)
 {
     LogPrint(BCLog::CLAIMS, "--- [%lu]: OP_UPDATE_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n", nHeight, name, claimId.GetHex(), point.hash.ToString(), point.n);
     return undoAddClaim(trieCache, name, claimId);
@@ -51,13 +57,16 @@ bool CClaimScriptUndoAddOp::updateClaim(CClaimTrieCache& trieCache, const std::s
 bool CClaimScriptUndoAddOp::undoAddClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId)
 {
     LogPrint(BCLog::CLAIMS, "%s: (txid: %s, nOut: %d) Removing %s, claimId: %s, from the claim trie due to block disconnect\n", __func__, point.hash.ToString(), point.n, name, claimId.ToString());
-    bool res = trieCache.undoAddClaim(name, point, nHeight);
+    std::string nodeName;
+    int validHeight;
+    bool res = trieCache.removeClaim(claimId, nodeName, validHeight);
     if (!res)
         LogPrint(BCLog::CLAIMS, "%s: Removing claim fails\n", __func__);
     return res;
 }
 
-bool CClaimScriptUndoAddOp::supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId)
+bool CClaimScriptUndoAddOp::supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
+        const std::vector<unsigned char>& metadata)
 {
     if (LogAcceptCategory(BCLog::CLAIMS)) {
         LogPrintf("--- [%lu]: OP_SUPPORT_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n", nHeight, name,
@@ -66,7 +75,9 @@ bool CClaimScriptUndoAddOp::supportClaim(CClaimTrieCache& trieCache, const std::
                 "%s: (txid: %s, nOut: %d) Removing support for %s, claimId: %s, from the claim trie due to block disconnect\n",
                 __func__, point.hash.ToString(), point.n, name, claimId.ToString());
     }
-    bool res = trieCache.undoAddSupport(name, point, nHeight);
+    std::string nodeName;
+    int validHeight;
+    bool res = trieCache.removeSupport(point, nodeName, validHeight);
     if (!res)
         LogPrint(BCLog::CLAIMS, "%s: Removing support fails\n", __func__);
     return res;
@@ -77,14 +88,16 @@ CClaimScriptSpendOp::CClaimScriptSpendOp(const COutPoint& point, int nHeight, in
 {
 }
 
-bool CClaimScriptSpendOp::claimName(CClaimTrieCache& trieCache, const std::string& name)
+bool CClaimScriptSpendOp::claimName(CClaimTrieCache& trieCache, const std::string& name,
+        const std::vector<unsigned char>& metadata)
 {
     auto claimId = ClaimIdHash(point.hash, point.n);
     LogPrint(BCLog::CLAIMS, "+++ [%lu]: OP_CLAIM_NAME \"%s\" with claimId %s and tx prevout %s at index %d\n", nHeight, name, claimId.GetHex(), point.hash.ToString(), point.n);
     return spendClaim(trieCache, name, claimId);
 }
 
-bool CClaimScriptSpendOp::updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId)
+bool CClaimScriptSpendOp::updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
+        const std::vector<unsigned char>& metadata)
 {
     LogPrint(BCLog::CLAIMS, "+++ [%lu]: OP_UPDATE_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n", nHeight, name, claimId.GetHex(), point.hash.ToString(), point.n);
     return spendClaim(trieCache, name, claimId);
@@ -92,14 +105,16 @@ bool CClaimScriptSpendOp::updateClaim(CClaimTrieCache& trieCache, const std::str
 
 bool CClaimScriptSpendOp::spendClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId)
 {
-    LogPrint(BCLog::CLAIMS, "%s: (txid: %s, nOut: %d) Removing %s, claimId: %s, from the claim trie\n", __func__, point.hash.ToString(), point.n, name, claimId.ToString());
-    bool res = trieCache.spendClaim(name, point, nHeight, nValidHeight);
+    LogPrint(BCLog::CLAIMS, "%s: (txid: %s, nOut: %d) Spending %s, claimId: %s, from the claim trie\n", __func__, point.hash.ToString(), point.n, name, claimId.ToString());
+    std::string nodeName;
+    bool res = trieCache.removeClaim(claimId, nodeName, nValidHeight);
     if (!res)
         LogPrint(BCLog::CLAIMS, "%s: Removing fails\n", __func__);
     return res;
 }
 
-bool CClaimScriptSpendOp::supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId)
+bool CClaimScriptSpendOp::supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
+        const std::vector<unsigned char>& metadata)
 {
     if (LogAcceptCategory(BCLog::CLAIMS)) {
         LogPrintf("+++ [%lu]: OP_SUPPORT_CLAIM \"%s\" with claimId %s and tx prevout %s at index %d\n", nHeight, name,
@@ -107,7 +122,8 @@ bool CClaimScriptSpendOp::supportClaim(CClaimTrieCache& trieCache, const std::st
         LogPrintf("%s: (txid: %s, nOut: %d) Restoring support for %s, claimId: %s, to the claim trie\n", __func__,
                   point.hash.ToString(), point.n, name, claimId.ToString());
     }
-    bool res = trieCache.spendSupport(name, point, nHeight, nValidHeight);
+    std::string nodeName;
+    bool res = trieCache.removeSupport(point, nodeName, nValidHeight);
     if (!res)
         LogPrint(BCLog::CLAIMS, "%s: Removing support fails\n", __func__);
     return res;
@@ -118,26 +134,30 @@ CClaimScriptUndoSpendOp::CClaimScriptUndoSpendOp(const COutPoint& point, CAmount
 {
 }
 
-bool CClaimScriptUndoSpendOp::claimName(CClaimTrieCache& trieCache, const std::string& name)
+bool CClaimScriptUndoSpendOp::claimName(CClaimTrieCache& trieCache, const std::string& name,
+        const std::vector<unsigned char>& metadata)
 {
-    return undoSpendClaim(trieCache, name, ClaimIdHash(point.hash, point.n));
+    return undoSpendClaim(trieCache, name, ClaimIdHash(point.hash, point.n), metadata);
 }
 
-bool CClaimScriptUndoSpendOp::updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId)
+bool CClaimScriptUndoSpendOp::updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
+        const std::vector<unsigned char>& metadata)
 {
-    return undoSpendClaim(trieCache, name, claimId);
+    return undoSpendClaim(trieCache, name, claimId, metadata);
 }
 
-bool CClaimScriptUndoSpendOp::undoSpendClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId)
+bool CClaimScriptUndoSpendOp::undoSpendClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
+        const std::vector<unsigned char>& metadata)
 {
     LogPrint(BCLog::CLAIMS, "%s: (txid: %s, nOut: %d) Restoring %s, claimId: %s, to the claim trie due to block disconnect\n", __func__, point.hash.ToString(), point.n, name, claimId.ToString());
-    return trieCache.undoSpendClaim(name, point, claimId, nValue, nHeight, nValidHeight);
+    return trieCache.addClaim(name, point, claimId, nValue, nHeight, metadata);
 }
 
-bool CClaimScriptUndoSpendOp::supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId)
+bool CClaimScriptUndoSpendOp::supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
+        const std::vector<unsigned char>& metadata)
 {
     LogPrint(BCLog::CLAIMS, "%s: (txid: %s, nOut: %d) Restoring support for %s, claimId: %s, to the claim trie due to block disconnect\n", __func__, point.hash.ToString(), point.n, name, claimId.ToString());
-    return trieCache.undoSpendSupport(name, point, claimId, nValue, nHeight, nValidHeight);
+    return trieCache.addSupport(name, point, nValue, claimId, nHeight, metadata);
 }
 
 static std::string vchToString(const std::vector<unsigned char>& name)
@@ -154,11 +174,13 @@ bool ProcessClaim(CClaimScriptOp& claimOp, CClaimTrieCache& trieCache, const CSc
 
     switch (op) {
         case OP_CLAIM_NAME:
-            return claimOp.claimName(trieCache, vchToString(vvchParams[0]));
+            return claimOp.claimName(trieCache, vchToString(vvchParams[0]), vvchParams[1]);
         case OP_SUPPORT_CLAIM:
-            return claimOp.supportClaim(trieCache, vchToString(vvchParams[0]), uint160(vvchParams[1]));
+            return claimOp.supportClaim(trieCache, vchToString(vvchParams[0]), uint160(vvchParams[1]),
+                    vvchParams.size() > 2 ? vvchParams[2] : std::vector<unsigned char>());
         case OP_UPDATE_CLAIM:
-            return claimOp.updateClaim(trieCache, vchToString(vvchParams[0]), uint160(vvchParams[1]));
+            return claimOp.updateClaim(trieCache, vchToString(vvchParams[0]), uint160(vvchParams[1]),
+                    vvchParams[2]);
     }
     throw std::runtime_error("Unimplemented OP handler.");
 }
@@ -213,10 +235,11 @@ void UpdateCache(const CTransaction& tx, CClaimTrieCache& trieCache, const CCoin
     public:
         using CClaimScriptAddOp::CClaimScriptAddOp;
 
-        bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override
+        bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
+                const std::vector<unsigned char>& metadata) override
         {
             if (callback(name, claimId))
-                return CClaimScriptAddOp::updateClaim(trieCache, name, claimId);
+                return CClaimScriptAddOp::updateClaim(trieCache, name, claimId, metadata);
             return false;
         }
         std::function<bool(const std::string& name, const uint160& claimId)> callback;

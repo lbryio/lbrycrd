@@ -276,7 +276,7 @@ BOOST_AUTO_TEST_CASE(hardfork_disk_test)
     BOOST_CHECK_EQUAL(fixture.expirationTime(), 3);
     fixture.IncrementBlocks(7, true);
     BOOST_CHECK_EQUAL(fixture.expirationTime(), 6);
-    fixture.ReadFromDisk(chainActive.Tip());
+    fixture.ValidateTipMatches(chainActive.Tip());
     BOOST_CHECK_EQUAL(fixture.expirationTime(), 6);
 
     // Create a claim and support 1 block before the fork height that will expire after the fork height.
@@ -287,7 +287,7 @@ BOOST_AUTO_TEST_CASE(hardfork_disk_test)
     CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, "test", 1);
     fixture.IncrementBlocks(1);
 
-    fixture.ReadFromDisk(chainActive.Tip());
+    fixture.ValidateTipMatches(chainActive.Tip());
     BOOST_CHECK_EQUAL(fixture.expirationTime(), 3);
     fixture.IncrementBlocks(1);
     BOOST_CHECK_EQUAL(fixture.expirationTime(), 6);
@@ -308,7 +308,7 @@ BOOST_AUTO_TEST_CASE(hardfork_disk_test)
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(),"test2","one",1);
     CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(),tx2,"test2",1);
     fixture.IncrementBlocks(1);
-    fixture.ReadFromDisk(chainActive.Tip());
+    fixture.ValidateTipMatches(chainActive.Tip());
     CMutableTransaction u2 = fixture.MakeUpdate(tx2, "test2", "two", ClaimIdHash(tx2.GetHash(), 0), 1);
     // increment to fork
     fixture.IncrementBlocks(2);
@@ -762,7 +762,7 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test_3)
 
     CClaimValue claimValue;
     std::string claimName;
-    BOOST_CHECK(getClaimById(claimId, claimName, &claimValue));
+    BOOST_CHECK(fixture.getClaimById(claimId, claimName, claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId);
     // make second claim with activation delay 1
@@ -772,14 +772,14 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test_3)
     fixture.IncrementBlocks(1);
     // second claim is not activated yet, but can still access by claim id
     BOOST_CHECK(fixture.is_best_claim(name, tx1));
-    BOOST_CHECK(getClaimById(claimId2, claimName, &claimValue));
+    BOOST_CHECK(fixture.getClaimById(claimId2, claimName, claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId2);
 
     fixture.IncrementBlocks(1);
     // second claim has activated
     BOOST_CHECK(fixture.is_best_claim(name, tx2));
-    BOOST_CHECK(getClaimById(claimId2, claimName, &claimValue));
+    BOOST_CHECK(fixture.getClaimById(claimId2, claimName, claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId2);
 
@@ -788,14 +788,14 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test_3)
     // second claim has been deactivated via decrement
     // should still be accesible via claim id
     BOOST_CHECK(fixture.is_best_claim(name, tx1));
-    BOOST_CHECK(getClaimById(claimId2, claimName, &claimValue));
+    BOOST_CHECK(fixture.getClaimById(claimId2, claimName, claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId2);
 
     fixture.IncrementBlocks(1);
     // second claim should have been re activated via increment
     BOOST_CHECK(fixture.is_best_claim(name, tx2));
-    BOOST_CHECK(getClaimById(claimId2, claimName, &claimValue));
+    BOOST_CHECK(fixture.getClaimById(claimId2, claimName, claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId2);
 }

@@ -149,7 +149,6 @@ BITCOIN_CORE_H = \
   policy/policy.h \
   policy/rbf.h \
   pow.h \
-  prefixtrie.h \
   protocol.h \
   random.h \
   reverse_iterator.h \
@@ -171,6 +170,8 @@ BITCOIN_CORE_H = \
   script/standard.h \
   shutdown.h \
   streams.h \
+  sqlite/sqlite3.h \
+  sqlite/hdr/sqlite_modern_cpp.h \
   support/allocators/secure.h \
   support/allocators/zeroafterfree.h \
   support/cleanse.h \
@@ -251,7 +252,6 @@ libbitcoin_server_a_SOURCES = \
   policy/policy.cpp \
   policy/rbf.cpp \
   pow.cpp \
-  prefixtrie.cpp \
   rest.cpp \
   rpc/blockchain.cpp \
   rpc/claimtrie.cpp \
@@ -262,6 +262,7 @@ libbitcoin_server_a_SOURCES = \
   rpc/server.cpp \
   rpc/util.cpp \
   script/sigcache.cpp \
+  sqlite/sqlite3.c \
   shutdown.cpp \
   timedata.cpp \
   torcontrol.cpp \
