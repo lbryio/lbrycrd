@@ -141,7 +141,4 @@ std::ostream& operator<<(std::ostream& os, const CClaimValue& claim);
 struct CSupportValue;
 std::ostream& operator<<(std::ostream& os, const CSupportValue& support);
 
-struct CClaimTrieData;
-std::ostream& operator<<(std::ostream& os, const CClaimTrieData& data);
-
 #endif

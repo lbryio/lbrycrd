@@ -1827,8 +1827,6 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
     assert(trieCache.finalizeDecrement(blockUndo.takeoverHeightUndo));
     auto merkleHash = trieCache.getMerkleHash();
     if (merkleHash != pindex->pprev->hashClaimTrie) {
-        if (!trieCache.empty())
-            trieCache.dumpToLog(trieCache.find({}));
         LogPrintf("Hash comparison failure at block %d\n", pindex->nHeight);
         assert(merkleHash == pindex->pprev->hashClaimTrie);
     }
@@ -2316,8 +2314,6 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
 
     if (trieCache.getMerkleHash() != block.hashClaimTrie)
     {
-        if (!trieCache.empty()) // we could run checkConsistency here, but it would take a while
-            trieCache.dumpToLog(trieCache.find({}));
         return state.DoS(100, error("ConnectBlock() : the merkle root of the claim trie does not match "
                                "(actual=%s vs block=%s on height=%d)", trieCache.getMerkleHash().GetHex(),
                                block.hashClaimTrie.GetHex(), pindex->nHeight), REJECT_INVALID, "bad-claim-merkle-hash");

@@ -56,12 +56,6 @@ std::ostream& operator<<(std::ostream& os, const COutPoint& point)
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const CClaimTrieData& data)
-{
-    os << data.hash.ToString();
-    return os;
-}
-
 std::ostream& operator<<(std::ostream& os, const CClaimValue& claim)
 {
     os << "claim(" << claim.outPoint.ToString()

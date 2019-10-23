@@ -93,8 +93,6 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_normalization)
     BOOST_CHECK(fixture.is_best_claim("normalizetest", tx1));
     BOOST_CHECK(fixture.best_claim_effective_amount_equals("normalizetest", 3));
 
-    BOOST_CHECK(!pclaimTrie->find("normalizeTest"));
-
     // Check equivalence of normalized claim names
     BOOST_CHECK(fixture.is_best_claim("normalizetest", tx1)); // collapsed tx2
     fixture.IncrementBlocks(1);
@@ -192,7 +190,7 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
 
     CClaimValue lookupClaim;
     std::string lookupName;
-    BOOST_CHECK(getClaimById(ClaimIdHash(tx2.GetHash(), 0), lookupName, &lookupClaim));
+    BOOST_CHECK(fixture.getClaimById(ClaimIdHash(tx2.GetHash(), 0), lookupName, lookupClaim));
     CClaimValue nval1;
     BOOST_CHECK(fixture.getInfoForName("amelie1", nval1));
     // amélie is not found cause normalization still not appear
@@ -219,12 +217,11 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
     BOOST_CHECK(ReadBlockFromDisk(block, pindex, Params().GetConsensus()));
     BOOST_CHECK(g_chainstate.DisconnectBlock(block, pindex, coins, trieCache) == DisconnectResult::DISCONNECT_OK);
     BOOST_CHECK(!trieCache.shouldNormalize());
-    BOOST_CHECK(!trieCache.spendClaim(name_normd, COutPoint(tx2.GetHash(), 0), currentHeight, amelieValidHeight));
-    BOOST_CHECK(trieCache.spendClaim(name_upper, COutPoint(tx2.GetHash(), 0), currentHeight, amelieValidHeight));
+    BOOST_CHECK(!trieCache.removeClaim(ClaimIdHash(tx2.GetHash(), 0), name_normd, amelieValidHeight));
+    BOOST_CHECK(trieCache.removeClaim(ClaimIdHash(tx2.GetHash(), 0), name_upper, amelieValidHeight));
 
-    BOOST_CHECK(!pclaimTrie->find(name));
     BOOST_CHECK(trieCache.getInfoForName(name, nval1));
-    BOOST_CHECK(trieCache.addClaim(name, COutPoint(tx1.GetHash(), 0), ClaimIdHash(tx1.GetHash(), 0), CAmount(2), currentHeight + 1));
+    BOOST_CHECK(trieCache.addClaim(name, COutPoint(tx1.GetHash(), 0), ClaimIdHash(tx1.GetHash(), 0), CAmount(2), currentHeight + 1, {}));
     BOOST_CHECK(trieCache.getInfoForName(name, nval1));
     insertUndoType insertUndo;
     claimQueueRowType expireUndo;
@@ -233,10 +230,6 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
     std::vector<std::pair<std::string, int> > takeoverHeightUndo;
     BOOST_CHECK(trieCache.incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverHeightUndo));
     BOOST_CHECK(trieCache.shouldNormalize());
-
-    // we cannot use getXXXForName cause they will normalized name
-    for (auto it = pclaimTrie->cbegin(); it != pclaimTrie->cend(); ++it)
-        BOOST_CHECK(it.key() != name);
 }
 
 BOOST_AUTO_TEST_CASE(undo_normalization_does_not_kill_claim_order)
@@ -312,11 +305,11 @@ BOOST_AUTO_TEST_CASE(normalization_removal_test)
 
     CClaimTrieCache cache(pclaimTrie);
     int height = chainActive.Height() + 1;
-    cache.addClaim("AB", COutPoint(tx1.GetHash(), 0), ClaimIdHash(tx1.GetHash(), 0), 1, height);
-    cache.addClaim("Ab", COutPoint(tx2.GetHash(), 0), ClaimIdHash(tx2.GetHash(), 0), 2, height);
-    cache.addClaim("aB", COutPoint(tx3.GetHash(), 0), ClaimIdHash(tx3.GetHash(), 0), 3, height);
-    cache.addSupport("AB", COutPoint(sx1.GetHash(), 0), 1, ClaimIdHash(tx1.GetHash(), 0), height);
-    cache.addSupport("Ab", COutPoint(sx2.GetHash(), 0), 1, ClaimIdHash(tx2.GetHash(), 0), height);
+    cache.addClaim("AB", COutPoint(tx1.GetHash(), 0), ClaimIdHash(tx1.GetHash(), 0), 1, height, {});
+    cache.addClaim("Ab", COutPoint(tx2.GetHash(), 0), ClaimIdHash(tx2.GetHash(), 0), 2, height, {});
+    cache.addClaim("aB", COutPoint(tx3.GetHash(), 0), ClaimIdHash(tx3.GetHash(), 0), 3, height, {});
+    cache.addSupport("AB", COutPoint(sx1.GetHash(), 0), 1, ClaimIdHash(tx1.GetHash(), 0), height, {});
+    cache.addSupport("Ab", COutPoint(sx2.GetHash(), 0), 1, ClaimIdHash(tx2.GetHash(), 0), height, {});
     insertUndoType insertUndo;
     claimQueueRowType expireUndo;
     insertUndoType insertSupportUndo;
@@ -329,11 +322,12 @@ BOOST_AUTO_TEST_CASE(normalization_removal_test)
     BOOST_CHECK(cache.getClaimsForName("ab").claimsNsupports[2].supports.size() == 1U);
     BOOST_CHECK(cache.decrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo));
     BOOST_CHECK(cache.finalizeDecrement(takeoverHeightUndo));
-    BOOST_CHECK(cache.undoAddSupport("AB", COutPoint(sx1.GetHash(), 0), height));
-    BOOST_CHECK(cache.undoAddSupport("Ab", COutPoint(sx2.GetHash(), 0), height));
-    BOOST_CHECK(cache.undoAddClaim("AB", COutPoint(tx1.GetHash(), 0), height));
-    BOOST_CHECK(cache.undoAddClaim("Ab", COutPoint(tx2.GetHash(), 0), height));
-    BOOST_CHECK(cache.undoAddClaim("aB", COutPoint(tx3.GetHash(), 0), height));
+    std::string unused;
+    BOOST_CHECK(cache.removeSupport(COutPoint(sx1.GetHash(), 0), unused, height));
+    BOOST_CHECK(cache.removeSupport(COutPoint(sx2.GetHash(), 0), unused, height));
+    BOOST_CHECK(cache.removeClaim(ClaimIdHash(tx1.GetHash(), 0), unused, height));
+    BOOST_CHECK(cache.removeClaim(ClaimIdHash(tx2.GetHash(), 0), unused, height));
+    BOOST_CHECK(cache.removeClaim(ClaimIdHash(tx3.GetHash(), 0), unused, height));
     BOOST_CHECK(cache.getClaimsForName("ab").claimsNsupports.size() == 0U);
 }
 

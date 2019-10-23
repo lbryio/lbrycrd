@@ -15,7 +15,6 @@
 #include <validation.h>
 
 #include <boost/locale.hpp>
-#include <boost/locale/conversion.hpp>
 #include <boost/thread.hpp>
 #include <cmath>
 
@@ -108,13 +107,14 @@ std::string escapeNonUtf8(const std::string& name)
     }
 }
 
-static bool extractValue(const CScript& scriptPubKey, std::string& sValue)
+static bool extractValue(const CScript& scriptPubKey, std::string& name, std::string& sValue)
 {
     int op;
     std::vector<std::vector<unsigned char>> vvchParams;
     if (!DecodeClaimScript(scriptPubKey, op, vvchParams))
         return false;
 
+    name = std::string(vvchParams[0].begin(), vvchParams[0].end());
     if (op == OP_CLAIM_NAME)
         sValue = HexStr(vvchParams[1].begin(), vvchParams[1].end());
     else if (vvchParams.size() > 2) // both UPDATE and SUPPORT
@@ -122,52 +122,6 @@ static bool extractValue(const CScript& scriptPubKey, std::string& sValue)
     else
         return false;
     return true;
-}
-
-bool getClaimById(const uint160& claimId, std::string& name, CClaimValue* claim = nullptr)
-{
-    if (claimId.IsNull())
-        return false;
-
-    CClaimIndexElement element;
-    if (!pclaimTrie->db->Read(std::make_pair(CLAIM_BY_ID, claimId), element))
-        return false;
-    if (element.claim.claimId == claimId) {
-        name = element.name;
-        if (claim)
-            *claim = element.claim;
-        return true;
-    }
-    return false;
-}
-
-// name can be setted explicitly
-bool getClaimById(const std::string& partialId, std::string& name, CClaimValue* claim = nullptr)
-{
-    if (partialId.empty())
-        return false;
-
-    std::unique_ptr<CDBIterator> pcursor(pclaimTrie->db->NewIterator());
-
-    for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next()) {
-        std::pair<uint8_t, uint160> key;
-        if (!pcursor->GetKey(key) || key.first != CLAIM_BY_ID)
-            continue;
-
-        if (key.second.GetHex().find(partialId) != 0)
-            continue;
-
-        CClaimIndexElement element;
-        if (pcursor->GetValue(element)) {
-            if (!name.empty() && name != element.name)
-                continue;
-            name = element.name;
-            if (claim)
-                *claim = element.claim;
-            return true;
-        }
-    }
-    return false;
 }
 
 std::vector<CClaimNsupports> seqSort(const std::vector<CClaimNsupports>& source)
@@ -196,15 +150,13 @@ UniValue claimToJSON(const CCoinsViewCache& coinsCache, const CClaimValue& claim
 {
     UniValue result(UniValue::VOBJ);
 
-    std::string targetName;
-    if (getClaimById(claim.claimId, targetName))
-        result.pushKV(T_NAME, escapeNonUtf8(targetName));
-
     auto& coin = coinsCache.AccessCoin(claim.outPoint);
     if (!coin.IsSpent()) {
-        std::string value;
-        if (extractValue(coin.out.scriptPubKey, value))
+        std::string name, value;
+        if (extractValue(coin.out.scriptPubKey, name, value)) {
+            result.pushKV(T_NAME, escapeNonUtf8(name));
             result.pushKV(T_VALUE, value);
+        }
 
         CTxDestination address;
         if (ExtractDestination(coin.out.scriptPubKey, address))
@@ -227,9 +179,11 @@ UniValue supportToJSON(const CCoinsViewCache& coinsCache, const CSupportValue& s
 
     auto& coin = coinsCache.AccessCoin(support.outPoint);
     if (!coin.IsSpent()) {
-        std::string value;
-        if (extractValue(coin.out.scriptPubKey, value))
+        std::string name, value;
+        if (extractValue(coin.out.scriptPubKey, name, value)) {
+            ret.pushKV(T_NAME, name);
             ret.pushKV(T_VALUE, value);
+        }
 
         CTxDestination address;
         if (ExtractDestination(coin.out.scriptPubKey, address))
@@ -286,48 +240,6 @@ void validateRequest(const JSONRPCRequest& request, int findex, uint8_t required
         throw std::runtime_error(rpc_help[findex]);
 }
 
-static UniValue getclaimsintrie(const JSONRPCRequest& request)
-{
-    validateRequest(request, GETCLAIMSINTRIE, 0, 1);
-
-    if (!IsDeprecatedRPCEnabled("getclaimsintrie")) {
-        const auto msg = "getclaimsintrie is deprecated and will be removed in v0.18. To use this command, start with -deprecatedrpc=getclaimsintrie";
-        if (request.fHelp)
-            throw std::runtime_error(msg);
-        throw JSONRPCError(RPC_METHOD_DEPRECATED, msg);
-    }
-
-    LOCK(cs_main);
-    CCoinsViewCache coinsCache(pcoinsTip.get());
-    CClaimTrieCache trieCache(pclaimTrie);
-
-    if (!request.params.empty()) {
-        CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(request.params[0], T_BLOCKHASH " (optional parameter 1)"));
-        RollBackTo(blockIndex, coinsCache, trieCache);
-    }
-
-    UniValue ret(UniValue::VARR);
-    trieCache.iterate([&ret, &trieCache, &coinsCache] (const std::string& name, const CClaimTrieData& data) {
-        if (ShutdownRequested())
-            throw JSONRPCError(RPC_INTERNAL_ERROR, "Shutdown requested");
-
-        boost::this_thread::interruption_point();
-
-        if (data.empty())
-            return;
-
-        UniValue claims(UniValue::VARR);
-        for (auto& claim : data.claims)
-            claims.push_back(claimToJSON(coinsCache, claim));
-
-        UniValue nodeObj(UniValue::VOBJ);
-        nodeObj.pushKV(T_NORMALIZEDNAME, escapeNonUtf8(name));
-        nodeObj.pushKV(T_CLAIMS, claims);
-        ret.push_back(nodeObj);
-    });
-    return ret;
-}
-
 static UniValue getclaimtrie(const JSONRPCRequest& request)
 {
     throw JSONRPCError(RPC_METHOD_DEPRECATED, "getclaimtrie was removed in v0.17.\n"
@@ -348,12 +260,11 @@ static UniValue getnamesintrie(const JSONRPCRequest& request)
     }
 
     UniValue ret(UniValue::VARR);
-    trieCache.iterate([&ret](const std::string &name, const CClaimTrieData &data) {
-        if (!data.empty())
-            ret.push_back(escapeNonUtf8(name));
+    trieCache.getNamesInTrie([&ret](const std::string& name) {
+        ret.push_back(escapeNonUtf8(name));
+
         if (ShutdownRequested())
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Shutdown requested");
-
         boost::this_thread::interruption_point();
     });
 
@@ -393,10 +304,10 @@ static UniValue getvalueforname(const JSONRPCRequest& request)
 
     std::size_t seq = 0, bid = 0;
     if (csToName.claimsNsupports.size() > 1) {
-        auto& claimId = claimNsupports.claim.claimId;
+        auto& claimIdIn = claimNsupports.claim.claimId;
         auto seqOrder = seqSort(csToName.claimsNsupports);
-        seq = indexOf(seqOrder, claimId);
-        bid = indexOf(csToName.claimsNsupports, claimId);
+        seq = indexOf(seqOrder, claimIdIn);
+        bid = indexOf(csToName.claimsNsupports, claimIdIn);
     }
 
     ret.pushKV(T_NORMALIZEDNAME, escapeNonUtf8(csToName.name));
@@ -550,19 +461,19 @@ UniValue getclaimbyid(const JSONRPCRequest& request)
     if (claimId.length() < 3)
         throw JSONRPCError(RPC_INVALID_PARAMETER, T_CLAIMID " (parameter 1) should be at least 3 chars");
 
-    std::string name;
-    CClaimValue claim;
+    std::string foundName;
+    CClaimValue foundClaim;
     UniValue ret(UniValue::VOBJ);
-    bool found = claimId.length() == claimIdHexLength && getClaimById(uint160S(claimId), name, &claim);
-    if (found || getClaimById(claimId, name, &claim)) {
-        auto csToName = trieCache.getClaimsForName(name);
-        auto& claimNsupports = csToName.find(claim.claimId);
+    auto parsed = ParseHex(claimId);
+    if (trieCache.findNameForClaim(parsed, foundClaim, foundName)) {
+        auto csToName = trieCache.getClaimsForName(foundName);
+        auto& claimNsupports = csToName.find(foundClaim.claimId);
         if (!claimNsupports.IsNull()) {
             std::size_t seq = 0, bid = 0;
             if (csToName.claimsNsupports.size() > 1) {
                 auto seqOrder = seqSort(csToName.claimsNsupports);
-                seq = indexOf(seqOrder, claim.claimId);
-                bid = indexOf(csToName.claimsNsupports, claim.claimId);
+                seq = indexOf(seqOrder, foundClaim.claimId);
+                bid = indexOf(csToName.claimsNsupports, foundClaim.claimId);
             }
             ret.pushKV(T_NORMALIZEDNAME, escapeNonUtf8(csToName.name));
             ret.pushKVs(claimAndSupportsToJSON(coinsCache, claimNsupports));
@@ -579,7 +490,8 @@ UniValue gettotalclaimednames(const JSONRPCRequest& request)
     validateRequest(request, GETTOTALCLAIMEDNAMES, 0, 0);
 
     LOCK(cs_main);
-    auto num_names = pclaimTrie->getTotalNamesInTrie();
+    CClaimTrieCache trieCache(pclaimTrie); // TODO: add rollback support here
+    auto num_names = trieCache.getTotalNamesInTrie();
     return int(num_names);
 }
 
@@ -588,7 +500,8 @@ UniValue gettotalclaims(const JSONRPCRequest& request)
     validateRequest(request, GETTOTALCLAIMS, 0, 0);
 
     LOCK(cs_main);
-    auto num_claims = pclaimTrie->getTotalClaimsInTrie();
+    CClaimTrieCache trieCache(pclaimTrie); // TODO: add rollback support here
+    auto num_claims = trieCache.getTotalClaimsInTrie();
     return int(num_claims);
 }
 
@@ -600,7 +513,8 @@ UniValue gettotalvalueofclaims(const JSONRPCRequest& request)
     bool controlling_only = false;
     if (request.params.size() == 1)
         controlling_only = request.params[0].get_bool();
-    auto total_amount = pclaimTrie->getTotalValueOfClaimsInTrie(controlling_only);
+    CClaimTrieCache trieCache(pclaimTrie); // TODO: add rollback support here
+    auto total_amount = trieCache.getTotalValueOfClaimsInTrie(controlling_only);
     return ValueFromAmount(total_amount);
 }
 
@@ -739,30 +653,28 @@ UniValue getnameproof(const JSONRPCRequest& request)
     CCoinsViewCache coinsCache(pcoinsTip.get());
     CClaimTrieCache trieCache(pclaimTrie);
 
+    int validHeight = pclaimTrie->nNextHeight - 1;
     if (request.params.size() > 1) {
         CBlockIndex* pblockIndex = BlockHashIndex(ParseHashV(request.params[1], T_BLOCKHASH " (optional parameter 2)"));
         RollBackTo(pblockIndex, coinsCache, trieCache);
+        validHeight = pblockIndex->nHeight;
     }
 
-    std::string claimId;
-    if (request.params.size() > 2)
+    std::string name = request.params[0].get_str();
+
+    CClaimValue claim;
+    if (request.params.size() > 2) {
+        std::string claimId;
         ParseClaimtrieId(request.params[2], claimId, T_CLAIMID " (optional parameter 3)");
-
-    std::function<bool(const CClaimValue&)> comp;
-    if (claimId.length() == claimIdHexLength) {
-        auto claimIdx = uint160S(claimId);
-        comp = [claimIdx](const CClaimValue& claim) {
-            return claim.claimId == claimIdx;
-        };
-    } else if (!claimId.empty()) {
-        comp = [&claimId](const CClaimValue& claim) {
-            return claim.claimId.GetHex().find(claimId) == 0;
-        };
+        std::string foundClaimName;
+        if (!trieCache.findNameForClaim(ParseHex(claimId), claim, foundClaimName)
+            || foundClaimName != trieCache.adjustNameForValidHeight(name, validHeight))
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Failed to locate a claim with ID " + claimId);
     }
+    else trieCache.getInfoForName(name, claim);
 
     CClaimTrieProof proof;
-    std::string name = request.params[0].get_str();
-    if (!trieCache.getProofForName(name, proof, comp))
+    if (!trieCache.getProofForName(name, claim.claimId, proof))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Failed to generate proof");
 
     return proofToJSON(proof);
@@ -790,19 +702,13 @@ UniValue getclaimproofbybid(const JSONRPCRequest& request)
 
     std::string name = request.params[0].get_str();
 
-    std::function<bool(const CClaimValue&)> comp;
-    if (bid) {
-        auto csToName = trieCache.getClaimsForName(name);
-        if (uint32_t(bid) >= csToName.claimsNsupports.size())
-            return {UniValue::VARR};
-        auto claimId = csToName.claimsNsupports[bid].claim.claimId;
-        comp = [claimId](const CClaimValue& claim) {
-            return claim.claimId == claimId;
-        };
-    }
+    auto csToName = trieCache.getClaimsForName(name);
+    if (std::size_t(bid) >= csToName.claimsNsupports.size())
+        return {UniValue::VARR};
+    auto match = csToName.claimsNsupports[bid].claim.claimId;
 
     CClaimTrieProof proof;
-    if (!trieCache.getProofForName(name, proof, comp))
+    if (!trieCache.getProofForName(name, match, proof))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Failed to generate proof");
 
     return proofToJSON(proof);
@@ -830,18 +736,14 @@ UniValue getclaimproofbyseq(const JSONRPCRequest& request)
 
     std::string name = request.params[0].get_str();
     auto csToName = trieCache.getClaimsForName(name);
-    if (uint32_t(seq) >= csToName.claimsNsupports.size())
+    if (std::size_t(seq) >= csToName.claimsNsupports.size())
         return {UniValue::VARR};
 
-    std::function<bool(const CClaimValue&)> comp;
-    auto claimId = (csToName.claimsNsupports.size() == 1 ?
-        csToName.claimsNsupports[0] : seqSort(csToName.claimsNsupports)[seq]).claim.claimId;
-    comp = [&claimId](const CClaimValue& claim) {
-        return claim.claimId == claimId;
-    };
+    auto sorted = seqSort(csToName.claimsNsupports);
+    auto match = sorted[seq].claim.claimId;
 
     CClaimTrieProof proof;
-    if (!trieCache.getProofForName(name, proof, comp))
+    if (!trieCache.getProofForName(name, match, proof))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Failed to generate proof");
 
     return proofToJSON(proof);
@@ -905,7 +807,6 @@ UniValue checknormalization(const JSONRPCRequest& request)
 static const CRPCCommand commands[] =
 { //  category              name                            actor (function)            argNames
   //  --------------------- ------------------------        -----------------------     ----------
-    { "Claimtrie",          "getclaimsintrie",              &getclaimsintrie,           { T_BLOCKHASH } },
     { "Claimtrie",          "getnamesintrie",               &getnamesintrie,            { T_BLOCKHASH } },
     { "hidden",             "getclaimtrie",                 &getclaimtrie,              { } },
     { "Claimtrie",          "getvalueforname",              &getvalueforname,           { T_NAME,T_BLOCKHASH,T_CLAIMID } },

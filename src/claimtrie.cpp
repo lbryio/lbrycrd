@@ -1,12 +1,15 @@
 
 #include <claimtrie.h>
-#include <coins.h>
 #include <hash.h>
 #include <logging.h>
 #include <util.h>
 
 #include <algorithm>
 #include <memory>
+#include <consensus/merkle.h>
+
+#include <boost/container/flat_map.hpp>
+#include <boost/container/flat_set.hpp>
 
 extern const uint256 one = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
 
@@ -39,332 +42,280 @@ uint256 getValueHash(const COutPoint& outPoint, int nHeightOfLastTakeover)
     return result;
 }
 
-template <typename T>
-bool equals(const T& lhs, const T& rhs)
+CClaimTrie::CClaimTrie(bool fMemory, bool fWipe, int height, int proportionalDelayFactor, std::size_t cacheMB)
+    : _db(fMemory ? ":memory:" : (GetDataDir() / "claims.sqlite").string())
 {
-    return lhs == rhs;
-}
-
-template <typename T>
-bool equals(const T& value, const COutPoint& outPoint)
-{
-    return value.outPoint == outPoint;
-}
-
-template <typename K, typename V>
-bool equals(const std::pair<K, V>& pair, const CNameOutPointType& point)
-{
-    return pair.first == point.name && pair.second.outPoint == point.outPoint;
-}
-
-template <typename T, typename C>
-auto findOutPoint(T& cont, const C& point) -> decltype(cont.begin())
-{
-    using type = typename T::value_type;
-    static_assert(std::is_same<typename std::decay<T>::type, std::vector<type>>::value, "T should be a vector type");
-    return std::find_if(cont.begin(), cont.end(), [&point](const type& val) {
-        return equals(val, point);
-    });
-}
-
-template <typename T, typename C>
-bool eraseOutPoint(std::vector<T>& cont, const C& point, T* value = nullptr)
-{
-    auto it = findOutPoint(cont, point);
-    if (it == cont.end())
-        return false;
-    if (value)
-        std::swap(*it, *value);
-    cont.erase(it);
-    return true;
-}
-
-bool CClaimTrieData::insertClaim(const CClaimValue& claim)
-{
-    claims.push_back(claim);
-    return true;
-}
-
-bool CClaimTrieData::removeClaim(const COutPoint& outPoint, CClaimValue& claim)
-{
-    if (eraseOutPoint(claims, outPoint, &claim))
-        return true;
-
-    if (LogAcceptCategory(BCLog::CLAIMS)) {
-        LogPrintf("CClaimTrieData::%s() : asked to remove a claim that doesn't exist\n", __func__);
-        LogPrintf("CClaimTrieData::%s() : claims that do exist:\n", __func__);
-        for (auto& iClaim : claims)
-            LogPrintf("\t%s\n", iClaim.outPoint.ToString());
-    }
-    return false;
-}
-
-bool CClaimTrieData::getBestClaim(CClaimValue& claim) const
-{
-    if (claims.empty())
-        return false;
-    claim = claims.front();
-    return true;
-}
-
-bool CClaimTrieData::haveClaim(const COutPoint& outPoint) const
-{
-    return findOutPoint(claims, outPoint) != claims.end();
-}
-
-void CClaimTrieData::reorderClaims(const supportEntryType& supports)
-{
-    for (auto& claim : claims) {
-        claim.nEffectiveAmount = claim.nAmount;
-        for (const auto& support : supports)
-            if (support.supportedClaimId == claim.claimId)
-                claim.nEffectiveAmount += support.nAmount;
-    }
-
-    std::sort(claims.rbegin(), claims.rend());
-}
-
-CClaimTrie::CClaimTrie(bool fMemory, bool fWipe, int proportionalDelayFactor, std::size_t cacheMB)
-{
+    nNextHeight = height;
     nProportionalDelayFactor = proportionalDelayFactor;
-    db.reset(new CDBWrapper(GetDataDir() / "claimtrie", cacheMB * 1024ULL * 1024ULL, fMemory, fWipe, false));
+
+    _db.define("merkle_root", [](std::vector<uint256>& hashes, const std::vector<unsigned char>& blob) { hashes.emplace_back(uint256(blob)); },
+            [](const std::vector<uint256>& hashes) { return ComputeMerkleRoot(hashes); });
+
+    _db.define("merkle_pair", [](const std::vector<unsigned char>& blob1, const std::vector<unsigned char>& blob2) { return Hash(blob1.begin(), blob1.end(), blob2.begin(), blob2.end()); });
+    _db.define("merkle", [](const std::vector<unsigned char>& blob1) { return Hash(blob1.begin(), blob1.end()); });
+
+    _db << "CREATE TABLE IF NOT EXISTS nodes (name TEXT NOT NULL PRIMARY KEY, parent TEXT, "
+           "lastTakeoverHeight INTEGER NOT NULL DEFAULT 0, hash BLOB)";
+    _db << "CREATE INDEX nodes_hash ON nodes (hash)";
+    _db << "CREATE INDEX nodes_parent ON nodes (parent)";
+
+    _db << "CREATE TABLE IF NOT EXISTS claims (claimID BLOB NOT NULL PRIMARY KEY, name TEXT NOT NULL, "
+           "nodeName TEXT NOT NULL REFERENCES nodes(name) DEFERRABLE INITIALLY DEFERRED, "
+           "txID BLOB NOT NULL, txN INTEGER NOT NULL, blockHeight INTEGER NOT NULL, "
+           "validHeight INTEGER NOT NULL, expirationHeight INTEGER NOT NULL, "
+           "amount INTEGER NOT NULL, metadata BLOB);";
+    _db << "CREATE INDEX claims_validHeight ON claims (validHeight)";
+    _db << "CREATE INDEX claims_expirationHeight ON claims (expirationHeight)";
+    _db << "CREATE INDEX claims_nodeName ON claims (nodeName)";
+
+    _db << "CREATE TABLE IF NOT EXISTS supports (txID BLOB NOT NULL, txN INTEGER NOT NULL, "
+           "supportedClaimID BLOB NOT NULL, name TEXT NOT NULL, nodeName TEXT NOT NULL, "
+           "blockHeight INTEGER NOT NULL, validHeight INTEGER NOT NULL, expirationHeight INTEGER NOT NULL, "
+           "amount INTEGER NOT NULL, metadata BLOB, PRIMARY KEY(txID, txN));";
+    _db << "CREATE INDEX supports_supportedClaimID ON supports (supportedClaimID)";
+    _db << "CREATE INDEX supports_validHeight ON supports (validHeight)";
+    _db << "CREATE INDEX supports_expirationHeight ON supports (expirationHeight)";
+    _db << "CREATE INDEX supports_nodeName ON supports (nodeName)";
+
+    _db << "PRAGMA cache_size=-" + std::to_string(cacheMB * 1024); // in -KB
+    _db << "PRAGMA synchronous=NORMAL"; // don't disk sync after transaction commit
+    _db << "PRAGMA journal_mode=WAL"; // PRAGMA wal_autocheckpoint=10000;
+    _db << "PRAGMA case_sensitive_like=true";
+
+    if (fWipe) {
+        _db << "DELETE FROM nodes";
+        _db << "DELETE FROM claims";
+        _db << "DELETE FROM supports";
+    }
+
+    _db << "INSERT OR IGNORE INTO nodes(name, hash) VALUES('', ?)" << uint256(); // ensure that we always have our root node
+}
+
+CClaimTrieCacheBase::~CClaimTrieCacheBase() {
+    base->_db << "rollback";
 }
 
 bool CClaimTrie::SyncToDisk()
 {
-    return db && db->Sync();
+    // alternatively, switch to full sync after we are caught up on the chain
+    auto rc = sqlite3_wal_checkpoint_v2(_db.connection().get(), nullptr, SQLITE_CHECKPOINT_FULL, nullptr, nullptr);
+    return rc == SQLITE_OK;
 }
 
-template <typename T>
-using rm_ref = typename std::remove_reference<T>::type;
-
-template <typename Key, typename Map>
-auto getRow(const CDBWrapper& db, uint8_t dbkey, const Key& key, Map& queue) -> COptional<rm_ref<decltype(queue.at(key))>>
-{
-    auto it = queue.find(key);
-    if (it != queue.end())
-        return {&(it->second)};
-    typename Map::mapped_type row;
-    if (db.Read(std::make_pair(dbkey, key), row))
-        return {std::move(row)};
-    return {};
-}
-
-template <typename Key, typename Value>
-Value* getQueue(const CDBWrapper& db, uint8_t dbkey, const Key& key, std::map<Key, Value>& queue, bool create)
-{
-    auto row = getRow(db, dbkey, key, queue);
-    if (row.unique() || (!row && create)) {
-        auto ret = queue.emplace(key, row ? std::move(*row) : Value{});
-        assert(ret.second);
-        return &(ret.first->second);
-    }
-    return row;
-}
-
-template <typename T>
-inline constexpr bool supportedType()
-{
-    static_assert(std::is_same<T, CClaimValue>::value || std::is_same<T, CSupportValue>::value, "T is unsupported type");
-    return true;
-}
-
-template <>
-std::vector<queueEntryType<CClaimValue>>* CClaimTrieCacheBase::getQueueCacheRow(int nHeight, bool createIfNotExists)
-{
-    return getQueue(*(base->db), CLAIM_QUEUE_ROW, nHeight, claimQueueCache, createIfNotExists);
-}
-
-template <>
-std::vector<queueEntryType<CSupportValue>>* CClaimTrieCacheBase::getQueueCacheRow(int nHeight, bool createIfNotExists)
-{
-    return getQueue(*(base->db), SUPPORT_QUEUE_ROW, nHeight, supportQueueCache, createIfNotExists);
-}
-
-template <typename T>
-std::vector<queueEntryType<T>>* CClaimTrieCacheBase::getQueueCacheRow(int, bool)
-{
-    supportedType<T>();
-    return nullptr;
-}
-
-template <>
-COptional<const std::vector<queueEntryType<CClaimValue>>> CClaimTrieCacheBase::getQueueCacheRow(int nHeight) const
-{
-    return getRow(*(base->db), CLAIM_QUEUE_ROW, nHeight, claimQueueCache);
-}
-
-template <>
-COptional<const std::vector<queueEntryType<CSupportValue>>> CClaimTrieCacheBase::getQueueCacheRow(int nHeight) const
-{
-    return getRow(*(base->db), SUPPORT_QUEUE_ROW, nHeight, supportQueueCache);
-}
-
-template <typename T>
-COptional<const std::vector<queueEntryType<T>>> CClaimTrieCacheBase::getQueueCacheRow(int) const
-{
-    supportedType<T>();
-    return {};
-}
-
-template <>
-queueNameRowType* CClaimTrieCacheBase::getQueueCacheNameRow<CClaimValue>(const std::string& name, bool createIfNoExists)
-{
-    return getQueue(*(base->db), CLAIM_QUEUE_NAME_ROW, name, claimQueueNameCache, createIfNoExists);
-}
-
-template <>
-queueNameRowType* CClaimTrieCacheBase::getQueueCacheNameRow<CSupportValue>(const std::string& name, bool createIfNoExists)
-{
-    return getQueue(*(base->db), SUPPORT_QUEUE_NAME_ROW, name, supportQueueNameCache, createIfNoExists);
-}
-
-template <typename T>
-queueNameRowType* CClaimTrieCacheBase::getQueueCacheNameRow(const std::string&, bool)
-{
-    supportedType<T>();
-    return nullptr;
-}
-
-template <>
-COptional<const queueNameRowType> CClaimTrieCacheBase::getQueueCacheNameRow<CClaimValue>(const std::string& name) const
-{
-    return getRow(*(base->db), CLAIM_QUEUE_NAME_ROW, name, claimQueueNameCache);
-}
-
-template <>
-COptional<const queueNameRowType> CClaimTrieCacheBase::getQueueCacheNameRow<CSupportValue>(const std::string& name) const
-{
-    return getRow(*(base->db), SUPPORT_QUEUE_NAME_ROW, name, supportQueueNameCache);
-}
-
-template <typename T>
-COptional<const queueNameRowType> CClaimTrieCacheBase::getQueueCacheNameRow(const std::string&) const
-{
-    supportedType<T>();
-    return {};
-}
-
-template <>
-expirationQueueRowType* CClaimTrieCacheBase::getExpirationQueueCacheRow<CClaimValue>(int nHeight, bool createIfNoExists)
-{
-    return getQueue(*(base->db), CLAIM_EXP_QUEUE_ROW, nHeight, expirationQueueCache, createIfNoExists);
-}
-
-template <>
-expirationQueueRowType* CClaimTrieCacheBase::getExpirationQueueCacheRow<CSupportValue>(int nHeight, bool createIfNoExists)
-{
-    return getQueue(*(base->db), SUPPORT_EXP_QUEUE_ROW, nHeight, supportExpirationQueueCache, createIfNoExists);
-}
-
-template <typename T>
-expirationQueueRowType* CClaimTrieCacheBase::getExpirationQueueCacheRow(int, bool)
-{
-    supportedType<T>();
-    return nullptr;
+bool CClaimTrie::empty() {
+    int64_t count;
+    _db << "SELECT COUNT(*) FROM claims" >> count;
+    return count == 0;
 }
 
 bool CClaimTrieCacheBase::haveClaim(const std::string& name, const COutPoint& outPoint) const
 {
-    auto it = find(name);
-    return it && it->haveClaim(outPoint);
+    auto query = base->_db << "SELECT 1 FROM claims WHERE nodeName = ? AND txID = ? AND txN = ? AND validHeight < ? LIMIT 1"
+                                << name << outPoint.hash << outPoint.n << nNextHeight;
+    return query.begin() != query.end();
 }
 
 bool CClaimTrieCacheBase::haveSupport(const std::string& name, const COutPoint& outPoint) const
 {
-    const auto supports = getSupportsForName(name);
-    return findOutPoint(supports, outPoint) != supports.end();
+    auto query = base->_db << "SELECT 1 FROM supports WHERE nodeName = ? AND txID = ? AND txN = ? AND validHeight < ? LIMIT 1"
+                                << name << outPoint.hash << outPoint.n << nNextHeight;
+    return query.begin() != query.end();
 }
 
 supportEntryType CClaimTrieCacheBase::getSupportsForName(const std::string& name) const
 {
-    auto sit = supportCache.find(name);
-    if (sit != supportCache.end())
-        return sit->second;
-
-    supportEntryType supports;
-    if (base->db->Read(std::make_pair(SUPPORT, name), supports)) // don't trust the try/catch in here
-        return supports;
-    return {};
-}
-
-template <typename T>
-bool CClaimTrieCacheBase::haveInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const
-{
-    supportedType<T>();
-    if (auto nameRow = getQueueCacheNameRow<T>(name)) {
-        auto itNameRow = findOutPoint(*nameRow, outPoint);
-        if (itNameRow != nameRow->end()) {
-            nValidAtHeight = itNameRow->nHeight;
-            if (auto row = getQueueCacheRow<T>(nValidAtHeight)) {
-                auto iRow = findOutPoint(*row, CNameOutPointType{name, outPoint});
-                if (iRow != row->end()) {
-                    if (iRow->second.nValidAtHeight != nValidAtHeight)
-                        LogPrintf("%s: An inconsistency was found in the support queue. Please report this to the developers:\nDifferent nValidAtHeight between named queue and height queue\n: name: %s, txid: %s, nOut: %d, nValidAtHeight in named queue: %d, nValidAtHeight in height queue: %d current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, iRow->second.nValidAtHeight, nNextHeight);
-                    return true;
-                }
-            }
-        }
-        LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nValidAtHeight, nNextHeight);
+    // includes values that are not yet valid
+    auto query = base->_db << "SELECT supportedClaimID, txID, txN, blockHeight, validHeight, amount "
+                              "FROM supports WHERE nodeName = ?" << name;
+    supportEntryType ret;
+    for (auto&& row: query) {
+        CSupportValue value;
+        row >> value.supportedClaimId >> value.outPoint.hash >> value.outPoint.n
+            >> value.nHeight >> value.nValidAtHeight >> value.nAmount;
+        ret.push_back(value);
     }
-    return false;
+    return ret;
 }
 
 bool CClaimTrieCacheBase::haveClaimInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const
 {
-    return haveInQueue<CClaimValue>(name, outPoint, nValidAtHeight);
+    auto query = base->_db << "SELECT validHeight FROM claims WHERE nodeName = ? AND txID = ? AND txN = ? AND validHeight >= ? LIMIT 1"
+                                << name << outPoint.hash << outPoint.n << nNextHeight;
+    for (auto&& row: query) {
+        row >> nValidAtHeight;
+        return true;
+    }
+    return false;
 }
 
 bool CClaimTrieCacheBase::haveSupportInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const
 {
-    return haveInQueue<CSupportValue>(name, outPoint, nValidAtHeight);
-}
-
-std::size_t CClaimTrie::getTotalNamesInTrie() const
-{
-    std::size_t count = 0;
-    for (auto it = begin(); it != end(); ++it)
-        if (!it->empty()) ++count;
-    return count;
-}
-
-std::size_t CClaimTrie::getTotalClaimsInTrie() const
-{
-    std::size_t count = 0;
-    for (auto it = begin(); it != end(); ++it)
-        count += it->claims.size();
-    return count;
-}
-
-CAmount CClaimTrie::getTotalValueOfClaimsInTrie(bool fControllingOnly) const
-{
-    CAmount value_in_subtrie = 0;
-    for (auto it = begin(); it != end(); ++it) {
-        for (auto& claim : it->claims) {
-            value_in_subtrie += claim.nAmount;
-            if (fControllingOnly)
-                break;
-        }
+    auto query = base->_db << "SELECT validHeight FROM supports WHERE nodeName = ? AND txID = ? AND txN = ? AND validHeight >= ? LIMIT 1"
+                                << name << outPoint.hash << outPoint.n << nNextHeight;
+    for (auto&& row: query) {
+        row >> nValidAtHeight;
+        return true;
     }
-    return value_in_subtrie;
+    return false;
+}
+
+template<typename Target, typename... AttrTypes>
+struct vector_builder : public std::vector<Target> {
+    using std::vector<Target>::vector; // use constructors
+
+    void operator()(AttrTypes... args) {
+        this->emplace_back(std::forward<AttrTypes&&>(args)...);
+    };
+};
+
+bool CClaimTrieCacheBase::deleteNodeIfPossible(const std::string& name, std::string& parent, std::vector<std::string>& claims) {
+    if (name.empty()) return false;
+    // to remove a node it must have one or less children and no claims
+    vector_builder<std::string, std::string> claimsBuilder;
+    base->_db << "SELECT name FROM claims WHERE name = ?" << name >> claimsBuilder;
+    claims = std::move(claimsBuilder);
+    if (!claims.empty()) return false; // still has claims
+    // we now know it has no claims, but we need to check its children
+    int64_t count;
+    std::string childName;
+    base->_db << "SELECT COUNT(*),MAX(name) FROM nodes WHERE parent = ?" << name >> std::tie(count, childName);
+    if (count > 1) return false; // still has multiple children
+    // okay. it's going away
+    auto query = base->_db << "SELECT parent FROM nodes WHERE name = ?" << name;
+    auto it = query.begin();
+    if (it == query.end())
+        return true; // we'll assume that whoever deleted this node previously cleaned things up correctly
+    *it >> parent;
+    base->_db << "DELETE FROM nodes WHERE name = ?" << name;
+    auto ret = base->_db.rows_modified() > 0;
+    if (ret && count == 1) // make the child skip us and point to its grandparent:
+        base->_db << "UPDATE nodes SET parent = ? WHERE name = ?" << parent << childName;
+    if (ret)
+        base->_db << "UPDATE nodes SET hash = NULL WHERE name = ?" << parent;
+    return ret;
+}
+
+void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
+    if (!dirtyNodes) return;
+    dirtyNodes = false;
+
+    // your children are your nodes that match your key, go at least one longer,
+    // and have nothing in common with the other nodes in that set -- a hard query w/o parent
+
+    // the plan: update all the claim hashes first
+    vector_builder<std::string, std::string> names;
+    base->_db << "SELECT name FROM nodes WHERE hash IS NULL ORDER BY LENGTH(name) DESC, name DESC" >> names;
+
+    // there's an assumption that all nodes with claims are here; we do that as claims are inserted
+    // should we do the same to remove nodes? no; we need their last takeover height if they come back
+    //float time = 0;
+
+    auto parentQuery = base->_db << "SELECT name FROM nodes WHERE parent IS NOT NULL AND "
+                              "name IN (WITH RECURSIVE prefix(p) AS (VALUES(?) UNION ALL "
+                              "SELECT SUBSTR(p, 0, LENGTH(p)) FROM prefix WHERE p != '') SELECT p FROM prefix) "
+                              "ORDER BY LENGTH(name) DESC LIMIT 1";
+
+    for (auto& name: names) {
+        std::vector<std::string> claims;
+        std::string parent;
+        if (deleteNodeIfPossible(name, parent, claims)) {
+            std::string grandparent;
+            deleteNodeIfPossible(parent, grandparent, claims);
+            continue;
+        }
+        if (claims.empty())
+            continue;
+
+        // pretend that we hash them all together:
+        std::string nameOrParent;
+        parentQuery << name;
+        auto queryIt = parentQuery.begin();
+        if (queryIt != parentQuery.end())
+            *queryIt >> nameOrParent;
+        parentQuery++; // reusing knocks off about 10% of the query time
+
+        // if it already exists:
+        if (nameOrParent == name) { // TODO: we could actually set the hash here
+            base->_db << "UPDATE nodes SET hash = NULL WHERE name = ?" << name;
+            continue;
+        }
+
+        parent = std::move(nameOrParent);
+
+        // we know now that we need to insert it,
+        // but we may need to insert a parent node for it first (also called a split)
+        vector_builder<std::string, std::string> siblings;
+        base->_db << "SELECT name FROM nodes WHERE parent = ?" << parent >> siblings;
+        std::size_t splitPos = 0;
+        for (auto& sibling: siblings) {
+            if (sibling[parent.size()] == name[parent.size()]) {
+                splitPos = parent.size() + 1;
+                while(splitPos < sibling.size() && splitPos < name.size() && sibling[splitPos] == name[splitPos])
+                    ++splitPos;
+                auto newNodeName = name.substr(0, splitPos);
+                // notify new node's parent:
+                base->_db << "UPDATE nodes SET hash = NULL WHERE name = ?" << parent;
+                // and his sibling:
+                base->_db << "UPDATE nodes SET parent = ? WHERE name = ?" << newNodeName << sibling;
+                if (splitPos == name.size()) {
+                    // our new node is the same as the one we wanted to insert
+                    break;
+                }
+                // insert the split node:
+                base->_db << "INSERT INTO nodes(name, parent, hash) VALUES(?, ?, NULL) "
+                       "ON CONFLICT(name) DO UPDATE SET parent = excluded.parent, hash = NULL"
+                    << newNodeName << parent;
+                parent = std::move(newNodeName);
+                break;
+            }
+        }
+
+        base->_db << "INSERT INTO nodes(name, parent, hash) VALUES(?, ?, NULL) "
+               "ON CONFLICT(name) DO UPDATE SET parent = excluded.parent, hash = NULL"
+            << name << parent;
+        if (splitPos == 0)
+            base->_db << "UPDATE nodes SET hash = NULL WHERE name = ?" << parent;
+    }
+}
+
+std::size_t CClaimTrieCacheBase::getTotalNamesInTrie() const
+{
+    // you could do this select from the nodes table, but you would have to ensure it is not dirty first
+    std::size_t ret;
+    base->_db << "SELECT COUNT(DISTINCT nodeName) FROM claims" >> ret;
+    return ret;
+}
+
+std::size_t CClaimTrieCacheBase::getTotalClaimsInTrie() const
+{
+    std::size_t ret;
+    base->_db << "SELECT COUNT(*) FROM claims" >> ret;
+    return ret;
+}
+
+CAmount CClaimTrieCacheBase::getTotalValueOfClaimsInTrie(bool fControllingOnly) const
+{
+    CAmount ret = 0;
+    std::string query("SELECT c.amount + SUM(SELECT s.amount FROM supports s WHERE s.supportedClaimID = c.claimID AND s.validHeight < ?)"
+                      " FROM claims c WHERE c.validHeight < ?");
+    if (fControllingOnly)
+        throw std::runtime_error("not implemented yet"); // TODO: finish this
+    base->_db << query << nNextHeight << nNextHeight >> ret;
+    return ret;
 }
 
 bool CClaimTrieCacheBase::getInfoForName(const std::string& name, CClaimValue& claim) const
 {
-    auto it = find(name);
-    return it && it->getBestClaim(claim);
-}
-
-template <typename T>
-void CClaimTrieCacheBase::insertRowsFromQueue(std::vector<T>& result, const std::string& name) const
-{
-    supportedType<T>();
-    if (auto nameRows = getQueueCacheNameRow<T>(name))
-        for (auto& nameRow : *nameRows)
-            if (auto rows = getQueueCacheRow<T>(nameRow.nHeight))
-                for (auto& row : *rows)
-                    if (row.first == name)
-                        result.push_back(row.second);
+    auto query = base->_db << "SELECT c.claimID, c.txID, c.txN, c.blockHeight, c.validHeight, c.amount, c.amount + "
+                              "SUM(SELECT s.amount FROM supports s WHERE s.supportedClaimID = c.claimID AND s.validHeight < ?) as effectiveAmount"
+                              "FROM claims c WHERE c.nodeName = ? AND c.validHeight < ? "
+                              "ORDER BY effectiveAmount DESC, c.blockHeight, c.txID, c.txN LIMIT 1" << nNextHeight << name << nNextHeight;
+    for (auto&& row: query) {
+        row >> claim.claimId >> claim.outPoint.hash >> claim.outPoint.n
+            >> claim.nHeight >> claim.nValidAtHeight >> claim.nAmount >> claim.nEffectiveAmount;
+        return true;
+    }
+    return false;
 }
 
 CClaimSupportToName CClaimTrieCacheBase::getClaimsForName(const std::string& name) const
@@ -372,13 +323,18 @@ CClaimSupportToName CClaimTrieCacheBase::getClaimsForName(const std::string& nam
     claimEntryType claims;
     int nLastTakeoverHeight = 0;
     auto supports = getSupportsForName(name);
-    insertRowsFromQueue(supports, name);
 
-    if (auto it = find(name)) {
-        claims = it->claims;
-        nLastTakeoverHeight = it->nHeightOfLastTakeover;
+    auto query = base->_db << "SELECT claimID, txID, txN, blockHeight, validHeight, amount "
+                              "FROM claims WHERE nodeName = ?"
+                              << name;
+    for (auto&& row: query) {
+        CClaimValue claim;
+        row >> claim.claimId >> claim.outPoint.hash >> claim.outPoint.n
+            >> claim.nHeight >> claim.nValidAtHeight >> claim.nAmount;
+        if (nLastTakeoverHeight == 0 && claim.nValidAtHeight < nNextHeight)
+            nLastTakeoverHeight = claim.nValidAtHeight;
+        claims.push_back(claim);
     }
-    insertRowsFromQueue(claims, name);
 
     auto find = [&supports](decltype(supports)::iterator& it, const CClaimValue& claim) {
         it = std::find_if(it, supports.end(), [&claim](const CSupportValue& support) {
@@ -395,9 +351,11 @@ CClaimSupportToName CClaimTrieCacheBase::getClaimsForName(const std::string& nam
         for (auto it = supports.begin(); find(it, claim); it = supports.erase(it)) {
             if (it->nValidAtHeight < nNextHeight)
                 ic->effectiveAmount += it->nAmount;
-            ic->supports.emplace_back(std::move(*it));
+            ic->supports.emplace_back(*it);
         }
+        ic->claim.nEffectiveAmount = ic->effectiveAmount;
     }
+    std::sort(claimsNsupports.begin(), claimsNsupports.end());
     return {name, nLastTakeoverHeight, std::move(claimsNsupports), std::move(supports)};
 }
 
@@ -411,224 +369,102 @@ void completeHash(uint256& partialHash, const std::string& key, std::size_t to)
             .Finalize(partialHash.begin());
 }
 
-template <typename T>
-using iCbType = std::function<void(T&)>;
-
-template <typename TIterator>
-uint256 recursiveMerkleHash(TIterator& it, const iCbType<TIterator>& process)
+uint256 CClaimTrieCacheBase::recursiveComputeMerkleHash(const std::string& name, int lastTakeoverHeight, bool checkOnly)
 {
     std::vector<uint8_t> vchToHash;
-    const auto pos = it.key().size();
-    for (auto& child : it.children()) {
-        process(child);
-        auto& key = child.key();
-        auto hash = child->hash;
-        completeHash(hash, key, pos);
+    const auto pos = name.size();
+    auto query = base->_db << "SELECT name, hash, lastTakeoverHeight FROM nodes WHERE parent = ? ORDER BY name" << name;
+    for (auto&& row : query) {
+        std::string key;
+        int keyLastTakeoverHeight;
+        std::unique_ptr<uint256> hash;
+        row >> key >> hash >> keyLastTakeoverHeight;
+        if (hash == nullptr) hash = std::make_unique<uint256>();
+        if (hash->IsNull()) {
+            *hash = recursiveComputeMerkleHash(key, keyLastTakeoverHeight, checkOnly);
+        }
+        completeHash(*hash, key, pos);
         vchToHash.push_back(key[pos]);
-        vchToHash.insert(vchToHash.end(), hash.begin(), hash.end());
+        vchToHash.insert(vchToHash.end(), hash->begin(), hash->end());
     }
 
     CClaimValue claim;
-    if (it->getBestClaim(claim)) {
-        uint256 valueHash = getValueHash(claim.outPoint, it->nHeightOfLastTakeover);
+    if (getInfoForName(name, claim)) {
+        uint256 valueHash = getValueHash(claim.outPoint, lastTakeoverHeight);
         vchToHash.insert(vchToHash.end(), valueHash.begin(), valueHash.end());
-    } else if (!it.hasChildren()) {
-        return {};
     }
 
-    return Hash(vchToHash.begin(), vchToHash.end());
+    auto computedHash = Hash(vchToHash.begin(), vchToHash.end());
+    if (!checkOnly)
+        base->_db << "UPDATE nodes SET hash = ? WHERE name = ?" << computedHash << name;
+    return computedHash;
 }
 
-bool CClaimTrieCacheBase::recursiveCheckConsistency(CClaimTrie::const_iterator& it, std::string& failed) const
+bool CClaimTrieCacheBase::checkConsistency()
 {
-    struct CRecursiveBreak {};
-    using iterator = CClaimTrie::const_iterator;
-    iCbType<iterator> process = [&failed, &process](iterator& it) {
-        if (it->hash.IsNull() || it->hash != recursiveMerkleHash(it, process)) {
-            failed = it.key();
-            throw CRecursiveBreak();
-        }
-    };
+    // verify that all claims hash to the values on the nodes
 
-    try {
-        process(it);
-    } catch (const CRecursiveBreak&) {
-        return false;
+    auto query = base->_db << "SELECT name, hash, lastTakeoverHeight FROM nodes";
+    for (auto&& row: query) {
+        std::string name;
+        uint256 hash;
+        int takeoverHeight;
+        row >> name >> hash >> takeoverHeight;
+        auto computedHash = recursiveComputeMerkleHash(name, takeoverHeight, true);
+        if (computedHash != hash)
+            return false;
     }
     return true;
 }
 
-bool CClaimTrieCacheBase::checkConsistency() const
-{
-    if (base->empty())
-        return true;
-
-    auto it = base->cbegin();
-    std::string failed;
-    auto consistent = recursiveCheckConsistency(it, failed);
-    if (!consistent) {
-        LogPrintf("\nPrinting base tree from its parent:\n");
-        auto basePath = base->nodes(failed);
-        if (basePath.size() > 1) basePath.pop_back();
-        dumpToLog(basePath.back(), false);
-        auto cachePath = nodesToAddOrUpdate.nodes(failed);
-        if (!cachePath.empty()) {
-            LogPrintf("\nPrinting %s's parent from cache:\n", failed);
-            if (cachePath.size() > 1) cachePath.pop_back();
-            dumpToLog(cachePath.back(), false);
-        }
-        if (!nodesToDelete.empty()) {
-            std::string joined;
-            for (const auto &piece : nodesToDelete) joined += ", " + piece;
-            LogPrintf("Nodes to be deleted: %s\n", joined.substr(2));
-        }
-    }
-    return consistent;
-}
-
-template <typename K, typename T>
-void BatchWrite(CDBBatch& batch, uint8_t dbkey, const K& key, const std::vector<T>& value)
-{
-    if (value.empty()) {
-        batch.Erase(std::make_pair(dbkey, key));
-    } else {
-        batch.Write(std::make_pair(dbkey, key), value);
-    }
-}
-
-template <typename Container>
-void BatchWriteQueue(CDBBatch& batch, uint8_t dbkey, const Container& queue)
-{
-    for (auto& itQueue : queue)
-        BatchWrite(batch, dbkey, itQueue.first, itQueue.second);
-}
-
 bool CClaimTrieCacheBase::flush()
 {
-    CDBBatch batch(*(base->db));
-
-    for (const auto& claim : claimsToDeleteFromByIdIndex) {
-        auto it = std::find_if(claimsToAddToByIdIndex.begin(), claimsToAddToByIdIndex.end(),
-            [&claim](const CClaimIndexElement& e) {
-                return e.claim.claimId == claim.claimId;
-            }
-        );
-        if (it == claimsToAddToByIdIndex.end())
-            batch.Erase(std::make_pair(CLAIM_BY_ID, claim.claimId));
-    }
-
-    for (const auto& e : claimsToAddToByIdIndex)
-        batch.Write(std::make_pair(CLAIM_BY_ID, e.claim.claimId), e);
-
     getMerkleHash();
-
-    for (const auto& nodeName : nodesToDelete) {
-        if (nodesToAddOrUpdate.contains(nodeName))
-            continue;
-        auto nodes = base->nodes(nodeName);
-        base->erase(nodeName);
-        for (auto& node : nodes)
-            if (!node)
-                batch.Erase(std::make_pair(TRIE_NODE, node.key()));
+    try {
+        base->_db << "commit";
+        base->_db << "begin";
     }
-
-    for (auto it = nodesToAddOrUpdate.begin(); it != nodesToAddOrUpdate.end(); ++it) {
-        auto old = base->find(it.key());
-        if (!old || old.data() != it.data()) {
-            base->copy(it);
-            batch.Write(std::make_pair(TRIE_NODE, it.key()), it.data());
-        }
-    }
-
-    BatchWriteQueue(batch, SUPPORT, supportCache);
-
-    BatchWriteQueue(batch, CLAIM_QUEUE_ROW, claimQueueCache);
-    BatchWriteQueue(batch, CLAIM_QUEUE_NAME_ROW, claimQueueNameCache);
-    BatchWriteQueue(batch, CLAIM_EXP_QUEUE_ROW, expirationQueueCache);
-
-    BatchWriteQueue(batch, SUPPORT_QUEUE_ROW, supportQueueCache);
-    BatchWriteQueue(batch, SUPPORT_QUEUE_NAME_ROW, supportQueueNameCache);
-    BatchWriteQueue(batch, SUPPORT_EXP_QUEUE_ROW, supportExpirationQueueCache);
-
-    base->nNextHeight = nNextHeight;
-    if (!nodesToAddOrUpdate.empty() && (LogAcceptCategory(BCLog::CLAIMS) || LogAcceptCategory(BCLog::BENCH))) {
-        LogPrintf("TrieCache size: %zu nodes on block %d, batch writes %zu bytes.\n",
-                nodesToAddOrUpdate.height(), nNextHeight, batch.SizeEstimate());
-    }
-    auto ret = base->db->WriteBatch(batch);
-
-    clear();
-    return ret;
-}
-
-bool CClaimTrieCacheBase::ReadFromDisk(const CBlockIndex* tip)
-{
-    LogPrintf("Loading the claim trie from disk...\n");
-
-    base->nNextHeight = nNextHeight = tip ? tip->nHeight + 1 : 0;
-
-    if (tip && base->db->Exists(std::make_pair(TRIE_NODE_CHILDREN, std::string()))) {
-        LogPrintf("The claim trie database contains deprecated data and will need to be rebuilt.\n");
+    catch (const std::exception& e) {
+        LogPrintf("ERROR in ClaimTrieCache flush: %s\n", e.what());
         return false;
     }
+    base->nNextHeight = nNextHeight;
+    return true;
+}
 
-    clear();
-    base->clear();
-    boost::scoped_ptr<CDBIterator> pcursor(base->db->NewIterator());
-
-    for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next()) {
-        std::pair<uint8_t, std::string> key;
-        if (!pcursor->GetKey(key) || key.first != TRIE_NODE)
-            continue;
-
-        CClaimTrieData data;
-        if (pcursor->GetValue(data)) {
-            if (data.empty()) {
-                // we have a situation where our old trie had many empty nodes
-                // we don't want to automatically throw those all into our prefix trie
-                // we'll run a second pass to clean them up
-                continue;
-            }
-
-            // nEffectiveAmount isn't serialized but it needs to be initialized (as done in reorderClaims):
-            auto supports = getSupportsForName(key.second);
-            data.reorderClaims(supports);
-            base->insert(key.second, std::move(data));
-        } else {
-            return error("%s(): error reading claim trie from disk", __func__);
-        }
-    }
-
-    for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next()) {
-        std::pair<uint8_t, std::string> key;
-        if (!pcursor->GetKey(key) || key.first != TRIE_NODE)
-            continue;
-        auto hit = base->find(key.second);
-        if (hit) {
-            CClaimTrieData data;
-            if (pcursor->GetValue(data))
-                hit->hash = data.hash;
-        }
-        else {
-            base->db->Erase(key); // this uses a lot of memory and it's 1-time upgrade from 12.4 so we aren't going to batch it
-        }
-    }
+bool CClaimTrieCacheBase::ValidateTipMatches(const CBlockIndex* tip)
+{
+    base->nNextHeight = nNextHeight = tip ? tip->nHeight + 1 : 0;
 
     LogPrintf("Checking claim trie consistency... ");
     if (checkConsistency()) {
         LogPrintf("consistent\n");
-        if (tip && tip->hashClaimTrie != getMerkleHash())
-            return error("%s(): hashes don't match when reading claimtrie from disk", __func__);
+        if (tip && tip->hashClaimTrie != getMerkleHash()) {
+            // suppose we leave the old LevelDB data there: any harm done? It's ~10GB
+            // eh, we better blow it away; it's their job to back up the folder first
+            // well, only do it if we're empty on the sqlite side -- aka, we haven't trie to sync first
+            std::size_t count;
+            base->_db << "SELECT COUNT(*) FROM nodes" >> count;
+            if (!count) {
+                auto oldDataPath = GetDataDir() / "claimtrie";
+                boost::system::error_code ec;
+                boost::filesystem::remove_all(oldDataPath, ec);
+            }
+
+            return error("%s(): the block's root claim hash doesn't match the persisted claim root hash.", __func__);
+        }
         return true;
     }
     LogPrintf("inconsistent!\n");
+
     return false;
 }
 
-CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base) : base(base)
+CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base) : base(base), dirtyNodes(false)
 {
     assert(base);
     nNextHeight = base->nNextHeight;
+    base->_db << "begin";
 }
 
 int CClaimTrieCacheBase::expirationTime() const
@@ -636,689 +472,712 @@ int CClaimTrieCacheBase::expirationTime() const
     return Params().GetConsensus().nOriginalClaimExpirationTime;
 }
 
-uint256 CClaimTrieCacheBase::recursiveComputeMerkleHash(CClaimTrie::iterator& it)
-{
-    using iterator = CClaimTrie::iterator;
-    iCbType<iterator> process = [&process](iterator& it) {
-        if (it->hash.IsNull())
-            it->hash = recursiveMerkleHash(it, process);
-        assert(!it->hash.IsNull());
-    };
-    process(it);
-    return it->hash;
-}
-
 uint256 CClaimTrieCacheBase::getMerkleHash()
 {
-    auto it = nodesToAddOrUpdate.begin();
-    if (!it && nodesToDelete.empty())
-        it = base->begin();
-    return !it ? one : recursiveComputeMerkleHash(it);
-}
-
-CClaimTrie::const_iterator CClaimTrieCacheBase::find(const std::string& name) const
-{
-    auto it = nodesToAddOrUpdate.find(name);
-    if (it || nodesToDelete.count(name))
-        return it;
-    return base->find(name);
-}
-
-bool CClaimTrieCacheBase::empty() const
-{
-    return nodesToAddOrUpdate.empty(); // only used with the dump method, and we don't want to dump base
-}
-
-CClaimTrie::iterator CClaimTrieCacheBase::cacheData(const std::string& name, bool create)
-{
-    // get data from the cache. if no data, create empty one
-    const auto insert = [this](CClaimTrie::iterator& it) {
-        auto& key = it.key();
-        // we only ever cache nodes once per cache instance
-        if (!nodesAlreadyCached.count(key)) {
-            // do not insert nodes that are already present
-            nodesAlreadyCached.insert(key);
-            nodesToAddOrUpdate.insert(key, it.data());
-        }
-    };
-
-    // we need all parent nodes and their one level deep children
-    // to calculate merkle hash
-    auto nodes = base->nodes(name);
-    for (auto& node: nodes) {
-        for (auto& child : node.children())
-            if (!nodesAlreadyCached.count(child.key()))
-                nodesToAddOrUpdate.copy(child);
-        insert(node);
-    }
-
-    auto it = nodesToAddOrUpdate.find(name);
-    if (!it && create) {
-        it = nodesToAddOrUpdate.insert(name, CClaimTrieData{});
-        confirmTakeoverWorkaroundNeeded(name);
-    }
-
-    // make sure takeover height is updated
-    if (it && it->nHeightOfLastTakeover <= 0) {
-        uint160 unused;
-        getLastTakeoverForName(name, unused, it->nHeightOfLastTakeover);
-    }
-
-    return it;
+    ensureTreeStructureIsUpToDate();
+    int lastTakeover;
+    std::unique_ptr<uint256> hash;
+    base->_db << "SELECT hash, lastTakeoverHeight FROM nodes WHERE name = ''" >> std::tie(hash, lastTakeover);
+    if (hash == nullptr || hash->IsNull())
+        return recursiveComputeMerkleHash("", lastTakeover, false);
+    return *hash;
 }
 
 bool CClaimTrieCacheBase::getLastTakeoverForName(const std::string& name, uint160& claimId, int& takeoverHeight) const
 {
-    // takeoverCache always contains the most recent takeover occurring before the current block
-    auto cit = takeoverCache.find(name);
-    if (cit != takeoverCache.end()) {
-        std::tie(claimId, takeoverHeight) = cit->second;
-        return true;
-    }
-    if (auto it = base->find(name)) {
-        takeoverHeight = it->nHeightOfLastTakeover;
-        CClaimValue claim;
-        if (it->getBestClaim(claim)) {
-            claimId = claim.claimId;
-            return true;
-        }
-    }
-    return false;
-}
-
-void CClaimTrieCacheBase::markAsDirty(const std::string& name, bool fCheckTakeover)
-{
-    for (auto& node : nodesToAddOrUpdate.nodes(name))
-        node->hash.SetNull();
-
-    if (fCheckTakeover)
-        namesToCheckForTakeover.insert(name);
-}
-
-bool CClaimTrieCacheBase::insertClaimIntoTrie(const std::string& name, const CClaimValue& claim, bool fCheckTakeover)
-{
-    auto it = cacheData(name);
-    it->insertClaim(claim);
-    auto supports = getSupportsForName(name);
-    it->reorderClaims(supports);
-    markAsDirty(name, fCheckTakeover);
-    return true;
-}
-
-bool CClaimTrieCacheBase::removeClaimFromTrie(const std::string& name, const COutPoint& outPoint, CClaimValue& claim, bool fCheckTakeover)
-{
-    auto it = cacheData(name, false);
-
-    if (!it || !it->removeClaim(outPoint, claim)) {
-        LogPrint(BCLog::CLAIMS, "%s: Removing a claim was unsuccessful. name = %s, txhash = %s, nOut = %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n);
+    CClaimValue value;
+    if (!getInfoForName(name, value))
         return false;
-    }
-
-    if (!it->claims.empty()) {
-        auto supports = getSupportsForName(name);
-        it->reorderClaims(supports);
-    } else {
-        // in case we pull a child into our spot; we will then need their kids for hash
-        bool hasChild = it.hasChildren();
-        for (auto& child: it.children())
-            cacheData(child.key(), false);
-
-        nodesToAddOrUpdate.erase(name);
-        nodesToDelete.insert(name);
-
-        // NOTE: old code had a bug in it where nodes with no claims but with children would get left in the cache.
-        // This would cause the getNumBlocksOfContinuousOwnership to return zero (causing incorrect takeover height calc).
-        if (hasChild && nNextHeight < Params().GetConsensus().nMaxTakeoverWorkaroundHeight) {
-            removalWorkaround.insert(name);
-        }
-    }
-
-    markAsDirty(name, fCheckTakeover);
+    takeoverHeight = value.nValidAtHeight;
+    claimId = value.claimId;
     return true;
 }
 
-template <typename T>
-T CClaimTrieCacheBase::add(const std::string& name, const COutPoint& outPoint, const uint160& claimId, CAmount nAmount, int nHeight)
+bool CClaimTrieCacheBase::addClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId,
+        CAmount nAmount, int nHeight, const std::vector<unsigned char>& metadata)
 {
-    supportedType<T>();
-    assert(nHeight == nNextHeight);
     auto delay = getDelayForName(name, claimId);
-    T value(outPoint, claimId, nAmount, nHeight, nHeight + delay);
-    addToQueue(name, value);
-    return value;
-}
+    auto nodeName = adjustNameForValidHeight(name, nHeight + delay);
+    auto expires = expirationTime() + nHeight;
+    auto validHeight = nHeight + delay;
+    base->_db << "INSERT INTO claims(claimID, name, nodeName, txID, txN, amount, blockHeight, validHeight, expirationHeight, metadata) "
+                 "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" << claimId << name << nodeName
+                 << outPoint.hash << outPoint.n << nAmount << nHeight << validHeight << expires << metadata;
 
-bool CClaimTrieCacheBase::addClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId, CAmount nAmount, int nHeight)
-{
-    auto claim = add<CClaimValue>(name, outPoint, claimId, nAmount, nHeight);
-    claimsToAddToByIdIndex.emplace_back(name, claim);
-    LogPrint(BCLog::CLAIMS, "%s: name: %s, txhash: %s, nOut: %d, claimId: %s, nAmount: %d, nHeight: %d, nValidHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, claimId.GetHex(), nAmount, nHeight, claim.nValidAtHeight);
+    base->_db << "INSERT INTO nodes(name) VALUES(?) ON CONFLICT(name) DO UPDATE SET hash = NULL" << nodeName;
     return true;
 }
 
-bool CClaimTrieCacheBase::addSupport(const std::string& name, const COutPoint& outPoint, CAmount nAmount, const uint160& supportedClaimId, int nHeight)
+bool CClaimTrieCacheBase::addSupport(const std::string& name, const COutPoint& outPoint, CAmount nAmount,
+        const uint160& supportedClaimId, int nHeight, const std::vector<unsigned char>& metadata)
 {
-    LogPrint(BCLog::CLAIMS, "%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedClaimId: %s, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nAmount, supportedClaimId.GetHex(), nHeight, nNextHeight);
-    add<CSupportValue>(name, outPoint, supportedClaimId, nAmount, nHeight);
+    auto delay = getDelayForName(name, supportedClaimId);
+    auto nodeName = adjustNameForValidHeight(name, nHeight + delay);
+    auto expires = expirationTime() + nHeight;
+    auto validHeight = nHeight + delay;
+    base->_db << "INSERT INTO supports(supportedClaimID, name, nodeName, txID, txN, amount, blockHeight, validHeight, expirationHeight, metadata) "
+                 "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" << supportedClaimId << name << nodeName
+                 << outPoint.hash << outPoint.n << nAmount << nHeight << validHeight << expires << metadata;
+
+    base->_db << "INSERT INTO nodes(name) VALUES(?) ON CONFLICT(name) DO UPDATE SET hash = NULL" << nodeName;
     return true;
 }
 
-template <typename T>
-bool CClaimTrieCacheBase::addToQueue(const std::string& name, const T& value)
+bool CClaimTrieCacheBase::removeClaim(const uint160& claimId, std::string& nodeName, int& validHeight)
 {
-    supportedType<T>();
-    const auto newName = adjustNameForValidHeight(name, value.nValidAtHeight);
-    auto itQueueCache = getQueueCacheRow<T>(value.nValidAtHeight, true);
-    itQueueCache->emplace_back(newName, value);
-    auto itQueueName = getQueueCacheNameRow<T>(newName, true);
-    itQueueName->emplace_back(value.outPoint, value.nValidAtHeight);
-    auto itQueueExpiration = getExpirationQueueCacheRow<T>(value.nHeight + expirationTime(), true);
-    itQueueExpiration->emplace_back(newName, value.outPoint);
+    auto query = base->_db << "SELECT nodeName, validHeight FROM claims WHERE claimID = ?"
+              << claimId;
+    auto it = query.begin();
+    if (it == query.end()) return false;
+    *it >> nodeName >> validHeight;
+    base->_db << "DELETE FROM claims WHERE claimID = ?" << claimId;
+    base->_db << "UPDATE nodes SET hash = NULL WHERE name = ?" << nodeName;
+    dirtyNodes = base->_db.rows_modified() > 0;
     return true;
 }
 
-template <>
-bool CClaimTrieCacheBase::addToCache(const std::string& name, const CClaimValue& value, bool fCheckTakeover)
+bool CClaimTrieCacheBase::removeSupport(const COutPoint& outPoint, std::string& nodeName, int& validHeight)
 {
-    return insertClaimIntoTrie(name, value, fCheckTakeover);
-}
-
-template <>
-bool CClaimTrieCacheBase::addToCache(const std::string& name, const CSupportValue& value, bool fCheckTakeover)
-{
-    return insertSupportIntoMap(name, value, fCheckTakeover);
-}
-
-template <typename T>
-bool CClaimTrieCacheBase::addToCache(const std::string&, const T&, bool)
-{
-    supportedType<T>();
-    return false;
-}
-
-template <typename T>
-bool CClaimTrieCacheBase::undoSpend(const std::string& name, const T& value, int nValidAtHeight)
-{
-    supportedType<T>();
-    if (nValidAtHeight < nNextHeight) {
-        auto itQueueExpiration = getExpirationQueueCacheRow<T>(value.nHeight + expirationTime(), true);
-        itQueueExpiration->emplace_back(adjustNameForValidHeight(name, nValidAtHeight), value.outPoint);
-        return addToCache(name, value, false);
-    }
-    return addToQueue(name, value);
-}
-
-bool CClaimTrieCacheBase::undoSpendClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId, CAmount nAmount, int nHeight, int nValidAtHeight)
-{
-    LogPrint(BCLog::CLAIMS, "%s: name: %s, txhash: %s, nOut: %d, claimId: %s, nAmount: %d, nHeight: %d, nValidAtHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, claimId.GetHex(), nAmount, nHeight, nValidAtHeight, nNextHeight);
-    CClaimValue claim(outPoint, claimId, nAmount, nHeight, nValidAtHeight);
-    claimsToAddToByIdIndex.emplace_back(name, claim);
-    return undoSpend(name, claim, nValidAtHeight);
-}
-
-bool CClaimTrieCacheBase::undoSpendSupport(const std::string& name, const COutPoint& outPoint, const uint160& supportedClaimId, CAmount nAmount, int nHeight, int nValidAtHeight)
-{
-    LogPrint(BCLog::CLAIMS, "%s: name: %s, txhash: %s, nOut: %d, nAmount: %d, supportedClaimId: %s, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nAmount, supportedClaimId.GetHex(), nHeight, nNextHeight);
-    CSupportValue support(outPoint, supportedClaimId, nAmount, nHeight, nValidAtHeight);
-    return undoSpend(name, support, nValidAtHeight);
-}
-
-template <typename T>
-bool CClaimTrieCacheBase::removeFromQueue(const std::string& name, const COutPoint& outPoint, T& value)
-{
-    supportedType<T>();
-    if (auto itQueueNameRow = getQueueCacheNameRow<T>(name, false)) {
-        auto itQueueName = findOutPoint(*itQueueNameRow, outPoint);
-        if (itQueueName != itQueueNameRow->end()) {
-            if (auto itQueueRow = getQueueCacheRow<T>(itQueueName->nHeight, false)) {
-                auto itQueue = findOutPoint(*itQueueRow, CNameOutPointType{name, outPoint});
-                if (itQueue != itQueueRow->end()) {
-                    std::swap(value, itQueue->second);
-                    itQueueNameRow->erase(itQueueName);
-                    itQueueRow->erase(itQueue);
-                    return true;
-                }
-            }
-            LogPrintf("%s: An inconsistency was found in the claim queue. Please report this to the developers:\nFound in named queue but not in height queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, itQueueName->nHeight, nNextHeight);
-        }
-    }
-    return false;
-}
-
-bool CClaimTrieCacheBase::undoAddClaim(const std::string& name, const COutPoint& outPoint, int nHeight)
-{
-    int throwaway;
-    return removeClaim(name, outPoint, nHeight, throwaway, false);
-}
-
-bool CClaimTrieCacheBase::undoAddSupport(const std::string& name, const COutPoint& outPoint, int nHeight)
-{
-    LogPrint(BCLog::CLAIMS, "%s: name: %s, txhash: %s, nOut: %d, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nHeight, nNextHeight);
-    int throwaway;
-    return removeSupport(name, outPoint, nHeight, throwaway, false);
-}
-
-bool CClaimTrieCacheBase::spendClaim(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight)
-{
-    return removeClaim(name, outPoint, nHeight, nValidAtHeight, true);
-}
-
-bool CClaimTrieCacheBase::spendSupport(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight)
-{
-    LogPrint(BCLog::CLAIMS, "%s: name: %s, txhash: %s, nOut: %d, nHeight: %d, nNextHeight: %d\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nHeight, nNextHeight);
-    return removeSupport(name, outPoint, nHeight, nValidAtHeight, true);
-}
-
-template <>
-bool CClaimTrieCacheBase::removeFromCache(const std::string& name, const COutPoint& outPoint, CClaimValue& value, bool fCheckTakeover)
-{
-    return removeClaimFromTrie(name, outPoint, value, fCheckTakeover);
-}
-
-template <>
-bool CClaimTrieCacheBase::removeFromCache(const std::string& name, const COutPoint& outPoint, CSupportValue& value, bool fCheckTakeover)
-{
-    return removeSupportFromMap(name, outPoint, value, fCheckTakeover);
-}
-
-template <typename T>
-bool CClaimTrieCacheBase::removeFromCache(const std::string& name, const COutPoint& outPoint, T& value, bool fCheckTakeover)
-{
-    supportedType<T>();
-    return false;
-}
-
-template <typename T>
-bool CClaimTrieCacheBase::remove(T& value, const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight, bool fCheckTakeover)
-{
-    supportedType<T>();
-    nValidAtHeight = nHeight + getDelayForName(name);
-    std::string adjusted = adjustNameForValidHeight(name, nValidAtHeight);
-
-    if (removeFromQueue(adjusted, outPoint, value) || removeFromCache(name, outPoint, value, fCheckTakeover)) {
-        int expirationHeight = value.nHeight + expirationTime();
-        if (auto itQueueRow = getExpirationQueueCacheRow<T>(expirationHeight, false))
-            eraseOutPoint(*itQueueRow, CNameOutPointType{adjusted, outPoint});
-        nValidAtHeight = value.nValidAtHeight;
-        return true;
-    }
-    return false;
-}
-
-bool CClaimTrieCacheBase::removeClaim(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight, bool fCheckTakeover)
-{
-    LogPrint(BCLog::CLAIMS, "%s: name: %s, txhash: %s, nOut: %s, nNextHeight: %s\n", __func__, name, outPoint.hash.GetHex(), outPoint.n, nNextHeight);
-
-    CClaimValue claim;
-    if (remove(claim, name, outPoint, nHeight, nValidAtHeight, fCheckTakeover)) {
-        claimsToDeleteFromByIdIndex.insert(claim);
-        return true;
-    }
-    return false;
-}
-
-bool CClaimTrieCacheBase::removeSupport(const std::string& name, const COutPoint& outPoint, int nHeight, int& nValidAtHeight, bool fCheckTakeover)
-{
-    CSupportValue support;
-    return remove(support, name, outPoint, nHeight, nValidAtHeight, fCheckTakeover);
-}
-
-bool CClaimTrieCacheBase::insertSupportIntoMap(const std::string& name, const CSupportValue& support, bool fCheckTakeover)
-{
-    auto sit = supportCache.find(name);
-    if (sit == supportCache.end())
-        sit = supportCache.emplace(name, getSupportsForName(name)).first;
-
-    sit->second.push_back(support);
-    addTakeoverWorkaroundPotential(name);
-
-    if (auto it = cacheData(name, false)) {
-        markAsDirty(name, fCheckTakeover);
-        it->reorderClaims(sit->second);
-    }
-
+    auto query = base->_db << "SELECT nodeName, validHeight FROM supports WHERE txID = ? AND txN = ?"
+              << outPoint.hash << outPoint.n;
+    auto it = query.begin();
+    if (it == query.end()) return false;
+    *it >> nodeName >> validHeight;
+    base->_db << "DELETE FROM supports WHERE txID = ? AND txN = ?" << outPoint.hash << outPoint.n;
+    base->_db << "UPDATE nodes SET hash = NULL WHERE name = ?" << nodeName;
+    dirtyNodes = base->_db.rows_modified() > 0;
     return true;
 }
 
-bool CClaimTrieCacheBase::removeSupportFromMap(const std::string& name, const COutPoint& outPoint, CSupportValue& support, bool fCheckTakeover)
-{
-    auto sit = supportCache.find(name);
-    if (sit == supportCache.end())
-        sit = supportCache.emplace(name, getSupportsForName(name)).first;
-
-    if (eraseOutPoint(sit->second, outPoint, &support)) {
-        addTakeoverWorkaroundPotential(name);
-
-        if (auto dit = cacheData(name, false)) {
-            markAsDirty(name, fCheckTakeover);
-            dit->reorderClaims(sit->second);
-        }
-        return true;
-    }
-    LogPrint(BCLog::CLAIMS, "CClaimTrieCacheBase::%s() : asked to remove a support that doesn't exist\n", __func__);
-    return false;
-}
-
-void CClaimTrieCacheBase::dumpToLog(CClaimTrie::const_iterator it, bool diffFromBase) const
-{
-    if (diffFromBase) {
-        auto hit = base->find(it.key());
-        if (hit && hit->hash == it->hash)
-            return;
-    }
-
-    std::string indent(it.depth(), ' ');
-    auto children = it.children();
-    auto empty = children.empty() && it->claims.empty();
-    LogPrintf("%s%s, %s, %zu = %s,%s take: %d, kids: %zu\n", indent, it.key(), HexStr(it.key().begin(), it.key().end()),
-              empty ? " empty," : "", it.depth(), it->hash.ToString(), it->nHeightOfLastTakeover, children.size());
-    for (auto& claim: it->claims)
-        LogPrintf("%s   claim: %s, %ld, %ld, %d, %d\n", indent, claim.claimId.ToString(), claim.nAmount, claim.nEffectiveAmount, claim.nHeight, claim.nValidAtHeight);
-    auto supports = getSupportsForName(it.key());
-    for (auto& support: supports)
-        LogPrintf("%s   suprt: %s, %ld, %d, %d\n", indent, support.supportedClaimId.ToString(), support.nAmount, support.nHeight, support.nValidAtHeight);
-
-    for (auto& child: it.children())
-        dumpToLog(child, diffFromBase);
-}
-
-bool CClaimTrieCacheBase::shouldUseTakeoverWorkaround(const std::string& key) const
-{
-    auto it = takeoverWorkaround.find(key);
-    return it != takeoverWorkaround.end() && it->second;
-}
-
-void CClaimTrieCacheBase::addTakeoverWorkaroundPotential(const std::string& key)
-{
-    // the old code would add to the cache using a shortcut in the add/removeSupport methods
-    // this logic mimics the effects of that.
-    // (and the shortcut would later lead to a miscalculation of the takeover height)
-    if (nNextHeight > Params().GetConsensus().nMinTakeoverWorkaroundHeight
-        && nNextHeight < Params().GetConsensus().nMaxTakeoverWorkaroundHeight
-        && !nodesToAddOrUpdate.contains(key) && base->contains(key))
-        takeoverWorkaround.emplace(key, false);
-}
-
-void CClaimTrieCacheBase::confirmTakeoverWorkaroundNeeded(const std::string& key)
-{
-    // This is a super ugly hack to work around bug in old code.
-    // The bug: un/support a name then update it. This will cause its takeover height to be reset to current.
-    // This is because the old code with add to the cache without setting block originals when dealing in supports.
-    // Disable this takeoverWorkaround stuff on a future hard fork.
-    if (nNextHeight > Params().GetConsensus().nMinTakeoverWorkaroundHeight
-        && nNextHeight < Params().GetConsensus().nMaxTakeoverWorkaroundHeight) {
-        auto it = takeoverWorkaround.find(key);
-        if (it != takeoverWorkaround.end())
-            (*it).second = true;
-    }
-}
-
-template <typename T>
-inline void addTo(std::set<T>* set, const T& value)
-{
-    set->insert(value);
-}
-
-template <>
-inline void addTo(std::set<CSupportValue>*, const CSupportValue&)
-{
-}
-
-template <typename T>
-void CClaimTrieCacheBase::undoIncrement(insertUndoType& insertUndo, std::vector<queueEntryType<T>>& expireUndo, std::set<T>* deleted)
-{
-    supportedType<T>();
-    if (auto itQueueRow = getQueueCacheRow<T>(nNextHeight, false)) {
-        for (const auto& itEntry : *itQueueRow) {
-            if (auto itQueueNameRow = getQueueCacheNameRow<T>(itEntry.first, false)) {
-                auto& points = *itQueueNameRow;
-                auto itQueueName = std::find_if(points.begin(), points.end(), [&itEntry, this](const COutPointHeightType& point) {
-                     return point.outPoint == itEntry.second.outPoint && point.nHeight == nNextHeight;
-                });
-                if (itQueueName != points.end()) {
-                    points.erase(itQueueName);
-                } else {
-                    LogPrintf("%s: An inconsistency was found in the queue. Please report this to the developers:\nFound in height queue but not in named queue: name: %s, txid: %s, nOut: %d, nValidAtHeight: %d, current height: %d\n", __func__, itEntry.first, itEntry.second.outPoint.hash.GetHex(), itEntry.second.outPoint.n, itEntry.second.nValidAtHeight, nNextHeight);
-                    LogPrintf("Elements found for that name:\n");
-                    for (const auto& itQueueNameInner : points)
-                        LogPrintf("\ttxid: %s, nOut: %d, nValidAtHeight: %d\n", itQueueNameInner.outPoint.hash.GetHex(), itQueueNameInner.outPoint.n, itQueueNameInner.nHeight);
-                    assert(false);
-                }
-            } else {
-                LogPrintf("Nothing found for %s\n", itEntry.first);
-                assert(false);
-            }
-            addToCache(itEntry.first, itEntry.second, true);
-            insertUndo.emplace_back(itEntry.first, itEntry.second.outPoint, itEntry.second.nValidAtHeight);
-        }
-        itQueueRow->clear();
-    }
-
-    if (auto itExpirationRow = getExpirationQueueCacheRow<T>(nNextHeight, false)) {
-        for (const auto& itEntry : *itExpirationRow) {
-            T value;
-            assert(removeFromCache(itEntry.name, itEntry.outPoint, value, true));
-            expireUndo.emplace_back(itEntry.name, value);
-            addTo(deleted, value);
-        }
-        itExpirationRow->clear();
-    }
-}
-
-template <typename T>
-void CClaimTrieCacheBase::undoIncrement(const std::string& name, insertUndoType& insertUndo, std::vector<queueEntryType<T>>& expireUndo)
-{
-    supportedType<T>();
-    if (auto itQueueNameRow = getQueueCacheNameRow<T>(name, false)) {
-        for (const auto& itQueueName : *itQueueNameRow) {
-            bool found = false;
-            // Pull those claims out of the height-based queue
-            if (auto itQueueRow = getQueueCacheRow<T>(itQueueName.nHeight, false)) {
-                auto& points = *itQueueRow;
-                auto itQueue = std::find_if(points.begin(), points.end(), [&name, &itQueueName](const queueEntryType<T>& point) {
-                    return name == point.first && point.second.outPoint == itQueueName.outPoint && point.second.nValidAtHeight == itQueueName.nHeight;
-                });
-                if (itQueue != points.end()) {
-                    // Insert them into the queue undo with their previous nValidAtHeight
-                    insertUndo.emplace_back(itQueue->first, itQueue->second.outPoint, itQueue->second.nValidAtHeight);
-                    // Insert them into the name trie with the new nValidAtHeight
-                    itQueue->second.nValidAtHeight = nNextHeight;
-                    addToCache(itQueue->first, itQueue->second, false);
-                    // Delete them from the height-based queue
-                    points.erase(itQueue);
-                    found = true;
-                }
-            }
-            if (!found)
-                LogPrintf("%s(): An inconsistency was found in the queue. Please report this to the developers:\nFound in name queue but not in height based queue:\nname: %s, txid: %s, nOut: %d, nValidAtHeight in name based queue: %d, current height: %d\n", __func__, name, itQueueName.outPoint.hash.GetHex(), itQueueName.outPoint.n, itQueueName.nHeight, nNextHeight);
-            assert(found);
-        }
-        // remove all claims from the queue for that name
-        itQueueNameRow->clear();
-    }
-}
+static const boost::container::flat_map<std::pair<int, std::string>, int> takeoverWorkarounds = {
+        {{ 496856, "HunterxHunterAMV" }, 496835},
+        {{ 542978, "namethattune1" }, 542429},
+        {{ 543508, "namethattune-5" }, 543306},
+        {{ 546780, "forecasts" }, 546624},
+        {{ 548730, "forecasts" }, 546780},
+        {{ 551540, "forecasts" }, 548730},
+        {{ 552380, "chicthinkingofyou" }, 550804},
+        {{ 560363, "takephotowithlbryteam" }, 559962},
+        {{ 563710, "test-img" }, 563700},
+        {{ 566750, "itila" }, 543261},
+        {{ 567082, "malabarismo-com-bolas-de-futebol-vs-chap" }, 563592},
+        {{ 596860, "180mphpullsthrougheurope" }, 596757},
+        {{ 617743, "vaccines" }, 572756},
+        {{ 619609, "copface-slamshandcuffedteengirlintoconcrete" }, 539940},
+        {{ 620392, "banker-exposes-satanic-elite" }, 597788},
+        {{ 624997, "direttiva-sulle-armi-ue-in-svizzera-di" }, 567908},
+        {{ 624997, "best-of-apex" }, 585580},
+        {{ 629970, "cannot-ignore-my-veins" }, 629914},
+        {{ 633058, "bio-waste-we-programmed-your-brain" }, 617185},
+        {{ 633601, "macrolauncher-overview-first-look" }, 633058},
+        {{ 640186, "its-up-to-you-and-i-2019" }, 639116},
+        {{ 640241, "tor-eas-3-20" }, 592645},
+        {{ 640522, "seadoxdark" }, 619531},
+        {{ 640617, "lbry-przewodnik-1-instalacja" }, 451186},
+        {{ 640623, "avxchange-2019-the-next-netflix-spotify" }, 606790},
+        {{ 640684, "algebra-introduction" }, 624152},
+        {{ 640684, "a-high-school-math-teacher-does-a" }, 600885},
+        {{ 640684, "another-random-life-update" }, 600884},
+        {{ 640684, "who-is-the-taylor-series-for" }, 600882},
+        {{ 640684, "tedx-talk-released" }, 612303},
+        {{ 640730, "e-mental" }, 615375},
+        {{ 641143, "amiga-1200-bespoke-virgin-cinema" }, 623542},
+        {{ 641161, "dreamscape-432-omega" }, 618894},
+        {{ 641162, "2019-topstone-carbon-force-etap-axs-bike" }, 639107},
+        {{ 641186, "arin-sings-big-floppy-penis-live-jazz-2" }, 638904},
+        {{ 641421, "edward-snowden-on-bitcoin-and-privacy" }, 522729},
+        {{ 641421, "what-is-libra-facebook-s-new" }, 598236},
+        {{ 641421, "what-are-stablecoins-counter-party-risk" }, 583508},
+        {{ 641421, "anthony-pomp-pompliano-discusses-crypto" }, 564416},
+        {{ 641421, "tim-draper-crypto-invest-summit-2019" }, 550329},
+        {{ 641421, "mass-adoption-and-what-will-it-take-to" }, 549781},
+        {{ 641421, "dragonwolftech-youtube-channel-trailer" }, 567128},
+        {{ 641421, "naomi-brockwell-s-weekly-crypto-recap" }, 540006},
+        {{ 641421, "blockchain-based-youtube-twitter" }, 580809},
+        {{ 641421, "andreas-antonopoulos-on-privacy-privacy" }, 533522},
+        {{ 641817, "mexico-submits-and-big-tech-worsens" }, 582977},
+        {{ 641817, "why-we-need-travel-bans" }, 581354},
+        {{ 641880, "censored-by-patreon-bitchute-shares" }, 482460},
+        {{ 641880, "crypto-wonderland" }, 485218},
+        {{ 642168, "1-diabolo-julio-cezar-16-cbmcp-freestyle" }, 374999},
+        {{ 642314, "tough-students" }, 615780},
+        {{ 642697, "gamercauldronep2" }, 642153},
+        {{ 643406, "the-most-fun-i-ve-had-in-a-long-time" }, 616506},
+        {{ 643893, "spitshine69-and-uk-freedom-audits" }, 616876},
+        {{ 644480, "my-mum-getting-attacked-a-duck" }, 567624},
+        {{ 644486, "the-cryptocurrency-experiment" }, 569189},
+        {{ 644486, "tag-you-re-it" }, 558316},
+        {{ 644486, "orange-county-mineral-society-rock-and" }, 397138},
+        {{ 644486, "sampling-with-the-gold-rush-nugget" }, 527960},
+        {{ 644562, "september-15-21-a-new-way-of-doing" }, 634792},
+        {{ 644562, "july-week-3-collective-frequency-general" }, 607942},
+        {{ 644562, "september-8-14-growing-up-general" }, 630977},
+        {{ 644562, "august-4-10-collective-frequency-general" }, 612307},
+        {{ 644562, "august-11-17-collective-frequency" }, 617279},
+        {{ 644562, "september-1-7-gentle-wake-up-call" }, 627104},
+        {{ 644607, "no-more-lol" }, 643497},
+        {{ 644607, "minion-masters-who-knew" }, 641313},
+        {{ 645236, "danganronpa-3-the-end-of-hope-s-peak" }, 644153},
+        {{ 645348, "captchabot-a-discord-bot-to-protect-your" }, 592810},
+        {{ 645701, "the-xero-hour-saint-greta-of-thunberg" }, 644081},
+        {{ 645701, "batman-v-superman-theological-notions" }, 590189},
+        {{ 645918, "emacs-is-great-ep-0-init-el-from-org" }, 575666},
+        {{ 645918, "emacs-is-great-ep-1-packages" }, 575666},
+        {{ 645918, "emacs-is-great-ep-40-pt-2-hebrew" }, 575668},
+        {{ 645923, "nasal-snuff-review-osp-batch-2" }, 575658},
+        {{ 645923, "why-bit-coin" }, 575658},
+        {{ 645929, "begin-quest" }, 598822},
+        {{ 645929, "filthy-foe" }, 588386},
+        {{ 645929, "unsanitary-snow" }, 588386},
+        {{ 645929, "famispam-1-music-box" }, 588386},
+        {{ 645929, "running-away" }, 598822},
+        {{ 645931, "my-beloved-chris-madsen" }, 589114},
+        {{ 645931, "space-is-consciousness-chris-madsen" }, 589116},
+        {{ 645947, "gasifier-rocket-stove-secondary-burn" }, 590595},
+        {{ 645949, "mouse-razer-abyssus-v2-e-mousepad" }, 591139},
+        {{ 645949, "pr-temporada-2018-league-of-legends" }, 591138},
+        {{ 645949, "windows-10-build-9901-pt-br" }, 591137},
+        {{ 645949, "abrindo-pacotes-do-festival-lunar-2018" }, 591139},
+        {{ 645949, "unboxing-camisetas-personalizadas-play-e" }, 591138},
+        {{ 645949, "abrindo-envelopes-do-festival-lunar-2017" }, 591138},
+        {{ 645951, "grub-my-grub-played-guruku-tersayang" }, 618033},
+        {{ 645951, "ismeeltimepiece" }, 618038},
+        {{ 645951, "thoughts-on-doom" }, 596485},
+        {{ 645951, "thoughts-on-god-of-war-about-as-deep-as" }, 596485},
+        {{ 645956, "linux-lite-3-6-see-what-s-new" }, 645195},
+        {{ 646191, "kahlil-gibran-the-prophet-part-1" }, 597637},
+        {{ 646551, "crypto-market-crash-should-you-sell-your" }, 442613},
+        {{ 646551, "live-crypto-trading-and-market-analysis" }, 442615},
+        {{ 646551, "5-reasons-trading-is-always-better-than" }, 500850},
+        {{ 646551, "digitex-futures-dump-panic-selling-or" }, 568065},
+        {{ 646552, "how-to-install-polarr-on-kali-linux-bynp" }, 466235},
+        {{ 646586, "electoral-college-kids-civics-lesson" }, 430818},
+        {{ 646602, "grapes-full-90-minute-watercolour" }, 537108},
+        {{ 646602, "meizu-mx4-the-second-ubuntu-phone" }, 537109},
+        {{ 646609, "how-to-set-up-the-ledger-nano-x" }, 569992},
+        {{ 646609, "how-to-buy-ethereum" }, 482354},
+        {{ 646609, "how-to-install-setup-the-exodus-multi" }, 482356},
+        {{ 646609, "how-to-manage-your-passwords-using" }, 531987},
+        {{ 646609, "cryptodad-s-live-q-a-friday-may-3rd-2019" }, 562303},
+        {{ 646638, "resident-evil-ada-chapter-5-final" }, 605612},
+        {{ 646639, "taurus-june-2019-career-love-tarot" }, 586910},
+        {{ 646652, "digital-bullpen-ep-5-building-a-digital" }, 589274},
+        {{ 646661, "sunlight" }, 591076},
+        {{ 646661, "grasp-lab-nasa-open-mct-series" }, 589414},
+        {{ 646663, "bunnula-s-creepers-tim-pool-s-beanie-a" }, 599669},
+        {{ 646663, "bunnula-music-hey-ya-by-outkast" }, 605685},
+        {{ 646663, "bunnula-tv-s-music-television-eunoia" }, 644437},
+        {{ 646663, "the-pussy-centipede-40-sneakers-and" }, 587265},
+        {{ 646663, "bunnula-reacts-ashton-titty-whitty" }, 596988},
+        {{ 646677, "filip-reviews-jeromes-dream-cataracts-so" }, 589751},
+        {{ 646691, "fascism-and-its-mobilizing-passions" }, 464342},
+        {{ 646692, "hsb-color-layers-action-for-adobe" }, 586533},
+        {{ 646692, "master-colorist-action-pack-extracting" }, 631830},
+        {{ 646693, "how-to-protect-your-garden-from-animals" }, 588476},
+        {{ 646693, "gardening-for-the-apocalypse-epic" }, 588472},
+        {{ 646693, "my-first-bee-hive-foundationless-natural" }, 588469},
+        {{ 646693, "dragon-fruit-and-passion-fruit-planting" }, 588470},
+        {{ 646693, "installing-my-first-foundationless" }, 588469},
+        {{ 646705, "first-naza-fpv" }, 590411},
+        {{ 646717, "first-burning-man-2019-detour-034" }, 630247},
+        {{ 646717, "why-bob-marley-was-an-idiot-test-driving" }, 477558},
+        {{ 646717, "we-are-addicted-to-gambling-ufc-207-w" }, 481398},
+        {{ 646717, "ghetto-swap-meet-selling-storage-lockers" }, 498291},
+        {{ 646738, "1-kings-chapter-7-summary-and-what-god" }, 586599},
+        {{ 646814, "brand-spanking-new-junior-high-school" }, 592378},
+        {{ 646814, "lupe-fiasco-freestyle-at-end-of-the-weak" }, 639535},
+        {{ 646824, "how-to-one-stroke-painting-doodles-mixed" }, 592404},
+        {{ 646824, "acrylic-pouring-landscape-with-a-tree" }, 592404},
+        {{ 646824, "how-to-make-a-diy-concrete-paste-planter" }, 595976},
+        {{ 646824, "how-to-make-a-rustic-sand-planter-sand" }, 592404},
+        {{ 646833, "3-day-festival-at-the-galilee-lake-and" }, 592842},
+        {{ 646833, "rainbow-circle-around-the-noon-sun-above" }, 592842},
+        {{ 646833, "energetic-self-control-demonstration" }, 623811},
+        {{ 646833, "bees-congregating" }, 592842},
+        {{ 646856, "formula-offroad-honefoss-sunday-track2" }, 592872},
+        {{ 646862, "h3video1-dc-vs-mb-1" }, 593237},
+        {{ 646862, "h3video1-iwasgoingto-load-up-gmod-but" }, 593237},
+        {{ 646883, "watch-this-game-developer-make-a-video" }, 592593},
+        {{ 646883, "how-to-write-secure-javascript" }, 592593},
+        {{ 646883, "blockchain-technology-explained-2-hour" }, 592593},
+        {{ 646888, "fl-studio-bits" }, 608155},
+        {{ 646914, "andy-s-shed-live-s03e02-the-longest" }, 592200},
+        {{ 646914, "gpo-telephone-776-phone-restoration" }, 592201},
+        {{ 646916, "toxic-studios-co-stream-pubg" }, 597126},
+        {{ 646916, "hyperlapse-of-prague-praha-from-inside" }, 597109},
+        {{ 646933, "videobits-1" }, 597378},
+        {{ 646933, "clouds-developing-daytime-8" }, 597378},
+        {{ 646933, "slechtvalk-in-watertoren-bodegraven" }, 597378},
+        {{ 646933, "timelapse-maansverduistering-16-juli" }, 605880},
+        {{ 646933, "startrails-27" }, 597378},
+        {{ 646933, "passing-clouds-daytime-3" }, 597378},
+        {{ 646940, "nerdgasm-unboxing-massive-playing-cards" }, 597421},
+        {{ 646946, "debunking-cops-volume-3-the-murder-of" }, 630570},
+        {{ 646961, "kingsong-ks16x-electric-unicycle-250km" }, 636725},
+        {{ 646968, "wild-mountain-goats-amazing-rock" }, 621940},
+        {{ 646968, "no-shelter-backcountry-camping-in" }, 621940},
+        {{ 646968, "can-i-live-in-this-through-winter-lets" }, 645750},
+        {{ 646968, "why-i-wear-a-chest-rig-backcountry-or" }, 621940},
+        {{ 646989, "marc-ivan-o-gorman-promo-producer-editor" }, 645656},
+        {{ 647045, "@moraltis" }, 646367},
+        {{ 647045, "moraltis-twitch-highlights-first-edit" }, 646368},
+        {{ 647075, "the-3-massive-tinder-convo-mistakes" }, 629464},
+        {{ 647075, "how-to-get-friend-zoned-via-text" }, 592298},
+        {{ 647075, "don-t-do-this-on-tinder" }, 624591},
+        {{ 647322, "world-of-tanks-7-kills" }, 609905},
+        {{ 647322, "the-tier-6-auto-loading-swedish-meatball" }, 591338},
+        {{ 647416, "hypnotic-soundscapes-garden-of-the" }, 596923},
+        {{ 647416, "hypnotic-soundscapes-the-cauldron-sacred" }, 596928},
+        {{ 647416, "schumann-resonance-to-theta-sweep" }, 596920},
+        {{ 647416, "conversational-indirect-hypnosis-why" }, 596913},
+        {{ 647493, "mimirs-brunnr" }, 590498},
+        {{ 648143, "live-ita-completiamo-the-evil-within-2" }, 646568},
+        {{ 648203, "why-we-love-people-that-hurt-us" }, 591128},
+        {{ 648203, "i-didn-t-like-my-baby-and-considered" }, 591128},
+        {{ 648220, "trade-talk-001-i-m-a-vlogger-now-fielder" }, 597303},
+        {{ 648220, "vise-restoration-record-no-6-vise" }, 597303},
+        {{ 648540, "amv-reign" }, 571863},
+        {{ 648540, "amv-virus" }, 571863},
+        {{ 648588, "audial-drift-(a-journey-into-sound)" }, 630217},
+        {{ 648616, "quick-zbrush-tip-transpose-master-scale" }, 463205},
+        {{ 648616, "how-to-create-3d-horns-maya-to-zbrush-2" }, 463205},
+        {{ 648815, "arduino-based-cartridge-game-handheld" }, 593252},
+        {{ 648815, "a-maze-update-3-new-game-modes-amazing" }, 593252},
+        {{ 649209, "denmark-trip" }, 591428},
+        {{ 649209, "stunning-4k-drone-footage" }, 591428},
+        {{ 649215, "how-to-create-a-channel-and-publish-a" }, 414908},
+        {{ 649215, "lbryclass-11-how-to-get-your-deposit" }, 632420},
+        {{ 649543, "spring-break-madness-at-universal" }, 599698},
+        {{ 649921, "navegador-brave-navegador-da-web-seguro" }, 649261},
+        {{ 650191, "stream-intro" }, 591301},
+        {{ 650946, "platelet-chan-fan-art" }, 584601},
+        {{ 650946, "aqua-fanart" }, 584601},
+        {{ 650946, "virginmedia-stores-password-in-plain" }, 619537},
+        {{ 650946, "running-linux-on-android-teaser" }, 604441},
+        {{ 650946, "hatsune-miku-ievan-polka" }, 600126},
+        {{ 650946, "digital-security-and-privacy-2-and-a-new" }, 600135},
+        {{ 650993, "my-editorial-comment-on-recent-youtube" }, 590305},
+        {{ 650993, "drive-7-18-2018" }, 590305},
+        {{ 651011, "old-world-put-on-realm-realms-gg" }, 591899},
+        {{ 651011, "make-your-own-soundboard-with-autohotkey" }, 591899},
+        {{ 651011, "ark-survival-https-discord-gg-ad26xa" }, 637680},
+        {{ 651011, "minecraft-featuring-seus-8-just-came-4" }, 596488},
+        {{ 651057, "found-footage-bikinis-at-the-beach-with" }, 593586},
+        {{ 651057, "found-footage-sexy-mom-a-mink-stole" }, 593586},
+        {{ 651067, "who-are-the-gentiles-gomer" }, 597094},
+        {{ 651067, "take-back-the-kingdom-ep-2-450-million" }, 597094},
+        {{ 651067, "mmxtac-implemented-footstep-sounds-and" }, 597094},
+        {{ 651067, "dynasoul-s-blender-to-unreal-animated" }, 597094},
+        {{ 651103, "calling-a-scammer-syntax-error" }, 612532},
+        {{ 651103, "quick-highlight-of-my-day" }, 647651},
+        {{ 651103, "calling-scammers-and-singing-christmas" }, 612531},
+        {{ 651109, "@livingtzm" }, 637322},
+        {{ 651109, "living-tzm-juuso-from-finland-september" }, 643412},
+        {{ 651373, "se-voc-rir-ou-sorrir-reinicie-o-v-deo" }, 649302},
+        {{ 651476, "what-is-pagan-online-polished-new-arpg" }, 592157},
+        {{ 651476, "must-have-elder-scrolls-online-addons" }, 592156},
+        {{ 651476, "who-should-play-albion-online" }, 592156},
+        {{ 651730, "person-detection-with-keras-tensorflow" }, 621276},
+        {{ 651730, "youtube-censorship-take-two" }, 587249},
+        {{ 651730, "new-red-tail-shark-and-two-silver-sharks" }, 587251},
+        {{ 651730, "around-auckland" }, 587250},
+        {{ 651730, "humanism-in-islam" }, 587250},
+        {{ 651730, "tigers-at-auckland-zoo" }, 587250},
+        {{ 651730, "gravity-demonstration" }, 587250},
+        {{ 651730, "copyright-question" }, 587249},
+        {{ 651730, "uberg33k-the-ultimate-software-developer" }, 599522},
+        {{ 651730, "chl-e-swarbrick-auckland-mayoral" }, 587250},
+        {{ 651730, "code-reviews" }, 587249},
+        {{ 651730, "raising-robots" }, 587251},
+        {{ 651730, "teaching-python" }, 587250},
+        {{ 651730, "kelly-tarlton-2016" }, 587250},
+        {{ 652172, "where-is-everything" }, 589491},
+        {{ 652172, "some-guy-and-his-camera" }, 617062},
+        {{ 652172, "practical-information-pt-1" }, 589491},
+        {{ 652172, "latent-vibrations" }, 589491},
+        {{ 652172, "maldek-compilation" }, 589491},
+        {{ 652444, "thank-you-etika-thank-you-desmond" }, 652121},
+        {{ 652611, "plants-vs-zombies-gw2-20190827183609" }, 624339},
+        {{ 652611, "wolfenstein-the-new-order-playthrough-6" }, 650299},
+        {{ 652887, "a-codeigniter-cms-open-source-download" }, 652737},
+        {{ 652966, "@pokesadventures" }, 632391},
+        {{ 653009, "flat-earth-uk-convention-is-a-bust" }, 585786},
+        {{ 653009, "flat-earth-reset-flat-earth-money-tree" }, 585786},
+        {{ 653011, "veil-of-thorns-dispirit-brutal-leech-3" }, 652475},
+        {{ 653069, "being-born-after-9-11" }, 632218},
+        {{ 653069, "8-years-on-youtube-what-it-has-done-for" }, 637130},
+        {{ 653069, "answering-questions-how-original" }, 521447},
+        {{ 653069, "talking-about-my-first-comedy-stand-up" }, 583450},
+        {{ 653069, "doing-push-ups-in-public" }, 650920},
+        {{ 653069, "vlog-extra" }, 465997},
+        {{ 653069, "crying-myself" }, 465997},
+        {{ 653069, "xbox-rejection" }, 465992},
+        {{ 653354, "msps-how-to-find-a-linux-job-where-no" }, 642537},
+        {{ 653354, "windows-is-better-than-linux-vlog-it-and" }, 646306},
+        {{ 653354, "luke-smith-is-wrong-about-everything" }, 507717},
+        {{ 653354, "advice-for-those-starting-out-in-tech" }, 612452},
+        {{ 653354, "treating-yourself-to-make-studying-more" }, 623561},
+        {{ 653354, "lpi-linux-essential-dns-tools-vlog-what" }, 559464},
+        {{ 653354, "is-learning-linux-worth-it-in-2019-vlog" }, 570886},
+        {{ 653354, "huawei-linux-and-cellphones-in-2019-vlog" }, 578501},
+        {{ 653354, "how-to-use-webmin-to-manage-linux" }, 511507},
+        {{ 653354, "latency-concurrency-and-the-best-value" }, 596857},
+        {{ 653354, "how-to-use-the-pomodoro-method-in-it" }, 506632},
+        {{ 653354, "negotiating-compensation-vlog-it-and" }, 542317},
+        {{ 653354, "procedural-goals-vs-outcome-goals-vlog" }, 626785},
+        {{ 653354, "intro-to-raid-understanding-how-raid" }, 529341},
+        {{ 653354, "smokeping" }, 574693},
+        {{ 653354, "richard-stallman-should-not-be-fired" }, 634928},
+        {{ 653354, "unusual-or-specialty-certifications-vlog" }, 620146},
+        {{ 653354, "gratitude-and-small-projects-vlog-it" }, 564900},
+        {{ 653354, "why-linux-on-the-smartphone-is-important" }, 649543},
+        {{ 653354, "opportunity-costs-vlog-it-devops-career" }, 549708},
+        {{ 653354, "double-giveaway-lpi-class-dates-and" }, 608129},
+        {{ 653354, "linux-on-the-smartphone-in-2019-librem" }, 530426},
+        {{ 653524, "celtic-folk-music-full-live-concert-mps" }, 589762},
+};
 
 bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo, std::vector<std::pair<std::string, int>>& takeoverHeightUndo)
 {
-    undoIncrement(insertUndo, expireUndo, &claimsToDeleteFromByIdIndex);
-    undoIncrement(insertSupportUndo, expireSupportUndo);
+    // the plan:
+    // for every claim and support that becomes active this block set its node hash to null (aka, dirty)
+    // for every claim and support that expires this block set its node hash to null and add it to the expire(Support)Undo
+    // for all dirty nodes look for new takeovers
 
-    // check each potentially taken over name to see if a takeover occurred.
-    // if it did, then check the claim and support insertion queues for
-    // the names that have been taken over, immediately insert all claim and
-    // supports for those names, and stick them in the insertUndo or
-    // insertSupportUndo vectors, with the nValidAtHeight they had prior to
-    // this block.
-    // Run through all names that have been taken over
-    for (const auto& itNamesToCheck : namesToCheckForTakeover) {
-        // Check if a takeover has occurred (only going to hit each name once)
-        auto itCachedNode = nodesToAddOrUpdate.find(itNamesToCheck);
-        // many possibilities
-        // if this node is new, don't put it into the undo -- there will be nothing to restore, after all
-        // if all of this node's claims were deleted, it should be put into the undo -- there could be
-        // claims in the queue for that name and the takeover height should be the current height
-        // if the node is not in the cache, or getbestclaim fails, that means all of its claims were
-        // deleted
-        // if getLastTakeoverForName returns false, that means it's new and shouldn't go into the undo
-        // if both exist, and the current best claim is not the same as or the parent to the new best
-        // claim, then ownership has changed and the current height of last takeover should go into
-        // the queue
-        uint160 ownersClaimId;
-        CClaimValue claimInCache;
-        int ownersTakeoverHeight = 0;
-        bool haveClaimInTrie = getLastTakeoverForName(itNamesToCheck, ownersClaimId, ownersTakeoverHeight);
-        bool haveClaimInCache = itCachedNode && itCachedNode->getBestClaim(claimInCache);
-        bool takeoverHappened = !haveClaimInCache || !haveClaimInTrie || claimInCache.claimId != ownersClaimId;
-
-        if (takeoverHappened) {
-            // Get all pending claims for that name and activate them all in the case that our winner is defunct.
-            undoIncrement(itNamesToCheck, insertUndo, expireUndo);
-            undoIncrement(itNamesToCheck, insertSupportUndo, expireSupportUndo);
-        }
-
-        // not sure if this should happen above or below the above code:
-        auto shouldUse = shouldUseTakeoverWorkaround(itNamesToCheck);
-        if (!takeoverHappened && shouldUse)
-            LogPrint(BCLog::CLAIMS, "TakeoverHeight workaround affects block: %d, name: %s, th: %d\n", nNextHeight, itNamesToCheck, ownersTakeoverHeight);
-        takeoverHappened |= shouldUse;
-
-        if (haveClaimInTrie && takeoverHappened)
-            takeoverHeightUndo.emplace_back(itNamesToCheck, ownersTakeoverHeight);
-
-        // some possible conditions:
-        // 1. we added a new claim
-        // 2. we updated a claim
-        // 3. we had a claim fall out of the queue early and take over (or not)
-        // 4. we removed a claim
-        // 5. we got new supports and so a new claim took over (or not)
-        // 6. we removed supports and so a new claim took over (or not)
-        // claim removal is handled by "else" below
-        // if there was a takeover, we set it to current height
-        // if there was no takeover, we set it to old height if we have one
-        // else set it to new height
-
-        if ((itCachedNode = nodesToAddOrUpdate.find(itNamesToCheck))) {
-            if (takeoverHappened) {
-                itCachedNode->nHeightOfLastTakeover = nNextHeight;
-                CClaimValue winner;
-                if (itCachedNode->getBestClaim(winner))
-                    takeoverCache[itNamesToCheck] = std::make_pair(winner.claimId, nNextHeight);
-            }
-            assert(itCachedNode->hash.IsNull());
-        }
+    {
+        base->_db << "UPDATE nodes SET hash = NULL WHERE name IN "
+                     "(SELECT nodeName FROM claims WHERE validHeight = ?)" << nNextHeight;
+        base->_db << "UPDATE nodes SET hash = NULL WHERE name IN "
+                     "(SELECT nodeName FROM supports WHERE validHeight = ?)" << nNextHeight;
     }
 
-    namesToCheckForTakeover.clear();
-    takeoverWorkaround.clear();
+    assert(expireUndo.empty());
+    {
+        auto becomingExpired = base->_db << "SELECT txID, txN, nodeName, claimID, validHeight, blockHeight, amount "
+                                            "FROM claims WHERE expirationHeight = ?" << nNextHeight;
+        for (auto &&row: becomingExpired) {
+            CClaimValue value;
+            std::string name;
+            row >> value.outPoint.hash >> value.outPoint.n >> name
+                >> value.claimId >> value.nValidAtHeight >> value.nHeight >> value.nAmount;
+            expireUndo.emplace_back(name, value);
+        }
+    }
+    base->_db << "UPDATE claims SET active = 0 WHERE expirationHeight = ?"
+              << nNextHeight;
+    base->_db << "UPDATE nodes SET hash = NULL WHERE name IN (SELECT nodeName FROM claims WHERE expirationHeight = ?)"
+              << nNextHeight;
+
+    assert(expireSupportUndo.empty());
+    {
+        auto becomingExpired = base->_db << "SELECT txID, txN, nodeName, supportedClaimID, validHeight, blockHeight, amount "
+                                            "FROM supports WHERE expirationHeight = ?" << nNextHeight;
+        for (auto &&row: becomingExpired) {
+            CSupportValue value;
+            std::string name;
+            row >> value.outPoint.hash >> value.outPoint.n >> name
+                >> value.supportedClaimId >> value.nValidAtHeight >> value.nHeight >> value.nAmount;
+            expireSupportUndo.emplace_back(name, value);
+        }
+    }
+    base->_db << "UPDATE supports SET active = 0 WHERE expirationHeight = ?"
+              << nNextHeight;
+    base->_db << "UPDATE nodes SET hash = NULL WHERE name IN (SELECT nodeName FROM supports WHERE expirationHeight = ?)"
+              << nNextHeight;
+
+    // takeover handling:
+    std::vector<std::pair<std::string, int>> takeovers;
+    base->_db << "SELECT name, lastTakeoverHeight FROM nodes WHERE hash IS NULL" >> takeovers;
+
+    for (const auto& takeover : takeovers) {
+        // the plan: select the old and new bests
+        // if they are different, record the valid heights of the current claims that are not active
+        // then make them all active
+
+        if (nNextHeight >= 496856 && nNextHeight <= 653524) {
+            auto wit = takeoverWorkarounds.find(std::make_pair(nNextHeight, takeover.first));
+            if (wit != takeoverWorkarounds.end()) {
+                activateAllFor(insertUndo, insertSupportUndo, takeover.first);
+                base->_db << "UPDATE nodes SET lastTakeoverHeight = ? WHERE nodeName = ?" << wit->second << takeover.first;
+                takeoverHeightUndo.emplace_back(takeover.first, takeover.second);
+                continue;
+            }
+        }
+
+        int lastTakeoverHeight = 0;
+        auto findBestValid = base->_db << "SELECT c.validHeight, c.amount + "
+                                  "SUM(SELECT s.amount FROM supports s WHERE s.supportedClaimID = c.claimID AND s.validHeight < ?) as effectiveAmount"
+                                  "FROM claims c WHERE c.nodeName = ? AND c.validHeight < ? "
+                                  "ORDER BY effectiveAmount DESC, c.blockHeight, c.txID, c.txN LIMIT 1"
+                               << nNextHeight + 1 << takeover.first << nNextHeight + 1;
+
+        auto lit = findBestValid.begin();
+        if (lit == findBestValid.end()) {
+            takeoverHeightUndo.emplace_back(takeover.first, takeover.second);
+            continue;
+        }
+        *lit >> lastTakeoverHeight;
+        if (lastTakeoverHeight == takeover.second)
+            continue; // no takeover happened
+        activateAllFor(insertUndo, insertSupportUndo, takeover.first);
+
+        // now get the best again:
+        findBestValid++;
+        lit = findBestValid.begin();
+        *lit >> lastTakeoverHeight;
+        base->_db << "UPDATE nodes SET lastTakeoverHeight = ? WHERE nodeName = ?" << lastTakeoverHeight << takeover.first;
+
+        takeoverHeightUndo.emplace_back(takeover.first, takeover.second);
+    }
+
     nNextHeight++;
     return true;
 }
 
-template <typename T>
-inline void addToIndex(std::vector<CClaimIndexElement>*, const std::string&, const T&)
-{
-}
-
-template <>
-inline void addToIndex(std::vector<CClaimIndexElement>* index, const std::string& name, const CClaimValue& value)
-{
-    index->emplace_back(name, value);
-}
-
-template <typename T>
-void CClaimTrieCacheBase::undoDecrement(insertUndoType& insertUndo, std::vector<queueEntryType<T>>& expireUndo, std::vector<CClaimIndexElement>* index, std::set<T>* deleted)
-{
-    supportedType<T>();
-    if (!expireUndo.empty()) {
-        for (auto itExpireUndo = expireUndo.crbegin(); itExpireUndo != expireUndo.crend(); ++itExpireUndo) {
-            addToCache(itExpireUndo->first, itExpireUndo->second, false);
-            addToIndex(index, itExpireUndo->first, itExpireUndo->second);
-            if (nNextHeight == itExpireUndo->second.nHeight + expirationTime()) {
-                auto itExpireRow = getExpirationQueueCacheRow<T>(nNextHeight, true);
-                itExpireRow->emplace_back(itExpireUndo->first, itExpireUndo->second.outPoint);
-            }
+void CClaimTrieCacheBase::activateAllFor(insertUndoType& insertUndo, insertUndoType& insertSupportUndo,
+                                         const std::string& name) {
+    // now that we know a takeover is happening, we bring everybody in:
+    {
+        auto query = base->_db << "SELECT txID, txN, validHeight FROM claims WHERE nodeName = ? AND validHeight > ?"
+                               << name << nNextHeight;
+        for (auto &&row: query) {
+            uint256 hash;
+            uint32_t n;
+            int oldValidHeight;
+            row >> hash >> n >> oldValidHeight;
+            insertUndo.emplace_back(name, COutPoint(hash, n), oldValidHeight);
         }
     }
+    // and then update them all to activate now:
+    base->_db << "UPDATE claims SET validHeight = ? WHERE nodeName = ? AND validHeight > ?" << nNextHeight << name << nNextHeight;
 
-    for (auto itInsertUndo = insertUndo.crbegin(); itInsertUndo != insertUndo.crend(); ++itInsertUndo) {
-        T value;
-        assert(removeFromCache(itInsertUndo->name, itInsertUndo->outPoint, value, false));
-        if (itInsertUndo->nHeight >= 0) { // aka it became valid at height rather than being rename/normalization
-            // value.nValidHeight may have been changed if this was inserted before activation height
-            // due to a triggered takeover, change it back to original nValidAtHeight
-            value.nValidAtHeight = itInsertUndo->nHeight;
-            auto itQueueRow = getQueueCacheRow<T>(itInsertUndo->nHeight, true);
-            auto itQueueNameRow = getQueueCacheNameRow<T>(itInsertUndo->name, true);
-            itQueueRow->emplace_back(itInsertUndo->name, value);
-            itQueueNameRow->emplace_back(itInsertUndo->outPoint, value.nValidAtHeight);
-        } else {
-            addTo(deleted, value);
+    // then do the same for supports:
+    {
+        auto query = base->_db << "SELECT txID, txN, validHeight FROM supports WHERE nodeName = ? AND validHeight > ?"
+                               << name << nNextHeight;
+        for (auto &&row: query) {
+            uint256 hash;
+            uint32_t n;
+            int oldValidHeight;
+            row >> hash >> n >> oldValidHeight;
+            insertSupportUndo.emplace_back(name, COutPoint(hash, n), oldValidHeight);
         }
     }
+    // and then update them all to activate now:
+    base->_db << "UPDATE supports SET validHeight = ? WHERE nodeName = ? AND validHeight > ?" << nNextHeight << name << nNextHeight;
 }
 
 bool CClaimTrieCacheBase::decrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo)
 {
     nNextHeight--;
 
-    undoDecrement(insertSupportUndo, expireSupportUndo);
-    undoDecrement(insertUndo, expireUndo, &claimsToAddToByIdIndex, &claimsToDeleteFromByIdIndex);
+    for (auto it = expireSupportUndo.crbegin(); it != expireSupportUndo.crend(); ++it) {
+        base->_db << "UPDATE supports SET validHeight = ?, active = ? WHERE txID = ? AND txN = ?"
+                  << it->second.nValidAtHeight << (it->second.nValidAtHeight <= nNextHeight) << it->second.outPoint.hash << it->second.outPoint.n;
+        base->_db << "UPDATE nodes SET hash = NULL WHERE name = ?" << it->first;
+    }
+
+    for (auto it = expireUndo.crbegin(); it != expireUndo.crend(); ++it) {
+        base->_db << "UPDATE claims SET validHeight = ?, active = ? WHERE claimID = ?"
+                  << it->second.nValidAtHeight << (it->second.nValidAtHeight <= nNextHeight) << it->second.claimId;
+        base->_db << "UPDATE nodes SET hash = NULL WHERE name = ?" << it->first;
+    }
+
+    for (auto it = insertSupportUndo.crbegin(); it != insertSupportUndo.crend(); ++it) {
+        base->_db << "UPDATE supports SET validHeight = ? WHERE txID = ? AND txN = ?"
+                  << it->outPoint.hash << it->outPoint.n;
+        base->_db << "UPDATE nodes SET hash = NULL WHERE name = ?" << it->name;
+    }
+
+    for (auto it = insertUndo.crbegin(); it != insertUndo.crend(); ++it) {
+        base->_db << "UPDATE claims SET validHeight = ? WHERE nodeName = ? AND txID = ? AND txN = ?"
+                  << it->name << it->outPoint.hash << it->outPoint.n;
+        base->_db << "UPDATE nodes SET hash = NULL WHERE name = ?" << it->name;
+    }
+
     return true;
 }
 
 bool CClaimTrieCacheBase::finalizeDecrement(std::vector<std::pair<std::string, int>>& takeoverHeightUndo)
 {
-    for (auto itTakeoverHeightUndo = takeoverHeightUndo.crbegin(); itTakeoverHeightUndo != takeoverHeightUndo.crend(); ++itTakeoverHeightUndo) {
-        auto it = cacheData(itTakeoverHeightUndo->first, false);
-        if (it && itTakeoverHeightUndo->second) {
-            it->nHeightOfLastTakeover = itTakeoverHeightUndo->second;
-            CClaimValue winner;
-            if (it->getBestClaim(winner)) {
-                assert(itTakeoverHeightUndo->second <= nNextHeight);
-                takeoverCache[itTakeoverHeightUndo->first] = std::make_pair(winner.claimId, itTakeoverHeightUndo->second);
-            }
-        }
-    }
+    for (auto it = takeoverHeightUndo.crbegin(); it != takeoverHeightUndo.crend(); ++it)
+        base->_db << "UPDATE nodes SET lastTakeoverHeight = ?, hash = NULL WHERE name = ?"
+                  << it->second << it->first;
 
     return true;
 }
 
-template <typename T>
-void CClaimTrieCacheBase::reactivate(const expirationQueueRowType& row, int height, bool increment)
-{
-    supportedType<T>();
-    for (auto& e: row) {
-        // remove and insert with new expiration time
-        if (auto itQueueRow = getExpirationQueueCacheRow<T>(height, false))
-            eraseOutPoint(*itQueueRow, CNameOutPointType{e.name, e.outPoint});
-
-        int extend_expiration = Params().GetConsensus().nExtendedClaimExpirationTime - Params().GetConsensus().nOriginalClaimExpirationTime;
-        int new_expiration_height = increment ? height + extend_expiration : height - extend_expiration;
-        auto itQueueExpiration = getExpirationQueueCacheRow<T>(new_expiration_height, true);
-        itQueueExpiration->emplace_back(e.name, e.outPoint);
-    }
-}
-
-void CClaimTrieCacheBase::reactivateClaim(const expirationQueueRowType& row, int height, bool increment)
-{
-    reactivate<CClaimValue>(row, height, increment);
-}
-
-void CClaimTrieCacheBase::reactivateSupport(const expirationQueueRowType& row, int height, bool increment)
-{
-    reactivate<CSupportValue>(row, height, increment);
-}
+static const boost::container::flat_set<std::pair<int, std::string>> ownershipWorkaround = {
+        { 297706, "firstvideo" },
+        { 300045, "whatislbry" },
+        { 305742, "mrrobots01e01" },
+        { 350299, "gaz" },
+        { 426898, "travtest01" },
+        { 466336, "network" },
+        { 481633, "11111111111111111111" },
+        { 538169, "cmd" },
+        { 539068, "who13" },
+        { 552082, "right" },
+        { 557322, "pixelboard" },
+        { 562221, "stats331" },
+        { 583305, "gauntlet-invade-the-darkness-lvl-1-of" },
+        { 584733, "0000001" },
+        { 584733, "0000003" },
+        { 584733, "0000002" },
+        { 588287, "livestream-project-reality-arma-3" },
+        { 588308, "fr-let-s-play-software-inc-jay" },
+        { 588308, "fr-motorsport-manager-jay-s-racing-5" },
+        { 588308, "fr-motorsport-manager-jay-s-racing" },
+        { 588318, "fr-hoi-iv-the-great-war-l-empire-2" },
+        { 588318, "fr-stellaris-distant-stars-la-pr" },
+        { 588318, "fr-stellaris-distant-stars-la-pr-2" },
+        { 588318, "fr-crusader-kings-2-la-dynastie-6" },
+        { 588318, "fr-jurassic-world-evolution-let-s-play" },
+        { 588322, "fr-cold-waters-campagne-asie-2000-2" },
+        { 588683, "calling-tech-support-scammers-live-3" },
+        { 589013, "lets-play-jackbox-games-5" },
+        { 589013, "let-s-play-jackbox-games" },
+        { 589534, "let-s-play-the-nightmare-before" },
+        { 589538, "kabutothesnake-s-live-ps4-broadcast" },
+        { 589538, "back-with-fortnite" },
+        { 589554, "no-eas-strong-thunderstorm-advisory" },
+        { 589606, "new-super-mario-bros-wii-walkthrough" },
+        { 589606, "samurai-warrior-chronicles-hero-rise" },
+        { 589630, "ullash" },
+        { 589640, "today-s-professionals-2018-winter-3" },
+        { 589640, "let-s-run-a-mall-series-6-1-18-no-more" },
+        { 589640, "today-s-professionals-2018-winter-4" },
+        { 589641, "today-s-professionals-big-brother-6-14" },
+        { 589641, "today-s-professionals-2018-winter-14" },
+        { 589641, "today-s-professionals-big-brother-6-13" },
+        { 589641, "today-s-professionals-big-brother-6-28" },
+        { 589641, "today-s-professionals-2018-winter-6" },
+        { 589641, "today-s-professionals-big-brother-6-26" },
+        { 589641, "today-s-professionals-big-brother-6-27" },
+        { 589641, "today-s-professionals-2018-winter-10" },
+        { 589641, "today-s-professionals-2018-winter-7" },
+        { 589641, "today-s-professionals-big-brother-6-29" },
+        { 589760, "bobby-blades" },
+        { 589831, "fifa-14-android-astrodude44-vs" },
+        { 589849, "gaming-and-drawing-videos-live-stream" },
+        { 589849, "gaming-with-silverwolf-live-stream-2" },
+        { 589849, "gaming-with-silverwolf-live-stream-3" },
+        { 589849, "gaming-with-silverwolf-videos-live" },
+        { 589849, "gaming-with-silverwolf-live-stream-4" },
+        { 589849, "gaming-with-silverwolf-live-stream-5" },
+        { 589851, "gaming-with-silverwolf-live-stream-7" },
+        { 589851, "gaming-with-silverwolf-live-stream-6" },
+        { 589870, "classic-sonic-games" },
+        { 589926, "j-dog7973-s-fortnite-squad" },
+        { 589967, "wow-warlords-of-draenor-horde-side" },
+        { 590020, "come-chill-with-rekzzey-2" },
+        { 590033, "gothsnake-black-ops-ii-game-clip" },
+        { 590074, "a-new-stream" },
+        { 590075, "a-new-stream" },
+        { 590082, "a-new-stream" },
+        { 590116, "a-new-stream" },
+        { 590178, "father-vs-son-stickfight-stickfight" },
+        { 590178, "little-t-playing-subnautica-livestream" },
+        { 590179, "my-family-trip-with-my-mom-and-sister" },
+        { 590206, "pomskies" },
+        { 590223, "dark-souls-iii-soul-level-1-challenge-2" },
+        { 590223, "dark-souls-iii-soul-level-1-challenge" },
+        { 590223, "dark-souls-iii-soul-level-1-challenge-3" },
+        { 590225, "skyrim-special-edition-ps4-platinum-3" },
+        { 590225, "skyrim-special-edition-ps4-platinum-4" },
+        { 590225, "let-s-play-sniper-elite-4-authentic-2" },
+        { 590226, "let-s-play-final-fantasy-the-zodiac-2" },
+        { 590226, "let-s-play-final-fantasy-the-zodiac-3" },
+        { 590401, "ls-h-ppchen-halloween-stream-vom-31-10" },
+        { 591982, "destiny-the-taken-king-gameplay" },
+        { 591984, "ghost-recon-wildlands-100-complete-4" },
+        { 591986, "uncharted-the-lost-legacy-100-complete" },
+        { 593535, "3-smg4-reactions-in-1-gabrieloreacts" },
+        { 593550, "speed-runs-community-versus-video" },
+        { 593551, "rayman-legends-challenges-app-murphy-s" },
+        { 593551, "rayman-legends-challenges-app-the" },
+        { 593726, "dmt-psychedelics-death-and-rebirth" },
+        { 593726, "flat-earth-and-other-shill-potatoes" },
+        { 593726, "why-everyone-s-leaving-youtube" },
+        { 595537, "memory-techniques-1-000-people-system" },
+        { 595556, "qik-mobile-video-by-paul-clifford" },
+        { 595818, "ohare12345-s-live-ps4-broadcast" },
+        { 595838, "super-smash-bros-u-3-minute-smash-as" },
+        { 595838, "super-smash-bros-u-multi-man-smash-3" },
+        { 595838, "super-smash-bros-u-target-blast-3" },
+        { 595838, "super-smash-bros-u-donkey-kong-tourney" },
+        { 595839, "super-smash-bros-u-super-mario-u-smash" },
+        { 595841, "super-smash-bros-u-zelda-smash-series" },
+        { 595841, "super-smash-bros-u-tournament-series" },
+        { 595841, "super-smash-bros-u-link-tourney-mode-a" },
+        { 595841, "super-smash-bros-u-brawl-co-op-event" },
+        { 595841, "super-smash-bros-u-link-tourney-mode-b" },
+        { 595842, "super-smash-bros-u-3-newcomers-the" },
+        { 595844, "super-smash-bros-u-home-run-contest-2" },
+        { 596829, "gramy-minecraft" },
+        { 596829, "gramy-minecraft-jasmc-pl" },
+        { 597635, "5-new-technology-innovations-in-5" },
+        { 597658, "borderlands-2-tiny-tina-s-assault-on" },
+        { 597658, "let-s-play-borderlands-the-pre-sequel" },
+        { 597660, "caveman-world-mountains-of-unga-boonga" },
+        { 597787, "playing-hypixel-webcam-and-mic" },
+        { 597789, "if-herobrine-played-yandere-simulator" },
+        { 597794, "user-registration-system-in-php-mysql" },
+        { 597796, "let-s-play-mario-party-luigi-s-engine" },
+        { 597796, "let-s-play-mario-party-dk-s-jungle" },
+        { 597803, "asphalt-8-gameplay" },
+        { 597817, "roblox-phantom-forces-no-audio-just" },
+        { 597824, "best-funny-clip" },
+        { 597825, "let-s-play-fallout-2-restoration-3" },
+        { 597826, "saturday-night-baseball-with-3" },
+        { 597826, "saturday-night-baseball-with-6" },
+        { 597829, "payeer" },
+        { 597831, "dreamtowards" },
+        { 597833, "20000" },
+        { 597833, "remme" },
+        { 597834, "hycon" },
+        { 597834, "hearthstone-heroes-of-warcraft-3" },
+        { 597837, "15-curiosidades-que-probablemente-ya" },
+        { 597893, "elder-scrolls-online-road-to-level-20" },
+        { 597894, "elder-scrolls-legends-beta-gameplay" },
+        { 597900, "fallout-4-walkthrough" },
+        { 597901, "wwe-2k18-with-that-guy-and-tricky" },
+        { 597902, "dead-space-walkthroug-wcommentary-part" },
+        { 597903, "how-it-feels-to-chew-5-gum-funny" },
+        { 597909, "president-obama-apec-press-conference" },
+        { 597909, "100-5" },
+        { 597910, "eat-the-street" },
+        { 597923, "rocket-league-giveaway-3" },
+        { 597923, "mortal-kombat-xl-livestream" },
+        { 597930, "lets-play-spore-with" },
+        { 597931, "lets-play-minecraft-with" },
+        { 597932, "for-honor-4" },
+        { 597933, "memorize-english-words-scientifically" },
+        { 597933, "true-mov" },
+        { 597935, "jugando-pokemon-esmeralda-gba" },
+        { 597936, "gta-5-livestream-85-92" },
+        { 597937, "battlefield-hardline-9-19" },
+        { 598070, "mechwarrior-2-soundtrack-clan-jade" },
+        { 606424, "@apostrophe" },
+        { 615725, "amazonianhunter" },
+        { 615726, "amazonianhunter" },
+        { 630930, "cli" },
+        { 638876, "@ordinary" },
+        { 638878, "@ordinary" },
+        { 644575, "ratio" },
+        { 646584, "calling-tech-support-scammers-live-3" },
+};
 
 int CClaimTrieCacheBase::getNumBlocksOfContinuousOwnership(const std::string& name) const
 {
-    auto hit = removalWorkaround.find(name);
-    if (hit != removalWorkaround.end()) {
-        auto that = const_cast<CClaimTrieCacheBase*>(this);
-        that->removalWorkaround.erase(hit);
+    if (nNextHeight <= 646584 && ownershipWorkaround.find(std::make_pair(nNextHeight, name)) != ownershipWorkaround.end())
         return 0;
-    }
-    auto it = nodesToAddOrUpdate.find(name);
-    return (it || (it = base->find(name))) && !it->empty() ? nNextHeight - it->nHeightOfLastTakeover : 0;
+
+    int lastTakeover = -1;
+    auto query = base->_db << "SELECT lastTakeoverHeight FROM nodes WHERE name = ?" << name;
+    for (auto&& row: query)
+        row >> lastTakeover;
+    return lastTakeover > 0 ? nNextHeight - lastTakeover : 0;
 }
 
 int CClaimTrieCacheBase::getDelayForName(const std::string& name) const
@@ -1343,45 +1202,32 @@ std::string CClaimTrieCacheBase::adjustNameForValidHeight(const std::string& nam
     return name;
 }
 
-bool CClaimTrieCacheBase::clear()
-{
-    supportCache.clear();
-    nodesToDelete.clear();
-    takeoverCache.clear();
-    claimQueueCache.clear();
-    supportQueueCache.clear();
-    removalWorkaround.clear();
-    nodesToAddOrUpdate.clear();
-    nodesAlreadyCached.clear();
-    takeoverWorkaround.clear();
-    claimQueueNameCache.clear();
-    expirationQueueCache.clear();
-    supportQueueNameCache.clear();
-    claimsToAddToByIdIndex.clear();
-    namesToCheckForTakeover.clear();
-    supportExpirationQueueCache.clear();
-    claimsToDeleteFromByIdIndex.clear();
-    return true;
-}
-
-bool CClaimTrieCacheBase::getProofForName(const std::string& name, CClaimTrieProof& proof)
+bool CClaimTrieCacheBase::getProofForName(const std::string& name, const uint160& finalClaim, CClaimTrieProof& proof)
 {
     // cache the parent nodes
-    cacheData(name, false);
     getMerkleHash();
     proof = CClaimTrieProof();
-    for (auto& it : static_cast<const CClaimTrie&>(nodesToAddOrUpdate).nodes(name)) {
+    auto nodeQuery = base->_db << "SELECT name, lastTakeoverHeight FROM nodes WHERE "
+                                    "name IN (WITH RECURSIVE prefix(p) AS (VALUES(?) UNION ALL "
+                                    "SELECT SUBSTR(p, 0, LENGTH(p)) FROM prefix WHERE p != '') SELECT p FROM prefix) "
+                                    "ORDER BY LENGTH(name)" << name;
+    for (auto&& row: nodeQuery) {
         CClaimValue claim;
-        const auto& key = it.key();
-        bool fNodeHasValue = it->getBestClaim(claim);
+        std::string key;
+        int lastTakeoverHeight;
+        row >> key >> lastTakeoverHeight;
+        bool fNodeHasValue = getInfoForName(key, claim);
         uint256 valueHash;
         if (fNodeHasValue)
-            valueHash = getValueHash(claim.outPoint, it->nHeightOfLastTakeover);
+            valueHash = getValueHash(claim.outPoint, lastTakeoverHeight);
 
         const auto pos = key.size();
         std::vector<std::pair<unsigned char, uint256>> children;
-        for (auto& child : it.children()) {
-            auto& childKey = child.key();
+        auto childQuery = base->_db << "SELECT name, hash FROM nodes WHERE parent = ?" << key;
+        for (auto&& child : childQuery) {
+            std::string childKey;
+            uint256 hash;
+            child >> childKey >> hash;
             if (name.find(childKey) == 0) {
                 for (auto i = pos; i + 1 < childKey.size(); ++i) {
                     children.emplace_back(childKey[i], uint256{});
@@ -1393,15 +1239,14 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, CClaimTriePro
                 children.emplace_back(childKey.back(), uint256{});
                 continue;
             }
-            auto hash = child->hash;
             completeHash(hash, childKey, pos);
             children.emplace_back(childKey[pos], hash);
         }
         if (key == name) {
-            proof.hasValue = fNodeHasValue;
+            proof.hasValue = fNodeHasValue && claim.claimId == finalClaim;
             if (proof.hasValue) {
                 proof.outPoint = claim.outPoint;
-                proof.nHeightOfLastTakeover = it->nHeightOfLastTakeover;
+                proof.nHeightOfLastTakeover = lastTakeoverHeight;
             }
             valueHash.SetNull();
         }
@@ -1410,22 +1255,24 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, CClaimTriePro
     return true;
 }
 
-void CClaimTrieCacheBase::iterate(std::function<void(const std::string&, const CClaimTrieData&)> callback) const
-{
-    if (nodesToAddOrUpdate.empty()) {
-        for (auto it = base->cbegin(); it != base->cend(); ++it)
-            if (!nodesToDelete.count(it.key()))
-                callback(it.key(), it.data());
-        return;
+bool CClaimTrieCacheBase::findNameForClaim(const std::vector<unsigned char>& claim, CClaimValue& value, std::string& name) {
+    auto query = base->_db << "SELECT nodeName, claimId, txID, txN, amount, block_height FROM claims WHERE SUBSTR(claimID, 1, ?) = ?" << claim.size() + 1 << claim;
+    auto hit = false;
+    for (auto&& row: query) {
+        if (hit) return false;
+        row >> name >> value.claimId >> value.outPoint.hash >> value.outPoint.n
+            >> value.nAmount >> value.nHeight;
+        hit = true;
     }
-    for (auto it = nodesToAddOrUpdate.begin(); it != nodesToAddOrUpdate.end(); ++it) {
-        callback(it.key(), it.data());
-        if (it.hasChildren() || nodesToDelete.count(it.key()))
-            continue;
-        auto children = base->find(it.key()).children();
-        for (auto& child : children)
-            for (; child; ++child)
-                if (!nodesToDelete.count(child.key()))
-                    callback(child.key(), child.data());
+    return true;
+}
+
+void CClaimTrieCacheBase::getNamesInTrie(std::function<void(const std::string&)> callback)
+{
+    auto query = base->_db << "SELECT DISTINCT nodeName FROM claims";
+    for (auto&& row: query) {
+        std::string name;
+        row >> name;
+        callback(name);
     }
 }

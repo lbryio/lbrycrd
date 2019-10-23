@@ -17,29 +17,29 @@ public:
     {
     }
 
-    using CClaimTrieCacheBase::insertSupportIntoMap;
-    using CClaimTrieCacheBase::removeSupportFromMap;
-    using CClaimTrieCacheBase::insertClaimIntoTrie;
-    using CClaimTrieCacheBase::removeClaimFromTrie;
-
-    void insert(const std::string& key, CClaimTrieData&& data)
+    bool insertClaimIntoTrie(const std::string& key, const CClaimValue& data)
     {
-        nodesToAddOrUpdate.insert(key, std::move(data));
+        return addClaim(key, data.outPoint, data.claimId, data.nAmount, data.nHeight, {});
     }
 
-    bool erase(const std::string& key)
-    {
-        return nodesToAddOrUpdate.erase(key);
+    bool removeClaimFromTrie(const std::string& key, const COutPoint& p) {
+        int validHeight;
+        std::string nodeName;
+        auto ret = removeClaim(ClaimIdHash(p.hash, p.n), nodeName, validHeight);
+        assert(!ret || nodeName == key);
+        return ret;
     }
 
-    int cacheSize()
-    {
-        return nodesToAddOrUpdate.height();
+    bool insertSupportIntoMap(const std::string& key, const CSupportValue& value) {
+        return addSupport(key, value.outPoint, value.nAmount, value.supportedClaimId, value.nHeight, {});
     }
 
-    CClaimTrie::iterator getCache(const std::string& key)
-    {
-        return nodesToAddOrUpdate.find(key);
+    bool removeSupportFromMap(const std::string& key, const COutPoint& p) {
+        int validHeight;
+        std::string nodeName;
+        auto ret = removeSupport(p, nodeName, validHeight);
+        assert(!ret || nodeName == key);
+        return ret;
     }
 };
 
@@ -53,13 +53,12 @@ BOOST_AUTO_TEST_CASE(merkle_hash_single_test)
     BOOST_CHECK_EQUAL(one, cc.getMerkleHash());
 
     // we cannot have leaf root node
-    auto it = cc.getCache("");
-    BOOST_CHECK(!it);
+    auto it = cc.getClaimsForName("");
+    BOOST_CHECK_EQUAL(it.claimsNsupports.size(), 0U);
 }
 
 BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
 {
-    CClaimValue unused;
     uint256 hash0(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
     uint160 hash160;
     CMutableTransaction tx1 = BuildTransaction(hash0);
@@ -90,19 +89,19 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     BOOST_CHECK(pclaimTrie->empty());
 
     CClaimTrieCacheTest ntState(pclaimTrie);
-    ntState.insertClaimIntoTrie(std::string("test"), CClaimValue(tx1OutPoint, hash160, 50, 100, 200), true);
-    ntState.insertClaimIntoTrie(std::string("test2"), CClaimValue(tx2OutPoint, hash160, 50, 100, 200), true);
+    ntState.insertClaimIntoTrie(std::string("test"), CClaimValue(tx1OutPoint, hash160, 50, 100, 200));
+    ntState.insertClaimIntoTrie(std::string("test2"), CClaimValue(tx2OutPoint, hash160, 50, 100, 200));
 
     BOOST_CHECK(pclaimTrie->empty());
-    BOOST_CHECK(!ntState.empty());
+    BOOST_CHECK(ntState.getTotalClaimsInTrie() > 0);
     BOOST_CHECK_EQUAL(ntState.getMerkleHash(), hash1);
 
-    ntState.insertClaimIntoTrie(std::string("test"), CClaimValue(tx3OutPoint, hash160, 50, 101, 201), true);
+    ntState.insertClaimIntoTrie(std::string("test"), CClaimValue(tx3OutPoint, hash160, 50, 101, 201));
     BOOST_CHECK_EQUAL(ntState.getMerkleHash(), hash1);
-    ntState.insertClaimIntoTrie(std::string("tes"), CClaimValue(tx4OutPoint, hash160, 50, 100, 200), true);
+    ntState.insertClaimIntoTrie(std::string("tes"), CClaimValue(tx4OutPoint, hash160, 50, 100, 200));
     BOOST_CHECK_EQUAL(ntState.getMerkleHash(), hash2);
-    ntState.insertClaimIntoTrie(std::string("testtesttesttest"), CClaimValue(tx5OutPoint, hash160, 50, 100, 200), true);
-    ntState.removeClaimFromTrie(std::string("testtesttesttest"), tx5OutPoint, unused, true);
+    ntState.insertClaimIntoTrie(std::string("testtesttesttest"), CClaimValue(tx5OutPoint, hash160, 50, 100, 200));
+    ntState.removeClaimFromTrie(std::string("testtesttesttest"), tx5OutPoint);
     BOOST_CHECK_EQUAL(ntState.getMerkleHash(), hash2);
     ntState.flush();
 
@@ -111,16 +110,16 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     BOOST_CHECK(ntState.checkConsistency());
 
     CClaimTrieCacheTest ntState1(pclaimTrie);
-    ntState1.removeClaimFromTrie(std::string("test"), tx1OutPoint, unused, true);
-    ntState1.removeClaimFromTrie(std::string("test2"), tx2OutPoint, unused, true);
-    ntState1.removeClaimFromTrie(std::string("test"), tx3OutPoint, unused, true);
-    ntState1.removeClaimFromTrie(std::string("tes"), tx4OutPoint, unused, true);
+    ntState1.removeClaimFromTrie(std::string("test"), tx1OutPoint);
+    ntState1.removeClaimFromTrie(std::string("test2"), tx2OutPoint);
+    ntState1.removeClaimFromTrie(std::string("test"), tx3OutPoint);
+    ntState1.removeClaimFromTrie(std::string("tes"), tx4OutPoint);
 
     BOOST_CHECK_EQUAL(ntState1.getMerkleHash(), hash0);
 
     CClaimTrieCacheTest ntState2(pclaimTrie);
-    ntState2.insertClaimIntoTrie(std::string("abab"), CClaimValue(tx6OutPoint, hash160, 50, 100, 200), true);
-    ntState2.removeClaimFromTrie(std::string("test"), tx1OutPoint, unused, true);
+    ntState2.insertClaimIntoTrie(std::string("abab"), CClaimValue(tx6OutPoint, hash160, 50, 100, 200));
+    ntState2.removeClaimFromTrie(std::string("test"), tx1OutPoint);
 
     BOOST_CHECK_EQUAL(ntState2.getMerkleHash(), hash3);
 
@@ -131,7 +130,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     BOOST_CHECK(ntState2.checkConsistency());
 
     CClaimTrieCacheTest ntState3(pclaimTrie);
-    ntState3.insertClaimIntoTrie(std::string("test"), CClaimValue(tx1OutPoint, hash160, 50, 100, 200), true);
+    ntState3.insertClaimIntoTrie(std::string("test"), CClaimValue(tx1OutPoint, hash160, 50, 100, 200));
     BOOST_CHECK_EQUAL(ntState3.getMerkleHash(), hash4);
     ntState3.flush();
     BOOST_CHECK(!pclaimTrie->empty());
@@ -139,7 +138,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     BOOST_CHECK(ntState3.checkConsistency());
 
     CClaimTrieCacheTest ntState4(pclaimTrie);
-    ntState4.removeClaimFromTrie(std::string("abab"), tx6OutPoint, unused, true);
+    ntState4.removeClaimFromTrie(std::string("abab"), tx6OutPoint);
     BOOST_CHECK_EQUAL(ntState4.getMerkleHash(), hash2);
     ntState4.flush();
     BOOST_CHECK(!pclaimTrie->empty());
@@ -147,7 +146,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     BOOST_CHECK(ntState4.checkConsistency());
 
     CClaimTrieCacheTest ntState5(pclaimTrie);
-    ntState5.removeClaimFromTrie(std::string("test"), tx3OutPoint, unused, true);
+    ntState5.removeClaimFromTrie(std::string("test"), tx3OutPoint);
 
     BOOST_CHECK_EQUAL(ntState5.getMerkleHash(), hash2);
     ntState5.flush();
@@ -156,7 +155,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     BOOST_CHECK(ntState5.checkConsistency());
 
     CClaimTrieCacheTest ntState6(pclaimTrie);
-    ntState6.insertClaimIntoTrie(std::string("test"), CClaimValue(tx3OutPoint, hash160, 50, 101, 201), true);
+    ntState6.insertClaimIntoTrie(std::string("test"), CClaimValue(tx3OutPoint, hash160, 50, 101, 201));
 
     BOOST_CHECK_EQUAL(ntState6.getMerkleHash(), hash2);
     ntState6.flush();
@@ -165,10 +164,10 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     BOOST_CHECK(ntState6.checkConsistency());
 
     CClaimTrieCacheTest ntState7(pclaimTrie);
-    ntState7.removeClaimFromTrie(std::string("test"), tx3OutPoint, unused, true);
-    ntState7.removeClaimFromTrie(std::string("test"), tx1OutPoint, unused, true);
-    ntState7.removeClaimFromTrie(std::string("tes"), tx4OutPoint, unused, true);
-    ntState7.removeClaimFromTrie(std::string("test2"), tx2OutPoint, unused, true);
+    ntState7.removeClaimFromTrie(std::string("test"), tx3OutPoint);
+    ntState7.removeClaimFromTrie(std::string("test"), tx1OutPoint);
+    ntState7.removeClaimFromTrie(std::string("tes"), tx4OutPoint);
+    ntState7.removeClaimFromTrie(std::string("test2"), tx2OutPoint);
 
     BOOST_CHECK_EQUAL(ntState7.getMerkleHash(), hash0);
     ntState7.flush();
@@ -192,7 +191,7 @@ BOOST_AUTO_TEST_CASE(basic_insertion_info_test)
     int height = 0;
     int validHeight = 0;
     CClaimValue claimVal(claimOutPoint, claimId, amount, height, validHeight);
-    ctc.insertClaimIntoTrie("test", claimVal, true);
+    ctc.insertClaimIntoTrie("test", claimVal);
 
     // try getClaimsForName, effectiveAmount, getInfoForName
     auto res = ctc.getClaimsForName("test");
@@ -213,7 +212,7 @@ BOOST_AUTO_TEST_CASE(basic_insertion_info_test)
     COutPoint supportOutPoint(tx2.GetHash(), 0);
 
     CSupportValue support(supportOutPoint, claimId, supportAmount, height, validHeight);
-    ctc.insertSupportIntoMap("test", support, false);
+    ctc.insertSupportIntoMap("test", support);
 
     auto res1 = ctc.getClaimsForName("test");
     BOOST_CHECK_EQUAL(res1.claimsNsupports.size(), 1);
@@ -223,71 +222,50 @@ BOOST_AUTO_TEST_CASE(basic_insertion_info_test)
     BOOST_CHECK_EQUAL(20, res1.claimsNsupports[0].effectiveAmount);
 }
 
-BOOST_AUTO_TEST_CASE(recursive_prune_test)
-{
-    CClaimTrieCacheTest cc(pclaimTrie);
-    BOOST_CHECK_EQUAL(0, cc.cacheSize());
-
-    COutPoint outpoint;
-    uint160 claimId;
-    CAmount amount(20);
-    int height = 0;
-    int validAtHeight = 0;
-    CClaimValue test_claim(outpoint, claimId, amount, height, validAtHeight);
-
-    CClaimTrieData data;
-    // base node has a claim, so it should not be pruned
-    data.insertClaim(test_claim);
-    cc.insert("", std::move(data));
-
-    // node 1 has a claim so it should not be pruned
-    data.insertClaim(test_claim);
-    // set this just to make sure we get the right CClaimTrieNode back
-    data.nHeightOfLastTakeover = 10;
-    cc.insert("t", std::move(data));
-
-    //node 2 does not have a claim so it should be pruned
-    // thus we should find pruned node 1 in cache
-    cc.insert("te", CClaimTrieData{});
-
-    BOOST_CHECK(cc.erase("te"));
-    BOOST_CHECK_EQUAL(2, cc.cacheSize());
-    auto it = cc.getCache("t");
-    BOOST_CHECK_EQUAL(10, it->nHeightOfLastTakeover);
-    BOOST_CHECK_EQUAL(1, it->claims.size());
-    BOOST_CHECK_EQUAL(2, cc.cacheSize());
-
-    cc.insert("te", CClaimTrieData{});
-    // erasing "t" will make it weak
-    BOOST_CHECK(cc.erase("t"));
-    // so now we erase "e" as well as "t"
-    BOOST_CHECK(cc.erase("te"));
-    // we have claim in root
-    BOOST_CHECK_EQUAL(1, cc.cacheSize());
-    BOOST_CHECK(cc.erase(""));
-    BOOST_CHECK_EQUAL(0, cc.cacheSize());
-}
-
-BOOST_AUTO_TEST_CASE(iteratetrie_test)
-{
-    BOOST_CHECK(pclaimTrie->empty());
-    CClaimTrieCacheTest ctc(pclaimTrie);
-
-    uint256 hash0(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
-    CMutableTransaction tx1 = BuildTransaction(hash0);
-
-    const uint256 txhash = tx1.GetHash();
-    CClaimValue claimVal(COutPoint(txhash, 0), ClaimIdHash(txhash, 0), CAmount(10), 0, 0);
-    ctc.insertClaimIntoTrie("test", claimVal, true);
-    BOOST_CHECK(ctc.flush());
-
-    auto hit = pclaimTrie->find("");
-    BOOST_CHECK(hit);
-    BOOST_CHECK_EQUAL(hit.children().size(), 1U);
-    BOOST_CHECK(hit = pclaimTrie->find("test"));
-    BOOST_CHECK_EQUAL(hit.children().size(), 0U);
-    BOOST_CHECK_EQUAL(hit.data().claims.size(), 1);
-}
+//BOOST_AUTO_TEST_CASE(recursive_prune_test)
+//{
+//    CClaimTrieCacheTest cc(pclaimTrie);
+//    BOOST_CHECK_EQUAL(0, cc.getTotalClaimsInTrie());
+//
+//    COutPoint outpoint;
+//    uint160 claimId;
+//    CAmount amount(20);
+//    int height = 0;
+//    int validAtHeight = 0;
+//    CClaimValue test_claim(outpoint, claimId, amount, height, validAtHeight);
+//
+//    CClaimTrieData data;
+//    // base node has a claim, so it should not be pruned
+//    data.insertClaim(test_claim);
+//    cc.insert("", std::move(data));
+//
+//    // node 1 has a claim so it should not be pruned
+//    data.insertClaim(test_claim);
+//    // set this just to make sure we get the right CClaimTrieNode back
+//    data.nHeightOfLastTakeover = 10;
+//    cc.insert("t", std::move(data));
+//
+//    //node 2 does not have a claim so it should be pruned
+//    // thus we should find pruned node 1 in cache
+//    cc.insert("te", CClaimTrieData{});
+//
+//    BOOST_CHECK(cc.erase("te"));
+//    BOOST_CHECK_EQUAL(2, cc.cacheSize());
+//    auto it = cc.getCache("t");
+//    BOOST_CHECK_EQUAL(10, it->nHeightOfLastTakeover);
+//    BOOST_CHECK_EQUAL(1, it->claims.size());
+//    BOOST_CHECK_EQUAL(2, cc.cacheSize());
+//
+//    cc.insert("te", CClaimTrieData{});
+//    // erasing "t" will make it weak
+//    BOOST_CHECK(cc.erase("t"));
+//    // so now we erase "e" as well as "t"
+//    BOOST_CHECK(cc.erase("te"));
+//    // we have claim in root
+//    BOOST_CHECK_EQUAL(1, cc.cacheSize());
+//    BOOST_CHECK(cc.erase(""));
+//    BOOST_CHECK_EQUAL(0, cc.cacheSize());
+//}
 
 BOOST_AUTO_TEST_CASE(trie_stays_consistent_test)
 {
@@ -300,14 +278,13 @@ BOOST_AUTO_TEST_CASE(trie_stays_consistent_test)
     CClaimValue value;
 
     for (auto& name: names)
-        BOOST_CHECK(cache.insertClaimIntoTrie(name, value, false));
+        BOOST_CHECK(cache.insertClaimIntoTrie(name, value));
 
     cache.flush();
     BOOST_CHECK(cache.checkConsistency());
 
     for (auto& name: names) {
-        CClaimValue temp;
-        BOOST_CHECK(cache.removeClaimFromTrie(name, COutPoint(), temp, false));
+        BOOST_CHECK(cache.removeClaimFromTrie(name, COutPoint()));
         cache.flush();
         BOOST_CHECK(cache.checkConsistency());
     }
@@ -332,37 +309,41 @@ BOOST_AUTO_TEST_CASE(takeover_workaround_triggers)
     CClaimValue value;
     value.nHeight = 1;
 
-    BOOST_CHECK(cache.insertClaimIntoTrie("a", value, true));
-    BOOST_CHECK(cache.insertClaimIntoTrie("b", value, true));
-    BOOST_CHECK(cache.insertClaimIntoTrie("c", value, true));
-    BOOST_CHECK(cache.insertClaimIntoTrie("aa", value, true));
-    BOOST_CHECK(cache.insertClaimIntoTrie("bb", value, true));
-    BOOST_CHECK(cache.insertClaimIntoTrie("cc", value, true));
-    BOOST_CHECK(cache.insertSupportIntoMap("aa", CSupportValue(), false));
+    BOOST_CHECK(cache.insertClaimIntoTrie("a", value));
+    BOOST_CHECK(cache.insertClaimIntoTrie("b", value));
+    BOOST_CHECK(cache.insertClaimIntoTrie("c", value));
+    BOOST_CHECK(cache.insertClaimIntoTrie("aa", value));
+    BOOST_CHECK(cache.insertClaimIntoTrie("bb", value));
+    BOOST_CHECK(cache.insertClaimIntoTrie("cc", value));
+    BOOST_CHECK(cache.insertSupportIntoMap("aa", CSupportValue()));
 
     BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu, thu));
     BOOST_CHECK(cache.flush());
     BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu, thu));
-    BOOST_CHECK_EQUAL(0, cache.cacheSize());
+    BOOST_CHECK_EQUAL(0, cache.getTotalNamesInTrie());
 
     CSupportValue temp;
-    BOOST_CHECK(cache.insertSupportIntoMap("bb", temp, false));
-    BOOST_CHECK(!cache.getCache("aa"));
-    BOOST_CHECK(cache.removeSupportFromMap("aa", COutPoint(), temp, false));
+    CClaimValue cv;
+    BOOST_CHECK(cache.insertSupportIntoMap("bb", temp));
+    BOOST_CHECK(!cache.getInfoForName("aa", cv));
+    BOOST_CHECK(cache.removeSupportFromMap("aa", COutPoint()));
 
-    BOOST_CHECK(cache.removeClaimFromTrie("aa", COutPoint(), value, false));
-    BOOST_CHECK(cache.removeClaimFromTrie("bb", COutPoint(), value, false));
-    BOOST_CHECK(cache.removeClaimFromTrie("cc", COutPoint(), value, false));
+    BOOST_CHECK(cache.removeClaimFromTrie("aa", COutPoint()));
+    BOOST_CHECK(cache.removeClaimFromTrie("bb", COutPoint()));
+    BOOST_CHECK(cache.removeClaimFromTrie("cc", COutPoint()));
 
-    BOOST_CHECK(cache.insertClaimIntoTrie("aa", value, true));
-    BOOST_CHECK(cache.insertClaimIntoTrie("bb", value, true));
-    BOOST_CHECK(cache.insertClaimIntoTrie("cc", value, true));
+    BOOST_CHECK(cache.insertClaimIntoTrie("aa", value));
+    BOOST_CHECK(cache.insertClaimIntoTrie("bb", value));
+    BOOST_CHECK(cache.insertClaimIntoTrie("cc", value));
 
     BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu, thu));
 
-    BOOST_CHECK_EQUAL(3, cache.getCache("aa")->nHeightOfLastTakeover);
-    BOOST_CHECK_EQUAL(3, cache.getCache("bb")->nHeightOfLastTakeover);
-    BOOST_CHECK_EQUAL(1, cache.getCache("cc")->nHeightOfLastTakeover);
+    BOOST_CHECK(cache.getInfoForName("aa", cv));
+    BOOST_CHECK_EQUAL(3, cv.nValidAtHeight);
+    BOOST_CHECK(cache.getInfoForName("bb", cv));
+    BOOST_CHECK_EQUAL(3, cv.nValidAtHeight);
+    BOOST_CHECK(cache.getInfoForName("cc", cv));
+    BOOST_CHECK_EQUAL(1, cv.nValidAtHeight);
 }
 
 BOOST_AUTO_TEST_CASE(verify_basic_serialization)
@@ -382,69 +363,6 @@ BOOST_AUTO_TEST_CASE(verify_basic_serialization)
     ssData >> cv2;
 
     BOOST_CHECK_EQUAL(cv, cv2);
-}
-
-BOOST_AUTO_TEST_CASE(claimtrienode_serialize_unserialize)
-{
-    CDataStream ss(SER_DISK, 0);
-
-    uint160 hash160;
-
-    CClaimTrieData n1;
-    CClaimTrieData n2;
-    CClaimValue throwaway;
-
-    ss << n1;
-    ss >> n2;
-    BOOST_CHECK_EQUAL(n1, n2);
-
-    CClaimValue v1(COutPoint(uint256S("0000000000000000000000000000000000000000000000000000000000000001"), 0), hash160, 50, 0, 100);
-    CClaimValue v2(COutPoint(uint256S("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"), 1), hash160, 100, 1, 101);
-
-    n1.insertClaim(v1);
-    BOOST_CHECK(n1 != n2);
-    ss << n1;
-    ss >> n2;
-    BOOST_CHECK_EQUAL(n1, n2);
-
-    n1.insertClaim(v2);
-    BOOST_CHECK(n1 != n2);
-    ss << n1;
-    ss >> n2;
-    BOOST_CHECK_EQUAL(n1, n2);
-
-    n1.removeClaim(v1.outPoint, throwaway);
-    BOOST_CHECK(n1 != n2);
-    ss << n1;
-    ss >> n2;
-    BOOST_CHECK_EQUAL(n1, n2);
-
-    n1.removeClaim(v2.outPoint, throwaway);
-    BOOST_CHECK(n1 != n2);
-    ss << n1;
-    ss >> n2;
-    BOOST_CHECK_EQUAL(n1, n2);
-}
-
-BOOST_AUTO_TEST_CASE(claimtrienode_remove_invalid_claim)
-{
-    uint160 hash160;
-
-    CClaimTrieData n1;
-    CClaimTrieData n2;
-    CClaimValue throwaway;
-
-    CClaimValue v1(COutPoint(uint256S("0000000000000000000000000000000000000000000000000000000000000001"), 0), hash160, 50, 0, 100);
-    CClaimValue v2(COutPoint(uint256S("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"), 1), hash160, 100, 1, 101);
-
-    n1.insertClaim(v1);
-    n2.insertClaim(v2);
-
-    bool invalidClaim = n2.removeClaim(v1.outPoint, throwaway);
-    BOOST_CHECK_EQUAL(invalidClaim, false);
-
-    invalidClaim = n1.removeClaim(v2.outPoint, throwaway);
-    BOOST_CHECK_EQUAL(invalidClaim, false);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

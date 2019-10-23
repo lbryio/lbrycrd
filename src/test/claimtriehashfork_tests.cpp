@@ -49,9 +49,7 @@ BOOST_AUTO_TEST_CASE(hash_includes_all_claims_single_test)
     uint160 claimId = ClaimIdHash(tx1.GetHash(), 0);
 
     CClaimTrieProof proof;
-    BOOST_CHECK(fixture.getProofForName("test", proof, [&claimId](const CClaimValue& claim) {
-        return claim.claimId == claimId;
-    }));
+    BOOST_CHECK(fixture.getProofForName("test", claimId, proof));
     BOOST_CHECK(proof.hasValue);
     BOOST_CHECK_EQUAL(proof.outPoint, outPoint);
     auto claimHash = getValueHash(outPoint, proof.nHeightOfLastTakeover);
@@ -79,9 +77,7 @@ BOOST_AUTO_TEST_CASE(hash_includes_all_claims_triple_test)
         for (auto& claimSupports : fixture.getClaimsForName(name).claimsNsupports) {
             CClaimTrieProof proof;
             auto& claim = claimSupports.claim;
-            BOOST_CHECK(fixture.getProofForName(name, proof, [&claim](const CClaimValue& value) {
-                return claim.claimId == value.claimId;
-            }));
+            BOOST_CHECK(fixture.getProofForName(name, claim.claimId, proof));
             BOOST_CHECK(proof.hasValue);
             BOOST_CHECK_EQUAL(proof.outPoint, claim.outPoint);
             uint256 claimHash = getValueHash(claim.outPoint, proof.nHeightOfLastTakeover);
@@ -110,15 +106,41 @@ BOOST_AUTO_TEST_CASE(hash_includes_all_claims_branched_test)
         for (auto& claimSupports : fixture.getClaimsForName(name).claimsNsupports) {
             CClaimTrieProof proof;
             auto& claim = claimSupports.claim;
-            BOOST_CHECK(fixture.getProofForName(name, proof, [&claim](const CClaimValue& value) {
-                return claim.claimId == value.claimId;
-            }));
+            BOOST_CHECK(fixture.getProofForName(name, claim.claimId, proof));
             BOOST_CHECK(proof.hasValue);
             BOOST_CHECK_EQUAL(proof.outPoint, claim.outPoint);
             uint256 claimHash = getValueHash(claim.outPoint, proof.nHeightOfLastTakeover);
             ValidatePairs(fixture, proof.pairs, claimHash);
         }
     }
+}
+
+std::vector<std::string> random_strings(std::size_t count)
+{
+    static auto& chrs = "0123456789"
+                        "abcdefghijklmnopqrstuvwxyz"
+                        "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    FastRandomContext frc(true);
+
+    std::unordered_set<std::string> strings;
+    strings.reserve(count);
+
+    while(strings.size() < count) {
+        auto length = frc.randrange(sizeof(chrs) - 2) + 1;
+
+        std::string s;
+        s.reserve(length);
+
+        while (length--)
+            s += chrs[frc.randrange(sizeof(chrs) - 1)];
+
+        strings.emplace(s);
+    }
+
+    std::vector<std::string> ret(strings.begin(), strings.end());
+    std::random_shuffle(ret.begin(), ret.end(), [&frc](std::size_t n) { return frc.randrange(n); });
+    return ret;
 }
 
 BOOST_AUTO_TEST_CASE(hash_claims_children_fuzzer_test)
@@ -145,9 +167,7 @@ BOOST_AUTO_TEST_CASE(hash_claims_children_fuzzer_test)
         for (auto& claimSupports : fixture.getClaimsForName(name).claimsNsupports) {
             CClaimTrieProof proof;
             auto& claim = claimSupports.claim;
-            BOOST_CHECK(fixture.getProofForName(name, proof, [&claim](const CClaimValue& value) {
-                return claim.claimId == value.claimId;
-            }));
+            BOOST_CHECK(fixture.getProofForName(name, claim.claimId, proof));
             BOOST_CHECK(proof.hasValue);
             BOOST_CHECK_EQUAL(proof.outPoint, claim.outPoint);
             uint256 claimHash = getValueHash(claim.outPoint, proof.nHeightOfLastTakeover);
@@ -278,31 +298,31 @@ BOOST_AUTO_TEST_CASE(value_proof_test)
 
     CClaimTrieProof proof;
 
-    BOOST_CHECK(fixture.getProofForName(sName1, proof));
+    BOOST_CHECK(fixture.getProofForName(sName1, ClaimIdHash(tx1.GetHash(), 0), proof));
     BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName1));
     BOOST_CHECK_EQUAL(proof.outPoint, tx1OutPoint);
 
-    BOOST_CHECK(fixture.getProofForName(sName2, proof));
+    BOOST_CHECK(fixture.getProofForName(sName2, ClaimIdHash(tx2.GetHash(), 0), proof));
     BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName2));
     BOOST_CHECK_EQUAL(proof.outPoint, tx2OutPoint);
 
-    BOOST_CHECK(fixture.getProofForName(sName3, proof));
+    BOOST_CHECK(fixture.getProofForName(sName3, ClaimIdHash(tx3.GetHash(), 0), proof));
     BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName3));
     BOOST_CHECK_EQUAL(proof.outPoint, tx3OutPoint);
 
-    BOOST_CHECK(fixture.getProofForName(sName4, proof));
+    BOOST_CHECK(fixture.getProofForName(sName4, ClaimIdHash(tx4.GetHash(), 0), proof));
     BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName4));
     BOOST_CHECK_EQUAL(proof.outPoint, tx4OutPoint);
 
-    BOOST_CHECK(fixture.getProofForName(sName5, proof));
+    BOOST_CHECK(fixture.getProofForName(sName5, ClaimIdHash(tx1.GetHash(), 0), proof));
     BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName5));
     BOOST_CHECK_EQUAL(proof.hasValue, false);
 
-    BOOST_CHECK(fixture.getProofForName(sName6, proof));
+    BOOST_CHECK(fixture.getProofForName(sName6, ClaimIdHash({}, 0), proof));
     BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName6));
     BOOST_CHECK_EQUAL(proof.hasValue, false);
 
-    BOOST_CHECK(fixture.getProofForName(sName7, proof));
+    BOOST_CHECK(fixture.getProofForName(sName7, ClaimIdHash(fixture.getMerkleHash(), 0), proof));
     BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName7));
     BOOST_CHECK_EQUAL(proof.hasValue, false);
 
@@ -314,33 +334,25 @@ BOOST_AUTO_TEST_CASE(value_proof_test)
     BOOST_CHECK(fixture.getInfoForName(sName7, val));
     BOOST_CHECK_EQUAL(val.outPoint, tx5OutPoint);
 
-    BOOST_CHECK(fixture.getProofForName(sName1, proof));
+    BOOST_CHECK(fixture.getProofForName(sName1, ClaimIdHash(tx1.GetHash(), 0), proof));
     BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName1));
     BOOST_CHECK_EQUAL(proof.outPoint, tx1OutPoint);
 
-    BOOST_CHECK(fixture.getProofForName(sName2, proof));
+    BOOST_CHECK(fixture.getProofForName(sName2, ClaimIdHash(tx2.GetHash(), 0), proof));
     BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName2));
     BOOST_CHECK_EQUAL(proof.outPoint, tx2OutPoint);
 
-    BOOST_CHECK(fixture.getProofForName(sName3, proof));
+    BOOST_CHECK(fixture.getProofForName(sName3, ClaimIdHash(tx3.GetHash(), 0), proof));
     BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName3));
     BOOST_CHECK_EQUAL(proof.outPoint, tx3OutPoint);
 
-    BOOST_CHECK(fixture.getProofForName(sName4, proof));
+    BOOST_CHECK(fixture.getProofForName(sName4, ClaimIdHash(tx4.GetHash(), 0), proof));
     BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName4));
     BOOST_CHECK_EQUAL(proof.outPoint, tx4OutPoint);
 
-    BOOST_CHECK(fixture.getProofForName(sName5, proof));
+    BOOST_CHECK(fixture.getProofForName(sName5, ClaimIdHash(tx5.GetHash(), 0), proof));
     BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName5));
     BOOST_CHECK_EQUAL(proof.hasValue, false);
-
-    BOOST_CHECK(fixture.getProofForName(sName6, proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName6));
-    BOOST_CHECK_EQUAL(proof.hasValue, false);
-
-    BOOST_CHECK(fixture.getProofForName(sName7, proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName7));
-    BOOST_CHECK_EQUAL(proof.outPoint, tx5OutPoint);
 
     fixture.DecrementBlocks();
     BOOST_CHECK(pclaimTrie->empty());
