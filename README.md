@@ -153,7 +153,7 @@ compiledb make -j10
 ```
 Then open the newly generated compile_commands.json file as a project in CLion. Debugging is supported if you compiled with `-g`. To enable that you will need to create a target in CLion by going to File -> Settings -> Build -> Custom Build Targets. Add an empty target with your choice of name. From there you can go to "Edit Configurations", typically found in a drop-down at the top of the editor. Add a Custom Build Application, select your new target, select the compiled file (i.e. test_lbrycrd or lbrycrdd, etc), and then add any necessary command line parameters. Ensure that there is nothing in the "Before launch" section.
 
-## Contributing
+### Contributing
 
 Contributions to this project are welcome, encouraged, and compensated. For more details, see [https://lbry.tech/contribute](https://lbry.tech/contribute)
 
