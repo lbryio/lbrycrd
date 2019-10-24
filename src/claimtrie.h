@@ -49,19 +49,21 @@ namespace sqlite {
     struct has_sqlite_type<uint160, SQLITE_BLOB, void> : std::true_type {};
 
     inline uint160 get_col_from_db(sqlite3_stmt* stmt, int inx, result_type<uint160>) {
-        int bytes = sqlite3_column_bytes(stmt, inx);
         uint160 ret;
-        assert(bytes == ret.size());
         auto ptr = sqlite3_column_blob(stmt, inx);
+        if (!ptr) return ret;
+        int bytes = sqlite3_column_bytes(stmt, inx);
+        assert(bytes == ret.size());
         std::memcpy(ret.begin(), ptr, bytes);
         return ret;
     }
 
     inline uint256 get_col_from_db(sqlite3_stmt* stmt, int inx, result_type<uint256>) {
-        int bytes = sqlite3_column_bytes(stmt, inx);
         uint256 ret;
-        assert(bytes == ret.size());
         auto ptr = sqlite3_column_blob(stmt, inx);
+        if (!ptr) return ret;
+        int bytes = sqlite3_column_bytes(stmt, inx);
+        assert(bytes == ret.size());
         std::memcpy(ret.begin(), ptr, bytes);
         return ret;
     }
@@ -373,8 +375,7 @@ public:
     virtual bool incrementBlock(insertUndoType& insertUndo,
         claimQueueRowType& expireUndo,
         insertUndoType& insertSupportUndo,
-        supportQueueRowType& expireSupportUndo,
-        std::vector<std::pair<std::string, int>>& takeoverHeightUndo);
+        supportQueueRowType& expireSupportUndo);
 
     virtual bool decrementBlock(insertUndoType& insertUndo,
         claimQueueRowType& expireUndo,
@@ -386,7 +387,7 @@ public:
 
     virtual int expirationTime() const;
 
-    virtual bool finalizeDecrement(std::vector<std::pair<std::string, int>>& takeoverHeightUndo);
+    virtual bool finalizeDecrement();
 
     virtual CClaimSupportToName getClaimsForName(const std::string& name) const;
     virtual std::string adjustNameForValidHeight(const std::string& name, int validHeight) const;
@@ -403,7 +404,7 @@ protected:
     CClaimTrie* base;
     bool dirtyNodes;
 
-    virtual uint256 recursiveComputeMerkleHash(const std::string& name, int lastTakeoverHeight, bool checkOnly);
+    virtual uint256 recursiveComputeMerkleHash(const std::string& name, bool checkOnly);
 
     supportEntryType getSupportsForName(const std::string& name) const;
 
@@ -435,13 +436,12 @@ public:
     int expirationTime() const override;
 
     virtual void initializeIncrement();
-    bool finalizeDecrement(std::vector<std::pair<std::string, int>>& takeoverHeightUndo) override;
+    bool finalizeDecrement() override;
 
     bool incrementBlock(insertUndoType& insertUndo,
         claimQueueRowType& expireUndo,
         insertUndoType& insertSupportUndo,
-        supportQueueRowType& expireSupportUndo,
-        std::vector<std::pair<std::string, int>>& takeoverHeightUndo) override;
+        supportQueueRowType& expireSupportUndo) override;
 
     bool decrementBlock(insertUndoType& insertUndo,
         claimQueueRowType& expireUndo,
@@ -470,8 +470,7 @@ public:
     bool incrementBlock(insertUndoType& insertUndo,
         claimQueueRowType& expireUndo,
         insertUndoType& insertSupportUndo,
-        supportQueueRowType& expireSupportUndo,
-        std::vector<std::pair<std::string, int>>& takeoverHeightUndo) override;
+        supportQueueRowType& expireSupportUndo) override;
 
     bool decrementBlock(insertUndoType& insertUndo,
         claimQueueRowType& expireUndo,
@@ -497,12 +496,12 @@ public:
 
     bool getProofForName(const std::string& name, const uint160& finalClaim, CClaimTrieProof& proof) override;
     void initializeIncrement() override;
-    bool finalizeDecrement(std::vector<std::pair<std::string, int>>& takeoverHeightUndo) override;
+    bool finalizeDecrement() override;
 
     bool allowSupportMetadata() const;
 
 protected:
-    uint256 recursiveComputeMerkleHash(const std::string& name, int lastTakeoverHeight, bool checkOnly) override;
+    uint256 recursiveComputeMerkleHash(const std::string& name, bool checkOnly) override;
 };
 
 typedef CClaimTrieCacheHashFork CClaimTrieCache;

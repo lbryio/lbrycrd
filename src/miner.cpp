@@ -49,7 +49,6 @@ void blockToCache(const CBlock* pblock, CClaimTrieCache& trieCache, int nHeight)
     claimQueueRowType dummyExpireUndo;
     insertUndoType dummyInsertSupportUndo;
     supportQueueRowType dummyExpireSupportUndo;
-    std::vector<std::pair<std::string, int> > dummyTakeoverHeightUndo;
 
     CUpdateCacheCallbacks callbacks = {
         .findScriptKey = [&pblock](const COutPoint& point) {
@@ -69,7 +68,7 @@ void blockToCache(const CBlock* pblock, CClaimTrieCache& trieCache, int nHeight)
         if (!tx->IsCoinBase())
             UpdateCache(*tx, trieCache, view, nHeight, callbacks);
 
-    trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo, dummyInsertSupportUndo, dummyExpireSupportUndo, dummyTakeoverHeightUndo);
+    trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo, dummyInsertSupportUndo, dummyExpireSupportUndo);
 }
 
 BlockAssembler::Options::Options() {

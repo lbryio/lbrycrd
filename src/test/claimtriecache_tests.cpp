@@ -303,8 +303,7 @@ BOOST_AUTO_TEST_CASE(takeover_workaround_triggers)
     CClaimTrieCacheTest cache(&trie);
 
     insertUndoType icu, isu; claimQueueRowType ecu; supportQueueRowType esu;
-    std::vector<std::pair<std::string, int>> thu;
-    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu, thu));
+    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu));
 
     CClaimValue value;
     value.nHeight = 1;
@@ -317,9 +316,9 @@ BOOST_AUTO_TEST_CASE(takeover_workaround_triggers)
     BOOST_CHECK(cache.insertClaimIntoTrie("cc", value));
     BOOST_CHECK(cache.insertSupportIntoMap("aa", CSupportValue()));
 
-    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu, thu));
+    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu));
     BOOST_CHECK(cache.flush());
-    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu, thu));
+    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu));
     BOOST_CHECK_EQUAL(0, cache.getTotalNamesInTrie());
 
     CSupportValue temp;
@@ -336,7 +335,7 @@ BOOST_AUTO_TEST_CASE(takeover_workaround_triggers)
     BOOST_CHECK(cache.insertClaimIntoTrie("bb", value));
     BOOST_CHECK(cache.insertClaimIntoTrie("cc", value));
 
-    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu, thu));
+    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu));
 
     BOOST_CHECK(cache.getInfoForName("aa", cv));
     BOOST_CHECK_EQUAL(3, cv.nValidAtHeight);

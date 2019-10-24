@@ -25,9 +25,9 @@ int CClaimTrieCacheExpirationFork::expirationTime() const
     return nExpirationTime;
 }
 
-bool CClaimTrieCacheExpirationFork::incrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo, std::vector<std::pair<std::string, int>>& takeoverHeightUndo)
+bool CClaimTrieCacheExpirationFork::incrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo)
 {
-    if (CClaimTrieCacheBase::incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverHeightUndo)) {
+    if (CClaimTrieCacheBase::incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo)) {
         setExpirationTime(Params().GetConsensus().GetExpirationTime(nNextHeight));
         return true;
     }
@@ -52,9 +52,9 @@ void CClaimTrieCacheExpirationFork::initializeIncrement()
     forkForExpirationChange(true);
 }
 
-bool CClaimTrieCacheExpirationFork::finalizeDecrement(std::vector<std::pair<std::string, int>>& takeoverHeightUndo)
+bool CClaimTrieCacheExpirationFork::finalizeDecrement()
 {
-    auto ret = CClaimTrieCacheBase::finalizeDecrement(takeoverHeightUndo);
+    auto ret = CClaimTrieCacheBase::finalizeDecrement();
     if (ret && nNextHeight == Params().GetConsensus().nExtendedClaimExpirationForkHeight)
        forkForExpirationChange(false);
     return ret;
@@ -74,7 +74,7 @@ bool CClaimTrieCacheExpirationFork::forkForExpirationChange(bool increment)
     if (!increment) extension = -extension;
     base->_db << "UPDATE claims SET expirationHeight = expirationHeight + ? WHERE expirationHeight >= ?" << extension << nNextHeight;
     base->_db << "UPDATE supports SET expirationHeight = expirationHeight + ? WHERE expirationHeight >= ?" << extension << nNextHeight;
-    base->_db << "UPDATE nodes SET hash = NULL, claimHash = NULL"; // recompute all hashes (as there aren't that many at this point)
+    base->_db << "UPDATE nodes SET hash = NULL"; // recompute all hashes (as there aren't that many at this point)
     dirtyNodes = true;
     return true;
 }
@@ -135,7 +135,7 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(bool f
 
     base->_db.define("NORMALIZED", [this](const std::string& str) { return normalizeClaimName(str, true); });
 
-    auto query = base->_db << "SELECT NORMALIZED(name), name, claimID as nn FROM claims HAVING nodeName != nn";
+    auto query = base->_db << "SELECT NORMALIZED(name) as nn, name, claimID FROM claims HAVING nodeName != nn";
     for(auto&& row: query) {
         std::string newName, oldName;
         uint160 claimID;
@@ -143,17 +143,17 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(bool f
         if (!forward) std::swap(newName, oldName);
         base->_db << "UPDATE claims SET nodeName = ? WHERE claimID = ?" << newName << claimID;
         base->_db << "DELETE FROM nodes WHERE name = ?" << oldName;
-        base->_db << "INSERT INTO nodes(name) VALUES(?) ON CONFLICT DO UPDATE hash = NULL, claimHash = NULL" << newName;
+        base->_db << "INSERT INTO nodes(name) VALUES(?) ON CONFLICT DO UPDATE hash = NULL" << newName;
     }
     dirtyNodes = true;
 
     return true;
 }
 
-bool CClaimTrieCacheNormalizationFork::incrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo, std::vector<std::pair<std::string, int>>& takeoverHeightUndo)
+bool CClaimTrieCacheNormalizationFork::incrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo)
 {
     normalizeAllNamesInTrieIfNecessary(true);
-    return CClaimTrieCacheExpirationFork::incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverHeightUndo);
+    return CClaimTrieCacheExpirationFork::incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo);
 }
 
 bool CClaimTrieCacheNormalizationFork::decrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo)
@@ -196,36 +196,37 @@ CClaimTrieCacheHashFork::CClaimTrieCacheHashFork(CClaimTrie* base) : CClaimTrieC
 static const uint256 leafHash = uint256S("0000000000000000000000000000000000000000000000000000000000000002");
 static const uint256 emptyHash = uint256S("0000000000000000000000000000000000000000000000000000000000000003");
 
-uint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(const std::string& name, int lastTakeoverHeight, bool checkOnly)
+uint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(const std::string& name, bool checkOnly)
 {
     if (nNextHeight < Params().GetConsensus().nAllClaimsInMerkleForkHeight)
-        return CClaimTrieCacheNormalizationFork::recursiveComputeMerkleHash(name, lastTakeoverHeight, checkOnly);
+        return CClaimTrieCacheNormalizationFork::recursiveComputeMerkleHash(name, checkOnly);
 
-    auto childQuery = base->_db << "SELECT name, hash, lastTakeoverHeight FROM nodes WHERE parent = ? ORDER BY name" << name;
+    auto childQuery = base->_db << "SELECT name, hash FROM nodes WHERE parent = ? ORDER BY name" << name;
 
     std::vector<uint256> childHashes;
     for (auto&& row: childQuery) {
         std::string key;
-        int keyLastTakeoverHeight;
         std::unique_ptr<uint256> hash;
-        row >> key >> hash >> keyLastTakeoverHeight;
+        row >> key >> hash;
         if (hash == nullptr) hash = std::make_unique<uint256>();
         if (hash->IsNull()) {
-            *hash = recursiveComputeMerkleHash(key, keyLastTakeoverHeight, checkOnly);
+            *hash = recursiveComputeMerkleHash(key, checkOnly);
         }
         childHashes.push_back(*hash);
     }
 
     auto claimQuery = base->_db << "SELECT c.txID, c.txN, c.validHeight, c.amount + "
-                      "SUM(SELECT s.amount FROM supports s WHERE s.supportedClaimID = c.claimID AND s.validHeight < ?) as effectiveAmount"
-                      "FROM claims c WHERE c.nodeName = ? AND c.validHeight < ? "
-                      "ORDER BY effectiveAmount DESC, c.blockHeight, c.txID, c.txN" << nNextHeight << name << nNextHeight;
+                      "SUM(SELECT s.amount FROM supports s WHERE s.supportedClaimID = c.claimID "
+                      "AND s.validHeight < ? AND s.expirationHeight >= ?) as effectiveAmount"
+                      "FROM claims c WHERE c.nodeName = ? AND c.validHeight < ? AND c.expirationHeight >= ? "
+                      "ORDER BY effectiveAmount DESC, c.blockHeight, c.txID, c.txN" << nNextHeight << nNextHeight << name << nNextHeight << nNextHeight;
 
     std::vector<uint256> claimHashes;
     for (auto&& row: claimQuery) {
         COutPoint p;
-        row >> p.hash >> p.n;
-        auto claimHash = getValueHash(p, lastTakeoverHeight);
+        int validHeight;
+        row >> p.hash >> p.n >> validHeight;
+        auto claimHash = getValueHash(p, validHeight);
         claimHashes.push_back(claimHash);
     }
 
@@ -307,13 +308,13 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const uin
     // cache the parent nodes
     getMerkleHash();
     proof = CClaimTrieProof();
-    auto nodeQuery = base->_db << "SELECT name, lastTakeoverHeight FROM nodes WHERE "
+    auto nodeQuery = base->_db << "SELECT name FROM nodes WHERE "
                                   "name IN (WITH RECURSIVE prefix(p) AS (VALUES(?) UNION ALL "
-                                  "SELECT SUBSTR(p, 0, LENGTH(p)) FROM prefix WHERE p != '') SELECT p FROM prefix) "
+                                  "SELECT SUBSTR(p, 1, LENGTH(p)) FROM prefix WHERE p != '') SELECT p FROM prefix) "
                                   "ORDER BY LENGTH(name)" << name;
     for (auto&& row: nodeQuery) {
-        std::string key; int lastTakeover;
-        row >> key >> lastTakeover;
+        std::string key;;
+        row >> key;
         std::vector<uint256> childHashes;
         uint32_t nextCurrentIdx = 0;
         auto childQuery = base->_db << "SELECT name, hash FROM nodes WHERE parent = ?" << key;
@@ -332,7 +333,7 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const uin
         COutPoint finalOutPoint;
         for (uint32_t i = 0; i < cns.claimsNsupports.size(); ++i) {
             auto& child = cns.claimsNsupports[i].claim;
-            claimHashes.push_back(getValueHash(child.outPoint, lastTakeover));
+            claimHashes.push_back(getValueHash(child.outPoint, child.nValidAtHeight));
             if (child.claimId == finalClaim) {
                 finalClaimIdx = i;
                 finalOutPoint = child.outPoint;
@@ -344,7 +345,7 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const uin
         // else it will be hash(x, claims)
         if (key == name) {
             proof.outPoint = finalOutPoint;
-            proof.nHeightOfLastTakeover = lastTakeover;
+            proof.nHeightOfLastTakeover = cns.nLastTakeoverHeight;
             proof.hasValue = true;
             auto hash = childHashes.empty() ? leafHash : ComputeMerkleRoot(childHashes);
             proof.pairs.emplace_back(true, hash);
@@ -369,9 +370,9 @@ void CClaimTrieCacheHashFork::initializeIncrement()
         base->_db << "UPDATE nodes SET hash = NULL";
 }
 
-bool CClaimTrieCacheHashFork::finalizeDecrement(std::vector<std::pair<std::string, int>>& takeoverHeightUndo)
+bool CClaimTrieCacheHashFork::finalizeDecrement()
 {
-    auto ret = CClaimTrieCacheNormalizationFork::finalizeDecrement(takeoverHeightUndo);
+    auto ret = CClaimTrieCacheNormalizationFork::finalizeDecrement();
     if (ret && nNextHeight == Params().GetConsensus().nAllClaimsInMerkleForkHeight - 1)
         base->_db << "UPDATE nodes SET hash = NULL";
     return ret;
