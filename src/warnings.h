@@ -8,7 +8,7 @@
 
 #include <stdlib.h>
 #include <string>
-
+#include<bits/stdc++.h>
 void SetMiscWarning(const std::string& strWarning);
 void SetfLargeWorkForkFound(bool flag);
 bool GetfLargeWorkForkFound();
