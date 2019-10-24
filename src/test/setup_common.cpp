@@ -144,6 +144,7 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
         /* cache_size_bytes */ 1 << 23, /* in_memory */ true, /* should_wipe */ false);
     auto& consensus = chainparams.GetConsensus();
     pclaimTrie = new CClaimTrie(true, false,
+                                    (GetDataDir() / "claimtrie").string(),
                                     consensus.nNormalizedNameForkHeight,
                                     consensus.nOriginalClaimExpirationTime,
                                     consensus.nExtendedClaimExpirationTime,

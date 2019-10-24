@@ -70,7 +70,7 @@ BOOST_FIXTURE_TEST_SUITE(claimtriecache_tests, RegTestingSetup)
 BOOST_AUTO_TEST_CASE(merkle_hash_single_test)
 {
     // check empty trie
-    auto one = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
+    auto one = CUint256S("0000000000000000000000000000000000000000000000000000000000000001");
     CClaimTrieCacheTest cc(pclaimTrie);
     BOOST_CHECK_EQUAL(one, cc.getMerkleHash());
 

@@ -89,6 +89,7 @@ static const sqlite::sqlite_config sharedConfig {
 };
 
 CClaimTrie::CClaimTrie(bool fWipe, int height,
+                       const std::string& dataDir,
                        int nNormalizedNameForkHeight,
                        int64_t nOriginalClaimExpirationTime,
                        int64_t nExtendedClaimExpirationTime,
@@ -96,7 +97,7 @@ CClaimTrie::CClaimTrie(bool fWipe, int height,
                        int64_t nAllClaimsInMerkleForkHeight,
                        int proportionalDelayFactor) :
                        nNextHeight(height),
-                       db("claims.sqlite", sharedConfig),
+                       db(dataDir + "/claims.sqlite", sharedConfig),
                        nProportionalDelayFactor(proportionalDelayFactor),
                        nNormalizedNameForkHeight(nNormalizedNameForkHeight),
                        nOriginalClaimExpirationTime(nOriginalClaimExpirationTime),

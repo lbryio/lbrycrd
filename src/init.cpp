@@ -1488,6 +1488,7 @@ bool AppInitMain(InitInterfaces& interfaces)
                 if (g_logger->Enabled() && LogAcceptCategory(BCLog::CLAIMS))
                     CLogPrint::global().setLogger(g_logger);
                 pclaimTrie = new CClaimTrie(fReindex || fReindexChainState, 0,
+                                            (GetDataDir() / "claimtrie").string(),
                                             consensus.nNormalizedNameForkHeight,
                                             consensus.nOriginalClaimExpirationTime,
                                             consensus.nExtendedClaimExpirationTime,
