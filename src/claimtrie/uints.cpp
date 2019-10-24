@@ -54,6 +54,24 @@ int CBaseBlob<BITS>::Compare(const CBaseBlob& other) const
 }
 
 template<uint32_t BITS>
+bool CBaseBlob<BITS>::operator==(const CBaseBlob& b) const
+{
+    return Compare(b) == 0;
+}
+
+template<uint32_t BITS>
+bool CBaseBlob<BITS>::operator!=(const CBaseBlob& b) const
+{
+    return Compare(b) != 0;
+}
+
+template<uint32_t BITS>
+bool CBaseBlob<BITS>::operator<(const CBaseBlob& b) const
+{
+    return Compare(b) < 0;
+}
+
+template<uint32_t BITS>
 std::string CBaseBlob<BITS>::GetHex() const
 {
     std::stringstream ss;

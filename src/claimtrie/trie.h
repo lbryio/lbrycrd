@@ -60,6 +60,7 @@ public:
     CClaimTrie(CClaimTrie&&) = delete;
     CClaimTrie(const CClaimTrie&) = delete;
     CClaimTrie(bool fWipe, int height,
+               const std::string& dataDir,
                int nNormalizedNameForkHeight,
                int64_t nOriginalClaimExpirationTime,
                int64_t nExtendedClaimExpirationTime,

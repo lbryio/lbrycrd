@@ -27,9 +27,9 @@ public:
     void SetNull();
     bool IsNull() const;
 
-    friend bool operator<(const CTxOutPoint& a, const CTxOutPoint& b);
-    friend bool operator==(const CTxOutPoint& a, const CTxOutPoint& b);
-    friend bool operator!=(const CTxOutPoint& a, const CTxOutPoint& b);
+    bool operator<(const CTxOutPoint& b) const;
+    bool operator==(const CTxOutPoint& b) const;
+    bool operator!=(const CTxOutPoint& b) const;
 
     std::string ToString() const;
 };

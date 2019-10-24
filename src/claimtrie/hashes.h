@@ -1,6 +1,6 @@
 
-#ifndef CLAIMTRIE_HASH_H
-#define CLAIMTRIE_HASH_H
+#ifndef CLAIMTRIE_HASHES_H
+#define CLAIMTRIE_HASHES_H
 
 #include <openssl/sha.h>
 
@@ -25,4 +25,4 @@ CUint256 Hash(TIterator begin, TIterator end, Args... args)
     return CalcHash(&sha, begin, end, args...);
 }
 
-#endif // CLAIMTRIE_HASH_H
+#endif // CLAIMTRIE_HASHES_H
