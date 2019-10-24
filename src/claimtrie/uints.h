@@ -3,6 +3,7 @@
 #define CLAIMTRIE_UINTS_H
 
 #include <memory>
+#include <string>
 #include <vector>
 
 /** Template base class for fixed-sized opaque blobs. */
@@ -10,7 +11,7 @@ template<uint32_t BITS>
 class CBaseBlob
 {
 protected:
-    static constexpr int WIDTH = BITS / 8;
+    static constexpr uint32_t WIDTH = BITS / 8;
     std::unique_ptr<uint8_t[]> data;
 public:
     CBaseBlob();
@@ -28,9 +29,9 @@ public:
 
     int Compare(const CBaseBlob& other) const;
 
-    friend inline bool operator==(const CBaseBlob& a, const CBaseBlob& b) { return a.Compare(b) == 0; }
-    friend inline bool operator!=(const CBaseBlob& a, const CBaseBlob& b) { return a.Compare(b) != 0; }
-    friend inline bool operator<(const CBaseBlob& a, const CBaseBlob& b) { return a.Compare(b) < 0; }
+    bool operator==(const CBaseBlob& b) const;
+    bool operator!=(const CBaseBlob& b) const;
+    bool operator<(const CBaseBlob& b) const;
 
     std::string GetHex() const;
     void SetHex(const char* psz);
@@ -44,7 +45,7 @@ public:
     const uint8_t* begin() const;
     const uint8_t* end() const;
 
-    constexpr uint32_t size() const { return WIDTH; }
+    static constexpr uint32_t size() { return WIDTH; }
 };
 
 typedef CBaseBlob<160> CUint160;
