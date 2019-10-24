@@ -93,15 +93,15 @@ struct ClaimTrieChainFixture: public CClaimTrieCache
     // decrement back to last mark
     void DecrementBlocks();
 
-    bool queueEmpty();
+    bool queueEmpty() const;
 
-    bool expirationQueueEmpty();
+    bool expirationQueueEmpty() const;
 
-    bool supportEmpty();
+    bool supportEmpty() const;
 
-    bool supportQueueEmpty();
+    bool supportQueueEmpty() const;
 
-    int proportionalDelayFactor();
+    int proportionalDelayFactor() const;
 
     bool getClaimById(const uint160& claimId, std::string& name, CClaimValue& value);
 

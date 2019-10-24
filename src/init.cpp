@@ -1463,7 +1463,7 @@ bool AppInitMain()
                 int64_t trieCacheMB = gArgs.GetArg("-claimtriecache", nDefaultDbCache);
                 trieCacheMB = std::min(trieCacheMB, nMaxDbCache);
                 trieCacheMB = std::max(trieCacheMB, nMinDbCache);
-                pclaimTrie = new CClaimTrie(false, fReindex || fReindexChainState, 32, trieCacheMB);
+                pclaimTrie = new CClaimTrie(fReindex || fReindexChainState, 32, trieCacheMB);
 
                 if (fReset) {
                     pblocktree->WriteReindexing(true);
