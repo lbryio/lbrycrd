@@ -653,7 +653,7 @@ UniValue getnameproof(const JSONRPCRequest& request)
     CCoinsViewCache coinsCache(pcoinsTip.get());
     CClaimTrieCache trieCache(pclaimTrie);
 
-    int validHeight = pclaimTrie->nNextHeight - 1;
+    int validHeight = chainActive.Tip()->nHeight;
     if (request.params.size() > 1) {
         CBlockIndex* pblockIndex = BlockHashIndex(ParseHashV(request.params[1], T_BLOCKHASH " (optional parameter 2)"));
         RollBackTo(pblockIndex, coinsCache, trieCache);

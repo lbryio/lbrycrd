@@ -273,18 +273,23 @@ BOOST_AUTO_TEST_CASE(trie_stays_consistent_test)
         "goodness", "goodnight", "goodnatured", "goods", "go", "goody", "goo"
     };
 
-    CClaimTrie trie(true, false, 1);
+    CClaimTrie trie(false, 1);
     CClaimTrieCacheTest cache(&trie);
     CClaimValue value;
 
-    for (auto& name: names)
+    for (auto& name: names) {
+        value.outPoint.hash = Hash(name.begin(), name.end());
+        value.outPoint.n = 0;
+        value.claimId = ClaimIdHash(value.outPoint.hash, 0);
         BOOST_CHECK(cache.insertClaimIntoTrie(name, value));
+    }
 
     cache.flush();
     BOOST_CHECK(cache.checkConsistency());
 
     for (auto& name: names) {
-        BOOST_CHECK(cache.removeClaimFromTrie(name, COutPoint()));
+        auto hash = Hash(name.begin(), name.end());
+        BOOST_CHECK(cache.removeClaimFromTrie(name, COutPoint(hash, 0)));
         cache.flush();
         BOOST_CHECK(cache.checkConsistency());
     }
@@ -299,7 +304,7 @@ BOOST_AUTO_TEST_CASE(takeover_workaround_triggers)
     BOOST_SCOPE_EXIT(&consensus, currentMax) { consensus.nMaxTakeoverWorkaroundHeight = currentMax; }
     BOOST_SCOPE_EXIT_END
 
-    CClaimTrie trie(true, false, 1);
+    CClaimTrie trie(false, 1);
     CClaimTrieCacheTest cache(&trie);
 
     insertUndoType icu, isu; claimQueueRowType ecu; supportQueueRowType esu;

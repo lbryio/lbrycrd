@@ -83,7 +83,7 @@ std::ostream& operator<<(std::ostream& os, const CSupportValue& support)
 }
 
 BasicTestingSetup::BasicTestingSetup(const std::string& chainName)
-    : m_path_root(fs::temp_directory_path() / "test_bitcoin" / strprintf("%lu_%i", (unsigned long)GetTime(), (int)(InsecureRandRange(1 << 30))))
+    : m_path_root(fs::temp_directory_path() / "test_lbrycrd" / strprintf("%lu_%i", (unsigned long)GetTime(), (int)(InsecureRandRange(1 << 30))))
 {
     // for debugging:
     if (boost::unit_test::runtime_config::get<boost::unit_test::log_level>(boost::unit_test::runtime_config::btrt_log_level)
@@ -138,7 +138,7 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
         pblocktree.reset(new CBlockTreeDB(1 << 20, true));
         pcoinsdbview.reset(new CCoinsViewDB(1 << 23, true));
         pcoinsTip.reset(new CCoinsViewCache(pcoinsdbview.get()));
-        pclaimTrie = new CClaimTrie(true, false, 1);
+        pclaimTrie = new CClaimTrie(true, 1);
         if (!LoadGenesisBlock(chainparams)) {
             throw std::runtime_error("LoadGenesisBlock failed.");
         }

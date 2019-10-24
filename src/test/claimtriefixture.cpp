@@ -307,35 +307,35 @@ void ClaimTrieChainFixture::DecrementBlocks()
     DecrementBlocks(chainActive.Height() - mark);
 }
 
-bool ClaimTrieChainFixture::queueEmpty()
+bool ClaimTrieChainFixture::queueEmpty() const
 {
     int64_t count;
-    base->_db << "SELECT COUNT(*) FROM claims WHERE validHeight >= ?" << nNextHeight >> count;
+    db << "SELECT COUNT(*) FROM claims WHERE validHeight >= ?" << nNextHeight >> count;
     return count == 0;
 }
 
-bool ClaimTrieChainFixture::expirationQueueEmpty()
+bool ClaimTrieChainFixture::expirationQueueEmpty() const
 {
     int64_t count;
-    base->_db << "SELECT COUNT(*) FROM claims WHERE expirationHeight >= ?" << nNextHeight >> count;
+    db << "SELECT COUNT(*) FROM claims WHERE expirationHeight >= ?" << nNextHeight >> count;
     return count == 0;
 }
 
-bool ClaimTrieChainFixture::supportEmpty()
+bool ClaimTrieChainFixture::supportEmpty() const
 {
     int64_t count;
-    base->_db << "SELECT COUNT(*) FROM supports" >> count;
+    db << "SELECT COUNT(*) FROM supports" >> count;
     return count == 0;
 }
 
-bool ClaimTrieChainFixture::supportQueueEmpty()
+bool ClaimTrieChainFixture::supportQueueEmpty() const
 {
     int64_t count;
-    base->_db << "SELECT COUNT(*) FROM supports WHERE validHeight >= ?" << nNextHeight >> count;
+    db << "SELECT COUNT(*) FROM supports WHERE validHeight >= ?" << nNextHeight >> count;
     return count == 0;
 }
 
-int ClaimTrieChainFixture::proportionalDelayFactor()
+int ClaimTrieChainFixture::proportionalDelayFactor() const
 {
     return base->nProportionalDelayFactor;
 }

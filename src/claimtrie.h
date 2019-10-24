@@ -289,22 +289,27 @@ struct CClaimSupportToName
     const std::vector<CSupportValue> unmatchedSupports;
 };
 
+class CClaimTrieCacheBase;
 class CClaimTrie
 {
+    friend CClaimTrieCacheBase;
+    std::string dbPath;
+    int nNextHeight;
+    sqlite::database db; // keep below dbPath
+
 public:
+    const int nProportionalDelayFactor;
+
     CClaimTrie() = delete;
     CClaimTrie(CClaimTrie&&) = delete;
     CClaimTrie(const CClaimTrie&) = delete;
-    CClaimTrie(bool fMemory, bool fWipe, int height, int proportionalDelayFactor = 32, std::size_t cacheMB=50);
+    CClaimTrie(bool fWipe, int height, int proportionalDelayFactor = 32, std::size_t cacheMB=50);
 
     CClaimTrie& operator=(CClaimTrie&&) = delete;
     CClaimTrie& operator=(const CClaimTrie&) = delete;
 
     bool SyncToDisk();
     bool empty(); // for tests
-    sqlite::database _db;
-    int nNextHeight = 0;
-    int nProportionalDelayFactor = 0;
 };
 
 struct CClaimTrieProofNode
@@ -402,10 +407,11 @@ public:
 
 protected:
     CClaimTrie* base;
-    bool dirtyNodes;
+    mutable sqlite::database db;
+    int nNextHeight; // Height of the block that is being worked on, which is
+    // one greater than the height of the chain's tip
 
     virtual uint256 recursiveComputeMerkleHash(const std::string& name, bool checkOnly);
-
     supportEntryType getSupportsForName(const std::string& name) const;
 
     int getDelayForName(const std::string& name) const;
@@ -415,8 +421,6 @@ protected:
 
     bool deleteNodeIfPossible(const std::string& name, std::string& parent, std::vector<std::string>& claims);
     void ensureTreeStructureIsUpToDate();
-    int nNextHeight; // Height of the block that is being worked on, which is
-                     // one greater than the height of the chain's tip
 
 private:
     // for unit test
