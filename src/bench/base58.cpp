@@ -10,7 +10,7 @@
 #include <array>
 #include <vector>
 #include <string>
-
+#include<bits/stdc++.h>
 
 static void Base58Encode(benchmark::State& state)
 {
