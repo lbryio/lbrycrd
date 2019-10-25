@@ -3,13 +3,13 @@
 [![Build Status](https://travis-ci.org/lbryio/lbrycrd.svg?branch=master)](https://travis-ci.org/lbryio/lbrycrd)
 [![MIT licensed](https://img.shields.io/dub/l/vibe-d.svg?style=flat)](https://github.com/lbryio/lbry-desktop/blob/master/LICENSE)
 
-LBRYcrd uses a blockchain similar to bitcoin's to implement an index and payment system for content on the LBRY network. It is a fork of bitcoin core. In addition to the libraries used by bitcoin, LBRYcrd also uses icu4c.
+LBRYcrd - The LBRY blockchain uses a blockchain similar to bitcoin's, to implement an index and payment system for content on the LBRY network. It is a fork of bitcoin core. In addition to the libraries used by bitcoin, LBRYcrd also uses icu4c.
 
-Please read the [lbry.tech overview](https://lbry.tech/overview) for a general understanding of the LBRY pieces. From there you could read the [LBRY spec](https://spec.lbry.com/) for specifics on the data in the blockchain. 
+Please read the [lbry.tech overview](https://lbry.tech/overview) for general understanding of the LBRY pieces. From there you could read the [LBRY spec](https://spec.lbry.com/) for specific information on the data in the blockchain. 
 
 ## Installation
 
-Latest binaries are available from https://github.com/lbryio/lbrycrd/releases. There is no installation procedure; the CLI binaries will run as-is and will have any uncommon dependencies statically linked into the binary. The QT GUI is not supported. LBRYcrd is distributed as a collection of executable files; traditional installers are not provided. 
+Latest binaries are available from https://github.com/lbryio/lbrycrd/releases. There is no installation procedure; the CLI binaries will run as-is and will have any uncommon dependencies, statically linked into the binary. The QT GUI is not supported. LBRYcrd is distributed as a collection of executable files; traditional installers are not provided. 
 
 ## Usage
 
@@ -80,7 +80,7 @@ cd lbrycrd
 ```
 Other Linux distros would be similar. The build shell script is fairly trivial; take a peek at its contents.
 #### Ubuntu with local shared dependencies:
-Note: using untested dependencies may lead to conflicting results.
+Note: using untested dependencies may lead to ambiguous results.
 ```
 sudo add-apt-repository ppa:bitcoin/bitcoin
 sudo apt-get update
@@ -181,7 +181,7 @@ It is easy to solo mine on testnet. (It's easy on mainnet too, but much harder t
 
 ## Mailing List
 
-We maintain a mailing list for notifications of upgrades, security issues, and soft/hard forks. To join, visit [https://lbry.com/forklist](https://lbry.com/forklist).
+We maintain a mailing list for notifications of upgrades, security issues and soft/hard forks. To join, visit [https://lbry.com/forklist](https://lbry.com/forklist).
 
 ## License
 
