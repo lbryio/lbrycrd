@@ -20,13 +20,13 @@ if which ccache >/dev/null; then
 fi
 
 pushd depends
-make -j`getconf _NPROCESSORS_ONLN` HOST=x86_64-w64-mingw32 NO_QT=1 V=1
+make -j$(getconf _NPROCESSORS_ONLN) HOST=x86_64-w64-mingw32 NO_QT=1 V=1
 popd
 
 ./autogen.sh
-DEPS_DIR=`pwd`/depends/x86_64-w64-mingw32
+DEPS_DIR=$(pwd)/depends/x86_64-w64-mingw32
 CONFIG_SITE=${DEPS_DIR}/share/config.site ./configure --prefix=/ --without-gui --with-icu="$DEPS_DIR" --enable-static --disable-shared
-make -j`getconf _NPROCESSORS_ONLN`
+make -j$(getconf _NPROCESSORS_ONLN)
 x86_64-w64-mingw32-strip src/lbrycrdd.exe src/lbrycrd-cli.exe src/lbrycrd-tx.exe
 
 if which ccache >/dev/null; then
