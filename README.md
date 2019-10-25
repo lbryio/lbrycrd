@@ -9,7 +9,7 @@ Please read the [lbry.tech overview](https://lbry.tech/overview) for a general u
 
 ## Installation
 
-Latest binaries are available from https://github.com/lbryio/lbrycrd/releases. There is no installation procedure; the CLI binaries will run as-is and will have any uncommon dependencies statically linked into the binary. The QT GUI is not supported. LBRYcrd is distributed as a collection of executable files; traditional installers are not provided. 
+Latest binaries are available from https://github.com/lbryio/lbrycrd/releases. There is no installation procedure; the CLI binaries will run as-it-is and will have any uncommon dependencies statically linked into the binary. The QT GUI is not supported. LBRYcrd is distributed as a collection of executable files; traditional installers are not provided. 
 
 ## Usage
 
@@ -36,9 +36,9 @@ Test locally:
 ./lbrycrd-cli -regtest stop           # kill lbrycrdd
 rm -fr ~/.lbrycrd/regtest/            # destroy regtest data
 ```
-For further understanding of a "regtest" setup, see the local stack setup instructions here: https://lbry.tech/resources/regtest-setup
+Further understanding of a "regtest" setup, see the local stack setup instructions here: https://lbry.tech/resources/regtest-setup
 
-The CLI help is also browsable online at https://lbry.tech/api/blockchain
+CLI help is also browsable online at https://lbry.tech/api/blockchain
 
 #### Data directory:
 
@@ -62,7 +62,7 @@ txindex=1
 ```
 
 ## Running from Source
-The easiest way to compile is to utilize the Docker image that contains the necessary compilers: lbry/build_lbrycrd. This will allow you to reproduce the build as made on our build servers. In this sample we map a local lbrycrd folder and a local ccache folder inside the image:
+The easiest way to compile is to utilize the Docker image that contains the necessary compilers: lbry/build_lbrycrd. This will allow you to reproduce the build as made on our build servers. In this sample we map a local lbrycrd folder and a local cache folder inside the image:
 ```
 git clone https://github.com/lbryio/lbrycrd.git
 cd lbrycrd
@@ -142,7 +142,7 @@ cd lbrycrd
 
 ```
 
-If you encounter any errors, please check `doc/build-*.md` for further instructions. If you're still stuck, [create an issue](https://github.com/lbryio/lbrycrd/issues/new) with the output of that command, your system info, and any other information you think might be helpful. The scripts in the packaging folder are simple and will grant extra light on the build process as needed.
+If you encounter any errors, please check `doc/build-*.md` for further instructions. If you still stuck, [create an issue](https://github.com/lbryio/lbrycrd/issues/new) with the output of that command, your system info, and any other information you think might be helpful. The scripts in the packaging folder are simple and will grant extra light on the build process as needed.
 
 #### Use with CLion:
 CLion has not traditionally supported Autotools projects, although some progress on that is now in the works. We do include a cmake build file for compiling lbrycrd. See contrib/cmake. Alas, CLion doesn't support external projects in cmake, so that particular approach is also insufficient. CLion does support "compile_commands.json" projects. Fortunately, this can be easily generated for lbrycrd like so:
@@ -161,7 +161,7 @@ We follow the same coding guidelines as documented by Bitcoin Core, see [here](/
 `git diff -U0 master -- '*.h' '*.cpp' | ./contrib/devtools/clang-format-diff.py -p1`. This will check any commits not on master for proper code formatting.
 We try to avoid altering parts of the code that is inherited from Bitcoin Core unless absolutely necessary. This will make it easier to merge changes from Bitcoin Core. If commits are expected not to be merged upstream (i.e. we broke up a commit from Bitcoin Core in order to use a single feature in it), the commit message must contain the string "NOT FOR UPSTREAM MERGE".
 
-The `master` branch is regularly built and tested, but is not guaranteed to be
+The `master` branch is built and tested regularly, but is not guaranteed to be
 completely stable. [Releases](https://github.com/lbryio/lbrycrd/releases) are created
 regularly to indicate new official, stable release versions.
 
