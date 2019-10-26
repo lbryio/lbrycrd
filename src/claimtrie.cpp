@@ -46,15 +46,15 @@ static const sqlite::sqlite_config sharedConfig{
     nullptr, sqlite::Encoding::UTF8
 };
 
-CClaimTrie::CClaimTrie(bool fWipe, int height, int proportionalDelayFactor, std::size_t cacheMB)
+CClaimTrie::CClaimTrie(bool fWipe, int height, int proportionalDelayFactor)
     : dbPath((GetDataDir() / "claims.sqlite").string()), db(dbPath, sharedConfig),
     nNextHeight(height), nProportionalDelayFactor(proportionalDelayFactor)
 {
-    db.define("merkle_root", [](std::vector<uint256>& hashes, const std::vector<unsigned char>& blob) { hashes.emplace_back(uint256(blob)); },
+    db.define("MERKLE_ROOT", [](std::vector<uint256>& hashes, const std::vector<unsigned char>& blob) { hashes.emplace_back(uint256(blob)); },
               [](const std::vector<uint256>& hashes) { return ComputeMerkleRoot(hashes); });
 
-    db.define("merkle_pair", [](const std::vector<unsigned char>& blob1, const std::vector<unsigned char>& blob2) { return Hash(blob1.begin(), blob1.end(), blob2.begin(), blob2.end()); });
-    db.define("merkle", [](const std::vector<unsigned char>& blob1) { return Hash(blob1.begin(), blob1.end()); });
+    db.define("MERKLE_PAIR", [](const std::vector<unsigned char>& blob1, const std::vector<unsigned char>& blob2) { return Hash(blob1.begin(), blob1.end(), blob2.begin(), blob2.end()); });
+    db.define("MERKLE", [](const std::vector<unsigned char>& blob1) { return Hash(blob1.begin(), blob1.end()); });
 
     db << "CREATE TABLE IF NOT EXISTS nodes (name TEXT NOT NULL PRIMARY KEY, parent TEXT, hash BLOB)";
     db << "CREATE INDEX IF NOT EXISTS nodes_hash ON nodes (hash)";
@@ -78,9 +78,10 @@ CClaimTrie::CClaimTrie(bool fWipe, int height, int proportionalDelayFactor, std:
     db << "CREATE INDEX IF NOT EXISTS supports_expirationHeight ON supports (expirationHeight)";
     db << "CREATE INDEX IF NOT EXISTS supports_nodeName ON supports (nodeName)";
 
-    db << "PRAGMA cache_size=-" + std::to_string(cacheMB * 1024); // in -KB
+    db << "PRAGMA cache_size=-" + std::to_string(5 * 1024); // in -KB
     db << "PRAGMA synchronous=NORMAL"; // don't disk sync after transaction commit
-    db << "PRAGMA journal_mode=WAL"; // PRAGMA wal_autocheckpoint=10000;
+    db << "PRAGMA journal_mode=MEMORY";
+    db << "PRAGMA temp_store=MEMORY";
     db << "PRAGMA case_sensitive_like=true";
 
     if (fWipe) {
@@ -93,7 +94,10 @@ CClaimTrie::CClaimTrie(bool fWipe, int height, int proportionalDelayFactor, std:
 }
 
 CClaimTrieCacheBase::~CClaimTrieCacheBase() {
-    db << "rollback";
+    if (transacting) {
+        db << "rollback";
+        transacting = false;
+    }
 }
 
 bool CClaimTrie::SyncToDisk()
@@ -143,8 +147,8 @@ supportEntryType CClaimTrieCacheBase::getSupportsForName(const std::string& name
 bool CClaimTrieCacheBase::haveClaimInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const
 {
     auto query = db << "SELECT validHeight FROM claims WHERE nodeName = ? AND txID = ? AND txN = ? "
-                              "AND validHeight >= ? AND expirationHeight >= ? LIMIT 1"
-                    << name << outPoint.hash << outPoint.n << nNextHeight << nNextHeight;
+                              "AND validHeight >= ? AND expirationHeight > validHeight LIMIT 1"
+                    << name << outPoint.hash << outPoint.n << nNextHeight;
     for (auto&& row: query) {
         row >> nValidAtHeight;
         return true;
@@ -155,8 +159,8 @@ bool CClaimTrieCacheBase::haveClaimInQueue(const std::string& name, const COutPo
 bool CClaimTrieCacheBase::haveSupportInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const
 {
     auto query = db << "SELECT validHeight FROM supports WHERE nodeName = ? AND txID = ? AND txN = ? "
-                              "AND validHeight >= ? AND expirationHeight >= ? LIMIT 1"
-                    << name << outPoint.hash << outPoint.n << nNextHeight << nNextHeight;
+                              "AND validHeight >= ? AND expirationHeight > validHeight LIMIT 1"
+                    << name << outPoint.hash << outPoint.n << nNextHeight;
     for (auto&& row: query) {
         row >> nValidAtHeight;
         return true;
@@ -202,6 +206,8 @@ bool CClaimTrieCacheBase::deleteNodeIfPossible(const std::string& name, std::str
 }
 
 void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
+    if (!transacting) return;
+
     // your children are your nodes that match your key, go at least one longer,
     // and have nothing in common with the other nodes in that set -- a hard query w/o parent
 
@@ -310,7 +316,7 @@ std::size_t CClaimTrieCacheBase::getTotalClaimsInTrie() const
 CAmount CClaimTrieCacheBase::getTotalValueOfClaimsInTrie(bool fControllingOnly) const
 {
     CAmount ret = 0;
-    std::string query("SELECT c.amount + SUM(SELECT s.amount FROM supports s "
+    std::string query("SELECT (SELECT TOTAL(s.amount)+c.amount FROM supports s "
                       "WHERE s.supportedClaimID = c.claimID AND s.validHeight < ? AND s.expirationHeight >= ?) "
                       "FROM claims c WHERE c.validHeight < ? AND s.expirationHeight >= ?");
     if (fControllingOnly)
@@ -433,14 +439,16 @@ bool CClaimTrieCacheBase::checkConsistency()
 
 bool CClaimTrieCacheBase::flush()
 {
-    getMerkleHash();
-    try {
-        db << "commit";
-        db << "begin";
-    }
-    catch (const std::exception& e) {
-        LogPrintf("ERROR in ClaimTrieCache flush: %s\n", e.what());
-        return false;
+    if (transacting) {
+        getMerkleHash();
+        try {
+            db << "commit";
+        }
+        catch (const std::exception& e) {
+            LogPrintf("ERROR in ClaimTrieCache flush: %s\n", e.what());
+            return false;
+        }
+        transacting = false;
     }
     base->nNextHeight = nNextHeight;
     return true;
@@ -475,11 +483,16 @@ bool CClaimTrieCacheBase::ValidateTipMatches(const CBlockIndex* tip)
 }
 
 CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)
-    : base(base), db(base->dbPath, sharedConfig)
+    : base(base), db(base->dbPath, sharedConfig), transacting(false)
 {
     assert(base);
     nNextHeight = base->nNextHeight;
-    db << "begin";
+
+    db << "PRAGMA cache_size=-" + std::to_string(200 * 1024); // in -KB
+    db << "PRAGMA synchronous=NORMAL"; // don't disk sync after transaction commit
+    db << "PRAGMA journal_mode=MEMORY";
+    db << "PRAGMA temp_store=MEMORY";
+    db << "PRAGMA case_sensitive_like=true";
 }
 
 int CClaimTrieCacheBase::expirationTime() const
@@ -492,8 +505,10 @@ uint256 CClaimTrieCacheBase::getMerkleHash()
     ensureTreeStructureIsUpToDate();
     std::unique_ptr<uint256> hash;
     db << "SELECT hash FROM nodes WHERE name = ''" >> hash;
-    if (hash == nullptr || hash->IsNull())
+    if (hash == nullptr || hash->IsNull()) {
+        assert(transacting); // no data changed but we didn't have the root hash there already?
         return recursiveComputeMerkleHash("", false);
+    }
     return *hash;
 }
 
@@ -510,6 +525,8 @@ bool CClaimTrieCacheBase::getLastTakeoverForName(const std::string& name, uint16
 bool CClaimTrieCacheBase::addClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId,
         CAmount nAmount, int nHeight, const std::vector<unsigned char>& metadata)
 {
+    if (!transacting) { transacting = true; db << "begin"; }
+
     auto delay = getDelayForName(name, claimId);
     auto nodeName = adjustNameForValidHeight(name, nHeight + delay);
     auto expires = expirationTime() + nHeight;
@@ -527,6 +544,8 @@ bool CClaimTrieCacheBase::addClaim(const std::string& name, const COutPoint& out
 bool CClaimTrieCacheBase::addSupport(const std::string& name, const COutPoint& outPoint, CAmount nAmount,
         const uint160& supportedClaimId, int nHeight, const std::vector<unsigned char>& metadata)
 {
+    if (!transacting) { transacting = true; db << "begin"; }
+
     auto delay = getDelayForName(name, supportedClaimId);
     auto nodeName = adjustNameForValidHeight(name, nHeight + delay);
     auto expires = expirationTime() + nHeight;
@@ -541,6 +560,8 @@ bool CClaimTrieCacheBase::addSupport(const std::string& name, const COutPoint& o
 
 bool CClaimTrieCacheBase::removeClaim(const uint160& claimId, std::string& nodeName, int& validHeight)
 {
+    if (!transacting) { transacting = true; db << "begin"; }
+
     auto query = db << "SELECT nodeName, validHeight FROM claims WHERE claimID = ?"
                     << claimId;
     auto it = query.begin();
@@ -553,6 +574,8 @@ bool CClaimTrieCacheBase::removeClaim(const uint160& claimId, std::string& nodeN
 
 bool CClaimTrieCacheBase::removeSupport(const COutPoint& outPoint, std::string& nodeName, int& validHeight)
 {
+    if (!transacting) { transacting = true; db << "begin"; }
+
     auto query = db << "SELECT nodeName, validHeight FROM supports WHERE txID = ? AND txN = ?"
                     << outPoint.hash << outPoint.n;
     auto it = query.begin();
@@ -857,6 +880,7 @@ bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimQueueR
     // for every claim and support that becomes active this block set its node hash to null (aka, dirty)
     // for every claim and support that expires this block set its node hash to null and add it to the expire(Support)Undo
     // for all dirty nodes look for new takeovers
+    if (!transacting) { transacting = true; db << "begin"; }
 
     {
         db << "UPDATE nodes SET hash = NULL WHERE name IN "
@@ -955,6 +979,8 @@ void CClaimTrieCacheBase::activateAllFor(insertUndoType& insertUndo, insertUndoT
 
 bool CClaimTrieCacheBase::decrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo)
 {
+    if (!transacting) { transacting = true; db << "begin"; }
+
     nNextHeight--;
 
     for (auto it = expireSupportUndo.crbegin(); it != expireSupportUndo.crend(); ++it) {

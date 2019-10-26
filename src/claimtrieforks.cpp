@@ -62,6 +62,8 @@ bool CClaimTrieCacheExpirationFork::finalizeDecrement()
 
 bool CClaimTrieCacheExpirationFork::forkForExpirationChange(bool increment)
 {
+    if (!transacting) { transacting = true; db << "begin"; }
+
     /*
     If increment is True, we have forked to extend the expiration time, thus items in the expiration queue
     will have their expiration extended by "new expiration time - original expiration time"
@@ -128,6 +130,8 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(bool f
 {
     if (nNextHeight != Params().GetConsensus().nNormalizedNameForkHeight)
         return false;
+
+    if (!transacting) { transacting = true; db << "begin"; }
 
     // run the one-time upgrade of all names that need to change
     // it modifies the (cache) trie as it goes, so we need to grab everything to be modified first
@@ -213,8 +217,8 @@ uint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(const std::string& n
         childHashes.push_back(*hash);
     }
 
-    auto claimQuery = db << "SELECT c.txID, c.txN, c.validHeight, c.amount + "
-                      "SUM(SELECT s.amount FROM supports s WHERE s.supportedClaimID = c.claimID "
+    auto claimQuery = db << "SELECT c.txID, c.txN, c.validHeight, "
+                      "(SELECT TOTAL(s.amount)+c.amount FROM supports s WHERE s.supportedClaimID = c.claimID "
                       "AND s.validHeight < ? AND s.expirationHeight >= ?) as effectiveAmount"
                       "FROM claims c WHERE c.nodeName = ? AND c.validHeight < ? AND c.expirationHeight >= ? "
                       "ORDER BY effectiveAmount DESC, c.blockHeight, c.txID, c.txN" << nNextHeight << nNextHeight << name << nNextHeight << nNextHeight;
