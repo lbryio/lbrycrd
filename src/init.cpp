@@ -371,7 +371,6 @@ void SetupServerArgs()
     gArgs.AddArg("-datadir=<dir>", "Specify data directory", false, OptionsCategory::OPTIONS);
     gArgs.AddArg("-dbbatchsize", strprintf("Maximum database write batch size in bytes (default: %u)", nDefaultDbBatchSize), true, OptionsCategory::OPTIONS);
     gArgs.AddArg("-dbcache=<n>", strprintf("Set database cache size in megabytes (%d to %d, default: %d)", nMinDbCache, nMaxDbCache, nDefaultDbCache), false, OptionsCategory::OPTIONS);
-    gArgs.AddArg("-claimtriecache=<n>", strprintf("Set claim trie cache size in megabytes (%d to %d, default: %d)", nMinDbCache, nMaxDbCache, nDefaultDbCache), false, OptionsCategory::OPTIONS);
     gArgs.AddArg("-debuglogfile=<file>", strprintf("Specify location of debug log file. Relative paths will be prefixed by a net-specific datadir location. (-nodebuglogfile to disable; default: %s)", DEFAULT_DEBUGLOGFILE), false, OptionsCategory::OPTIONS);
     gArgs.AddArg("-feefilter", strprintf("Tell other nodes to filter invs to us by our mempool min fee (default: %u)", DEFAULT_FEEFILTER), true, OptionsCategory::OPTIONS);
     gArgs.AddArg("-includeconf=<file>", "Specify additional configuration file, relative to the -datadir path (only useable from configuration file, not command line)", false, OptionsCategory::OPTIONS);
@@ -399,8 +398,6 @@ void SetupServerArgs()
     hidden_args.emplace_back("-sysperms");
 #endif
     gArgs.AddArg("-txindex", strprintf("Maintain a full transaction index, used by the getrawtransaction rpc call (default: %u)", DEFAULT_TXINDEX), false, OptionsCategory::OPTIONS);
-    gArgs.AddArg("-memfile=<GiB>", "Use a memory mapped file for the claimtrie allocations (default: use RAM instead)", false, OptionsCategory::OPTIONS);
-
     gArgs.AddArg("-addnode=<ip>", "Add a node to connect to and attempt to keep the connection open (see the `addnode` RPC command help for more info). This option can be specified multiple times to add multiple nodes.", false, OptionsCategory::CONNECTION);
     gArgs.AddArg("-banscore=<n>", strprintf("Threshold for disconnecting misbehaving peers (default: %u)", DEFAULT_BANSCORE_THRESHOLD), false, OptionsCategory::CONNECTION);
     gArgs.AddArg("-bantime=<n>", strprintf("Number of seconds to keep misbehaving peers from reconnecting (default: %u)", DEFAULT_MISBEHAVING_BANTIME), false, OptionsCategory::CONNECTION);
@@ -1437,8 +1434,6 @@ bool AppInitMain()
     LogPrintf("* Using %.1fMiB for chain state database\n", nCoinDBCache * (1.0 / 1024 / 1024));
     LogPrintf("* Using %.1fMiB for in-memory UTXO set (plus up to %.1fMiB of unused mempool space)\n", nCoinCacheUsage * (1.0 / 1024 / 1024), nMempoolSizeMax * (1.0 / 1024 / 1024));
 
-    g_memfileSize = gArgs.GetArg("-memfile", 0u);
-
     bool fLoaded = false;
     while (!fLoaded && !ShutdownRequested()) {
         bool fReset = fReindex;
@@ -1460,10 +1455,7 @@ bool AppInitMain()
                 pblocktree.reset();
                 pblocktree.reset(new CBlockTreeDB(nBlockTreeDBCache, false, fReset));
                 delete pclaimTrie;
-                int64_t trieCacheMB = gArgs.GetArg("-claimtriecache", nDefaultDbCache);
-                trieCacheMB = std::min(trieCacheMB, nMaxDbCache);
-                trieCacheMB = std::max(trieCacheMB, nMinDbCache);
-                pclaimTrie = new CClaimTrie(fReindex || fReindexChainState, 32, trieCacheMB);
+                pclaimTrie = new CClaimTrie(fReindex || fReindexChainState, 0);
 
                 if (fReset) {
                     pblocktree->WriteReindexing(true);
@@ -1536,14 +1528,13 @@ bool AppInitMain()
                     }
                     assert(chainActive.Tip() != nullptr);
                 }
-
-                CClaimTrieCache trieCache(pclaimTrie);
-                if (!trieCache.ValidateTipMatches(chainActive.Tip()))
                 {
-                    strLoadError = _("Error loading the claim trie from disk");
-                    break;
+                    CClaimTrieCache trieCache(pclaimTrie);
+                    if (!trieCache.ValidateTipMatches(chainActive.Tip())) {
+                        strLoadError = _("Error loading the claim trie from disk");
+                        break;
+                    }
                 }
-
                 if (!fReset) {
                     // Note that RewindBlockIndex MUST run even if we're about to -reindex-chainstate.
                     // It both disconnects blocks based on chainActive, and drops block data in
