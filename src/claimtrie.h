@@ -303,7 +303,7 @@ public:
     CClaimTrie() = delete;
     CClaimTrie(CClaimTrie&&) = delete;
     CClaimTrie(const CClaimTrie&) = delete;
-    CClaimTrie(bool fWipe, int height, int proportionalDelayFactor = 32, std::size_t cacheMB=50);
+    CClaimTrie(bool fWipe, int height, int proportionalDelayFactor = 32);
 
     CClaimTrie& operator=(CClaimTrie&&) = delete;
     CClaimTrie& operator=(const CClaimTrie&) = delete;
@@ -409,6 +409,7 @@ protected:
     CClaimTrie* base;
     mutable sqlite::database db;
     int nNextHeight; // Height of the block that is being worked on, which is
+    bool transacting;
     // one greater than the height of the chain's tip
 
     virtual uint256 recursiveComputeMerkleHash(const std::string& name, bool checkOnly);
