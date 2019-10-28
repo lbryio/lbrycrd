@@ -1726,13 +1726,8 @@ int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CC
     // restore claim if applicable
     if (undo.fIsClaim && !undo.txout.scriptPubKey.empty()) {
         auto nValidHeight = undo.nClaimValidHeight;
-        if (nValidHeight > 0 && nValidHeight >= undo.nHeight) {
-            CClaimScriptUndoSpendOp undoSpend(COutPoint(out.hash, out.n), undo.txout.nValue, undo.nHeight, nValidHeight);
-            ProcessClaim(undoSpend, trieCache, undo.txout.scriptPubKey);
-        } else {
-            LogPrintf("%s: (txid: %s, nOut: %d) Not restoring claim/support to the claim trie because it expired before it was spent\n", __func__, out.hash.ToString(), out.n);
-            LogPrintf("%s: nValidHeight = %d, undo.nHeight = %d, nCurrentHeight = %d\n", __func__, nValidHeight, undo.nHeight, chainActive.Height());
-        }
+        CClaimScriptUndoSpendOp undoSpend(COutPoint(out.hash, out.n), undo.txout.nValue, undo.nHeight, nValidHeight);
+        ProcessClaim(undoSpend, trieCache, undo.txout.scriptPubKey);
     }
 
     // The potential_overwrite parameter to AddCoin is only allowed to be false if we know for

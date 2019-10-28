@@ -88,7 +88,7 @@ protected:
      * @param[in] claimId       id of the claim
      */
     virtual bool addClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
-            const std::vector<unsigned char>& metadata);
+                          int takeoverHeight, const std::vector<unsigned char>& metadata);
     const COutPoint point;
     const CAmount nValue;
     const int nHeight;
@@ -238,7 +238,7 @@ protected:
  */
 bool ProcessClaim(CClaimScriptOp& claimOp, CClaimTrieCache& trieCache, const CScript& scriptPubKey);
 
-typedef std::pair<std::string, uint160> spentClaimType;
+typedef std::tuple<std::string, uint160, int> spentClaimType;
 
 typedef std::vector<spentClaimType> spentClaimsType;
 

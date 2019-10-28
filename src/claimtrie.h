@@ -179,12 +179,12 @@ struct CNameOutPointHeightType
 {
     std::string name;
     COutPoint outPoint;
-    int nHeight = 0;
+    int nValidHeight = 0;
 
     CNameOutPointHeightType() = default;
 
-    CNameOutPointHeightType(std::string name, const COutPoint& outPoint, int nHeight)
-            : name(std::move(name)), outPoint(outPoint), nHeight(nHeight)
+    CNameOutPointHeightType(std::string name, const COutPoint& outPoint, int nValidHeight)
+            : name(std::move(name)), outPoint(outPoint), nValidHeight(nValidHeight)
     {
     }
 
@@ -195,7 +195,7 @@ struct CNameOutPointHeightType
     {
         READWRITE(name);
         READWRITE(outPoint);
-        READWRITE(nHeight);
+        READWRITE(nValidHeight);
     }
 };
 
@@ -370,12 +370,12 @@ public:
     bool haveSupportInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const;
 
     bool addClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId, CAmount nAmount,
-            int nHeight, const std::vector<unsigned char>& metadata);
+            int nHeight, int nValidHeight, const std::vector<unsigned char>& metadata);
     bool addSupport(const std::string& name, const COutPoint& outPoint, CAmount nAmount,
-            const uint160& supportedClaimId, int nHeight, const std::vector<unsigned char>& metadata);
+            const uint160& supportedClaimId, int nHeight, int nValidHeight, const std::vector<unsigned char>& metadata);
 
     bool removeSupport(const COutPoint& outPoint, std::string& nodeName, int& validHeight);
-    bool removeClaim(const uint160& claimId, std::string& nodeName, int& validHeight);
+    bool removeClaim(const uint160& claimId, const COutPoint& outPoint, std::string& nodeName, int& validHeight);
 
     virtual bool incrementBlock(insertUndoType& insertUndo,
         claimQueueRowType& expireUndo,

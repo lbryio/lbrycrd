@@ -138,7 +138,7 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(bool f
 
     db.define("NORMALIZED", [this](const std::string& str) { return normalizeClaimName(str, true); });
 
-    auto query = db << "SELECT NORMALIZED(name) as nn, name, claimID FROM claims HAVING nodeName != nn";
+    auto query = db << "SELECT NORMALIZED(name) as nn, name, claimID FROM claims WHERE nodeName != nn";
     for(auto&& row: query) {
         std::string newName, oldName;
         uint160 claimID;
@@ -146,7 +146,7 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(bool f
         if (!forward) std::swap(newName, oldName);
         db << "UPDATE claims SET nodeName = ? WHERE claimID = ?" << newName << claimID;
         db << "DELETE FROM nodes WHERE name = ?" << oldName;
-        db << "INSERT INTO nodes(name) VALUES(?) ON CONFLICT DO UPDATE hash = NULL" << newName;
+        db << "INSERT INTO nodes(name) VALUES(?) ON CONFLICT(name) DO UPDATE SET hash = NULL" << newName;
     }
 
     return true;
