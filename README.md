@@ -9,7 +9,7 @@ Please read the [lbry.tech overview](https://lbry.tech/overview) for a general u
 
 ## Installation
 
-Latest binaries are available from https://github.com/lbryio/lbrycrd/releases. There is no installation procedure; the CLI binaries will run as-is and will have any uncommon dependencies statically linked into the binary. The QT GUI is not supported. LBRYcrd is distributed as a collection of executable files; traditional installers are not provided. 
+Latest binaries are available from https://github.com/lbryio/lbrycrd/releases. There is no installation procedure, the CLI binaries will run as-is and will have any uncommon dependencies statically linked into the binary. The QT GUI is not supported. LBRYcrd is distributed as a collection of executable files; traditional installers are not provided. 
 
 ## Usage
 
