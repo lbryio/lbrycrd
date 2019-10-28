@@ -539,7 +539,7 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
 
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), name, "two", 2);
     uint160 claimId2 = ClaimIdHash(tx2.GetHash(), 0);
-    fixture.IncrementBlocks(1);
+    fixture.IncrementBlocks(5);
 
     BOOST_CHECK(fixture.getClaimById(claimId2, claimName, claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
@@ -547,7 +547,7 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
 
 
     CMutableTransaction u1 = fixture.MakeUpdate(tx1, name, "updated one", claimId, 1);
-    fixture.IncrementBlocks(1);
+    fixture.IncrementBlocks(2);
     BOOST_CHECK(fixture.getClaimById(claimId, claimName, claimValue));
     BOOST_CHECK_EQUAL(claimName, name);
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId);
@@ -558,7 +558,7 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test)
     fixture.IncrementBlocks(1);
     BOOST_CHECK(!fixture.getClaimById(claimId, claimName, claimValue));
 
-    fixture.DecrementBlocks(3);
+    fixture.DecrementBlocks(8);
 
     CClaimValue claimValue2;
     claimName = "";
