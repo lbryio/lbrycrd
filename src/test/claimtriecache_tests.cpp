@@ -26,7 +26,7 @@ public:
         if (c.IsNull())
             c = ClaimIdHash(p.hash, p.n);
 
-        return addClaim(key, p, c, value.nAmount, value.nHeight, {});
+        return addClaim(key, p, c, value.nAmount, value.nHeight, -1, {});
     }
 
     bool removeClaimFromTrie(const std::string& key, const COutPoint& outPoint) {
@@ -37,7 +37,7 @@ public:
         if (p.hash.IsNull())
             p.hash = Hash(key.begin(), key.end());
 
-        auto ret = removeClaim(ClaimIdHash(p.hash, p.n), nodeName, validHeight);
+        auto ret = removeClaim(ClaimIdHash(p.hash, p.n), p, nodeName, validHeight);
         assert(!ret || nodeName == key);
         return ret;
     }
@@ -47,7 +47,7 @@ public:
         if (p.hash.IsNull())
             p.hash = Hash(key.begin(), key.end());
 
-        return addSupport(key, p, value.nAmount, value.supportedClaimId, value.nHeight, {});
+        return addSupport(key, p, value.nAmount, value.supportedClaimId, value.nHeight, -1, {});
     }
 
     bool removeSupportFromMap(const std::string& key, const COutPoint& outPoint) {
@@ -117,7 +117,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
         BOOST_CHECK_EQUAL(ntState.getTotalClaimsInTrie(), 2U);
         BOOST_CHECK_EQUAL(ntState.getMerkleHash(), hash1);
 
-        ntState.insertClaimIntoTrie(std::string("test"), CClaimValue(tx3OutPoint, {}, 50, 1, 0));
+        ntState.insertClaimIntoTrie(std::string("test"), CClaimValue(tx3OutPoint, {}, 50, 0, 0));
         BOOST_CHECK_EQUAL(ntState.getMerkleHash(), hash1);
         ntState.insertClaimIntoTrie(std::string("tes"), CClaimValue(tx4OutPoint, {}, 50, 0, 0));
         BOOST_CHECK_EQUAL(ntState.getMerkleHash(), hash2);
@@ -142,7 +142,7 @@ BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
     }
     {
         CClaimTrieCacheTest ntState2(pclaimTrie);
-        ntState2.insertClaimIntoTrie(std::string("abab"), CClaimValue(tx6OutPoint, {}, 50, 0, 0));
+        ntState2.insertClaimIntoTrie(std::string("abab"), CClaimValue(tx6OutPoint, {}, 50, 0, 200));
         ntState2.removeClaimFromTrie(std::string("test"), tx1OutPoint);
 
         BOOST_CHECK_EQUAL(ntState2.getMerkleHash(), hash3);
