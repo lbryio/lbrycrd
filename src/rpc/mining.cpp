@@ -451,7 +451,7 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
     if (strMode != "template")
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid mode");
 
-    if (Params().NetworkIDString() != CBaseChainParams::REGTEST) // who should own this constant?
+    if (Params().NetworkIDString() == CBaseChainParams::MAIN)
     {
         if (!g_connman)
             throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
@@ -567,6 +567,8 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
 
     // NOTE: If at some point we support pre-segwit miners post-segwit-activation, this needs to take segwit support into consideration
     const bool fPreSegWit = (ThresholdState::ACTIVE != VersionBitsState(pindexPrev, consensusParams, Consensus::DEPLOYMENT_SEGWIT, versionbitscache));
+    if (!fPreSegWit && !fSupportsSegwit)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Segwit support is now required. Please include \"segwit\" in the client's rules.");
 
     UniValue aCaps(UniValue::VARR); aCaps.push_back("proposal");
     UniValue result(UniValue::VOBJ);
@@ -621,7 +623,6 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
     aMutable.push_back("time");
     aMutable.push_back("transactions");
     aMutable.push_back("prevblock");
-    aMutable.push_back("submit/coinbase");
 
     result.pushKV("capabilities", aCaps);
 

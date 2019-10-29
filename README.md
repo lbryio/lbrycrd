@@ -1,6 +1,7 @@
 # LBRYcrd - The LBRY blockchain
 
 [![Build Status](https://travis-ci.org/lbryio/lbrycrd.svg?branch=master)](https://travis-ci.org/lbryio/lbrycrd)
+[![MIT licensed](https://img.shields.io/dub/l/vibe-d.svg?style=flat)](https://github.com/lbryio/lbry-desktop/blob/master/LICENSE)
 
 LBRYcrd uses a blockchain similar to bitcoin's to implement an index and payment system for content on the LBRY network. It is a fork of [bitcoin core](https://github.com/bitcoin/bitcoin). In addition to the libraries used by bitcoin, LBRYcrd also uses [icu4c](https://github.com/unicode-org/icu/tree/master/icu4c).
 
@@ -61,7 +62,7 @@ txindex=1
 ```
 
 ## Running from Source
-The easiest way to compile is to utilize the Docker image that contains the necessary compilers: lbry/build_lbrycrd. This will allow you to reproduce the build as made on our build servers. I this sample we map a local lbrycrd folder and a local ccache folder inside the image:
+The easiest way to compile is to utilize the Docker image that contains the necessary compilers: lbry/build_lbrycrd. This will allow you to reproduce the build as made on our build servers. In this sample we map a local lbrycrd folder and a local ccache folder inside the image:
 ```sh
 git clone https://github.com/lbryio/lbrycrd.git
 cd lbrycrd
