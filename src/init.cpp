@@ -1224,12 +1224,6 @@ bool AppInitMain(InitInterfaces& interfaces)
         // Detailed error printed inside CreatePidFile().
         return false;
     }
-    if (LogInstance().m_print_to_file) {
-        if (gArgs.GetBoolArg("-shrinkdebugfile", LogInstance().DefaultShrinkDebugFile())) {
-            // Do this first since it both loads a bunch of debug.log into memory,
-            // and because this needs to happen before any other debug.log printing
-            LogInstance().ShrinkDebugFile();
-        }
     }
     if (!LogInstance().StartLogging()) {
             return InitError(strprintf("Could not open debug log file %s",

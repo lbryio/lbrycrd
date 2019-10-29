@@ -104,7 +104,6 @@ namespace BCLog {
         /** Only for testing */
         void DisconnectTestLogger();
 
-        void ShrinkDebugFile();
 
         uint32_t GetCategoryMask() const { return m_categories.load(); }
 
@@ -114,8 +113,6 @@ namespace BCLog {
         bool DisableCategory(const std::string& str);
 
         bool WillLogCategory(LogFlags category) const;
-
-        bool DefaultShrinkDebugFile() const;
     };
 
 } // namespace BCLog
