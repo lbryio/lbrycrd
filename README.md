@@ -46,6 +46,7 @@ Run `./lbrycrd-cli -getinfo` to check for some basic information about your LBRY
 Run `./lbrycrd-cli help` to get a list of all commands that you can run. To get help on specific commands run `./lbrycrd-cli [command_name] help`
 
 Test locally:
+
 ```sh
 ./lbrycrdd -server -regtest -txindex  # run this in its own window
 ./lbrycrd-cli -regtest generate 120   # mine 20 spendable coins
@@ -93,7 +94,9 @@ docker run -v "$(pwd):/lbrycrd" --rm -v "${HOME}/ccache:/ccache" -w /lbrycrd -e 
 ```
 
 Some examples of compiling directly:
-#### Ubuntu with pulled static dependencies:
+
+#### Ubuntu with pulled static dependencies
+
 ```sh
 sudo apt install build-essential git libtool autotools-dev automake pkg-config bsdmainutils curl ca-certificates
 git clone https://github.com/lbryio/lbrycrd.git
@@ -108,6 +111,7 @@ Other Linux distros would be similar. The build shell script is fairly trivial; 
 #### Ubuntu with local shared dependencies
 
 Note: using untested dependencies may lead to conflicting results.
+
 ```sh
 sudo add-apt-repository ppa:bitcoin/bitcoin
 sudo apt-get update
@@ -125,7 +129,9 @@ make -j$(nproc)
 ./src/lbrycrdd -server ...
 
 ```
-#### MacOS (cross-compiled):
+
+#### MacOS (cross-compiled)
+
 ```sh
 sudo apt-get install clang llvm git libtool autotools-dev automake pkg-config bsdmainutils curl ca-certificates \
                      libboost-system-dev libboost-filesystem-dev libboost-chrono-dev libboost-test-dev libboost-thread-dev
@@ -140,7 +146,9 @@ tar ... extract SDK to depends/SDKs/MacOSX10.11.sdk
 ```
 
 Look in packaging/build_darwin_64bit.sh for further understanding.
-#### MacOS with local shared dependencies:
+
+#### MacOS with local shared dependencies
+
 ```sh
 brew install boost berkeley-db@4 icu4c libevent
 # fix conflict with gawk pulled first:
@@ -160,6 +168,7 @@ make -j$(sysctl -n hw.ncpu)
 #### Windows (cross-compiled)
 
 Compiling on MS Windows (outside of WSL) is not supported. The Windows build is cross-compiled from Linux like so:
+
 ```sh
 sudo apt-get install build-essential git libtool autotools-dev automake pkg-config bsdmainutils curl ca-certificates \
                      g++-mingw-w64-x86-64 mingw-w64-x86-64-dev
@@ -177,6 +186,7 @@ If you encounter any errors, please check `doc/build-*.md` for further instructi
 #### Use with CLion
 
 CLion has not traditionally supported Autotools projects, although some progress on that is now in the works. We do include a cmake build file for compiling lbrycrd. See contrib/cmake. Alas, CLion doesn't support external projects in cmake, so that particular approach is also insufficient. CLion does support "compile_commands.json" projects. Fortunately, this can be easily generated for lbrycrd like so:
+
 ```sh
 pip install --user compiledb
 ./autogen.sh && ./configure --enable-static=no --enable-shared --with-pic --without-gui CXXFLAGS="-O0 -g" CFLAGS="-O0 -g" # or whatever normal lbrycrd config
