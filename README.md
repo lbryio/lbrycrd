@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/lbryio/lbrycrd.svg?branch=master)](https://travis-ci.org/lbryio/lbrycrd)
 [![MIT licensed](https://img.shields.io/dub/l/vibe-d.svg?style=flat)](https://github.com/lbryio/lbry-desktop/blob/master/LICENSE)
-LBRYcrd uses a blockchain similar to bitcoin's to implement an index and payment system for content on the LBRY network. It is a fork of bitcoin core. In addition to the libraries used by bitcoin, LBRYcrd also uses icu4c.
+LBRYcrd uses a blockchain similar to bitcoin's to implement an index and payment system for content on the LBRY network. It is a fork of [bitcoin core](https://github.com/bitcoin/bitcoin). In addition to the libraries used by bitcoin, LBRYcrd also uses [icu4c](https://github.com/unicode-org/icu/tree/master/icu4c).
 
 Please read the [lbry.tech overview](https://lbry.tech/overview) for a general understanding of the LBRY pieces. From there you could read the [LBRY spec](https://spec.lbry.com/) for specifics on the data in the blockchain. 
 
@@ -26,7 +26,7 @@ The contribution workflow is described in [CONTRIBUTING.md](CONTRIBUTING.md)
 and useful hints for developers can be found in [doc/developer-notes.md](doc/developer-notes.md).
 
 Test locally:
-```
+```sh
 ./lbrycrdd -server -regtest -txindex  # run this in its own window
 ./lbrycrd-cli -regtest generate 120   # mine 20 spendable coins
 ./lbrycrd-cli -regtest claimname my_name deadbeef 1 # hold a name claim with 1 coin
@@ -44,7 +44,7 @@ The CLI help is also browsable online at https://lbry.tech/api/blockchain
 
 Lbrycrdd will use the below default data directories (changeable with -datadir):
 
-```
+```sh
 Windows:  %APPDATA%\lbrycrd
 Mac:      ~/Library/Application Support/lbrycrd
 Unix:     ~/.lbrycrd
@@ -53,7 +53,7 @@ The data directory contains various things such as your default wallet (wallet.d
 
 For a list of configuration parameters, run `./lbrycrdd --help`. Below is a sample lbrycrd.conf to enable JSON RPC server on lbrycrdd.
 
-```
+```sh
 rpcuser=lbry
 rpcpassword=xyz123456790
 daemon=1
@@ -63,14 +63,14 @@ txindex=1
 
 ## Running from Source
 The easiest way to compile is to utilize the Docker image that contains the necessary compilers: lbry/build_lbrycrd. This will allow you to reproduce the build as made on our build servers. In this sample we map a local lbrycrd folder and a local ccache folder inside the image:
-```
+```sh
 git clone https://github.com/lbryio/lbrycrd.git
 cd lbrycrd
 docker run -v "$(pwd):/lbrycrd" --rm -v "${HOME}/ccache:/ccache" -w /lbrycrd -e CCACHE_DIR=/ccache lbry/build_lbrycrd packaging/build_linux_64bit.sh
 ```
 Some examples of compiling directly:
 #### Ubuntu with pulled static dependencies:
-```
+```sh
 sudo apt install build-essential git libtool autotools-dev automake pkg-config bsdmainutils curl ca-certificates
 git clone https://github.com/lbryio/lbrycrd.git
 cd lbrycrd
@@ -81,7 +81,7 @@ cd lbrycrd
 Other Linux distros would be similar. The build shell script is fairly trivial; take a peek at its contents.
 #### Ubuntu with local shared dependencies:
 Note: using untested dependencies may lead to conflicting results.
-```
+```sh
 sudo add-apt-repository ppa:bitcoin/bitcoin
 sudo apt-get update
 sudo apt-get install libdb4.8-dev libdb4.8++-dev libicu-dev libssl-dev libevent-dev \ 
@@ -99,7 +99,7 @@ make -j$(nproc)
 
 ```
 #### MacOS (cross-compiled):
-```
+```sh
 sudo apt-get install clang llvm git libtool autotools-dev automake pkg-config bsdmainutils curl ca-certificates \
                      libboost-system-dev libboost-filesystem-dev libboost-chrono-dev libboost-test-dev libboost-thread-dev
                     
@@ -113,7 +113,7 @@ tar ... extract SDK to depends/SDKs/MacOSX10.11.sdk
 ```
 Look in packaging/build_darwin_64bit.sh for further understanding.
 #### MacOS with local shared dependencies:
-```
+```sh
 brew install boost berkeley-db@4 icu4c libevent
 # fix conflict with gawk pulled first:
 brew reinstall readline
@@ -130,7 +130,7 @@ make -j$(sysctl -n hw.ncpu)
 ```
 #### Windows (cross-compiled):
 Compiling on MS Windows (outside of WSL) is not supported. The Windows build is cross-compiled from Linux like so:
-```
+```sh
 sudo apt-get install build-essential git libtool autotools-dev automake pkg-config bsdmainutils curl ca-certificates \
                      g++-mingw-w64-x86-64 mingw-w64-x86-64-dev
                      
@@ -146,7 +146,7 @@ If you encounter any errors, please check `doc/build-*.md` for further instructi
 
 #### Use with CLion:
 CLion has not traditionally supported Autotools projects, although some progress on that is now in the works. We do include a cmake build file for compiling lbrycrd. See contrib/cmake. Alas, CLion doesn't support external projects in cmake, so that particular approach is also insufficient. CLion does support "compile_commands.json" projects. Fortunately, this can be easily generated for lbrycrd like so:
-```
+```sh
 pip install --user compiledb
 ./autogen.sh && ./configure --enable-static=no --enable-shared --with-pic --without-gui CXXFLAGS="-O0 -g" CFLAGS="-O0 -g" # or whatever normal lbrycrd config
 compiledb make -j10
@@ -168,8 +168,8 @@ regularly to indicate new official, stable release versions.
 Testing and code review is the bottleneck for development; we get more pull
 requests than we can review and test on short notice. Please be patient and help out by testing
 other people's pull requests, and remember this is a security-critical project where any mistake might cost people
-lots of money. Developers are strongly encouraged to write [unit tests](/doc/unit-tests.md) for new code and to
-submit new unit tests for old code. Unit tests are compiled by default and can be run with `src/test/test_lbrycrd`.
+lots of money. Developers are strongly encouraged to write [unit tests](/src/test/README.md) for new code and to
+submit new unit tests for old code. Unit tests are compiled by default and can be run with `src/test/test_lbrycrd`
 
 The Travis CI system makes sure that every pull request is built, and that unit and sanity tests are automatically run. See https://travis-ci.org/lbryio/lbrycrd
 
@@ -177,7 +177,7 @@ The Travis CI system makes sure that every pull request is built, and that unit 
 
 Testnet is maintained for testing purposes and can be accessed using the command `./lbrycrdd -testnet`. If you would like to obtain testnet credits, please contact brannon@lbry.com or grin@lbry.com .
 
-It is easy to solo mine on testnet. (It's easy on mainnet too, but much harder to win.) For instructions see https://github.com/lbryio/sgminer-gm and https://github.com/lbryio/lbrycrd/tree/master/contrib/mining 
+It is easy to solo mine on testnet. (It's easy on mainnet too, but much harder to win.) For instructions see  [SGMiner](https://github.com/lbryio/sgminer-gm) and [Mining Contributions](https://github.com/lbryio/lbrycrd/tree/master/contrib/mining) 
 
 ## Mailing List
 
@@ -189,7 +189,7 @@ This project is MIT licensed. For the full license, see [LICENSE](LICENSE).
 
 ## Security
 
-We take security seriously. Please contact security@lbry.com regarding any security issues.
+We take security seriously. Please contact [security@lbry.com](mailto:security@lbry.com) regarding any security issues.
 Our PGP key is [here](https://keybase.io/lbry/key.asc) if you need it.
 
 ## Contact
