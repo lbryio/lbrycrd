@@ -245,7 +245,7 @@ language is used within pull-request comments:
 Reviewers should include the commit hash which they reviewed in their comments.
 
 Project maintainers reserve the right to weigh the opinions of peer reviewers
-using common sense judgement and also may weight based on meritocracy: Those
+using common sense judgment and also may weight based on meritocracy: Those
 that have demonstrated a deeper commitment and understanding towards the project
 (over time) or have clear domain expertise may naturally have more weight, as
 one would expect in all walks of life.
@@ -258,7 +258,7 @@ of consensus critical code.
 Where a patch set proposes to change the Bitcoin consensus, it must have been
 discussed extensively on the mailing list and IRC, be accompanied by a widely
 discussed BIP and have a generally widely perceived technical consensus of being
-a worthwhile change based on the judgement of the maintainers.
+a worthwhile change based on the judgment of the maintainers.
 
 ### Finding Reviewers
 
