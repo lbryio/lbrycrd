@@ -37,6 +37,12 @@ bool BCLog::Logger::OpenDebugLog()
     assert(m_fileout == nullptr);
     assert(!m_file_path.empty());
 
+    if (fs::exists(m_file_path)) {
+        fs::path old_file_path(m_file_path);
+        old_file_path.append(".old");
+        fs::rename(m_file_path, old_file_path);
+    }
+
     m_fileout = fsbridge::fopen(m_file_path, "a");
     if (!m_fileout) {
         return false;
@@ -81,11 +87,6 @@ bool BCLog::Logger::DisableCategory(const std::string& str)
 bool BCLog::Logger::WillLogCategory(BCLog::LogFlags category) const
 {
     return (m_categories.load(std::memory_order_relaxed) & category) != 0;
-}
-
-bool BCLog::Logger::DefaultShrinkDebugFile() const
-{
-    return m_categories == BCLog::NONE;
 }
 
 struct CLogCategoryDesc
@@ -230,45 +231,4 @@ void BCLog::Logger::LogPrintStr(const std::string &str)
             FileWriteStr(strTimestamped, m_fileout);
         }
     }
-}
-
-void BCLog::Logger::ShrinkDebugFile()
-{
-    // Amount of debug.log to save at end when shrinking (must fit in memory)
-    constexpr size_t RECENT_DEBUG_HISTORY_SIZE = 10 * 1000000;
-
-    assert(!m_file_path.empty());
-
-    // Scroll debug.log if it's getting too big
-    FILE* file = fsbridge::fopen(m_file_path, "r");
-
-    // Special files (e.g. device nodes) may not have a size.
-    size_t log_size = 0;
-    try {
-        log_size = fs::file_size(m_file_path);
-    } catch (boost::filesystem::filesystem_error &) {}
-
-    // If debug.log file is more than 10% bigger the RECENT_DEBUG_HISTORY_SIZE
-    // trim it down by saving only the last RECENT_DEBUG_HISTORY_SIZE bytes
-    if (file && log_size > 11 * (RECENT_DEBUG_HISTORY_SIZE / 10))
-    {
-        // Restart the file with some of the end
-        std::vector<char> vch(RECENT_DEBUG_HISTORY_SIZE, 0);
-        if (fseek(file, -((long)vch.size()), SEEK_END)) {
-            LogPrintf("Failed to shrink debug log file: fseek(...) failed\n");
-            fclose(file);
-            return;
-        }
-        int nBytes = fread(vch.data(), 1, vch.size(), file);
-        fclose(file);
-
-        file = fsbridge::fopen(m_file_path, "w");
-        if (file)
-        {
-            fwrite(vch.data(), 1, nBytes, file);
-            fclose(file);
-        }
-    }
-    else if (file != nullptr)
-        fclose(file);
 }
