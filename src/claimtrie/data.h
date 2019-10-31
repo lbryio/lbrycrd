@@ -2,7 +2,7 @@
 #ifndef CLAIMTRIE_DATA_H
 #define CLAIMTRIE_DATA_H
 
-#include <claimtrie/sqlite/sqlite3.h>
+#include <sqlite/sqlite3.h>
 #include <txoutpoint.h>
 #include <uints.h>
 
@@ -29,7 +29,7 @@ namespace sqlite
     }
 }
 
-#include <claimtrie/sqlite/hdr/sqlite_modern_cpp.h>
+#include <sqlite/hdr/sqlite_modern_cpp.h>
 
 namespace sqlite
 {
@@ -117,15 +117,6 @@ struct CNameOutPointHeightType
 
     CNameOutPointHeightType() = default;
     CNameOutPointHeightType(std::string name, CTxOutPoint outPoint, int nValidHeight);
-};
-
-struct CClaimIndexElement
-{
-    std::string name;
-    CClaimValue claim;
-
-    CClaimIndexElement() = default;
-    CClaimIndexElement(std::string name, CClaimValue claim);
 };
 
 #endif // CLAIMTRIE_DATA_H

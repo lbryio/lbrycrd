@@ -77,8 +77,3 @@ CNameOutPointHeightType::CNameOutPointHeightType(std::string name, CTxOutPoint o
     : name(std::move(name)), outPoint(std::move(outPoint)), nValidHeight(nValidHeight)
 {
 }
-
-CClaimIndexElement::CClaimIndexElement(std::string name, CClaimValue claim)
-    : name(std::move(name)), claim(std::move(claim))
-{
-}

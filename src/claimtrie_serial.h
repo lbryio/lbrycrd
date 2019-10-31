@@ -88,18 +88,4 @@ void Unserialize(Stream& s, CNameOutPointHeightType& u)
     Unserialize(s, u.nValidHeight);
 }
 
-template<typename Stream>
-void Serialize(Stream& s, const CClaimIndexElement& u)
-{
-    Serialize(s, u.name);
-    Serialize(s, u.claim);
-}
-
-template<typename Stream>
-void Unserialize(Stream& s, CClaimIndexElement& u)
-{
-    Unserialize(s, u.name);
-    Unserialize(s, u.claim);
-}
-
 #endif // CLAIMTRIE_SERIAL_H

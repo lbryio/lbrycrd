@@ -440,15 +440,15 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_takeover_test)
     fixture.getLastTakeoverForName("test", cid2, takeover);
     CClaimValue value;
     BOOST_REQUIRE(fixture.getInfoForName("test", value) && value.nAmount == 3);
-    BOOST_CHECK_EQUAL(cid, cid2);
+    BOOST_CHECK_EQUAL(cid, uint160(cid2));
     BOOST_CHECK_EQUAL(height, takeover);
     fixture.DecrementBlocks(1);
     fixture.getLastTakeoverForName("test", cid2, takeover);
-    BOOST_CHECK_EQUAL(cid, cid2);
+    BOOST_CHECK_EQUAL(cid, uint160(cid2));
     BOOST_CHECK_EQUAL(height, takeover);
     fixture.DecrementBlocks(1);
     fixture.getLastTakeoverForName("test", cid2, takeover);
-    BOOST_CHECK_EQUAL(cid, cid2);
+    BOOST_CHECK_EQUAL(cid, uint160(cid2));
     BOOST_CHECK_EQUAL(height, takeover);
 }
 
@@ -1924,7 +1924,7 @@ BOOST_AUTO_TEST_CASE(update_on_support2_test)
     int lastTakeover;
     BOOST_CHECK(fixture.getLastTakeoverForName(name, claimId, lastTakeover));
     BOOST_CHECK_EQUAL(lastTakeover, height + 1);
-    BOOST_CHECK_EQUAL(ClaimIdHash(tx1.GetHash(), 0), claimId);
+    BOOST_CHECK_EQUAL(ClaimIdHash(tx1.GetHash(), 0), uint160(claimId));
 
     fixture.Spend(s1);
     fixture.Spend(s2);
