@@ -95,7 +95,7 @@ the pull request affects. Valid areas as:
   - *Utils and libraries* for changes to the utils and libraries
   - *Wallet* for changes to the wallet code
 
-Examples:
+### Examples:
 
     Consensus: Add new opcode for BIP-XXXX OP_CHECKAWESOMESIG
     Net: Automatically create hidden service, listen on Tor
