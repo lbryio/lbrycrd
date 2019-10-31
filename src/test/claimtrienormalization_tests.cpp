@@ -221,13 +221,14 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
     BOOST_CHECK(trieCache.removeClaim(ClaimIdHash(tx2.GetHash(), 0), COutPoint(tx2.GetHash(), 0), name_upper, amelieValidHeight));
 
     BOOST_CHECK(trieCache.getInfoForName(name, nval1));
-    BOOST_CHECK(trieCache.addClaim(name, COutPoint(tx1.GetHash(), 0), ClaimIdHash(tx1.GetHash(), 0), CAmount(2), currentHeight + 1, -1, {}));
+    BOOST_CHECK(trieCache.addClaim(name, COutPoint(tx1.GetHash(), 0), ClaimIdHash(tx1.GetHash(), 0), CAmount(2), currentHeight + 1));
     BOOST_CHECK(trieCache.getInfoForName(name, nval1));
     insertUndoType insertUndo;
-    claimQueueRowType expireUndo;
+    claimUndoType expireUndo;
     insertUndoType insertSupportUndo;
-    supportQueueRowType expireSupportUndo;
-    BOOST_CHECK(trieCache.incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo));
+    supportUndoType expireSupportUndo;
+    takeoverUndoType takeoverUndo;
+    BOOST_CHECK(trieCache.incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverUndo));
     BOOST_CHECK(trieCache.shouldNormalize());
 }
 
@@ -304,22 +305,23 @@ BOOST_AUTO_TEST_CASE(normalization_removal_test)
 
     CClaimTrieCache cache(pclaimTrie);
     int height = chainActive.Height() + 1;
-    cache.addClaim("AB", COutPoint(tx1.GetHash(), 0), ClaimIdHash(tx1.GetHash(), 0), 1, height, -1, {});
-    cache.addClaim("Ab", COutPoint(tx2.GetHash(), 0), ClaimIdHash(tx2.GetHash(), 0), 2, height, -1, {});
-    cache.addClaim("aB", COutPoint(tx3.GetHash(), 0), ClaimIdHash(tx3.GetHash(), 0), 3, height, -1, {});
-    cache.addSupport("AB", COutPoint(sx1.GetHash(), 0), 1, ClaimIdHash(tx1.GetHash(), 0), height, -1, {});
-    cache.addSupport("Ab", COutPoint(sx2.GetHash(), 0), 1, ClaimIdHash(tx2.GetHash(), 0), height, -1, {});
+    cache.addClaim("AB", COutPoint(tx1.GetHash(), 0), ClaimIdHash(tx1.GetHash(), 0), 1, height);
+    cache.addClaim("Ab", COutPoint(tx2.GetHash(), 0), ClaimIdHash(tx2.GetHash(), 0), 2, height);
+    cache.addClaim("aB", COutPoint(tx3.GetHash(), 0), ClaimIdHash(tx3.GetHash(), 0), 3, height);
+    cache.addSupport("AB", COutPoint(sx1.GetHash(), 0), 1, ClaimIdHash(tx1.GetHash(), 0), height);
+    cache.addSupport("Ab", COutPoint(sx2.GetHash(), 0), 1, ClaimIdHash(tx2.GetHash(), 0), height);
     insertUndoType insertUndo;
-    claimQueueRowType expireUndo;
+    claimUndoType expireUndo;
     insertUndoType insertSupportUndo;
-    supportQueueRowType expireSupportUndo;
-    BOOST_CHECK(cache.incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo));
+    supportUndoType expireSupportUndo;
+    takeoverUndoType takeoverUndo;
+    BOOST_CHECK(cache.incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverUndo));
     BOOST_CHECK(cache.getClaimsForName("ab").claimsNsupports.size() == 3U);
     BOOST_CHECK(cache.getClaimsForName("ab").claimsNsupports[0].supports.size() == 1U);
     BOOST_CHECK(cache.getClaimsForName("ab").claimsNsupports[1].supports.size() == 0U);
     BOOST_CHECK(cache.getClaimsForName("ab").claimsNsupports[2].supports.size() == 1U);
     BOOST_CHECK(cache.decrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo));
-    BOOST_CHECK(cache.finalizeDecrement());
+    BOOST_CHECK(cache.finalizeDecrement(takeoverUndo));
     std::string unused;
     BOOST_CHECK(cache.removeSupport(COutPoint(sx1.GetHash(), 0), unused, height));
     BOOST_CHECK(cache.removeSupport(COutPoint(sx2.GetHash(), 0), unused, height));

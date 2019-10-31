@@ -56,9 +56,10 @@ int64_t UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParam
 void blockToCache(const CBlock* pblock, CClaimTrieCache& trieCache, int nHeight)
 {
     insertUndoType dummyInsertUndo;
-    claimQueueRowType dummyExpireUndo;
+    claimUndoType dummyExpireUndo;
     insertUndoType dummyInsertSupportUndo;
-    supportQueueRowType dummyExpireSupportUndo;
+    supportUndoType dummyExpireSupportUndo;
+    takeoverUndoType dummyTakeoverUndo;
 
     CUpdateCacheCallbacks callbacks = {
         .findScriptKey = [&pblock](const COutPoint& point) {
@@ -78,7 +79,7 @@ void blockToCache(const CBlock* pblock, CClaimTrieCache& trieCache, int nHeight)
         if (!tx->IsCoinBase())
             UpdateCache(*tx, trieCache, view, nHeight, callbacks);
 
-    trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo, dummyInsertSupportUndo, dummyExpireSupportUndo);
+    trieCache.incrementBlock(dummyInsertUndo, dummyExpireUndo, dummyInsertSupportUndo, dummyExpireSupportUndo, dummyTakeoverUndo);
 }
 
 BlockAssembler::Options::Options() {
