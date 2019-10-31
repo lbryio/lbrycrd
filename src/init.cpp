@@ -1540,7 +1540,7 @@ bool AppInitMain()
                 }
                 auto tip = chainActive.Tip();
                 assert(tip);
-                if (!CClaimTrieCache(pclaimTrie).validateDb(tip->hashClaimTrie))
+                if (!CClaimTrieCache(pclaimTrie).validateDb(tip->hashClaimTrie)) {
                     strLoadError = _("Error loading the claim trie from disk");
                     break;
                 }

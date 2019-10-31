@@ -55,17 +55,18 @@ class CClaimTrie
     friend class CClaimTrieCacheHashFork;
     friend class CClaimTrieCacheExpirationFork;
     friend class CClaimTrieCacheNormalizationFork;
+
 public:
     CClaimTrie() = default;
     CClaimTrie(CClaimTrie&&) = delete;
     CClaimTrie(const CClaimTrie&) = delete;
     CClaimTrie(bool fWipe, int height,
                const std::string& dataDir,
-               int nNormalizedNameForkHeight,
-               int64_t nOriginalClaimExpirationTime,
-               int64_t nExtendedClaimExpirationTime,
-               int64_t nExtendedClaimExpirationForkHeight,
-               int64_t nAllClaimsInMerkleForkHeight,
+               int nNormalizedNameForkHeight = -1,
+               int64_t nOriginalClaimExpirationTime = -1,
+               int64_t nExtendedClaimExpirationTime = -1,
+               int64_t nExtendedClaimExpirationForkHeight = -1,
+               int64_t nAllClaimsInMerkleForkHeight = -1,
                int proportionalDelayFactor = 32);
 
     CClaimTrie& operator=(CClaimTrie&&) = delete;
@@ -77,7 +78,7 @@ public:
 protected:
     int nNextHeight = 0;
     sqlite::database db;
-    const int nProportionalDelayFactor = 0;
+    const int nProportionalDelayFactor = 1;
 
     const int nNormalizedNameForkHeight = -1;
     const int64_t nOriginalClaimExpirationTime = -1;
@@ -90,6 +91,7 @@ struct CClaimTrieProofNode
 {
     CClaimTrieProofNode(std::vector<std::pair<unsigned char, CUint256>> children, bool hasValue, CUint256 valHash);
 
+    CClaimTrieProofNode() = default;
     CClaimTrieProofNode(CClaimTrieProofNode&&) = default;
     CClaimTrieProofNode(const CClaimTrieProofNode&) = default;
     CClaimTrieProofNode& operator=(CClaimTrieProofNode&&) = default;
@@ -118,10 +120,20 @@ struct CClaimTrieProof
 template <typename T>
 using queueEntryType = std::pair<std::string, T>;
 
-typedef std::vector<queueEntryType<CClaimValue>> claimUndoType;
-typedef std::vector<queueEntryType<CSupportValue>> supportUndoType;
+#ifdef SWIG_INTERFACE // swig has a problem with using in typedef
+using claimUndoPair = std::pair<std::string, CClaimValue>;
+using supportUndoPair = std::pair<std::string, CSupportValue>;
+using takeoverUndoPair = std::pair<std::string, <std::pair<int, CUint160>>;
+#else
+using claimUndoPair = queueEntryType<CClaimValue>;
+using supportUndoPair = queueEntryType<CSupportValue>;
+using takeoverUndoPair = queueEntryType<std::pair<int, CUint160>>;
+#endif
+
+typedef std::vector<claimUndoPair> claimUndoType;
+typedef std::vector<supportUndoPair> supportUndoType;
 typedef std::vector<CNameOutPointHeightType> insertUndoType;
-typedef std::vector<queueEntryType<std::pair<int, CUint160>>> takeoverUndoType;
+typedef std::vector<takeoverUndoPair> takeoverUndoType;
 
 class CClaimTrieCacheBase
 {
