@@ -452,7 +452,7 @@ CUint256 CClaimTrieCacheBase::recursiveComputeMerkleHash(const std::string& name
     std::vector<std::tuple<std::string, std::unique_ptr<CUint256>, int>> children;
     childHashQuery << name >> [&children](std::string name, std::unique_ptr<CUint256> hash, int takeoverHeight) {
         children.push_back(std::make_tuple(std::move(name), std::move(hash), takeoverHeight));
-    }
+    };
     childHashQuery++;
 
     for (auto& child: children) {
@@ -460,7 +460,7 @@ CUint256 CClaimTrieCacheBase::recursiveComputeMerkleHash(const std::string& name
         auto& hash = std::get<1>(child);
         if (!hash) hash = std::make_unique<CUint256>();
         if (hash->IsNull())
-            hash = recursiveComputeMerkleHash(name, std::get<2>(child), checkOnly);
+            *hash = recursiveComputeMerkleHash(name, std::get<2>(child), checkOnly);
         completeHash(*hash, name, pos);
         vchToHash.push_back(name[pos]);
         vchToHash.insert(vchToHash.end(), hash->begin(), hash->end());

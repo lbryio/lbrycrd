@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 project(claimtrie)
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 include(../../contrib/cmake/cmake/CPM.cmake)
@@ -12,89 +12,42 @@ set(CLAIMTRIE_SRC
     forks.cpp
     hashes.cpp
     log.cpp
-    prefixtrie.cpp
     trie.cpp
     txoutpoint.cpp
     uints.cpp
+    sqlite/sqlite3.c
 )
+
+if(BIND)
+    find_program(SWIG NAMES swig)
+    string(TOLOWER ${BIND} BIND)
+    set(INTERFACE_NAME libclaimtrie)
+    if(${BIND} STREQUAL "python")
+        find_package(PythonInterp 3.6 REQUIRED)
+        find_package(PythonLibs 3.6 REQUIRED)
+        set(BIND_INCLUDE_DIRS ${PYTHON_INCLUDE_DIRS})
+        set(SWIG_OPTIONS -python;-py3)
+        set(CMAKE_SHARED_LIBRARY_PREFIX _lib)
+    else()
+        message(FATAL_ERROR "Implement a handler for ${BIND}")
+    endif()
+    add_custom_command(OUTPUT ${INTERFACE_NAME}_wrap.cxx
+        COMMAND ${SWIG}
+        ARGS -c++ ${SWIG_OPTIONS} -outcurrentdir ${CMAKE_CURRENT_SOURCE_DIR}/${INTERFACE_NAME}.i
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    )
+    set(CLAIMTRIE_SRC ${CLAIMTRIE_SRC}
+        ${INTERFACE_NAME}_wrap.cxx
+    )
+endif()
 
 add_library(claimtrie SHARED ${CLAIMTRIE_SRC})
 
 target_include_directories(claimtrie PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
-# TODO remove leveldb depends
-set(LEVELDB_SRC
-    ../leveldb/db/builder.cc
-    ../leveldb/db/c.cc
-    ../leveldb/db/dbformat.cc
-    ../leveldb/db/db_impl.cc
-    ../leveldb/db/db_iter.cc
-    ../leveldb/db/dumpfile.cc
-    ../leveldb/db/filename.cc
-    ../leveldb/db/log_reader.cc
-    ../leveldb/db/log_writer.cc
-    ../leveldb/db/memtable.cc
-    ../leveldb/db/repair.cc
-    ../leveldb/db/table_cache.cc
-    ../leveldb/db/version_edit.cc
-    ../leveldb/db/version_set.cc
-    ../leveldb/db/write_batch.cc
-    ../leveldb/table/block_builder.cc
-    ../leveldb/table/block.cc
-    ../leveldb/table/filter_block.cc
-    ../leveldb/table/format.cc
-    ../leveldb/table/iterator.cc
-    ../leveldb/table/merger.cc
-    ../leveldb/table/table_builder.cc
-    ../leveldb/table/table.cc
-    ../leveldb/table/two_level_iterator.cc
-    ../leveldb/util/arena.cc
-    ../leveldb/util/bloom.cc
-    ../leveldb/util/cache.cc
-    ../leveldb/util/coding.cc
-    ../leveldb/util/comparator.cc
-    ../leveldb/util/crc32c.cc
-    ../leveldb/util/env.cc
-    ../leveldb/util/env_posix.cc
-    ../leveldb/util/filter_policy.cc
-    ../leveldb/util/hash.cc
-    ../leveldb/util/histogram.cc
-    ../leveldb/util/logging.cc
-    ../leveldb/util/options.cc
-    ../leveldb/util/status.cc
-)
-
-if(WIN32)
-    set(LEVELDB_SRC ${LEVELDB_SRC}
-        ../leveldb/util/env_win.cc
-        ../leveldb/port/port_win.cc
-    )
-else()
-    set(LEVELDB_SRC ${LEVELDB_SRC}
-        ../leveldb/port/port_posix.cc
-    )
+if(BIND_INCLUDE_DIRS)
+    target_include_directories(claimtrie PRIVATE ${BIND_INCLUDE_DIRS})
 endif()
-
-add_library(leveldb STATIC ${LEVELDB_SRC})
-
-target_include_directories(leveldb PRIVATE ../leveldb ../leveldb/include)
-
-if(WIN32)
-    target_compile_definitions(leveldb PRIVATE -DLEVELDB_PLATFORM_WINDOWS -DWINVER=0x0500 -D__USE_MINGW_ANSI_STDIO=1)
-else()
-    target_compile_definitions(leveldb PRIVATE -DLEVELDB_PLATFORM_POSIX)
-endif()
-
-target_compile_definitions(leveldb PRIVATE -DLEVELDB_ATOMIC_PRESENT -D__STDC_LIMIT_MACROS)
-
-target_link_libraries(claimtrie PRIVATE leveldb)
-# leveldb depends end here
-
-# TODO remove BITCOIN depends
-target_include_directories(claimtrie PRIVATE ../ ../leveldb/include)
-# it's needed a configure call to create config files
-target_compile_definitions(claimtrie PRIVATE -DHAVE_CONFIG_H)
-# bitcoin depends end here
 
 CPMAddPackage(
     NAME OpenSSL
