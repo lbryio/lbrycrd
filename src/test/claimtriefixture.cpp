@@ -324,7 +324,7 @@ bool ClaimTrieChainFixture::expirationQueueEmpty() const
 bool ClaimTrieChainFixture::supportEmpty() const
 {
     int64_t count;
-    db << "SELECT COUNT(*) FROM supports" >> count;
+    db << "SELECT COUNT(*) FROM supports WHERE validHeight < ? AND expirationHeight >= ?" << nNextHeight << nNextHeight >> count;
     return count == 0;
 }
 
@@ -392,6 +392,14 @@ boost::test_tools::predicate_result ClaimTrieChainFixture::best_claim_effective_
 }
 
 bool ClaimTrieChainFixture::getClaimById(const uint160 &claimId, std::string &name, CClaimValue &value) {
-    std::vector<unsigned char> claim(claimId.begin(), claimId.end());
-    return findNameForClaim(claim, value, name);
+    auto query = db << "SELECT nodeName, claimID, txID, txN, amount, validHeight, blockHeight "
+                       "FROM claims WHERE claimID = ?" << claimId;
+    auto hit = false;
+    for (auto&& row: query) {
+        if (hit) return false;
+        row >> name >> value.claimId >> value.outPoint.hash >> value.outPoint.n
+            >> value.nAmount >> value.nValidAtHeight >> value.nHeight;
+        hit = true;
+    }
+    return hit;
 }

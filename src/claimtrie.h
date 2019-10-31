@@ -400,7 +400,7 @@ private:
     friend struct ClaimTrieChainFixture;
     friend class CClaimTrieCacheTest;
 
-    void activateAllFor(insertUndoType& insertUndo, insertUndoType& insertSupportUndo,
+    bool activateAllFor(insertUndoType& insertUndo, insertUndoType& insertSupportUndo,
                         const std::string& takeover);
 };
 
