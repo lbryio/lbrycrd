@@ -109,7 +109,7 @@ bool CClaimTrie::SyncToDisk()
 
 bool CClaimTrie::empty() {
     int64_t count;
-    db << "SELECT COUNT(*) FROM claims" >> count;
+    db << "SELECT COUNT(*) FROM claims WHERE validHeight < ? AND expirationHeight >= ?" << nNextHeight << nNextHeight >> count;
     return count == 0;
 }
 
@@ -952,23 +952,24 @@ bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimUndoTy
 
         // if somebody activates on this block and they are the new best, then everybody activates on this block
         CClaimValue value;
-        if (needsActivate || !getInfoForName(nameWithTakeover, value, 1) || value.nValidAtHeight == nNextHeight) {
-            activateAllFor(insertUndo, insertSupportUndo, nameWithTakeover);
+        auto hasCurrent = getInfoForName(nameWithTakeover, value, 1);
+        // now that they're all in get the winner:
+        int existingHeight;
+        std::unique_ptr<uint160> existingID;
+        db << "SELECT IFNULL(takeoverHeight, 0), takeoverID FROM nodes WHERE name = ?"
+              << nameWithTakeover >> std::tie(existingHeight, existingID);
 
-            // now that they're all in get the winner:
-            if (getInfoForName(nameWithTakeover, value, 1)) {
-                int existingHeight;
-                std::unique_ptr<uint160> existingID;
-                db << "SELECT IFNULL(takeoverHeight, 0), takeoverID FROM nodes WHERE name = ?"
-                      << nameWithTakeover >> std::tie(existingHeight, existingID);
-                if (existingID == nullptr || *existingID != value.claimId) {
-                    takeoverUndo.emplace_back(nameWithTakeover,
-                            std::make_pair(existingHeight, existingID == nullptr ? uint160() : *existingID));
-                    db << "UPDATE nodes SET takeoverHeight = ?, takeoverID = ? WHERE name = ?"
-                          << nNextHeight << value.claimId << nameWithTakeover;
-                    assert(db.rows_modified());
-                }
-            }
+        auto newOwner = needsActivate || existingID == nullptr || !hasCurrent || *existingID != value.claimId;
+        if (newOwner && activateAllFor(insertUndo, insertSupportUndo, nameWithTakeover))
+            getInfoForName(nameWithTakeover, value, 1);
+
+        if (existingID != nullptr)
+            takeoverUndo.emplace_back(nameWithTakeover, std::make_pair(existingHeight, *existingID));
+
+        if (newOwner) {
+            db << "UPDATE nodes SET takeoverHeight = ?, takeoverID = ? WHERE name = ?"
+               << nNextHeight << value.claimId << nameWithTakeover;
+            assert(db.rows_modified());
         }
     }
 
@@ -976,9 +977,10 @@ bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimUndoTy
     return true;
 }
 
-void CClaimTrieCacheBase::activateAllFor(insertUndoType& insertUndo, insertUndoType& insertSupportUndo,
+bool CClaimTrieCacheBase::activateAllFor(insertUndoType& insertUndo, insertUndoType& insertSupportUndo,
                                          const std::string& name) {
     // now that we know a takeover is happening, we bring everybody in:
+    auto ret = false;
     {
         auto query = db << "SELECT txID, txN, validHeight FROM claims WHERE nodeName = ? AND validHeight > ? AND expirationHeight > ?"
                         << name << nNextHeight << nNextHeight;
@@ -993,6 +995,7 @@ void CClaimTrieCacheBase::activateAllFor(insertUndoType& insertUndo, insertUndoT
     // and then update them all to activate now:
     db << "UPDATE claims SET validHeight = ? WHERE nodeName = ? AND validHeight > ? AND expirationHeight > ?"
               << nNextHeight << name << nNextHeight << nNextHeight;
+    ret |= db.rows_modified() > 0;
 
     // then do the same for supports:
     {
@@ -1009,6 +1012,8 @@ void CClaimTrieCacheBase::activateAllFor(insertUndoType& insertUndo, insertUndoT
     // and then update them all to activate now:
     db << "UPDATE supports SET validHeight = ? WHERE nodeName = ? AND validHeight > ? AND expirationHeight > ?"
               << nNextHeight << name << nNextHeight << nNextHeight;
+    ret |= db.rows_modified() > 0;
+    return ret;
 }
 
 bool CClaimTrieCacheBase::decrementBlock(insertUndoType& insertUndo, claimUndoType& expireUndo,
@@ -1021,29 +1026,25 @@ bool CClaimTrieCacheBase::decrementBlock(insertUndoType& insertUndo, claimUndoTy
     // to actually delete the expired items and then restore them here I would have to look up the metadata in the block
     // that doesn't sound very fun so we modified the other queries to exclude expired items
     for (auto it = expireSupportUndo.crbegin(); it != expireSupportUndo.crend(); ++it) {
-        db << "UPDATE supports SET validHeight = ? WHERE txID = ? AND txN = ?"
-           << it->second.nValidAtHeight << it->second.outPoint.hash << it->second.outPoint.n;
-        db << "UPDATE nodes SET hash = NULL WHERE name = ?" << it->first;
+        db << "INSERT INTO nodes(name) VALUES(?) ON CONFLICT(name) DO UPDATE SET hash = NULL" << it->first;
     }
 
     for (auto it = expireUndo.crbegin(); it != expireUndo.crend(); ++it) {
-        db << "UPDATE claims SET validHeight = ? WHERE claimID = ?"
-           << it->second.nValidAtHeight << it->second.claimId;
-        db << "UPDATE nodes SET hash = NULL WHERE name = ?" << it->first;
+        db << "INSERT INTO nodes(name) VALUES(?) ON CONFLICT(name) DO UPDATE SET hash = NULL" << it->first;
     }
 
     for (auto it = insertSupportUndo.crbegin(); it != insertSupportUndo.crend(); ++it) {
         LogPrint(BCLog::CLAIMS, "Resetting support valid height to %d for %s\n", it->nValidHeight, it->name);
         db << "UPDATE supports SET validHeight = ? WHERE txID = ? AND txN = ?"
            << it->nValidHeight << it->outPoint.hash << it->outPoint.n;
-        db << "UPDATE nodes SET hash = NULL WHERE name = ?" << it->name;
+        db << "INSERT INTO nodes(name) VALUES(?) ON CONFLICT(name) DO UPDATE SET hash = NULL" << it->name;
     }
 
     for (auto it = insertUndo.crbegin(); it != insertUndo.crend(); ++it) {
         LogPrint(BCLog::CLAIMS, "Resetting valid height to %d for %s\n", it->nValidHeight, it->name);
         db << "UPDATE claims SET validHeight = ? WHERE nodeName = ? AND txID = ? AND txN = ?"
            << it->nValidHeight << it->name << it->outPoint.hash << it->outPoint.n;
-        db << "UPDATE nodes SET hash = NULL WHERE name = ?" << it->name;
+        db << "INSERT INTO nodes(name) VALUES(?) ON CONFLICT(name) DO UPDATE SET hash = NULL" << it->name;
     }
 
     return true;

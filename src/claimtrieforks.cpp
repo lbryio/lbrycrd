@@ -74,10 +74,18 @@ bool CClaimTrieCacheExpirationFork::forkForExpirationChange(bool increment)
     */
 
     auto extension = Params().GetConsensus().nExtendedClaimExpirationTime - Params().GetConsensus().nOriginalClaimExpirationTime;
-    if (!increment) extension = -extension;
-    db << "UPDATE claims SET expirationHeight = expirationHeight + ? WHERE expirationHeight >= ?" << extension << nNextHeight;
-    db << "UPDATE supports SET expirationHeight = expirationHeight + ? WHERE expirationHeight >= ?" << extension << nNextHeight;
-    db << "UPDATE nodes SET hash = NULL"; // recompute all hashes (as there aren't that many at this point)
+    if (increment) {
+        db << "UPDATE claims SET expirationHeight = expirationHeight + ? WHERE expirationHeight >= ?"
+            << extension << nNextHeight;
+        db << "UPDATE supports SET expirationHeight = expirationHeight + ? WHERE expirationHeight >= ?"
+            << extension << nNextHeight;
+    }
+    else {
+        db << "UPDATE claims SET expirationHeight = expirationHeight - ? WHERE expirationHeight >= ?"
+           << extension << nNextHeight + extension;
+        db << "UPDATE supports SET expirationHeight = expirationHeight - ? WHERE expirationHeight >= ?"
+           << extension << nNextHeight + extension;
+    }
     return true;
 }
 

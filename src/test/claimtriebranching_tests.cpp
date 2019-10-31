@@ -393,27 +393,28 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_takeover_test)
     fixture.IncrementBlocks(1);
     uint160 cid2;
     int takeover;
+    int height = chainActive.Tip()->nHeight;
     fixture.getLastTakeoverForName("test", cid2, takeover);
-    BOOST_CHECK_EQUAL(chainActive.Tip()->nHeight, takeover);
+    BOOST_CHECK_EQUAL(height, takeover);
     CMutableTransaction u1 = fixture.MakeUpdate(tx1, "test", "a", cid, 4);
     fixture.IncrementBlocks(1);
     fixture.getLastTakeoverForName("test", cid2, takeover);
-    BOOST_CHECK_EQUAL(chainActive.Tip()->nHeight, takeover);
+    BOOST_CHECK_EQUAL(height, takeover);
     CMutableTransaction u2 = fixture.MakeUpdate(u1, "test", "b", cid, 3);
     fixture.IncrementBlocks(1);
     fixture.getLastTakeoverForName("test", cid2, takeover);
     CClaimValue value;
     BOOST_REQUIRE(fixture.getInfoForName("test", value) && value.nAmount == 3);
     BOOST_CHECK_EQUAL(cid, cid2);
-    BOOST_CHECK_EQUAL(chainActive.Tip()->nHeight, takeover);
+    BOOST_CHECK_EQUAL(height, takeover);
     fixture.DecrementBlocks(1);
     fixture.getLastTakeoverForName("test", cid2, takeover);
     BOOST_CHECK_EQUAL(cid, cid2);
-    BOOST_CHECK_EQUAL(chainActive.Tip()->nHeight, takeover);
+    BOOST_CHECK_EQUAL(height, takeover);
     fixture.DecrementBlocks(1);
     fixture.getLastTakeoverForName("test", cid2, takeover);
     BOOST_CHECK_EQUAL(cid, cid2);
-    BOOST_CHECK_EQUAL(chainActive.Tip()->nHeight, takeover);
+    BOOST_CHECK_EQUAL(height, takeover);
 }
 
 /*
