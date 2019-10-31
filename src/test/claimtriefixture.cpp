@@ -189,7 +189,7 @@ void ClaimTrieChainFixture::CommitTx(const CMutableTransaction &tx, bool has_loc
         CValidationState state;
         CAmount txFeeRate = CAmount(0);
         LOCK(cs_main);
-        BOOST_CHECK_EQUAL(AcceptToMemoryPool(mempool, state, MakeTransactionRef(tx), nullptr, nullptr, false, txFeeRate, false), true);
+        BOOST_REQUIRE(AcceptToMemoryPool(mempool, state, MakeTransactionRef(tx), nullptr, nullptr, false, txFeeRate, false));
     }
 }
 
@@ -272,10 +272,10 @@ void ClaimTrieChainFixture::IncrementBlocks(int num_blocks, bool mark)
         CScript coinbase_scriptpubkey;
         coinbase_scriptpubkey << CScriptNum(chainActive.Height());
         std::unique_ptr<CBlockTemplate> pblocktemplate = AssemblerForTest().CreateNewBlock(coinbase_scriptpubkey);
-        BOOST_CHECK(pblocktemplate != nullptr);
+        BOOST_REQUIRE(pblocktemplate != nullptr);
         if (!added_unchecked)
             BOOST_CHECK_EQUAL(pblocktemplate->block.vtx.size(), num_txs_for_next_block + 1);
-        BOOST_CHECK_EQUAL(CreateBlock(pblocktemplate), true);
+        BOOST_REQUIRE(CreateBlock(pblocktemplate));
         num_txs_for_next_block = 0;
         nNextHeight = chainActive.Height() + 1;
     }

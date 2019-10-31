@@ -77,9 +77,10 @@ class CBlockUndo
 public:
     std::vector<CTxUndo> vtxundo; // for all but the coinbase
     insertUndoType insertUndo; // any claims that went from the queue to the trie
-    claimQueueRowType expireUndo; // any claims that expired
+    claimUndoType expireUndo; // any claims that expired
     insertUndoType insertSupportUndo; // any supports that went from the support queue to the support map
-    supportQueueRowType expireSupportUndo; // any supports that expired
+    supportUndoType expireSupportUndo; // any supports that expired
+    takeoverUndoType takeoverUndo;
 
     ADD_SERIALIZE_METHODS;
 
@@ -90,6 +91,7 @@ public:
         READWRITE(expireUndo);
         READWRITE(insertSupportUndo);
         READWRITE(expireSupportUndo);
+        READWRITE(takeoverUndo);
     }
 };
 

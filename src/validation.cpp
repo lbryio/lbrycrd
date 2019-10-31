@@ -1819,7 +1819,7 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
 
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
-    assert(trieCache.finalizeDecrement());
+    assert(trieCache.finalizeDecrement(blockUndo.takeoverUndo));
     auto merkleHash = trieCache.getMerkleHash();
     if (merkleHash != pindex->pprev->hashClaimTrie) {
         LogPrintf("Hash comparison failure at block %d\n", pindex->nHeight);
@@ -2304,7 +2304,8 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     }
 
     // TODO: if the "just check" flag is set, we should reduce the work done here. Incrementing blocks twice per mine is not efficient.
-    const auto incremented = trieCache.incrementBlock(blockundo.insertUndo, blockundo.expireUndo, blockundo.insertSupportUndo, blockundo.expireSupportUndo);
+    const auto incremented = trieCache.incrementBlock(blockundo.insertUndo, blockundo.expireUndo,
+            blockundo.insertSupportUndo, blockundo.expireSupportUndo, blockundo.takeoverUndo);
     assert(incremented);
 
     if (trieCache.getMerkleHash() != block.hashClaimTrie)

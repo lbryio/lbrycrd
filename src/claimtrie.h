@@ -199,33 +199,6 @@ struct CNameOutPointHeightType
     }
 };
 
-struct CNameOutPointType
-{
-    std::string name;
-    COutPoint outPoint;
-
-    CNameOutPointType() = default;
-
-    CNameOutPointType(std::string name, const COutPoint& outPoint)
-            : name(std::move(name)), outPoint(outPoint)
-    {
-    }
-
-    bool operator==(const CNameOutPointType& other) const
-    {
-        return name == other.name && outPoint == other.outPoint;
-    }
-
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
-    {
-        READWRITE(name);
-        READWRITE(outPoint);
-    }
-};
-
 struct CClaimNsupports
 {
     CClaimNsupports() = default;
@@ -347,9 +320,10 @@ struct CClaimTrieProof
 template <typename T>
 using queueEntryType = std::pair<std::string, T>;
 
-typedef std::vector<queueEntryType<CClaimValue>> claimQueueRowType;
-typedef std::vector<queueEntryType<CSupportValue>> supportQueueRowType;
+typedef std::vector<queueEntryType<CClaimValue>> claimUndoType;
+typedef std::vector<queueEntryType<CSupportValue>> supportUndoType;
 typedef std::vector<CNameOutPointHeightType> insertUndoType;
+typedef std::vector<queueEntryType<std::pair<int, uint160>>> takeoverUndoType;
 
 class CClaimTrieCacheBase
 {
@@ -370,29 +344,30 @@ public:
     bool haveSupportInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const;
 
     bool addClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId, CAmount nAmount,
-            int nHeight, int nValidHeight, const std::vector<unsigned char>& metadata);
+            int nHeight, int nValidHeight = -1, const std::vector<unsigned char>& metadata = {});
     bool addSupport(const std::string& name, const COutPoint& outPoint, CAmount nAmount,
-            const uint160& supportedClaimId, int nHeight, int nValidHeight, const std::vector<unsigned char>& metadata);
+            const uint160& supportedClaimId, int nHeight, int nValidHeight = -1, const std::vector<unsigned char>& metadata = {});
 
     bool removeSupport(const COutPoint& outPoint, std::string& nodeName, int& validHeight);
     bool removeClaim(const uint160& claimId, const COutPoint& outPoint, std::string& nodeName, int& validHeight);
 
     virtual bool incrementBlock(insertUndoType& insertUndo,
-        claimQueueRowType& expireUndo,
-        insertUndoType& insertSupportUndo,
-        supportQueueRowType& expireSupportUndo);
+                                claimUndoType& expireUndo,
+                                insertUndoType& insertSupportUndo,
+                                supportUndoType& expireSupportUndo,
+                                takeoverUndoType& takeovers);
 
     virtual bool decrementBlock(insertUndoType& insertUndo,
-        claimQueueRowType& expireUndo,
-        insertUndoType& insertSupportUndo,
-        supportQueueRowType& expireSupportUndo);
+                                claimUndoType& expireUndo,
+                                insertUndoType& insertSupportUndo,
+                                supportUndoType& expireSupportUndo);
 
-    virtual bool getInfoForName(const std::string& name, CClaimValue& claim) const;
+    virtual bool getInfoForName(const std::string& name, CClaimValue& claim, int heightOffset = 0) const;
     virtual bool getProofForName(const std::string& name, const uint160& finalClaim, CClaimTrieProof& proof);
 
     virtual int expirationTime() const;
 
-    virtual bool finalizeDecrement();
+    virtual bool finalizeDecrement(takeoverUndoType& takeovers);
 
     virtual CClaimSupportToName getClaimsForName(const std::string& name) const;
     virtual std::string adjustNameForValidHeight(const std::string& name, int validHeight) const;
@@ -412,13 +387,10 @@ protected:
     bool transacting;
     // one greater than the height of the chain's tip
 
-    virtual uint256 recursiveComputeMerkleHash(const std::string& name, bool checkOnly);
+    virtual uint256 recursiveComputeMerkleHash(const std::string& name, int takeoverHeight, bool checkOnly);
     supportEntryType getSupportsForName(const std::string& name) const;
 
-    int getDelayForName(const std::string& name) const;
     virtual int getDelayForName(const std::string& name, const uint160& claimId) const;
-
-    int getNumBlocksOfContinuousOwnership(const std::string& name) const;
 
     bool deleteNodeIfPossible(const std::string& name, std::string& parent, std::vector<std::string>& claims);
     void ensureTreeStructureIsUpToDate();
@@ -441,17 +413,18 @@ public:
     int expirationTime() const override;
 
     virtual void initializeIncrement();
-    bool finalizeDecrement() override;
+    bool finalizeDecrement(takeoverUndoType& takeovers) override;
 
     bool incrementBlock(insertUndoType& insertUndo,
-        claimQueueRowType& expireUndo,
-        insertUndoType& insertSupportUndo,
-        supportQueueRowType& expireSupportUndo) override;
+                        claimUndoType& expireUndo,
+                        insertUndoType& insertSupportUndo,
+                        supportUndoType& expireSupportUndo,
+                        takeoverUndoType& takeovers) override;
 
     bool decrementBlock(insertUndoType& insertUndo,
-        claimQueueRowType& expireUndo,
-        insertUndoType& insertSupportUndo,
-        supportQueueRowType& expireSupportUndo) override;
+                        claimUndoType& expireUndo,
+                        insertUndoType& insertSupportUndo,
+                        supportUndoType& expireSupportUndo) override;
 
 private:
     int nExpirationTime;
@@ -473,17 +446,18 @@ public:
     std::string normalizeClaimName(const std::string& name, bool force = false) const; // public only for validating name field on update op
 
     bool incrementBlock(insertUndoType& insertUndo,
-        claimQueueRowType& expireUndo,
-        insertUndoType& insertSupportUndo,
-        supportQueueRowType& expireSupportUndo) override;
+                        claimUndoType& expireUndo,
+                        insertUndoType& insertSupportUndo,
+                        supportUndoType& expireSupportUndo,
+                        takeoverUndoType& takeovers) override;
 
     bool decrementBlock(insertUndoType& insertUndo,
-        claimQueueRowType& expireUndo,
-        insertUndoType& insertSupportUndo,
-        supportQueueRowType& expireSupportUndo) override;
+                        claimUndoType& expireUndo,
+                        insertUndoType& insertSupportUndo,
+                        supportUndoType& expireSupportUndo) override;
 
     bool getProofForName(const std::string& name, const uint160& finalClaim, CClaimTrieProof& proof) override;
-    bool getInfoForName(const std::string& name, CClaimValue& claim) const override;
+    bool getInfoForName(const std::string& name, CClaimValue& claim, int heightOffset = 0) const override;
     CClaimSupportToName getClaimsForName(const std::string& name) const override;
     std::string adjustNameForValidHeight(const std::string& name, int validHeight) const override;
 
@@ -501,12 +475,12 @@ public:
 
     bool getProofForName(const std::string& name, const uint160& finalClaim, CClaimTrieProof& proof) override;
     void initializeIncrement() override;
-    bool finalizeDecrement() override;
+    bool finalizeDecrement(takeoverUndoType& takeovers) override;
 
     bool allowSupportMetadata() const;
 
 protected:
-    uint256 recursiveComputeMerkleHash(const std::string& name, bool checkOnly) override;
+    uint256 recursiveComputeMerkleHash(const std::string& name, int takeoverHeight, bool checkOnly) override;
 };
 
 typedef CClaimTrieCacheHashFork CClaimTrieCache;

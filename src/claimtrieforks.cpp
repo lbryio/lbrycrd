@@ -25,16 +25,17 @@ int CClaimTrieCacheExpirationFork::expirationTime() const
     return nExpirationTime;
 }
 
-bool CClaimTrieCacheExpirationFork::incrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo)
+bool CClaimTrieCacheExpirationFork::incrementBlock(insertUndoType& insertUndo, claimUndoType& expireUndo,
+        insertUndoType& insertSupportUndo, supportUndoType& expireSupportUndo, takeoverUndoType& takeoverUndo)
 {
-    if (CClaimTrieCacheBase::incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo)) {
+    if (CClaimTrieCacheBase::incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverUndo)) {
         setExpirationTime(Params().GetConsensus().GetExpirationTime(nNextHeight));
         return true;
     }
     return false;
 }
 
-bool CClaimTrieCacheExpirationFork::decrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo)
+bool CClaimTrieCacheExpirationFork::decrementBlock(insertUndoType& insertUndo, claimUndoType& expireUndo, insertUndoType& insertSupportUndo, supportUndoType& expireSupportUndo)
 {
     if (CClaimTrieCacheBase::decrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo)) {
         setExpirationTime(Params().GetConsensus().GetExpirationTime(nNextHeight));
@@ -52,9 +53,9 @@ void CClaimTrieCacheExpirationFork::initializeIncrement()
     forkForExpirationChange(true);
 }
 
-bool CClaimTrieCacheExpirationFork::finalizeDecrement()
+bool CClaimTrieCacheExpirationFork::finalizeDecrement(takeoverUndoType& takeoverUndo)
 {
-    auto ret = CClaimTrieCacheBase::finalizeDecrement();
+    auto ret = CClaimTrieCacheBase::finalizeDecrement(takeoverUndo);
     if (ret && nNextHeight == Params().GetConsensus().nExtendedClaimExpirationForkHeight)
        forkForExpirationChange(false);
     return ret;
@@ -152,13 +153,14 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(bool f
     return true;
 }
 
-bool CClaimTrieCacheNormalizationFork::incrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo)
+bool CClaimTrieCacheNormalizationFork::incrementBlock(insertUndoType& insertUndo, claimUndoType& expireUndo,
+        insertUndoType& insertSupportUndo, supportUndoType& expireSupportUndo, takeoverUndoType& takeoverUndo)
 {
     normalizeAllNamesInTrieIfNecessary(true);
-    return CClaimTrieCacheExpirationFork::incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo);
+    return CClaimTrieCacheExpirationFork::incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverUndo);
 }
 
-bool CClaimTrieCacheNormalizationFork::decrementBlock(insertUndoType& insertUndo, claimQueueRowType& expireUndo, insertUndoType& insertSupportUndo, supportQueueRowType& expireSupportUndo)
+bool CClaimTrieCacheNormalizationFork::decrementBlock(insertUndoType& insertUndo, claimUndoType& expireUndo, insertUndoType& insertSupportUndo, supportUndoType& expireSupportUndo)
 {
     auto ret = CClaimTrieCacheExpirationFork::decrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo);
     if (ret)
@@ -171,9 +173,9 @@ bool CClaimTrieCacheNormalizationFork::getProofForName(const std::string& name, 
     return CClaimTrieCacheExpirationFork::getProofForName(normalizeClaimName(name), finalClaim, proof);
 }
 
-bool CClaimTrieCacheNormalizationFork::getInfoForName(const std::string& name, CClaimValue& claim) const
+bool CClaimTrieCacheNormalizationFork::getInfoForName(const std::string& name, CClaimValue& claim, int offsetHeight) const
 {
-    return CClaimTrieCacheExpirationFork::getInfoForName(normalizeClaimName(name), claim);
+    return CClaimTrieCacheExpirationFork::getInfoForName(normalizeClaimName(name), claim, offsetHeight);
 }
 
 CClaimSupportToName CClaimTrieCacheNormalizationFork::getClaimsForName(const std::string& name) const
@@ -198,26 +200,27 @@ CClaimTrieCacheHashFork::CClaimTrieCacheHashFork(CClaimTrie* base) : CClaimTrieC
 static const uint256 leafHash = uint256S("0000000000000000000000000000000000000000000000000000000000000002");
 static const uint256 emptyHash = uint256S("0000000000000000000000000000000000000000000000000000000000000003");
 
-uint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(const std::string& name, bool checkOnly)
+uint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(const std::string& name, int takeoverHeight, bool checkOnly)
 {
     if (nNextHeight < Params().GetConsensus().nAllClaimsInMerkleForkHeight)
-        return CClaimTrieCacheNormalizationFork::recursiveComputeMerkleHash(name, checkOnly);
+        return CClaimTrieCacheNormalizationFork::recursiveComputeMerkleHash(name, takeoverHeight, checkOnly);
 
-    auto childQuery = db << "SELECT name, hash FROM nodes WHERE parent = ? ORDER BY name" << name;
+    auto childQuery = db << "SELECT name, hash, IFNULL(takeoverHeight, 0) FROM nodes WHERE parent = ? ORDER BY name" << name;
 
     std::vector<uint256> childHashes;
     for (auto&& row: childQuery) {
         std::string key;
         std::unique_ptr<uint256> hash;
-        row >> key >> hash;
+        int childTakeoverHeight;
+        row >> key >> hash >> childTakeoverHeight;
         if (hash == nullptr) hash = std::make_unique<uint256>();
         if (hash->IsNull()) {
-            *hash = recursiveComputeMerkleHash(key, checkOnly);
+            *hash = recursiveComputeMerkleHash(key, childTakeoverHeight, checkOnly);
         }
         childHashes.push_back(*hash);
     }
 
-    auto claimQuery = db << "SELECT c.txID, c.txN, c.validHeight, "
+    auto claimQuery = db << "SELECT c.txID, c.txN, "
                       "(SELECT TOTAL(s.amount)+c.amount FROM supports s WHERE s.supportedClaimID = c.claimID "
                       "AND s.validHeight < ? AND s.expirationHeight >= ?) as effectiveAmount"
                       "FROM claims c WHERE c.nodeName = ? AND c.validHeight < ? AND c.expirationHeight >= ? "
@@ -226,9 +229,8 @@ uint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(const std::string& n
     std::vector<uint256> claimHashes;
     for (auto&& row: claimQuery) {
         COutPoint p;
-        int validHeight;
-        row >> p.hash >> p.n >> validHeight;
-        auto claimHash = getValueHash(p, validHeight);
+        row >> p.hash >> p.n;
+        auto claimHash = getValueHash(p, takeoverHeight);
         claimHashes.push_back(claimHash);
     }
 
@@ -310,13 +312,14 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const uin
     // cache the parent nodes
     getMerkleHash();
     proof = CClaimTrieProof();
-    auto nodeQuery = db << "SELECT name FROM nodes WHERE "
+    auto nodeQuery = db << "SELECT name, IFNULL(takeoverHeight, 0) FROM nodes WHERE "
                                   "name IN (WITH RECURSIVE prefix(p) AS (VALUES(?) UNION ALL "
                                   "SELECT SUBSTR(p, 1, LENGTH(p)-1) FROM prefix WHERE p != '') SELECT p FROM prefix) "
                                   "ORDER BY LENGTH(name)" << name;
     for (auto&& row: nodeQuery) {
         std::string key;;
-        row >> key;
+        int takeoverHeight;
+        row >> key >> takeoverHeight;
         std::vector<uint256> childHashes;
         uint32_t nextCurrentIdx = 0;
         auto childQuery = db << "SELECT name, hash FROM nodes WHERE parent = ?" << key;
@@ -335,7 +338,7 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const uin
         COutPoint finalOutPoint;
         for (uint32_t i = 0; i < cns.claimsNsupports.size(); ++i) {
             auto& child = cns.claimsNsupports[i].claim;
-            claimHashes.push_back(getValueHash(child.outPoint, child.nValidAtHeight));
+            claimHashes.push_back(getValueHash(child.outPoint, takeoverHeight));
             if (child.claimId == finalClaim) {
                 finalClaimIdx = i;
                 finalOutPoint = child.outPoint;
@@ -372,9 +375,9 @@ void CClaimTrieCacheHashFork::initializeIncrement()
         db << "UPDATE nodes SET hash = NULL";
 }
 
-bool CClaimTrieCacheHashFork::finalizeDecrement()
+bool CClaimTrieCacheHashFork::finalizeDecrement(takeoverUndoType& takeoverUndo)
 {
-    auto ret = CClaimTrieCacheNormalizationFork::finalizeDecrement();
+    auto ret = CClaimTrieCacheNormalizationFork::finalizeDecrement(takeoverUndo);
     if (ret && nNextHeight == Params().GetConsensus().nAllClaimsInMerkleForkHeight - 1)
         db << "UPDATE nodes SET hash = NULL";
     return ret;
