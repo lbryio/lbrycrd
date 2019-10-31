@@ -174,8 +174,9 @@ bool ProcessClaim(CClaimScriptOp& claimOp, CClaimTrieCache& trieCache, const CSc
         case OP_UPDATE_CLAIM:
             return claimOp.updateClaim(trieCache, vchToString(vvchParams[0]), uint160(vvchParams[1]),
                     vvchParams[2]);
+        default:
+            throw std::runtime_error("Unimplemented OP handler.");
     }
-    throw std::runtime_error("Unimplemented OP handler.");
 }
 
 void UpdateCache(const CTransaction& tx, CClaimTrieCache& trieCache, const CCoinsViewCache& view, int nHeight, const CUpdateCacheCallbacks& callbacks)
@@ -188,12 +189,12 @@ void UpdateCache(const CTransaction& tx, CClaimTrieCache& trieCache, const CCoin
         bool spendClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override
         {
             if (CClaimScriptSpendOp::spendClaim(trieCache, name, claimId)) {
-                callback(name, claimId, nValidHeight);
+                callback(name, claimId);
                 return true;
             }
             return false;
         }
-        std::function<void(const std::string& name, const uint160& claimId, const int takeoverHeight)> callback;
+        std::function<void(const std::string& name, const uint160& claimId)> callback;
     };
 
     spentClaimsType spentClaims;
@@ -216,8 +217,8 @@ void UpdateCache(const CTransaction& tx, CClaimTrieCache& trieCache, const CCoin
 
         int nValidAtHeight;
         CSpendClaimHistory spendClaim(COutPoint(txin.prevout.hash, txin.prevout.n), scriptHeight, nValidAtHeight);
-        spendClaim.callback = [&spentClaims](const std::string& name, const uint160& claimId, const int takeoverHeight) {
-            spentClaims.emplace_back(name, claimId, takeoverHeight);
+        spendClaim.callback = [&spentClaims](const std::string& name, const uint160& claimId) {
+            spentClaims.emplace_back(name, claimId);
         };
         if (ProcessClaim(spendClaim, trieCache, scriptPubKey) && callbacks.claimUndoHeights)
             callbacks.claimUndoHeights(j, nValidAtHeight);
@@ -231,12 +232,11 @@ void UpdateCache(const CTransaction& tx, CClaimTrieCache& trieCache, const CCoin
         bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
                          const std::vector<unsigned char>& metadata) override
         {
-            int takeoverHeight = -1;
-            if (callback(name, claimId, takeoverHeight))
-                return CClaimScriptAddOp::addClaim(trieCache, name, claimId, takeoverHeight, metadata);
+            if (callback(name, claimId))
+                return CClaimScriptAddOp::addClaim(trieCache, name, claimId, -1, metadata);
             return false;
         }
-        std::function<bool(const std::string& name, const uint160& claimId, int& takeoverHeight)> callback;
+        std::function<bool(const std::string& name, const uint160& claimId)> callback;
     };
 
     for (std::size_t j = 0; j < tx.vout.size(); j++) {
@@ -246,10 +246,9 @@ void UpdateCache(const CTransaction& tx, CClaimTrieCache& trieCache, const CCoin
             continue;
 
         CAddSpendClaim addClaim(COutPoint(tx.GetHash(), j), txout.nValue, nHeight);
-        addClaim.callback = [&trieCache, &spentClaims](const std::string& name, const uint160& claimId, int& takeoverHeight) -> bool {
+        addClaim.callback = [&trieCache, &spentClaims](const std::string& name, const uint160& claimId) -> bool {
             for (auto itSpent = spentClaims.begin(); itSpent != spentClaims.end(); ++itSpent) {
-                if (std::get<1>(*itSpent) == claimId && trieCache.normalizeClaimName(name) == trieCache.normalizeClaimName(std::get<0>(*itSpent))) {
-                    takeoverHeight = std::get<2>(*itSpent);
+                if (itSpent->second == claimId && trieCache.normalizeClaimName(name) == trieCache.normalizeClaimName(itSpent->first)) {
                     spentClaims.erase(itSpent);
                     return true;
                 }

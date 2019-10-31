@@ -26,7 +26,7 @@ public:
         if (c.IsNull())
             c = ClaimIdHash(p.hash, p.n);
 
-        return addClaim(key, p, c, value.nAmount, value.nHeight, -1, {});
+        return addClaim(key, p, c, value.nAmount, value.nHeight);
     }
 
     bool removeClaimFromTrie(const std::string& key, const COutPoint& outPoint) {
@@ -47,7 +47,7 @@ public:
         if (p.hash.IsNull())
             p.hash = Hash(key.begin(), key.end());
 
-        return addSupport(key, p, value.nAmount, value.supportedClaimId, value.nHeight, -1, {});
+        return addSupport(key, p, value.nAmount, value.supportedClaimId, value.nHeight);
     }
 
     bool removeSupportFromMap(const std::string& key, const COutPoint& outPoint) {
@@ -337,8 +337,8 @@ BOOST_AUTO_TEST_CASE(takeover_workaround_triggers)
     CClaimTrie trie(false, 0, 1);
     CClaimTrieCacheTest cache(&trie);
 
-    insertUndoType icu, isu; claimQueueRowType ecu; supportQueueRowType esu;
-    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu));
+    insertUndoType icu, isu; claimUndoType ecu; supportUndoType esu; takeoverUndoType tut;
+    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu, tut));
 
     CClaimValue value;
     value.nHeight = 1;
@@ -351,9 +351,9 @@ BOOST_AUTO_TEST_CASE(takeover_workaround_triggers)
     BOOST_CHECK(cache.insertClaimIntoTrie("cc", value));
     BOOST_CHECK(cache.insertSupportIntoMap("aa", CSupportValue()));
 
-    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu));
+    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu, tut));
     BOOST_CHECK(cache.flush());
-    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu));
+    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu, tut));
 
     CSupportValue temp;
     CClaimValue cv;
@@ -369,7 +369,7 @@ BOOST_AUTO_TEST_CASE(takeover_workaround_triggers)
     BOOST_CHECK(cache.insertClaimIntoTrie("bb", value));
     BOOST_CHECK(cache.insertClaimIntoTrie("cc", value));
 
-    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu));
+    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu, tut));
 
     BOOST_CHECK(cache.getInfoForName("aa", cv));
     BOOST_CHECK_EQUAL(3, cv.nValidAtHeight);

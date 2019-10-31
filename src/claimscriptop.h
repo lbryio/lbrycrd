@@ -238,8 +238,7 @@ protected:
  */
 bool ProcessClaim(CClaimScriptOp& claimOp, CClaimTrieCache& trieCache, const CScript& scriptPubKey);
 
-typedef std::tuple<std::string, uint160, int> spentClaimType;
-
+typedef std::pair<std::string, uint160> spentClaimType;
 typedef std::vector<spentClaimType> spentClaimsType;
 
 struct CUpdateCacheCallbacks

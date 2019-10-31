@@ -384,6 +384,38 @@ BOOST_AUTO_TEST_CASE(support_spend_test)
     fixture.DecrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("test",tx5));
 }
+
+BOOST_AUTO_TEST_CASE(claimtrie_update_takeover_test)
+{
+    ClaimTrieChainFixture fixture;
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 5);
+    auto cid = ClaimIdHash(tx1.GetHash(), 0);
+    fixture.IncrementBlocks(1);
+    uint160 cid2;
+    int takeover;
+    fixture.getLastTakeoverForName("test", cid2, takeover);
+    BOOST_CHECK_EQUAL(chainActive.Tip()->nHeight, takeover);
+    CMutableTransaction u1 = fixture.MakeUpdate(tx1, "test", "a", cid, 4);
+    fixture.IncrementBlocks(1);
+    fixture.getLastTakeoverForName("test", cid2, takeover);
+    BOOST_CHECK_EQUAL(chainActive.Tip()->nHeight, takeover);
+    CMutableTransaction u2 = fixture.MakeUpdate(u1, "test", "b", cid, 3);
+    fixture.IncrementBlocks(1);
+    fixture.getLastTakeoverForName("test", cid2, takeover);
+    CClaimValue value;
+    BOOST_REQUIRE(fixture.getInfoForName("test", value) && value.nAmount == 3);
+    BOOST_CHECK_EQUAL(cid, cid2);
+    BOOST_CHECK_EQUAL(chainActive.Tip()->nHeight, takeover);
+    fixture.DecrementBlocks(1);
+    fixture.getLastTakeoverForName("test", cid2, takeover);
+    BOOST_CHECK_EQUAL(cid, cid2);
+    BOOST_CHECK_EQUAL(chainActive.Tip()->nHeight, takeover);
+    fixture.DecrementBlocks(1);
+    fixture.getLastTakeoverForName("test", cid2, takeover);
+    BOOST_CHECK_EQUAL(cid, cid2);
+    BOOST_CHECK_EQUAL(chainActive.Tip()->nHeight, takeover);
+}
+
 /*
     update
         update preserves claim id
@@ -447,7 +479,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_test)
 
     CMutableTransaction tx;
     tx.nVersion = CTransaction::CURRENT_VERSION;
-    tx.nLockTime = 1U << 31; // Disable BIP68
+    tx.nLockTime = 1U << 31U; // Disable BIP68
     tx.vin.resize(2);
     tx.vout.resize(1);
     tx.vin[0].prevout.hash = tx8.GetHash();
