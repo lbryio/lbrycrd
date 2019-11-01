@@ -4,6 +4,8 @@
 #include <log.h>
 #include <trie.h>
 
+#include <tuple>
+
 #include <boost/locale.hpp>
 #include <boost/locale/conversion.hpp>
 #include <boost/locale/localization_backend.hpp>
@@ -270,22 +272,19 @@ CUint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(const std::string& 
         return CClaimTrieCacheNormalizationFork::recursiveComputeMerkleHash(name, takeoverHeight, checkOnly);
 
     // it may be that using RAM for this is more expensive than preparing a new query statement in each recursive call
-    struct Triple { std::string name; std::unique_ptr<CUint256> hash; int takeoverHeight; };
-    std::vector<Triple> children;
-    for (auto&& row : childHashQuery << name) {
-        children.emplace_back();
-        auto& b = children.back();
-        row >> b.name >> b.hash >> b.takeoverHeight;
-    }
+    std::vector<std::tuple<std::string, std::unique_ptr<CUint256>, int>> children;
+    childHashQuery << name >> [&children](std::string name, std::unique_ptr<CUint256> hash, int takeoverHeight) {
+        children.push_back(std::make_tuple(std::move(name), std::move(hash), takeoverHeight));
+    };
     childHashQuery++;
-
     std::vector<CUint256> childHashes;
     for (auto& child: children) {
-        if (child.hash == nullptr) child.hash = std::make_unique<CUint256>();
-        if (child.hash->IsNull()) {
-            *child.hash = recursiveComputeMerkleHash(child.name, child.takeoverHeight, checkOnly);
-        }
-        childHashes.push_back(*child.hash);
+        auto& name = std::get<0>(child);
+        auto& hash = std::get<1>(child);
+        if (!hash || hash->IsNull())
+            childHashes.push_back(recursiveComputeMerkleHash(name, std::get<2>(child), checkOnly));
+        else
+            childHashes.push_back(*hash);
     }
 
     std::vector<CUint256> claimHashes;
@@ -299,8 +298,8 @@ CUint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(const std::string& 
         claimHashQuery++;
     //}
 
-    auto left = childHashes.empty() ? leafHash : ComputeMerkleRoot(childHashes);
-    auto right = claimHashes.empty() ? emptyHash : ComputeMerkleRoot(claimHashes);
+    auto left = childHashes.empty() ? leafHash : ComputeMerkleRoot(std::move(childHashes));
+    auto right = claimHashes.empty() ? emptyHash : ComputeMerkleRoot(std::move(claimHashes));
 
     auto computedHash = Hash(left.begin(), left.end(), right.begin(), right.end());
     if (!checkOnly)

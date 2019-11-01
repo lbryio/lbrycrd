@@ -1,11 +1,8 @@
 
 #include <data.h>
-#include <log.h>
 
 #include <algorithm>
 #include <sstream>
-
-#define logPrint CLogPrint::global()
 
 CClaimValue::CClaimValue(CTxOutPoint outPoint, CUint160 claimId, int64_t nAmount, int nHeight, int nValidAtHeight)
     : outPoint(std::move(outPoint)), claimId(std::move(claimId)), nAmount(nAmount), nEffectiveAmount(nAmount), nHeight(nHeight), nValidAtHeight(nValidAtHeight)
@@ -75,5 +72,52 @@ std::string CSupportValue::ToString() const
 
 CNameOutPointHeightType::CNameOutPointHeightType(std::string name, CTxOutPoint outPoint, int nValidHeight)
     : name(std::move(name)), outPoint(std::move(outPoint)), nValidHeight(nValidHeight)
+{
+}
+
+CClaimNsupports::CClaimNsupports(CClaimValue claim, int64_t effectiveAmount, std::vector<CSupportValue> supports)
+    : claim(std::move(claim)), effectiveAmount(effectiveAmount), supports(std::move(supports))
+{
+}
+
+bool CClaimNsupports::IsNull() const
+{
+    return claim.claimId.IsNull();
+}
+
+CClaimSupportToName::CClaimSupportToName(std::string name, int nLastTakeoverHeight, std::vector<CClaimNsupports> claimsNsupports, std::vector<CSupportValue> unmatchedSupports)
+    : name(std::move(name)), nLastTakeoverHeight(nLastTakeoverHeight), claimsNsupports(std::move(claimsNsupports)), unmatchedSupports(std::move(unmatchedSupports))
+{
+}
+
+static const CClaimNsupports invalid;
+
+const CClaimNsupports& CClaimSupportToName::find(const CUint160& claimId) const
+{
+    auto it = std::find_if(claimsNsupports.begin(), claimsNsupports.end(), [&claimId](const CClaimNsupports& value) {
+        return claimId == value.claim.claimId;
+    });
+    return it != claimsNsupports.end() ? *it : invalid;
+}
+
+const CClaimNsupports& CClaimSupportToName::find(const std::string& partialId) const
+{
+    std::string lowered(partialId);
+    for (auto& c: lowered)
+        c = std::tolower(c);
+
+    auto it = std::find_if(claimsNsupports.begin(), claimsNsupports.end(), [&lowered](const CClaimNsupports& value) {
+        return value.claim.claimId.GetHex().find(lowered) == 0;
+    });
+    return it != claimsNsupports.end() ? *it : invalid;
+}
+
+bool CClaimNsupports::operator<(const CClaimNsupports& other) const
+{
+    return claim < other.claim;
+}
+
+CClaimTrieProofNode::CClaimTrieProofNode(std::vector<std::pair<unsigned char, CUint256>> children, bool hasValue, CUint256 valHash)
+    : children(std::move(children)), hasValue(hasValue), valHash(std::move(valHash))
 {
 }
