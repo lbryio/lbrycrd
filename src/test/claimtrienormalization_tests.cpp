@@ -213,16 +213,15 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
     CBlockIndex* pindex = chainActive.Tip();
     CBlock block;
     int amelieValidHeight;
+    std::string removed;
     BOOST_CHECK(trieCache.shouldNormalize());
     BOOST_CHECK(ReadBlockFromDisk(block, pindex, Params().GetConsensus()));
     BOOST_CHECK(g_chainstate.DisconnectBlock(block, pindex, coins, trieCache) == DisconnectResult::DISCONNECT_OK);
     BOOST_CHECK(!trieCache.shouldNormalize());
-    BOOST_CHECK(!trieCache.removeClaim(ClaimIdHash(tx2.GetHash(), 0), COutPoint(tx2.GetHash(), 0), name_normd, amelieValidHeight));
-    BOOST_CHECK(trieCache.removeClaim(ClaimIdHash(tx2.GetHash(), 0), COutPoint(tx2.GetHash(), 0), name_upper, amelieValidHeight));
+    BOOST_CHECK(trieCache.removeClaim(ClaimIdHash(tx2.GetHash(), 0), COutPoint(tx2.GetHash(), 0), removed, amelieValidHeight));
 
     BOOST_CHECK(trieCache.getInfoForName(name, nval1));
-    BOOST_CHECK(trieCache.addClaim(name, COutPoint(tx1.GetHash(), 0), ClaimIdHash(tx1.GetHash(), 0), CAmount(2), currentHeight + 1));
-    BOOST_CHECK(trieCache.getInfoForName(name, nval1));
+    BOOST_CHECK_EQUAL(nval1.claimId, ClaimIdHash(tx1.GetHash(), 0));
     insertUndoType insertUndo;
     claimUndoType expireUndo;
     insertUndoType insertSupportUndo;
@@ -356,7 +355,7 @@ BOOST_AUTO_TEST_CASE(normalization_does_not_kill_supports)
     fixture.DecrementBlocks(1);
     BOOST_CHECK(fixture.best_claim_effective_amount_equals("A", 2));
     fixture.IncrementBlocks(5);
-    BOOST_CHECK(fixture.best_claim_effective_amount_equals("a", 3));
+    BOOST_CHECK(fixture.best_claim_effective_amount_equals("a", 2));
 }
 
 BOOST_AUTO_TEST_CASE(normalization_does_not_fail_on_spend)

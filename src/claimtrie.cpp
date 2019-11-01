@@ -181,13 +181,16 @@ bool CClaimTrieCacheBase::deleteNodeIfPossible(const std::string& name, std::str
     if (name.empty()) return false;
     // to remove a node it must have one or less children and no claims
     vector_builder<std::string, std::string> claimsBuilder;
-    db << "SELECT name FROM claims WHERE name = ? AND validHeight < ? AND expirationHeight >= ? "
+    db << "SELECT name FROM claims WHERE nodeName = ? AND validHeight < ? AND expirationHeight >= ? "
               << name << nNextHeight << nNextHeight >> claimsBuilder;
     claims = std::move(claimsBuilder);
     if (!claims.empty()) return false; // still has claims
     // we now know it has no claims, but we need to check its children
     int64_t count;
     std::string childName;
+    // this line assumes that we've set the parent on child nodes already,
+    // which means we are len(name) desc in our parent method
+    // alternately: SELECT COUNT(DISTINCT nodeName) FROM claims WHERE SUBSTR(nodeName, 1, len(?)) == ? AND LENGTH(nodeName) > len(?)
     db << "SELECT COUNT(*),MAX(name) FROM nodes WHERE parent = ?" << name >> std::tie(count, childName);
     if (count > 1) return false; // still has multiple children
     // okay. it's going away
@@ -208,21 +211,23 @@ bool CClaimTrieCacheBase::deleteNodeIfPossible(const std::string& name, std::str
 void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
     if (!transacting) return;
 
-    // your children are your nodes that match your key, go at least one longer,
-    // and have nothing in common with the other nodes in that set -- a hard query w/o parent
+    // your children are your nodes that match your key but go at least one longer,
+    // and have no trailing prefix in common with the other nodes in that set -- a hard query w/o parent field
+
+    // when we get into this method, we have some claims that have been added, removed, and updated
+    // those each have a corresponding node in the list with a null hash
+    // some of our nodes will go away, some new ones will be added, some will be reparented
+
 
     // the plan: update all the claim hashes first
     vector_builder<std::string, std::string> names;
     db << "SELECT name FROM nodes WHERE hash IS NULL ORDER BY LENGTH(name) DESC, name DESC" >> names;
-
-    if (names.empty()) return; // could track this with a dirty flag to avoid the above query (but it would be some maintenance)
+    if (names.empty()) return; // nothing to do
 
     // there's an assumption that all nodes with claims are here; we do that as claims are inserted
-    // should we do the same to remove nodes? no; we need their last takeover height if they come back
-    //float time = 0;
 
     // assume parents are not set correctly here:
-    auto parentQuery = db << "SELECT name FROM nodes WHERE parent IS NOT NULL AND "
+    auto parentQuery = db << "SELECT name FROM nodes WHERE "
                               "name IN (WITH RECURSIVE prefix(p) AS (VALUES(?) UNION ALL "
                               "SELECT SUBSTR(p, 1, LENGTH(p)-1) FROM prefix WHERE p != '') SELECT p FROM prefix) "
                               "ORDER BY LENGTH(name) DESC LIMIT 1";
@@ -235,24 +240,16 @@ void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
             deleteNodeIfPossible(parent, grandparent, claims);
             continue;
         }
-        if (claims.empty())
-            continue;
+        if (name.empty() || claims.empty())
+            continue; // if you have no claims but we couldn't delete you, you must have legitimate children
 
-        // pretend that we hash them all together:
-        std::string nameOrParent;
-        parentQuery << name;
+        parentQuery << name.substr(0, name.size() - 1);
         auto queryIt = parentQuery.begin();
         if (queryIt != parentQuery.end())
-            *queryIt >> nameOrParent;
+            *queryIt >> parent;
+        else
+            parent.clear();
         parentQuery++; // reusing knocks off about 10% of the query time
-
-        // if it already exists:
-        if (nameOrParent == name) { // TODO: we could actually set the hash here
-            db << "UPDATE nodes SET hash = NULL WHERE name = ?" << name;
-            continue;
-        }
-
-        parent = std::move(nameOrParent);
 
         // we know now that we need to insert it,
         // but we may need to insert a parent node for it first (also called a split)
@@ -951,24 +948,26 @@ bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimUndoTy
         }
 
         // if somebody activates on this block and they are the new best, then everybody activates on this block
-        CClaimValue value;
-        auto hasCurrent = getInfoForName(nameWithTakeover, value, 1);
+        CClaimValue candidateValue;
+        auto hasCandidate = getInfoForName(nameWithTakeover, candidateValue, 1);
         // now that they're all in get the winner:
         int existingHeight;
         std::unique_ptr<uint160> existingID;
         db << "SELECT IFNULL(takeoverHeight, 0), takeoverID FROM nodes WHERE name = ?"
               << nameWithTakeover >> std::tie(existingHeight, existingID);
 
-        auto newOwner = needsActivate || existingID == nullptr || !hasCurrent || *existingID != value.claimId;
-        if (newOwner && activateAllFor(insertUndo, insertSupportUndo, nameWithTakeover))
-            getInfoForName(nameWithTakeover, value, 1);
+        auto hasBeenSetBefore = existingID != nullptr && !existingID->IsNull();
+        auto takeoverHappening = needsActivate || !hasCandidate || (hasBeenSetBefore && *existingID != candidateValue.claimId);
+        if (takeoverHappening && activateAllFor(insertUndo, insertSupportUndo, nameWithTakeover))
+            hasCandidate = getInfoForName(nameWithTakeover, candidateValue, 1);
 
-        if (existingID != nullptr)
-            takeoverUndo.emplace_back(nameWithTakeover, std::make_pair(existingHeight, *existingID));
-
-        if (newOwner) {
-            db << "UPDATE nodes SET takeoverHeight = ?, takeoverID = ? WHERE name = ?"
-               << nNextHeight << value.claimId << nameWithTakeover;
+        if (takeoverHappening || !hasBeenSetBefore) {
+            takeoverUndo.emplace_back(nameWithTakeover, std::make_pair(existingHeight, hasBeenSetBefore ? *existingID : uint160()));
+            if (hasCandidate)
+                db << "UPDATE nodes SET takeoverHeight = ?, takeoverID = ? WHERE name = ?"
+                      << nNextHeight << candidateValue.claimId << nameWithTakeover;
+            else
+                db << "UPDATE nodes SET takeoverHeight = NULL, takeoverID = NULL WHERE name = ?" << nameWithTakeover;
             assert(db.rows_modified());
         }
     }
@@ -1057,10 +1056,13 @@ bool CClaimTrieCacheBase::finalizeDecrement(takeoverUndoType& takeoverUndo)
     db << "UPDATE nodes SET hash = NULL WHERE name IN "
           "(SELECT nodeName FROM supports WHERE validHeight = ?)" << nNextHeight;
 
-    for (auto it = takeoverUndo.crbegin(); it != takeoverUndo.crend(); ++it)
-        db << "UPDATE nodes SET takeoverHeight = ?, takeoverID = ?, hash = NULL WHERE name = ?"
-           << it->second.first << it->second.second << it->first;
-
+    for (auto it = takeoverUndo.crbegin(); it != takeoverUndo.crend(); ++it) {
+        if (it->second.second.IsNull())
+            db << "UPDATE nodes SET takeoverHeight = NULL, takeoverID = NULL, hash = NULL WHERE name = ?" << it->first;
+        else
+            db << "UPDATE nodes SET takeoverHeight = ?, takeoverID = ?, hash = NULL WHERE name = ?"
+                  << it->second.first << it->second.second << it->first;
+    }
     return true;
 }
 
