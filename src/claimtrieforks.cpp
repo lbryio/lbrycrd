@@ -261,10 +261,11 @@ uint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(const std::string& n
     }
 
     auto claimQuery = db << "SELECT c.txID, c.txN, "
-                      "(SELECT TOTAL(s.amount)+c.amount FROM supports s WHERE s.supportedClaimID = c.claimID "
-                      "AND s.validHeight < ? AND s.expirationHeight >= ?) as effectiveAmount"
-                      "FROM claims c WHERE c.nodeName = ? AND c.validHeight < ? AND c.expirationHeight >= ? "
-                      "ORDER BY effectiveAmount DESC, c.blockHeight, c.txID, c.txN" << nNextHeight << nNextHeight << name << nNextHeight << nNextHeight;
+                          "(SELECT TOTAL(s.amount)+c.amount FROM supports s WHERE s.supportedClaimID = c.claimID "
+                          "AND s.validHeight < ? AND s.expirationHeight >= ?) as effectiveAmount "
+                          "FROM claims c WHERE c.nodeName = ? AND c.validHeight < ? AND c.expirationHeight >= ? "
+                          "ORDER BY effectiveAmount DESC, c.blockHeight, c.txID, c.txN"
+                          << nNextHeight << nNextHeight << name << nNextHeight << nNextHeight;
 
     std::vector<uint256> claimHashes;
     for (auto&& row: claimQuery) {
@@ -355,7 +356,7 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const uin
     auto nodeQuery = db << "SELECT name, IFNULL(takeoverHeight, 0) FROM nodes WHERE "
                                   "name IN (WITH RECURSIVE prefix(p) AS (VALUES(?) UNION ALL "
                                   "SELECT SUBSTR(p, 1, LENGTH(p)-1) FROM prefix WHERE p != '') SELECT p FROM prefix) "
-                                  "ORDER BY LENGTH(name)" << name;
+                                  "ORDER BY name" << name;
     for (auto&& row: nodeQuery) {
         std::string key;;
         int takeoverHeight;
@@ -372,26 +373,32 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const uin
             childHashes.push_back(childHash);
         }
 
-        auto cns = getClaimsForName(key);
+        auto claimQuery = db << "SELECT c.txID, c.txN, c.claimID, "
+                                "(SELECT TOTAL(s.amount)+c.amount FROM supports s WHERE s.supportedClaimID = c.claimID "
+                                "AND s.validHeight < ? AND s.expirationHeight >= ?) as effectiveAmount "
+                                "FROM claims c WHERE c.nodeName = ? AND c.validHeight < ? AND c.expirationHeight >= ? "
+                                "ORDER BY effectiveAmount DESC, c.blockHeight, c.txID, c.txN"
+                             << nNextHeight << nNextHeight << name << nNextHeight << nNextHeight;
+
         std::vector<uint256> claimHashes;
         uint32_t finalClaimIdx = 0;
-        COutPoint finalOutPoint;
-        for (uint32_t i = 0; i < cns.claimsNsupports.size(); ++i) {
-            auto& child = cns.claimsNsupports[i].claim;
-            claimHashes.push_back(getValueHash(child.outPoint, takeoverHeight));
-            if (child.claimId == finalClaim) {
-                finalClaimIdx = i;
-                finalOutPoint = child.outPoint;
+        for (auto&& child: claimQuery) {
+            COutPoint childOutPoint;
+            uint160 childClaimID;
+            child >> childOutPoint.hash >> childOutPoint.n >> childClaimID;
+            if (childClaimID == finalClaim && key == name) {
+                finalClaimIdx = uint32_t(claimHashes.size());
+                proof.outPoint = childOutPoint;
+                proof.hasValue = true;
             }
+            claimHashes.push_back(getValueHash(childOutPoint, takeoverHeight));
         }
 
         // I am on a node; I need a hash(children, claims)
         // if I am the last node on the list, it will be hash(children, x)
         // else it will be hash(x, claims)
         if (key == name) {
-            proof.outPoint = finalOutPoint;
-            proof.nHeightOfLastTakeover = cns.nLastTakeoverHeight;
-            proof.hasValue = true;
+            proof.nHeightOfLastTakeover = takeoverHeight;
             auto hash = childHashes.empty() ? leafHash : ComputeMerkleRoot(childHashes);
             proof.pairs.emplace_back(true, hash);
             if (!claimHashes.empty())
@@ -411,15 +418,19 @@ void CClaimTrieCacheHashFork::initializeIncrement()
 {
     CClaimTrieCacheNormalizationFork::initializeIncrement();
     // we could do this in the constructor, but that would not allow for multiple increments in a row (as done in unit tests)
-    if (nNextHeight == Params().GetConsensus().nAllClaimsInMerkleForkHeight - 1)
+    if (nNextHeight == Params().GetConsensus().nAllClaimsInMerkleForkHeight - 1) {
+        if (!transacting) { transacting = true; db << "begin"; }
         db << "UPDATE nodes SET hash = NULL";
+    }
 }
 
 bool CClaimTrieCacheHashFork::finalizeDecrement(takeoverUndoType& takeoverUndo)
 {
     auto ret = CClaimTrieCacheNormalizationFork::finalizeDecrement(takeoverUndo);
-    if (ret && nNextHeight == Params().GetConsensus().nAllClaimsInMerkleForkHeight - 1)
+    if (ret && nNextHeight == Params().GetConsensus().nAllClaimsInMerkleForkHeight - 1) {
+        if (!transacting) { transacting = true; db << "begin"; }
         db << "UPDATE nodes SET hash = NULL";
+    }
     return ret;
 }
 

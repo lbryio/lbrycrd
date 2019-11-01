@@ -340,19 +340,19 @@ bool CClaimTrieCacheBase::getInfoForName(const std::string& name, CClaimValue& c
 
 CClaimSupportToName CClaimTrieCacheBase::getClaimsForName(const std::string& name) const
 {
-    claimEntryType claims;
     int nLastTakeoverHeight = 0;
+    db << "SELECT IFNULL(takeoverHeight,0) FROM nodes WHERE name = ?" << name >> nLastTakeoverHeight;
+
     auto supports = getSupportsForName(name);
 
     auto query = db << "SELECT claimID, txID, txN, blockHeight, validHeight, amount "
                               "FROM claims WHERE nodeName = ? AND expirationHeight >= ?"
                     << name << nNextHeight;
+    claimEntryType claims;
     for (auto&& row: query) {
         CClaimValue claim;
         row >> claim.claimId >> claim.outPoint.hash >> claim.outPoint.n
             >> claim.nHeight >> claim.nValidAtHeight >> claim.nAmount;
-        if (nLastTakeoverHeight == 0 && claim.nValidAtHeight < nNextHeight)
-            nLastTakeoverHeight = claim.nValidAtHeight;
         claims.push_back(claim);
     }
 
@@ -1253,18 +1253,19 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, const uint160
     // cache the parent nodes
     getMerkleHash();
     proof = CClaimTrieProof();
-    auto nodeQuery = db << "SELECT name FROM nodes WHERE "
+    auto nodeQuery = db << "SELECT name, IFNULL(takeoverHeight, 0) FROM nodes WHERE "
                                     "name IN (WITH RECURSIVE prefix(p) AS (VALUES(?) UNION ALL "
                                     "SELECT SUBSTR(p, 1, LENGTH(p)-1) FROM prefix WHERE p != '') SELECT p FROM prefix) "
                                     "ORDER BY LENGTH(name)" << name;
     for (auto&& row: nodeQuery) {
         CClaimValue claim;
         std::string key;
-        row >> key;
+        int takeoverHeight;
+        row >> key >> takeoverHeight;
         bool fNodeHasValue = getInfoForName(key, claim);
         uint256 valueHash;
         if (fNodeHasValue)
-            valueHash = getValueHash(claim.outPoint, claim.nValidAtHeight);
+            valueHash = getValueHash(claim.outPoint, takeoverHeight);
 
         const auto pos = key.size();
         std::vector<std::pair<unsigned char, uint256>> children;
@@ -1291,7 +1292,7 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, const uint160
             proof.hasValue = fNodeHasValue && claim.claimId == finalClaim;
             if (proof.hasValue) {
                 proof.outPoint = claim.outPoint;
-                proof.nHeightOfLastTakeover = claim.nValidAtHeight;
+                proof.nHeightOfLastTakeover = takeoverHeight;
             }
             valueHash.SetNull();
         }
