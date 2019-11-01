@@ -2,6 +2,7 @@
 #define CLAIMTRIE_TRIE_H
 
 #include <data.h>
+#include <sqlite.h>
 #include <txoutpoint.h>
 #include <uints.h>
 
@@ -10,43 +11,10 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 
 CUint256 getValueHash(const CTxOutPoint& outPoint, int nHeightOfLastTakeover);
-
-struct CClaimNsupports
-{
-    CClaimNsupports() = default;
-    CClaimNsupports(CClaimNsupports&&) = default;
-    CClaimNsupports(const CClaimNsupports&) = default;
-
-    bool operator<(const CClaimNsupports& other) const;
-    CClaimNsupports& operator=(CClaimNsupports&&) = default;
-    CClaimNsupports& operator=(const CClaimNsupports&) = default;
-
-    CClaimNsupports(CClaimValue claim, int64_t effectiveAmount, std::vector<CSupportValue> supports = {});
-
-    bool IsNull() const;
-
-    CClaimValue claim;
-    int64_t effectiveAmount = 0;
-    std::vector<CSupportValue> supports;
-};
-
-struct CClaimSupportToName
-{
-    CClaimSupportToName(std::string name, int nLastTakeoverHeight, std::vector<CClaimNsupports> claimsNsupports, std::vector<CSupportValue> unmatchedSupports);
-
-    const CClaimNsupports& find(const CUint160& claimId) const;
-    const CClaimNsupports& find(const std::string& partialId) const;
-
-    const std::string name;
-    const int nLastTakeoverHeight;
-    const std::vector<CClaimNsupports> claimsNsupports;
-    const std::vector<CSupportValue> unmatchedSupports;
-};
 
 class CClaimTrie
 {
@@ -57,16 +25,16 @@ class CClaimTrie
     friend class CClaimTrieCacheNormalizationFork;
 
 public:
-    CClaimTrie() = default;
+    CClaimTrie() = delete;
     CClaimTrie(CClaimTrie&&) = delete;
     CClaimTrie(const CClaimTrie&) = delete;
-    CClaimTrie(bool fWipe, int height,
-               const std::string& dataDir,
-               int nNormalizedNameForkHeight = -1,
-               int64_t nOriginalClaimExpirationTime = -1,
-               int64_t nExtendedClaimExpirationTime = -1,
-               int64_t nExtendedClaimExpirationForkHeight = -1,
-               int64_t nAllClaimsInMerkleForkHeight = -1,
+    CClaimTrie(bool fWipe, int height = 0,
+               const std::string& dataDir = ".",
+               int nNormalizedNameForkHeight = 1,
+               int64_t nOriginalClaimExpirationTime = 1,
+               int64_t nExtendedClaimExpirationTime = 1,
+               int64_t nExtendedClaimExpirationForkHeight = 1,
+               int64_t nAllClaimsInMerkleForkHeight = 1,
                int proportionalDelayFactor = 32);
 
     CClaimTrie& operator=(CClaimTrie&&) = delete;
@@ -76,45 +44,15 @@ public:
     bool SyncToDisk();
 
 protected:
-    int nNextHeight = 0;
+    int nNextHeight;
     sqlite::database db;
-    const int nProportionalDelayFactor = 1;
+    const int nProportionalDelayFactor;
 
-    const int nNormalizedNameForkHeight = -1;
-    const int64_t nOriginalClaimExpirationTime = -1;
-    const int64_t nExtendedClaimExpirationTime = -1;
-    const int64_t nExtendedClaimExpirationForkHeight = -1;
-    const int64_t nAllClaimsInMerkleForkHeight = -1;
-};
-
-struct CClaimTrieProofNode
-{
-    CClaimTrieProofNode(std::vector<std::pair<unsigned char, CUint256>> children, bool hasValue, CUint256 valHash);
-
-    CClaimTrieProofNode() = default;
-    CClaimTrieProofNode(CClaimTrieProofNode&&) = default;
-    CClaimTrieProofNode(const CClaimTrieProofNode&) = default;
-    CClaimTrieProofNode& operator=(CClaimTrieProofNode&&) = default;
-    CClaimTrieProofNode& operator=(const CClaimTrieProofNode&) = default;
-
-    std::vector<std::pair<unsigned char, CUint256>> children;
-    bool hasValue;
-    CUint256 valHash;
-};
-
-struct CClaimTrieProof
-{
-    CClaimTrieProof() = default;
-    CClaimTrieProof(CClaimTrieProof&&) = default;
-    CClaimTrieProof(const CClaimTrieProof&) = default;
-    CClaimTrieProof& operator=(CClaimTrieProof&&) = default;
-    CClaimTrieProof& operator=(const CClaimTrieProof&) = default;
-
-    std::vector<std::pair<bool, CUint256>> pairs;
-    std::vector<CClaimTrieProofNode> nodes;
-    int nHeightOfLastTakeover = 0;
-    bool hasValue = false;
-    CTxOutPoint outPoint;
+    const int nNormalizedNameForkHeight;
+    const int64_t nOriginalClaimExpirationTime;
+    const int64_t nExtendedClaimExpirationTime;
+    const int64_t nExtendedClaimExpirationForkHeight;
+    const int64_t nAllClaimsInMerkleForkHeight;
 };
 
 template <typename T>
@@ -123,7 +61,7 @@ using queueEntryType = std::pair<std::string, T>;
 #ifdef SWIG_INTERFACE // swig has a problem with using in typedef
 using claimUndoPair = std::pair<std::string, CClaimValue>;
 using supportUndoPair = std::pair<std::string, CSupportValue>;
-using takeoverUndoPair = std::pair<std::string, <std::pair<int, CUint160>>;
+using takeoverUndoPair = std::pair<std::string, std::pair<int, CUint160>>;
 #else
 using claimUndoPair = queueEntryType<CClaimValue>;
 using supportUndoPair = queueEntryType<CSupportValue>;
@@ -141,11 +79,9 @@ public:
     explicit CClaimTrieCacheBase(CClaimTrie* base);
     virtual ~CClaimTrieCacheBase();
 
-    CUint256 getMerkleHash();
-
     bool flush();
-    bool empty() const;
     bool checkConsistency();
+    CUint256 getMerkleHash();
     bool validateDb(const CUint256& rootHash);
 
     std::size_t getTotalNamesInTrie() const;
@@ -188,9 +124,9 @@ public:
     virtual CClaimSupportToName getClaimsForName(const std::string& name) const;
     virtual std::string adjustNameForValidHeight(const std::string& name, int validHeight) const;
 
-    bool findNameForClaim(std::vector<unsigned char> claim, CClaimValue& value, std::string& name);
-    void getNamesInTrie(std::function<void(const std::string&)> callback);
+    void getNamesInTrie(std::function<void(const std::string&)> callback) const;
     bool getLastTakeoverForName(const std::string& name, CUint160& claimId, int& takeoverHeight) const;
+    bool findNameForClaim(std::vector<unsigned char> claim, CClaimValue& value, std::string& name) const;
 
 protected:
     CClaimTrie* base;
@@ -210,7 +146,6 @@ protected:
     void ensureTreeStructureIsUpToDate();
 
 private:
-    std::unordered_map<std::string, std::pair<CUint160, int>> takeoverCache;
     // for unit test
     friend struct ClaimTrieChainFixture;
     friend class CClaimTrieCacheTest;

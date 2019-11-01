@@ -35,8 +35,4 @@ public:
     std::string ToString() const;
 };
 
-#ifndef SWIG_INTERFACE
-
-
-#endif // SWIG_INTERFACE
 #endif // CLAIMTRIE_TXOUTPUT_H
