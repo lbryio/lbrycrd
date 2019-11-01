@@ -465,7 +465,8 @@ protected:
     int getDelayForName(const std::string& name, const uint160& claimId) const override;
 
 private:
-    bool normalizeAllNamesInTrieIfNecessary(bool forward);
+    bool normalizeAllNamesInTrieIfNecessary(takeoverUndoType& takeovers);
+    bool unnormalizeAllNamesInTrieIfNecessary();
 };
 
 class CClaimTrieCacheHashFork : public CClaimTrieCacheNormalizationFork

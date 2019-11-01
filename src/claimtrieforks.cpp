@@ -135,28 +135,59 @@ std::string CClaimTrieCacheNormalizationFork::normalizeClaimName(const std::stri
     return normalized;
 }
 
-bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(bool forward)
+bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(takeoverUndoType& takeoverUndo)
 {
-    if (nNextHeight != Params().GetConsensus().nNormalizedNameForkHeight)
-        return false;
-
     if (!transacting) { transacting = true; db << "begin"; }
 
     // run the one-time upgrade of all names that need to change
-    // it modifies the (cache) trie as it goes, so we need to grab everything to be modified first
-
     db.define("NORMALIZED", [this](const std::string& str) { return normalizeClaimName(str, true); });
 
-    auto query = db << "SELECT NORMALIZED(name) as nn, name, claimID FROM claims WHERE nodeName != nn";
-    for(auto&& row: query) {
-        std::string newName, oldName;
-        uint160 claimID;
-        row >> newName >> oldName >> claimID;
-        if (!forward) std::swap(newName, oldName);
-        db << "UPDATE claims SET nodeName = ? WHERE claimID = ?" << newName << claimID;
-        db << "DELETE FROM nodes WHERE name = ?" << oldName;
-        db << "INSERT INTO nodes(name) VALUES(?) ON CONFLICT(name) DO UPDATE SET hash = NULL" << newName;
+    // make the new nodes
+    db << "INSERT INTO nodes(name) SELECT NORMALIZED(name) AS nn FROM claims WHERE nn != nodeName "
+          "ON CONFLICT(name) DO UPDATE SET hash = NULL";
+    db << "UPDATE nodes SET hash = NULL WHERE name IN "
+          "(SELECT NORMALIZED(name) AS nn FROM supports WHERE nn != nodeName)";
+
+    // update the claims and supports
+    db << "UPDATE claims SET nodeName = NORMALIZED(name)";
+    db << "UPDATE supports SET nodeName = NORMALIZED(name)";
+
+    // remove the old nodes
+    auto query = db << "SELECT name, IFNULL(takeoverHeight, 0), takeoverID FROM nodes "
+                       "WHERE name NOT IN (SELECT nodeName FROM claims)";
+    for (auto&& row: query) {
+        std::string name;
+        int takeoverHeight;
+        std::unique_ptr<uint160> takeoverID;
+        row >> name >> takeoverHeight >> takeoverID;
+        if (name.empty()) continue; // preserve our root node
+        takeoverUndo.emplace_back(name, std::make_pair(takeoverHeight, takeoverID ? *takeoverID : uint160()));
+        // we need to let the tree structure method do the actual node delete:
+        db << "UPDATE nodes SET hash = NULL WHERE name = ?" << name;
     }
+
+    return true;
+}
+
+bool CClaimTrieCacheNormalizationFork::unnormalizeAllNamesInTrieIfNecessary()
+{
+    if (!transacting) { transacting = true; db << "begin"; }
+
+    // run the one-time upgrade of all names that need to change
+    db.define("NORMALIZED", [this](const std::string& str) { return normalizeClaimName(str, true); });
+
+    db << "INSERT INTO nodes(name) SELECT name FROM claims WHERE name != nodeName "
+          "ON CONFLICT(name) DO UPDATE SET hash = NULL";
+    db << "UPDATE nodes SET hash = NULL WHERE name IN "
+          "(SELECT name FROM supports WHERE name != nodeName UNION "
+          "SELECT nodeName FROM supports WHERE name != nodeName UNION "
+          "SELECT nodeName FROM claims WHERE name != nodeName)";
+
+    db << "UPDATE claims SET nodeName = name";
+    db << "UPDATE supports SET nodeName = name";
+    // we need to let the tree structure method do the actual node delete
+    db << "UPDATE nodes SET hash = NULL WHERE name NOT IN "
+          "(SELECT name FROM claims)";
 
     return true;
 }
@@ -164,15 +195,16 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(bool f
 bool CClaimTrieCacheNormalizationFork::incrementBlock(insertUndoType& insertUndo, claimUndoType& expireUndo,
         insertUndoType& insertSupportUndo, supportUndoType& expireSupportUndo, takeoverUndoType& takeoverUndo)
 {
-    normalizeAllNamesInTrieIfNecessary(true);
+    if (nNextHeight == Params().GetConsensus().nNormalizedNameForkHeight)
+        normalizeAllNamesInTrieIfNecessary(takeoverUndo);
     return CClaimTrieCacheExpirationFork::incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverUndo);
 }
 
 bool CClaimTrieCacheNormalizationFork::decrementBlock(insertUndoType& insertUndo, claimUndoType& expireUndo, insertUndoType& insertSupportUndo, supportUndoType& expireSupportUndo)
 {
     auto ret = CClaimTrieCacheExpirationFork::decrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo);
-    if (ret)
-        normalizeAllNamesInTrieIfNecessary(false);
+    if (ret && nNextHeight == Params().GetConsensus().nNormalizedNameForkHeight)
+        unnormalizeAllNamesInTrieIfNecessary();
     return ret;
 }
 
