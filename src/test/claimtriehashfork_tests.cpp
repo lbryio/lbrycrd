@@ -74,12 +74,14 @@ BOOST_AUTO_TEST_CASE(hash_includes_all_claims_triple_test)
     fixture.IncrementBlocks(1);
 
     for (const auto& name : names) {
-        for (auto& claimSupports : fixture.getClaimsForName(name).claimsNsupports) {
+        auto cfn = fixture.getClaimsForName(name);
+        for (auto& claimSupports : cfn.claimsNsupports) {
             CClaimTrieProof proof;
             auto& claim = claimSupports.claim;
             BOOST_CHECK(fixture.getProofForName(name, claim.claimId, proof));
             BOOST_CHECK(proof.hasValue);
             BOOST_CHECK_EQUAL(proof.outPoint, claim.outPoint);
+            BOOST_CHECK_EQUAL(proof.nHeightOfLastTakeover, cfn.nLastTakeoverHeight);
             uint256 claimHash = getValueHash(claim.outPoint, proof.nHeightOfLastTakeover);
             ValidatePairs(fixture, proof.pairs, claimHash);
         }
