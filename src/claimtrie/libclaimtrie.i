@@ -1,5 +1,5 @@
 
-%module libclaimtrie
+%module(directors="1") libclaimtrie
 %{
 #include "uints.h"
 #include "txoutpoint.h"
@@ -8,15 +8,16 @@
 #include "forks.h"
 %}
 
-%feature("directors", 1);
 %feature("flatnested", 1);
+%feature("director") CIterateCallback;
 
 %include stl.i
 %include stdint.i
 %include std_pair.i
 
+%apply int& OUTPUT { int& nValidAtHeight };
+
 %ignore CBaseBlob(CBaseBlob &&);
-%ignore CClaimIndexElement(CClaimIndexElement &&);
 %ignore CClaimNsupports(CClaimNsupports &&);
 %ignore CClaimTrieProof(CClaimTrieProof &&);
 %ignore CClaimTrieProofNode(CClaimTrieProofNode &&);
@@ -29,6 +30,9 @@
 %include "uints.h"
 %include "txoutpoint.h"
 %include "data.h"
+
+%rename(CClaimTrieCache) CClaimTrieCacheHashFork;
+
 %include "trie.h"
 %include "forks.h"
 
@@ -41,10 +45,11 @@
 %template(claimsNsupports) std::vector<CClaimNsupports>;
 
 %template(proofPair) std::pair<bool, CUint256>;
+%template(intClaimPair) std::pair<int, CUint160>;
 %template(proofNodePair) std::pair<unsigned char, CUint256>;
 %template(claimUndoPair) std::pair<std::string, CClaimValue>;
 %template(supportUndoPair) std::pair<std::string, CSupportValue>;
-%template(takeoverUndoPair) std::pair<std::string, <std::pair<int, CUint160>>;
+%template(takeoverUndoPair) std::pair<std::string, std::pair<int, CUint160>>;
 
 %template(proofNodes) std::vector<CClaimTrieProofNode>;
 %template(proofPairs) std::vector<std::pair<bool, CUint256>>;
@@ -54,4 +59,21 @@
 %template(insertUndoType) std::vector<CNameOutPointHeightType>;
 %template(takeoverUndoType) std::vector<takeoverUndoPair>;
 
-%rename(CClaimTrieCache) CClaimTrieCacheHashFork;
+%inline %{
+struct CIterateCallback {
+    CIterateCallback() = default;
+    virtual ~CIterateCallback() = default;
+    virtual void apply(const std::string&) = 0;
+};
+
+void getNamesInTrie(const CClaimTrieCache& cache, CIterateCallback* cb)
+{
+    cache.getNamesInTrie([cb](const std::string& name) {
+        cb->apply(name);
+    });
+}
+%}
+
+%typemap(in,numinputs=0) CClaimValue&, CClaimTrieProof&, insertUndoType&, claimUndoType&, supportUndoType&, takeoverUndoType& %{
+    $1 = &$input;
+%}

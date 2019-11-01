@@ -10,7 +10,6 @@
 #include <tuple>
 
 #include <boost/container/flat_map.hpp>
-#include <boost/container/flat_set.hpp>
 
 #define logPrint CLogPrint::global()
 
@@ -34,53 +33,6 @@ CUint256 getValueHash(const CTxOutPoint& outPoint, int nHeightOfLastTakeover)
     auto vchHash = heightToVch(nHeightOfLastTakeover);
     auto hash3 = Hash(vchHash.begin(), vchHash.end());
     return Hash(hash1.begin(), hash1.end(), hash2.begin(), hash2.end(), hash3.begin(), hash3.end());
-}
-
-CClaimNsupports::CClaimNsupports(CClaimValue claim, int64_t effectiveAmount, std::vector<CSupportValue> supports)
-    : claim(std::move(claim)), effectiveAmount(effectiveAmount), supports(std::move(supports))
-{
-}
-
-bool CClaimNsupports::IsNull() const
-{
-    return claim.claimId.IsNull();
-}
-
-CClaimSupportToName::CClaimSupportToName(std::string name, int nLastTakeoverHeight, std::vector<CClaimNsupports> claimsNsupports, std::vector<CSupportValue> unmatchedSupports)
-    : name(std::move(name)), nLastTakeoverHeight(nLastTakeoverHeight), claimsNsupports(std::move(claimsNsupports)), unmatchedSupports(std::move(unmatchedSupports))
-{
-}
-
-static const CClaimNsupports invalid;
-
-const CClaimNsupports& CClaimSupportToName::find(const CUint160& claimId) const
-{
-    auto it = std::find_if(claimsNsupports.begin(), claimsNsupports.end(), [&claimId](const CClaimNsupports& value) {
-        return claimId == value.claim.claimId;
-    });
-    return it != claimsNsupports.end() ? *it : invalid;
-}
-
-const CClaimNsupports& CClaimSupportToName::find(const std::string& partialId) const
-{
-    std::string lowered(partialId);
-    for (auto& c: lowered)
-        c = std::tolower(c);
-
-    auto it = std::find_if(claimsNsupports.begin(), claimsNsupports.end(), [&lowered](const CClaimNsupports& value) {
-        return value.claim.claimId.GetHex().find(lowered) == 0;
-    });
-    return it != claimsNsupports.end() ? *it : invalid;
-}
-
-bool CClaimNsupports::operator<(const CClaimNsupports& other) const
-{
-    return claim < other.claim;
-}
-
-CClaimTrieProofNode::CClaimTrieProofNode(std::vector<std::pair<unsigned char, CUint256>> children, bool hasValue, CUint256 valHash)
-    : children(std::move(children)), hasValue(hasValue), valHash(std::move(valHash))
-{
 }
 
 static const sqlite::sqlite_config sharedConfig {
@@ -1410,7 +1362,7 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, const CUint16
     return true;
 }
 
-bool CClaimTrieCacheBase::findNameForClaim(std::vector<unsigned char> claim, CClaimValue& value, std::string& name)
+bool CClaimTrieCacheBase::findNameForClaim(std::vector<unsigned char> claim, CClaimValue& value, std::string& name) const
 {
     std::reverse(claim.begin(), claim.end());
     auto query = db << "SELECT nodeName, claimId, txID, txN, amount, validHeight, blockHeight "
@@ -1426,7 +1378,7 @@ bool CClaimTrieCacheBase::findNameForClaim(std::vector<unsigned char> claim, CCl
     return hit;
 }
 
-void CClaimTrieCacheBase::getNamesInTrie(std::function<void(const std::string&)> callback)
+void CClaimTrieCacheBase::getNamesInTrie(std::function<void(const std::string&)> callback) const
 {
     auto query = db << "SELECT DISTINCT nodeName FROM claims WHERE validHeight < ? AND expirationHeight >= ?"
                     << nNextHeight << nNextHeight;
