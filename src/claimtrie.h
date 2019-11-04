@@ -374,7 +374,7 @@ public:
     std::size_t getTotalClaimsInTrie() const;
     CAmount getTotalValueOfClaimsInTrie(bool fControllingOnly) const;
 
-    bool findNameForClaim(const std::vector<unsigned char>& claim, CClaimValue& value, std::string& name);
+    bool findNameForClaim(std::vector<unsigned char> claim, CClaimValue& value, std::string& name);
     void getNamesInTrie(std::function<void(const std::string&)> callback);
     bool getLastTakeoverForName(const std::string& name, uint160& claimId, int& takeoverHeight) const;
 

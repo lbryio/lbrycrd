@@ -464,8 +464,7 @@ UniValue getclaimbyid(const JSONRPCRequest& request)
     std::string foundName;
     CClaimValue foundClaim;
     UniValue ret(UniValue::VOBJ);
-    auto parsed = ParseHex(claimId);
-    if (trieCache.findNameForClaim(parsed, foundClaim, foundName)) {
+    if (trieCache.findNameForClaim(ParseHex(claimId), foundClaim, foundName)) {
         auto csToName = trieCache.getClaimsForName(foundName);
         auto& claimNsupports = csToName.find(foundClaim.claimId);
         if (!claimNsupports.IsNull()) {
