@@ -20,18 +20,16 @@
 
 namespace sqlite
 {
-    inline int bind_col_in_db(sqlite3_stmt* stmt, int inx, const uint160& vec) {
-        void const* buf = reinterpret_cast<void const *>(vec.begin());
-        return sqlite3_bind_blob(stmt, inx, buf, int(vec.size()), SQLITE_STATIC);
+    inline int bind_col_in_db(sqlite3_stmt* stmt, int inx, const uint160& val) {
+        return sqlite3_bind_blob(stmt, inx, val.begin(), int(val.size()), SQLITE_STATIC);
     }
 
-    inline int bind_col_in_db(sqlite3_stmt* stmt, int inx, const uint256& vec) {
-        void const* buf = reinterpret_cast<void const *>(vec.begin());
-        return sqlite3_bind_blob(stmt, inx, buf, int(vec.size()), SQLITE_STATIC);
+    inline int bind_col_in_db(sqlite3_stmt* stmt, int inx, const uint256& val) {
+        return sqlite3_bind_blob(stmt, inx, val.begin(), int(val.size()), SQLITE_STATIC);
     }
 
     inline void store_result_in_db(sqlite3_context* db, const uint160& val) {
-        sqlite3_result_blob(db, val.begin(), int(val.size()), SQLITE_TRANSIENT);
+        sqlite3_result_blob(db, val.begin(), int(val.size()), SQLITE_TRANSIENT); // I think we need transient here but I'm not 100% sure
     }
 
     inline void store_result_in_db(sqlite3_context* db, const uint256& val) {
