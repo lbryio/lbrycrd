@@ -326,59 +326,6 @@ BOOST_AUTO_TEST_CASE(trie_stays_consistent_test)
     BOOST_CHECK(trie.empty());
 }
 
-BOOST_AUTO_TEST_CASE(takeover_workaround_triggers)
-{
-    auto& consensus = const_cast<Consensus::Params&>(Params().GetConsensus());
-    auto currentMax = consensus.nMaxTakeoverWorkaroundHeight;
-    consensus.nMaxTakeoverWorkaroundHeight = 10000;
-    BOOST_SCOPE_EXIT(&consensus, currentMax) { consensus.nMaxTakeoverWorkaroundHeight = currentMax; }
-    BOOST_SCOPE_EXIT_END
-
-    CClaimTrie trie(false, 0, 1);
-    CClaimTrieCacheTest cache(&trie);
-
-    insertUndoType icu, isu; claimUndoType ecu; supportUndoType esu; takeoverUndoType tut;
-    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu, tut));
-
-    CClaimValue value;
-    value.nHeight = 1;
-
-    BOOST_CHECK(cache.insertClaimIntoTrie("a", value));
-    BOOST_CHECK(cache.insertClaimIntoTrie("b", value));
-    BOOST_CHECK(cache.insertClaimIntoTrie("c", value));
-    BOOST_CHECK(cache.insertClaimIntoTrie("aa", value));
-    BOOST_CHECK(cache.insertClaimIntoTrie("bb", value));
-    BOOST_CHECK(cache.insertClaimIntoTrie("cc", value));
-    BOOST_CHECK(cache.insertSupportIntoMap("aa", CSupportValue()));
-
-    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu, tut));
-    BOOST_CHECK(cache.flush());
-    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu, tut));
-
-    CSupportValue temp;
-    CClaimValue cv;
-    BOOST_CHECK(cache.insertSupportIntoMap("bb", temp));
-    BOOST_CHECK(!cache.getInfoForName("aa", cv));
-    BOOST_CHECK(cache.removeSupportFromMap("aa", COutPoint()));
-
-    BOOST_CHECK(cache.removeClaimFromTrie("aa", COutPoint()));
-    BOOST_CHECK(cache.removeClaimFromTrie("bb", COutPoint()));
-    BOOST_CHECK(cache.removeClaimFromTrie("cc", COutPoint()));
-
-    BOOST_CHECK(cache.insertClaimIntoTrie("aa", value));
-    BOOST_CHECK(cache.insertClaimIntoTrie("bb", value));
-    BOOST_CHECK(cache.insertClaimIntoTrie("cc", value));
-
-    BOOST_CHECK(cache.incrementBlock(icu, ecu, isu, esu, tut));
-
-    BOOST_CHECK(cache.getInfoForName("aa", cv));
-    BOOST_CHECK_EQUAL(3, cv.nValidAtHeight);
-    BOOST_CHECK(cache.getInfoForName("bb", cv));
-    BOOST_CHECK_EQUAL(3, cv.nValidAtHeight);
-    BOOST_CHECK(cache.getInfoForName("cc", cv));
-    BOOST_CHECK_EQUAL(1, cv.nValidAtHeight);
-}
-
 BOOST_AUTO_TEST_CASE(verify_basic_serialization)
 {
     CClaimValue cv;
