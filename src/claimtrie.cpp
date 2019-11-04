@@ -50,29 +50,29 @@ CClaimTrie::CClaimTrie(bool fWipe, int height, int proportionalDelayFactor)
     : dbPath((GetDataDir() / "claims.sqlite").string()), db(dbPath, sharedConfig),
     nNextHeight(height), nProportionalDelayFactor(proportionalDelayFactor)
 {
-    db.define("MERKLE_ROOT", [](std::vector<uint256>& hashes, const std::vector<unsigned char>& blob) { hashes.emplace_back(uint256(blob)); },
-              [](const std::vector<uint256>& hashes) { return ComputeMerkleRoot(hashes); });
+//    db.define("MERKLE_ROOT", [](std::vector<uint256>& hashes, const std::vector<unsigned char>& blob) { hashes.emplace_back(uint256(blob)); },
+//              [](const std::vector<uint256>& hashes) { return ComputeMerkleRoot(hashes); });
+//
+//    db.define("MERKLE_PAIR", [](const std::vector<unsigned char>& blob1, const std::vector<unsigned char>& blob2) { return Hash(blob1.begin(), blob1.end(), blob2.begin(), blob2.end()); });
+//    db.define("MERKLE", [](const std::vector<unsigned char>& blob1) { return Hash(blob1.begin(), blob1.end()); });
 
-    db.define("MERKLE_PAIR", [](const std::vector<unsigned char>& blob1, const std::vector<unsigned char>& blob2) { return Hash(blob1.begin(), blob1.end(), blob2.begin(), blob2.end()); });
-    db.define("MERKLE", [](const std::vector<unsigned char>& blob1) { return Hash(blob1.begin(), blob1.end()); });
-
-    db << "CREATE TABLE IF NOT EXISTS nodes (name TEXT NOT NULL PRIMARY KEY, parent TEXT, hash BLOB, takeoverHeight INTEGER, takeoverID BLOB)";
+    db << "CREATE TABLE IF NOT EXISTS nodes (name TEXT NOT NULL PRIMARY KEY, parent TEXT, hash BLOB COLLATE BINARY, takeoverHeight INTEGER, takeoverID BLOB COLLATE BINARY)";
     db << "CREATE INDEX IF NOT EXISTS nodes_hash ON nodes (hash)";
     db << "CREATE INDEX IF NOT EXISTS nodes_parent ON nodes (parent)";
 
-    db << "CREATE TABLE IF NOT EXISTS claims (claimID BLOB NOT NULL PRIMARY KEY, name TEXT NOT NULL, "
+    db << "CREATE TABLE IF NOT EXISTS claims (claimID BLOB NOT NULL COLLATE BINARY PRIMARY KEY, name TEXT NOT NULL, "
            "nodeName TEXT NOT NULL REFERENCES nodes(name) DEFERRABLE INITIALLY DEFERRED, "
-           "txID BLOB NOT NULL, txN INTEGER NOT NULL, blockHeight INTEGER NOT NULL, "
+           "txID BLOB NOT NULL COLLATE BINARY, txN INTEGER NOT NULL, blockHeight INTEGER NOT NULL, "
            "validHeight INTEGER NOT NULL, expirationHeight INTEGER NOT NULL, "
-           "amount INTEGER NOT NULL, metadata BLOB);";
+           "amount INTEGER NOT NULL, metadata BLOB COLLATE BINARY);";
     db << "CREATE INDEX IF NOT EXISTS claims_validHeight ON claims (validHeight)";
     db << "CREATE INDEX IF NOT EXISTS claims_expirationHeight ON claims (expirationHeight)";
     db << "CREATE INDEX IF NOT EXISTS claims_nodeName ON claims (nodeName)";
 
-    db << "CREATE TABLE IF NOT EXISTS supports (txID BLOB NOT NULL, txN INTEGER NOT NULL, "
-           "supportedClaimID BLOB NOT NULL, name TEXT NOT NULL, nodeName TEXT NOT NULL, "
+    db << "CREATE TABLE IF NOT EXISTS supports (txID BLOB NOT NULL COLLATE BINARY, txN INTEGER NOT NULL, "
+           "supportedClaimID BLOB NOT NULL COLLATE BINARY, name TEXT NOT NULL, nodeName TEXT NOT NULL, "
            "blockHeight INTEGER NOT NULL, validHeight INTEGER NOT NULL, expirationHeight INTEGER NOT NULL, "
-           "amount INTEGER NOT NULL, metadata BLOB, PRIMARY KEY(txID, txN));";
+           "amount INTEGER NOT NULL, metadata BLOB COLLATE BINARY, PRIMARY KEY(txID, txN));";
     db << "CREATE INDEX IF NOT EXISTS supports_supportedClaimID ON supports (supportedClaimID)";
     db << "CREATE INDEX IF NOT EXISTS supports_validHeight ON supports (validHeight)";
     db << "CREATE INDEX IF NOT EXISTS supports_expirationHeight ON supports (expirationHeight)";
@@ -230,7 +230,7 @@ void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
     auto parentQuery = db << "SELECT name FROM nodes WHERE "
                               "name IN (WITH RECURSIVE prefix(p) AS (VALUES(?) UNION ALL "
                               "SELECT SUBSTR(p, 1, LENGTH(p)-1) FROM prefix WHERE p != '') SELECT p FROM prefix) "
-                              "ORDER BY LENGTH(name) DESC LIMIT 1";
+                              "ORDER BY name DESC LIMIT 1";
 
     for (auto& name: names) {
         std::vector<std::string> claims;
@@ -328,7 +328,7 @@ bool CClaimTrieCacheBase::getInfoForName(const std::string& name, CClaimValue& c
     auto query = db << "SELECT c.claimID, c.txID, c.txN, c.blockHeight, c.validHeight, c.amount, "
                               "(SELECT TOTAL(s.amount)+c.amount FROM supports s WHERE s.supportedClaimID = c.claimID AND s.validHeight < ? AND s.expirationHeight >= ?) as effectiveAmount "
                               "FROM claims c WHERE c.nodeName = ? AND c.validHeight < ? AND c.expirationHeight >= ? "
-                              "ORDER BY effectiveAmount DESC, c.blockHeight, c.txID, c.txN LIMIT 1"
+                              "ORDER BY effectiveAmount DESC, c.blockHeight, REVERSE_BYTES(c.txID), c.txN LIMIT 1"
                     << nextHeight << nextHeight << name << nextHeight << nextHeight;
     for (auto&& row: query) {
         row >> claim.claimId >> claim.outPoint.hash >> claim.outPoint.n
@@ -493,6 +493,8 @@ CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)
     db << "PRAGMA journal_mode=MEMORY";
     db << "PRAGMA temp_store=MEMORY";
     db << "PRAGMA case_sensitive_like=true";
+
+    db.define("REVERSE_BYTES", [](std::vector<unsigned char> blob) { std::reverse(blob.begin(), blob.end()); return blob; });
 }
 
 int CClaimTrieCacheBase::expirationTime() const
@@ -1256,7 +1258,7 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, const uint160
     auto nodeQuery = db << "SELECT name, IFNULL(takeoverHeight, 0) FROM nodes WHERE "
                                     "name IN (WITH RECURSIVE prefix(p) AS (VALUES(?) UNION ALL "
                                     "SELECT SUBSTR(p, 1, LENGTH(p)-1) FROM prefix WHERE p != '') SELECT p FROM prefix) "
-                                    "ORDER BY LENGTH(name)" << name;
+                                    "ORDER BY name" << name;
     for (auto&& row: nodeQuery) {
         CClaimValue claim;
         std::string key;

@@ -264,7 +264,7 @@ uint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(const std::string& n
                           "(SELECT TOTAL(s.amount)+c.amount FROM supports s WHERE s.supportedClaimID = c.claimID "
                           "AND s.validHeight < ? AND s.expirationHeight >= ?) as effectiveAmount "
                           "FROM claims c WHERE c.nodeName = ? AND c.validHeight < ? AND c.expirationHeight >= ? "
-                          "ORDER BY effectiveAmount DESC, c.blockHeight, c.txID, c.txN"
+                          "ORDER BY effectiveAmount DESC, c.blockHeight, REVERSE_BYTES(c.txID), c.txN"
                           << nNextHeight << nNextHeight << name << nNextHeight << nNextHeight;
 
     std::vector<uint256> claimHashes;
@@ -363,7 +363,7 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const uin
         row >> key >> takeoverHeight;
         std::vector<uint256> childHashes;
         uint32_t nextCurrentIdx = 0;
-        auto childQuery = db << "SELECT name, hash FROM nodes WHERE parent = ?" << key;
+        auto childQuery = db << "SELECT name, hash FROM nodes WHERE parent = ? ORDER BY name" << key;
         for (auto&& child : childQuery) {
             std::string childKey;
             uint256 childHash;
@@ -377,8 +377,8 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const uin
                                 "(SELECT TOTAL(s.amount)+c.amount FROM supports s WHERE s.supportedClaimID = c.claimID "
                                 "AND s.validHeight < ? AND s.expirationHeight >= ?) as effectiveAmount "
                                 "FROM claims c WHERE c.nodeName = ? AND c.validHeight < ? AND c.expirationHeight >= ? "
-                                "ORDER BY effectiveAmount DESC, c.blockHeight, c.txID, c.txN"
-                             << nNextHeight << nNextHeight << name << nNextHeight << nNextHeight;
+                                "ORDER BY effectiveAmount DESC, c.blockHeight, REVERSE_BYTES(c.txID), c.txN"
+                             << nNextHeight << nNextHeight << key << nNextHeight << nNextHeight;
 
         std::vector<uint256> claimHashes;
         uint32_t finalClaimIdx = 0;
