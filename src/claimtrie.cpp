@@ -341,21 +341,26 @@ bool CClaimTrieCacheBase::getInfoForName(const std::string& name, CClaimValue& c
 CClaimSupportToName CClaimTrieCacheBase::getClaimsForName(const std::string& name) const
 {
     int nLastTakeoverHeight = 0;
-    db << "SELECT IFNULL(takeoverHeight,0) FROM nodes WHERE name = ?" << name >> nLastTakeoverHeight;
-
+    {
+        auto query = db << "SELECT takeoverHeight FROM nodes WHERE name = ?" << name;
+        auto it = query.begin();
+        if (it != query.end())
+            *it >> nLastTakeoverHeight;
+    }
     auto supports = getSupportsForName(name);
 
-    auto query = db << "SELECT claimID, txID, txN, blockHeight, validHeight, amount "
-                              "FROM claims WHERE nodeName = ? AND expirationHeight >= ?"
-                    << name << nNextHeight;
     claimEntryType claims;
-    for (auto&& row: query) {
-        CClaimValue claim;
-        row >> claim.claimId >> claim.outPoint.hash >> claim.outPoint.n
-            >> claim.nHeight >> claim.nValidAtHeight >> claim.nAmount;
-        claims.push_back(claim);
+    {
+        auto query = db << "SELECT claimID, txID, txN, blockHeight, validHeight, amount "
+                           "FROM claims WHERE nodeName = ? AND expirationHeight >= ?"
+                        << name << nNextHeight;
+        for (auto &&row: query) {
+            CClaimValue claim;
+            row >> claim.claimId >> claim.outPoint.hash >> claim.outPoint.n
+                >> claim.nHeight >> claim.nValidAtHeight >> claim.nAmount;
+            claims.push_back(claim);
+        }
     }
-
     auto find = [&supports](decltype(supports)::iterator& it, const CClaimValue& claim) {
         it = std::find_if(it, supports.end(), [&claim](const CSupportValue& support) {
             return claim.claimId == support.supportedClaimId;
@@ -375,7 +380,7 @@ CClaimSupportToName CClaimTrieCacheBase::getClaimsForName(const std::string& nam
         }
         ic->claim.nEffectiveAmount = ic->effectiveAmount;
     }
-    std::sort(claimsNsupports.begin(), claimsNsupports.end());
+    std::sort(claimsNsupports.rbegin(), claimsNsupports.rend());
     return {name, nLastTakeoverHeight, std::move(claimsNsupports), std::move(supports)};
 }
 
@@ -1303,10 +1308,11 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, const uint160
     return true;
 }
 
-bool CClaimTrieCacheBase::findNameForClaim(const std::vector<unsigned char>& claim, CClaimValue& value, std::string& name) {
+bool CClaimTrieCacheBase::findNameForClaim(std::vector<unsigned char> claim, CClaimValue& value, std::string& name) {
+    std::reverse(claim.begin(), claim.end());
     auto query = db << "SELECT nodeName, claimId, txID, txN, amount, validHeight, blockHeight "
-                              "FROM claims WHERE SUBSTR(claimID, 1, ?) = ? AND validHeight < ? AND expirationHeight >= ?"
-                    << claim.size() << claim << nNextHeight << nNextHeight;
+                              "FROM claims WHERE SUBSTR(claimID, ?) = ? AND validHeight < ? AND expirationHeight >= ?"
+                    << -claim.size() << claim << nNextHeight << nNextHeight;
     auto hit = false;
     for (auto&& row: query) {
         if (hit) return false;
