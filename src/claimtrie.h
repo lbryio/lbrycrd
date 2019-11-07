@@ -385,6 +385,8 @@ protected:
     bool transacting;
     // one greater than the height of the chain's tip
 
+    mutable sqlite::database_binder claimHashQuery, childHashQuery;
+
     virtual uint256 recursiveComputeMerkleHash(const std::string& name, int takeoverHeight, bool checkOnly);
     supportEntryType getSupportsForName(const std::string& name) const;
 

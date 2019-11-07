@@ -56,7 +56,8 @@ CClaimTrie::CClaimTrie(bool fWipe, int height, int proportionalDelayFactor)
 //    db.define("MERKLE_PAIR", [](const std::vector<unsigned char>& blob1, const std::vector<unsigned char>& blob2) { return Hash(blob1.begin(), blob1.end(), blob2.begin(), blob2.end()); });
 //    db.define("MERKLE", [](const std::vector<unsigned char>& blob1) { return Hash(blob1.begin(), blob1.end()); });
 
-    db << "CREATE TABLE IF NOT EXISTS nodes (name TEXT NOT NULL PRIMARY KEY, parent TEXT, hash BLOB COLLATE BINARY, takeoverHeight INTEGER, takeoverID BLOB COLLATE BINARY)";
+    db << "CREATE TABLE IF NOT EXISTS nodes (name TEXT NOT NULL PRIMARY KEY, parent TEXT REFERENCES nodes(name) DEFERRABLE INITIALLY DEFERRED, "
+          "hash BLOB COLLATE BINARY, takeoverHeight INTEGER, takeoverID BLOB COLLATE BINARY)";
     db << "CREATE INDEX IF NOT EXISTS nodes_hash ON nodes (hash)";
     db << "CREATE INDEX IF NOT EXISTS nodes_parent ON nodes (parent)";
 
@@ -109,23 +110,23 @@ bool CClaimTrie::SyncToDisk()
 
 bool CClaimTrie::empty() {
     int64_t count;
-    db << "SELECT COUNT(*) FROM claims WHERE validHeight < ? AND expirationHeight >= ?" << nNextHeight << nNextHeight >> count;
+    db << "SELECT COUNT(*) FROM claims WHERE validHeight < ?1 AND expirationHeight >= ?1" << nNextHeight >> count;
     return count == 0;
 }
 
 bool CClaimTrieCacheBase::haveClaim(const std::string& name, const COutPoint& outPoint) const
 {
-    auto query = db << "SELECT 1 FROM claims WHERE nodeName = ? AND txID = ? AND txN = ? "
-                              "AND validHeight < ? AND expirationHeight >= ? LIMIT 1"
-                    << name << outPoint.hash << outPoint.n << nNextHeight << nNextHeight;
+    auto query = db << "SELECT 1 FROM claims WHERE nodeName = ?1 AND txID = ?2 AND txN = ?3 "
+                              "AND validHeight < ?4 AND expirationHeight >= ?4 LIMIT 1"
+                    << name << outPoint.hash << outPoint.n << nNextHeight;
     return query.begin() != query.end();
 }
 
 bool CClaimTrieCacheBase::haveSupport(const std::string& name, const COutPoint& outPoint) const
 {
-    auto query = db << "SELECT 1 FROM supports WHERE nodeName = ? AND txID = ? AND txN = ? "
-                              "AND validHeight < ? AND expirationHeight >= ? LIMIT 1"
-                    << name << outPoint.hash << outPoint.n << nNextHeight << nNextHeight;
+    auto query = db << "SELECT 1 FROM supports WHERE nodeName = ?1 AND txID = ?2 AND txN = ?3 "
+                              "AND validHeight < ?4 AND expirationHeight >= ?4 LIMIT 1"
+                    << name << outPoint.hash << outPoint.n << nNextHeight;
     return query.begin() != query.end();
 }
 
@@ -181,8 +182,8 @@ bool CClaimTrieCacheBase::deleteNodeIfPossible(const std::string& name, std::str
     if (name.empty()) return false;
     // to remove a node it must have one or less children and no claims
     vector_builder<std::string, std::string> claimsBuilder;
-    db << "SELECT name FROM claims WHERE nodeName = ? AND validHeight < ? AND expirationHeight >= ? "
-              << name << nNextHeight << nNextHeight >> claimsBuilder;
+    db << "SELECT name FROM claims WHERE nodeName = ?1 AND validHeight < ?2 AND expirationHeight >= ?2 "
+              << name << nNextHeight >> claimsBuilder;
     claims = std::move(claimsBuilder);
     if (!claims.empty()) return false; // still has claims
     // we now know it has no claims, but we need to check its children
@@ -193,6 +194,7 @@ bool CClaimTrieCacheBase::deleteNodeIfPossible(const std::string& name, std::str
     // alternately: SELECT COUNT(DISTINCT nodeName) FROM claims WHERE SUBSTR(nodeName, 1, len(?)) == ? AND LENGTH(nodeName) > len(?)
     db << "SELECT COUNT(*),MAX(name) FROM nodes WHERE parent = ?" << name >> std::tie(count, childName);
     if (count > 1) return false; // still has multiple children
+    LogPrint(BCLog::CLAIMS, "Removing node %s with %d children\n", name, count);
     // okay. it's going away
     auto query = db << "SELECT parent FROM nodes WHERE name = ?" << name;
     auto it = query.begin();
@@ -271,6 +273,7 @@ void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
                     break;
                 }
                 // insert the split node:
+                LogPrint(BCLog::CLAIMS, "Inserting split node %s, parent %s\n", newNodeName, parent);
                 db << "INSERT INTO nodes(name, parent, hash) VALUES(?, ?, NULL) "
                        "ON CONFLICT(name) DO UPDATE SET parent = excluded.parent, hash = NULL"
                     << newNodeName << parent;
@@ -279,11 +282,15 @@ void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
             }
         }
 
+        LogPrint(BCLog::CLAIMS, "Inserting or updating node %s, parent %s\n", name, parent);
         db << "INSERT INTO nodes(name, parent, hash) VALUES(?, ?, NULL) "
                "ON CONFLICT(name) DO UPDATE SET parent = excluded.parent, hash = NULL"
             << name << parent;
         if (splitPos == 0)
             db << "UPDATE nodes SET hash = NULL WHERE name = ?" << parent;
+
+        db << "UPDATE nodes SET parent = ?1 WHERE SUBSTR(name, 1, ?2) = ?1 AND LENGTH(parent) < ?2 AND name != ?1"
+            << name << name.size();
     }
 
     // now we need to percolate the nulls up the tree
@@ -297,16 +304,16 @@ std::size_t CClaimTrieCacheBase::getTotalNamesInTrie() const
 {
     // you could do this select from the nodes table, but you would have to ensure it is not dirty first
     std::size_t ret;
-    db << "SELECT COUNT(DISTINCT nodeName) FROM claims WHERE validHeight < ? AND expirationHeight >= ?"
-              << nNextHeight << nNextHeight >> ret;
+    db << "SELECT COUNT(DISTINCT nodeName) FROM claims WHERE validHeight < ?1 AND expirationHeight >= ?1"
+              << nNextHeight >> ret;
     return ret;
 }
 
 std::size_t CClaimTrieCacheBase::getTotalClaimsInTrie() const
 {
     std::size_t ret;
-    db << "SELECT COUNT(*) FROM claims WHERE validHeight < ? AND expirationHeight >= ?"
-              << nNextHeight << nNextHeight >> ret;
+    db << "SELECT COUNT(*) FROM claims WHERE validHeight < ?1 AND expirationHeight >= ?1"
+              << nNextHeight >> ret;
     return ret;
 }
 
@@ -314,28 +321,26 @@ CAmount CClaimTrieCacheBase::getTotalValueOfClaimsInTrie(bool fControllingOnly) 
 {
     CAmount ret = 0;
     std::string query("SELECT (SELECT TOTAL(s.amount)+c.amount FROM supports s "
-                      "WHERE s.supportedClaimID = c.claimID AND s.validHeight < ? AND s.expirationHeight >= ?) "
-                      "FROM claims c WHERE c.validHeight < ? AND s.expirationHeight >= ?");
+                      "WHERE s.supportedClaimID = c.claimID AND s.validHeight < ?1 AND s.expirationHeight >= ?1) "
+                      "FROM claims c WHERE c.validHeight < ?1 AND s.expirationHeight >= ?1");
     if (fControllingOnly)
         throw std::runtime_error("not implemented yet"); // TODO: finish this
-    db << query << nNextHeight << nNextHeight << nNextHeight << nNextHeight >> ret;
+    db << query << nNextHeight >> ret;
     return ret;
 }
 
 bool CClaimTrieCacheBase::getInfoForName(const std::string& name, CClaimValue& claim, int heightOffset) const
 {
     auto nextHeight = nNextHeight + heightOffset;
-    auto query = db << "SELECT c.claimID, c.txID, c.txN, c.blockHeight, c.validHeight, c.amount, "
-                              "(SELECT TOTAL(s.amount)+c.amount FROM supports s WHERE s.supportedClaimID = c.claimID AND s.validHeight < ? AND s.expirationHeight >= ?) as effectiveAmount "
-                              "FROM claims c WHERE c.nodeName = ? AND c.validHeight < ? AND c.expirationHeight >= ? "
-                              "ORDER BY effectiveAmount DESC, c.blockHeight, REVERSE_BYTES(c.txID), c.txN LIMIT 1"
-                    << nextHeight << nextHeight << name << nextHeight << nextHeight;
-    for (auto&& row: query) {
-        row >> claim.claimId >> claim.outPoint.hash >> claim.outPoint.n
+    auto ret = false;
+    for (auto&& row: claimHashQuery << nextHeight << name) {
+        row >> claim.outPoint.hash >> claim.outPoint.n >> claim.claimId
             >> claim.nHeight >> claim.nValidAtHeight >> claim.nAmount >> claim.nEffectiveAmount;
-        return true;
+        ret = true;
+        break;
     }
-    return false;
+    claimHashQuery++;
+    return ret;
 }
 
 CClaimSupportToName CClaimTrieCacheBase::getClaimsForName(const std::string& name) const
@@ -398,19 +403,23 @@ uint256 CClaimTrieCacheBase::recursiveComputeMerkleHash(const std::string& name,
 {
     std::vector<uint8_t> vchToHash;
     const auto pos = name.size();
-    auto query = db << "SELECT name, hash, IFNULL(takeoverHeight,0) FROM nodes WHERE parent = ? ORDER BY name" << name;
-    for (auto&& row : query) {
-        std::string key;
-        int childTakeoverHeight;
-        std::unique_ptr<uint256> hash;
-        row >> key >> hash >> childTakeoverHeight;
-        if (hash == nullptr) hash = std::make_unique<uint256>();
-        if (hash->IsNull()) {
-            *hash = recursiveComputeMerkleHash(key, childTakeoverHeight, checkOnly);
+    // we have to free up the hash query so it can be reused by a child
+    struct Triple { std::string name; std::unique_ptr<uint256> hash; int takeoverHeight; };
+    std::vector<Triple> children;
+    for (auto&& row : childHashQuery << name) {
+        children.emplace_back();
+        auto& b = children.back();
+        row >> b.name >> b.hash >> b.takeoverHeight;
+    }
+    childHashQuery++;
+    for (auto& child: children) {
+        if (child.hash == nullptr) child.hash = std::make_unique<uint256>();
+        if (child.hash->IsNull()) {
+            *child.hash = recursiveComputeMerkleHash(child.name, child.takeoverHeight, checkOnly);
         }
-        completeHash(*hash, key, pos);
-        vchToHash.push_back(key[pos]);
-        vchToHash.insert(vchToHash.end(), hash->begin(), hash->end());
+        completeHash(*child.hash, child.name, pos);
+        vchToHash.push_back(child.name[pos]);
+        vchToHash.insert(vchToHash.end(), child.hash->begin(), child.hash->end());
     }
 
     CClaimValue claim;
@@ -488,7 +497,13 @@ bool CClaimTrieCacheBase::ValidateTipMatches(const CBlockIndex* tip)
 }
 
 CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)
-    : base(base), db(base->dbPath, sharedConfig), transacting(false)
+    : base(base), db(base->dbPath, sharedConfig), transacting(false),
+      childHashQuery(db << "SELECT name, hash, IFNULL(takeoverHeight, 0) FROM nodes WHERE parent = ? ORDER BY name"),
+      claimHashQuery(db << "SELECT c.txID, c.txN, c.claimID, c.blockHeight, c.validHeight, c.amount, "
+                              "(SELECT TOTAL(s.amount)+c.amount FROM supports s WHERE s.supportedClaimID = c.claimID "
+                              "AND s.validHeight < ?1 AND s.expirationHeight >= ?1) as effectiveAmount "
+                              "FROM claims c WHERE c.nodeName = ?2 AND c.validHeight < ?1 AND c.expirationHeight >= ?1 "
+                              "ORDER BY effectiveAmount DESC, c.blockHeight, c.txID, c.txN")
 {
     assert(base);
     nNextHeight = base->nNextHeight;
@@ -498,8 +513,6 @@ CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)
     db << "PRAGMA journal_mode=MEMORY";
     db << "PRAGMA temp_store=MEMORY";
     db << "PRAGMA case_sensitive_like=true";
-
-    db.define("REVERSE_BYTES", [](std::vector<unsigned char> blob) { std::reverse(blob.begin(), blob.end()); return blob; });
 }
 
 int CClaimTrieCacheBase::expirationTime() const
@@ -512,6 +525,7 @@ uint256 CClaimTrieCacheBase::getMerkleHash()
     ensureTreeStructureIsUpToDate();
     std::unique_ptr<uint256> hash;
     int takeoverHeight;
+    // can't use childHashQuery here because "IS NULL" must be used instead of parent = NULL
     db << "SELECT hash, IFNULL(takeoverHeight, 0) FROM nodes WHERE name = ''" >> std::tie(hash, takeoverHeight);
     if (hash == nullptr || hash->IsNull()) {
         assert(transacting); // no data changed but we didn't have the root hash there already?
@@ -576,7 +590,7 @@ bool CClaimTrieCacheBase::addSupport(const std::string& name, const COutPoint& o
     return true;
 }
 
-bool CClaimTrieCacheBase::removeClaim(const uint160& claimId, const COutPoint& outPoint, std::string& nodeName, int& validHeight)
+    bool CClaimTrieCacheBase::removeClaim(const uint160& claimId, const COutPoint& outPoint, std::string& nodeName, int& validHeight)
 {
     if (!transacting) { transacting = true; db << "begin"; }
 
@@ -592,6 +606,8 @@ bool CClaimTrieCacheBase::removeClaim(const uint160& claimId, const COutPoint& o
     if (it == query.end()) return false;
     *it >> nodeName >> validHeight;
     db << "DELETE FROM claims WHERE claimID = ? AND txID = ? and txN = ?" << claimId << outPoint.hash << outPoint.n;
+    if (!db.rows_modified())
+        return false;
     db << "UPDATE nodes SET hash = NULL WHERE name = ?" << nodeName;
     return true;
 }
@@ -946,6 +962,9 @@ bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimUndoTy
     // takeover handling:
     vector_builder<std::string, std::string> takeovers;
     db << "SELECT name FROM nodes WHERE hash IS NULL" >> takeovers;
+    auto getTakeoverQuery = db << "SELECT IFNULL(takeoverHeight, 0), takeoverID FROM nodes WHERE name = ?";
+    auto hasCandidateQuery = db << "UPDATE nodes SET takeoverHeight = ?, takeoverID = ? WHERE name = ?";
+    auto noCandidateQuery = db << "UPDATE nodes SET takeoverHeight = NULL, takeoverID = NULL WHERE name = ?";
 
     for (const auto& nameWithTakeover : takeovers) {
         auto needsActivate = false;
@@ -960,21 +979,26 @@ bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimUndoTy
         // now that they're all in get the winner:
         int existingHeight;
         std::unique_ptr<uint160> existingID;
-        db << "SELECT IFNULL(takeoverHeight, 0), takeoverID FROM nodes WHERE name = ?"
-              << nameWithTakeover >> std::tie(existingHeight, existingID);
+        getTakeoverQuery << nameWithTakeover >> std::tie(existingHeight, existingID);
+        getTakeoverQuery++; // reset it
 
         auto hasBeenSetBefore = existingID != nullptr && !existingID->IsNull();
         auto takeoverHappening = needsActivate || !hasCandidate || (hasBeenSetBefore && *existingID != candidateValue.claimId);
         if (takeoverHappening && activateAllFor(insertUndo, insertSupportUndo, nameWithTakeover))
             hasCandidate = getInfoForName(nameWithTakeover, candidateValue, 1);
 
+        LogPrint(BCLog::CLAIMS, "Takeover on %s at %d, happening: %d, set before: %d\n", nameWithTakeover, nNextHeight, takeoverHappening, hasBeenSetBefore);
+
         if (takeoverHappening || !hasBeenSetBefore) {
             takeoverUndo.emplace_back(nameWithTakeover, std::make_pair(existingHeight, hasBeenSetBefore ? *existingID : uint160()));
-            if (hasCandidate)
-                db << "UPDATE nodes SET takeoverHeight = ?, takeoverID = ? WHERE name = ?"
-                      << nNextHeight << candidateValue.claimId << nameWithTakeover;
-            else
-                db << "UPDATE nodes SET takeoverHeight = NULL, takeoverID = NULL WHERE name = ?" << nameWithTakeover;
+            if (hasCandidate) {
+                hasCandidateQuery << nNextHeight << candidateValue.claimId << nameWithTakeover;
+                hasCandidateQuery++;
+            }
+            else {
+                noCandidateQuery << nameWithTakeover;
+                noCandidateQuery++;
+            }
             assert(db.rows_modified());
         }
     }
@@ -988,36 +1012,38 @@ bool CClaimTrieCacheBase::activateAllFor(insertUndoType& insertUndo, insertUndoT
     // now that we know a takeover is happening, we bring everybody in:
     auto ret = false;
     {
-        auto query = db << "SELECT txID, txN, validHeight FROM claims WHERE nodeName = ? AND validHeight > ? AND expirationHeight > ?"
-                        << name << nNextHeight << nNextHeight;
+        auto query = db << "SELECT txID, txN, validHeight FROM claims WHERE nodeName = ?1 AND validHeight > ?2 AND expirationHeight > ?2"
+                        << name << nNextHeight;
         for (auto &&row: query) {
             uint256 hash;
             uint32_t n;
             int oldValidHeight;
             row >> hash >> n >> oldValidHeight;
             insertUndo.emplace_back(name, COutPoint(hash, n), oldValidHeight);
+            LogPrint(BCLog::CLAIMS, "Early activation of claim %s, t: %s:%d at %d\n", name, hash.GetHex().substr(0, 6), n, nNextHeight);
         }
     }
     // and then update them all to activate now:
-    db << "UPDATE claims SET validHeight = ? WHERE nodeName = ? AND validHeight > ? AND expirationHeight > ?"
-              << nNextHeight << name << nNextHeight << nNextHeight;
+    db << "UPDATE claims SET validHeight = ?1 WHERE nodeName = ?2 AND validHeight > ?1 AND expirationHeight > ?1"
+              << nNextHeight << name;
     ret |= db.rows_modified() > 0;
 
     // then do the same for supports:
     {
-        auto query = db << "SELECT txID, txN, validHeight FROM supports WHERE nodeName = ? AND validHeight > ? AND expirationHeight > ?"
-                        << name << nNextHeight << nNextHeight;
+        auto query = db << "SELECT txID, txN, validHeight FROM supports WHERE nodeName = ?1 AND validHeight > ?2 AND expirationHeight > ?2"
+                        << name << nNextHeight;
         for (auto &&row: query) {
             uint256 hash;
             uint32_t n;
             int oldValidHeight;
             row >> hash >> n >> oldValidHeight;
             insertSupportUndo.emplace_back(name, COutPoint(hash, n), oldValidHeight);
+            LogPrint(BCLog::CLAIMS, "Early activation of support %s, t: %s:%d at %d\n", name, hash.GetHex().substr(0, 6), n, nNextHeight);
         }
     }
     // and then update them all to activate now:
-    db << "UPDATE supports SET validHeight = ? WHERE nodeName = ? AND validHeight > ? AND expirationHeight > ?"
-              << nNextHeight << name << nNextHeight << nNextHeight;
+    db << "UPDATE supports SET validHeight = ?1 WHERE nodeName = ?2 AND validHeight > ?1 AND expirationHeight > ?1"
+              << nNextHeight << name;
     ret |= db.rows_modified() > 0;
     return ret;
 }
@@ -1312,7 +1338,7 @@ bool CClaimTrieCacheBase::findNameForClaim(std::vector<unsigned char> claim, CCl
     std::reverse(claim.begin(), claim.end());
     auto query = db << "SELECT nodeName, claimId, txID, txN, amount, validHeight, blockHeight "
                               "FROM claims WHERE SUBSTR(claimID, ?) = ? AND validHeight < ? AND expirationHeight >= ?"
-                    << -claim.size() << claim << nNextHeight << nNextHeight;
+                    << -int(claim.size()) << claim << nNextHeight << nNextHeight;
     auto hit = false;
     for (auto&& row: query) {
         if (hit) return false;
