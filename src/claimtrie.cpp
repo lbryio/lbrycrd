@@ -99,6 +99,8 @@ CClaimTrieCacheBase::~CClaimTrieCacheBase() {
         db << "rollback";
         transacting = false;
     }
+    claimHashQuery.used(true);
+    childHashQuery.used(true);
 }
 
 bool CClaimTrie::SyncToDisk()
@@ -234,6 +236,12 @@ void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
                               "SELECT SUBSTR(p, 1, LENGTH(p)-1) FROM prefix WHERE p != '') SELECT p FROM prefix) "
                               "ORDER BY name DESC LIMIT 1";
 
+    auto insertQuery = db << "INSERT INTO nodes(name, parent, hash) VALUES(?, ?, NULL) "
+                             "ON CONFLICT(name) DO UPDATE SET parent = excluded.parent, hash = NULL";
+
+    auto updateUnaffectedsQuery = db << "UPDATE nodes SET parent = ? WHERE name LIKE ? AND LENGTH(parent) < ?";
+
+
     for (auto& name: names) {
         std::vector<std::string> claims;
         std::string parent;
@@ -273,25 +281,42 @@ void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
                     break;
                 }
                 // insert the split node:
-                LogPrint(BCLog::CLAIMS, "Inserting split node %s, parent %s\n", newNodeName, parent);
-                db << "INSERT INTO nodes(name, parent, hash) VALUES(?, ?, NULL) "
-                       "ON CONFLICT(name) DO UPDATE SET parent = excluded.parent, hash = NULL"
-                    << newNodeName << parent;
+                LogPrint(BCLog::CLAIMS, "Inserting split node %s near %s, parent %s\n", newNodeName, sibling, parent);
+                insertQuery << newNodeName << parent;
+                insertQuery++;
+
+                if (newNodeName.find('_') == std::string::npos && newNodeName.find('%') == std::string::npos) {
+                    updateUnaffectedsQuery << newNodeName << newNodeName + "_%" << newNodeName.size();
+                    updateUnaffectedsQuery++;
+                }
+                else
+                    db << "UPDATE nodes SET parent = ?1 WHERE SUBSTR(name, 1, ?2) = ?1 AND LENGTH(parent) < ?2 AND name != ?1"
+                       << newNodeName << newNodeName.size();
+
+
                 parent = std::move(newNodeName);
                 break;
             }
         }
 
         LogPrint(BCLog::CLAIMS, "Inserting or updating node %s, parent %s\n", name, parent);
-        db << "INSERT INTO nodes(name, parent, hash) VALUES(?, ?, NULL) "
-               "ON CONFLICT(name) DO UPDATE SET parent = excluded.parent, hash = NULL"
-            << name << parent;
+        insertQuery << name << parent;
+        insertQuery++;
         if (splitPos == 0)
             db << "UPDATE nodes SET hash = NULL WHERE name = ?" << parent;
 
-        db << "UPDATE nodes SET parent = ?1 WHERE SUBSTR(name, 1, ?2) = ?1 AND LENGTH(parent) < ?2 AND name != ?1"
-            << name << name.size();
+        if (name.find('_') == std::string::npos && name.find('%') == std::string::npos) {
+            updateUnaffectedsQuery << name << name + "_%" << name.size();
+            updateUnaffectedsQuery++;
+        }
+        else
+            db << "UPDATE nodes SET parent = ?1 WHERE SUBSTR(name, 1, ?2) = ?1 AND LENGTH(parent) < ?2 AND name != ?1"
+                << name << name.size();
     }
+
+    parentQuery.used(true);
+    insertQuery.used(true);
+    updateUnaffectedsQuery.used(true);
 
     // now we need to percolate the nulls up the tree
     // parents should all be set right
@@ -320,7 +345,7 @@ std::size_t CClaimTrieCacheBase::getTotalClaimsInTrie() const
 CAmount CClaimTrieCacheBase::getTotalValueOfClaimsInTrie(bool fControllingOnly) const
 {
     CAmount ret = 0;
-    std::string query("SELECT (SELECT TOTAL(s.amount)+c.amount FROM supports s "
+    std::string query("SELECT TOTAL(SELECT TOTAL(s.amount)+c.amount FROM supports s "
                       "WHERE s.supportedClaimID = c.claimID AND s.validHeight < ?1 AND s.expirationHeight >= ?1) "
                       "FROM claims c WHERE c.validHeight < ?1 AND s.expirationHeight >= ?1");
     if (fControllingOnly)
@@ -417,6 +442,7 @@ uint256 CClaimTrieCacheBase::recursiveComputeMerkleHash(const std::string& name,
         if (child.hash->IsNull()) {
             *child.hash = recursiveComputeMerkleHash(child.name, child.takeoverHeight, checkOnly);
         }
+        LogPrint(BCLog::CLAIMS, "Hash of %s: %s, takeover: %d\n", child.name, (*child.hash).GetHex(), child.takeoverHeight);
         completeHash(*child.hash, child.name, pos);
         vchToHash.push_back(child.name[pos]);
         vchToHash.insert(vchToHash.end(), child.hash->begin(), child.hash->end());
@@ -1003,6 +1029,10 @@ bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimUndoTy
         }
     }
 
+    getTakeoverQuery.used(true);
+    hasCandidateQuery.used(true);
+    noCandidateQuery.used(true);
+
     nNextHeight++;
     return true;
 }
@@ -1302,8 +1332,7 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, const uint160
 
         const auto pos = key.size();
         std::vector<std::pair<unsigned char, uint256>> children;
-        auto childQuery = db << "SELECT name, hash FROM nodes WHERE parent = ?" << key;
-        for (auto&& child : childQuery) {
+        for (auto&& child : childHashQuery << key) {
             std::string childKey;
             uint256 hash;
             child >> childKey >> hash;
@@ -1321,6 +1350,7 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, const uint160
             completeHash(hash, childKey, pos);
             children.emplace_back(childKey[pos], hash);
         }
+        childHashQuery++;
         if (key == name) {
             proof.hasValue = fNodeHasValue && claim.claimId == finalClaim;
             if (proof.hasValue) {

@@ -403,3 +403,12 @@ bool ClaimTrieChainFixture::getClaimById(const uint160 &claimId, std::string &na
     }
     return hit;
 }
+
+std::vector<std::string> ClaimTrieChainFixture::getNodeChildren(const std::string &name) {
+    std::vector<std::string> ret;
+    for (auto&& row: db << "SELECT name FROM nodes WHERE parent = ?" << name) {
+        ret.emplace_back();
+        row >> ret.back();
+    }
+    return ret;
+}

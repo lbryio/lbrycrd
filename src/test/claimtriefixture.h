@@ -113,6 +113,8 @@ struct ClaimTrieChainFixture: public CClaimTrieCache
 
     // check effective quantity of best claim
     boost::test_tools::predicate_result best_claim_effective_amount_equals(const std::string& name, CAmount amount);
+
+    std::vector<std::string> getNodeChildren(const std::string& name);
 };
 
 #endif // _CLAIMTRIEFIXTURE_H_
