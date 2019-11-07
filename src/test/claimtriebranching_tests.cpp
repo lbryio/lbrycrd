@@ -42,6 +42,22 @@ BOOST_AUTO_TEST_CASE(takeover_stability_test) {
     BOOST_CHECK_EQUAL(takeover, height);
 }
 
+BOOST_AUTO_TEST_CASE(unaffected_children_get_new_parents_test) {
+    // this happens first on block 193976
+    ClaimTrieChainFixture fixture;
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "longest123", "one", 1);
+    fixture.IncrementBlocks(1);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "longest", "two", 2);
+    CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(), "longest1", "three", 3);
+    CMutableTransaction tx4 = fixture.MakeClaim(tx3, "longest1", "three1234", 2);
+    fixture.IncrementBlocks(1);
+    auto n1 = fixture.getNodeChildren("longest");
+    auto n2 = fixture.getNodeChildren("longest1");
+    BOOST_CHECK_EQUAL(n1[0], "longest1");
+    BOOST_CHECK_EQUAL(n2[0], "longest123");
+    // TODO: this test at present fails to cover the split node case of the same thing (which occurs on block 202577)
+}
+
 /*
     claims
         no competing bids
