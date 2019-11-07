@@ -245,35 +245,33 @@ uint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(const std::string& n
     if (nNextHeight < Params().GetConsensus().nAllClaimsInMerkleForkHeight)
         return CClaimTrieCacheNormalizationFork::recursiveComputeMerkleHash(name, takeoverHeight, checkOnly);
 
-    auto childQuery = db << "SELECT name, hash, IFNULL(takeoverHeight, 0) FROM nodes WHERE parent = ? ORDER BY name" << name;
+    // it may be that using RAM for this is more expensive than preparing a new query statement in each recursive call
+    struct Triple { std::string name; std::unique_ptr<uint256> hash; int takeoverHeight; };
+    std::vector<Triple> children;
+    for (auto&& row : childHashQuery << name) {
+        children.emplace_back();
+        auto& b = children.back();
+        row >> b.name >> b.hash >> b.takeoverHeight;
+    }
+    childHashQuery++;
 
     std::vector<uint256> childHashes;
-    for (auto&& row: childQuery) {
-        std::string key;
-        std::unique_ptr<uint256> hash;
-        int childTakeoverHeight;
-        row >> key >> hash >> childTakeoverHeight;
-        if (hash == nullptr) hash = std::make_unique<uint256>();
-        if (hash->IsNull()) {
-            *hash = recursiveComputeMerkleHash(key, childTakeoverHeight, checkOnly);
+    for (auto& child: children) {
+        if (child.hash == nullptr) child.hash = std::make_unique<uint256>();
+        if (child.hash->IsNull()) {
+            *child.hash = recursiveComputeMerkleHash(child.name, child.takeoverHeight, checkOnly);
         }
-        childHashes.push_back(*hash);
+        childHashes.push_back(*child.hash);
     }
 
-    auto claimQuery = db << "SELECT c.txID, c.txN, "
-                          "(SELECT TOTAL(s.amount)+c.amount FROM supports s WHERE s.supportedClaimID = c.claimID "
-                          "AND s.validHeight < ? AND s.expirationHeight >= ?) as effectiveAmount "
-                          "FROM claims c WHERE c.nodeName = ? AND c.validHeight < ? AND c.expirationHeight >= ? "
-                          "ORDER BY effectiveAmount DESC, c.blockHeight, REVERSE_BYTES(c.txID), c.txN"
-                          << nNextHeight << nNextHeight << name << nNextHeight << nNextHeight;
-
     std::vector<uint256> claimHashes;
-    for (auto&& row: claimQuery) {
+    for (auto&& row: claimHashQuery << nNextHeight << name) {
         COutPoint p;
         row >> p.hash >> p.n;
         auto claimHash = getValueHash(p, takeoverHeight);
         claimHashes.push_back(claimHash);
     }
+    claimHashQuery++;
 
     auto left = childHashes.empty() ? leafHash : ComputeMerkleRoot(childHashes);
     auto right = claimHashes.empty() ? emptyHash : ComputeMerkleRoot(claimHashes);
@@ -363,8 +361,7 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const uin
         row >> key >> takeoverHeight;
         std::vector<uint256> childHashes;
         uint32_t nextCurrentIdx = 0;
-        auto childQuery = db << "SELECT name, hash FROM nodes WHERE parent = ? ORDER BY name" << key;
-        for (auto&& child : childQuery) {
+        for (auto&& child : childHashQuery << key) {
             std::string childKey;
             uint256 childHash;
             child >> childKey >> childHash;
@@ -372,17 +369,11 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const uin
                 nextCurrentIdx = uint32_t(childHashes.size());
             childHashes.push_back(childHash);
         }
-
-        auto claimQuery = db << "SELECT c.txID, c.txN, c.claimID, "
-                                "(SELECT TOTAL(s.amount)+c.amount FROM supports s WHERE s.supportedClaimID = c.claimID "
-                                "AND s.validHeight < ? AND s.expirationHeight >= ?) as effectiveAmount "
-                                "FROM claims c WHERE c.nodeName = ? AND c.validHeight < ? AND c.expirationHeight >= ? "
-                                "ORDER BY effectiveAmount DESC, c.blockHeight, REVERSE_BYTES(c.txID), c.txN"
-                             << nNextHeight << nNextHeight << key << nNextHeight << nNextHeight;
+        childHashQuery++;
 
         std::vector<uint256> claimHashes;
         uint32_t finalClaimIdx = 0;
-        for (auto&& child: claimQuery) {
+        for (auto&& child: claimHashQuery << nNextHeight << key) {
             COutPoint childOutPoint;
             uint160 childClaimID;
             child >> childOutPoint.hash >> childOutPoint.n >> childClaimID;
@@ -393,6 +384,7 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const uin
             }
             claimHashes.push_back(getValueHash(childOutPoint, takeoverHeight));
         }
+        claimHashQuery++;
 
         // I am on a node; I need a hash(children, claims)
         // if I am the last node on the list, it will be hash(children, x)
