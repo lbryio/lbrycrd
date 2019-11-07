@@ -15,7 +15,7 @@ bool CClaimScriptAddOp::claimName(CClaimTrieCache& trieCache, const std::string&
         const std::vector<unsigned char>& metadata)
 {
     auto claimId = ClaimIdHash(point.hash, point.n);
-    LogPrint(BCLog::CLAIMS, "+++ Claim added: %s, c: %.6s, t: %.6s:%d, h: %.6d, a: %du\n",
+    LogPrint(BCLog::CLAIMS, "+++ Claim added: %s, c: %.6s, t: %.6s:%d, h: %.6d, a: %d\n",
                             name, claimId.GetHex(), point.hash.GetHex(), point.n, nHeight, nValue);
     return addClaim(trieCache, name, claimId, -1, metadata);
 }
@@ -23,7 +23,7 @@ bool CClaimScriptAddOp::claimName(CClaimTrieCache& trieCache, const std::string&
 bool CClaimScriptAddOp::updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
         const std::vector<unsigned char>& metadata)
 {
-    LogPrint(BCLog::CLAIMS, "+++ Claim updated: %s, c: %.6s, t: %.6s:%d, h: %.6d, a: %du\n",
+    LogPrint(BCLog::CLAIMS, "+++ Claim updated: %s, c: %.6s, t: %.6s:%d, h: %.6d, a: %d\n",
              name, claimId.GetHex(), point.hash.GetHex(), point.n, nHeight, nValue);
     return addClaim(trieCache, name, claimId, -1, metadata);
 }
@@ -37,7 +37,7 @@ bool CClaimScriptAddOp::addClaim(CClaimTrieCache& trieCache, const std::string& 
 bool CClaimScriptAddOp::supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
                                      const std::vector<unsigned char>& metadata)
 {
-    LogPrint(BCLog::CLAIMS, "+++ Support added: %s, c: %.6s, t: %.6s:%d, h: %.6d, a: %du\n",
+    LogPrint(BCLog::CLAIMS, "+++ Support added: %s, c: %.6s, t: %.6s:%d, h: %.6d, a: %d\n",
              name, claimId.GetHex(), point.hash.GetHex(), point.n, nHeight, nValue);
     return trieCache.addSupport(name, point, nValue, claimId, nHeight, -1, metadata);
 }
