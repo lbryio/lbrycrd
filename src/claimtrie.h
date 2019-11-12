@@ -392,7 +392,7 @@ protected:
 
     virtual int getDelayForName(const std::string& name, const uint160& claimId) const;
 
-    bool deleteNodeIfPossible(const std::string& name, std::string& parent, std::vector<std::string>& claims);
+    bool deleteNodeIfPossible(const std::string& name, std::string& parent, int64_t& claims);
     void ensureTreeStructureIsUpToDate();
 
 private:
