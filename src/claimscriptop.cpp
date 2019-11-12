@@ -96,7 +96,7 @@ bool CClaimScriptSpendOp::claimName(CClaimTrieCache& trieCache, const std::strin
 {
     auto claimId = ClaimIdHash(point.hash, point.n);
     auto ret = spendClaim(trieCache, name, claimId);
-    LogPrint(BCLog::CLAIMS, "--- Spending original claim: %s, c: %.6s, t: %.6s:%d, h: %.6d, vh: %d\n",
+    LogPrint(BCLog::CLAIMS, "--- Spent original claim: %s, c: %.6s, t: %.6s:%d, h: %.6d, vh: %d\n",
              name, claimId.GetHex(), point.hash.GetHex(), point.n, nHeight, nValidHeight);
     return ret;
 }
@@ -105,7 +105,7 @@ bool CClaimScriptSpendOp::updateClaim(CClaimTrieCache& trieCache, const std::str
         const std::vector<unsigned char>& metadata)
 {
     auto ret = spendClaim(trieCache, name, claimId);
-    LogPrint(BCLog::CLAIMS, "--- Spending updated claim: %s, c: %.6s, t: %.6s:%d, h: %.6d, vh: %d\n",
+    LogPrint(BCLog::CLAIMS, "--- Spent updated claim: %s, c: %.6s, t: %.6s:%d, h: %.6d, vh: %d\n",
              name, claimId.GetHex(), point.hash.GetHex(), point.n, nHeight, nValidHeight);
     return ret;
 }
@@ -124,7 +124,7 @@ bool CClaimScriptSpendOp::supportClaim(CClaimTrieCache& trieCache, const std::st
 {
     std::string nodeName;
     bool res = trieCache.removeSupport(point, nodeName, nValidHeight);
-    LogPrint(BCLog::CLAIMS, "--- Spending support: %s, c: %.6s, t: %.6s:%d, h: %.6d, vh: %d\n",
+    LogPrint(BCLog::CLAIMS, "--- Spent support: %s, c: %.6s, t: %.6s:%d, h: %.6d, vh: %d\n",
              name, claimId.GetHex(), point.hash.GetHex(), point.n, nHeight, nValidHeight);
     if (!res)
         LogPrint(BCLog::CLAIMS, "Remove support failed for %s with claimid %s\n", name, claimId.GetHex().substr(0, 6));
