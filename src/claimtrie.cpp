@@ -2,6 +2,7 @@
 #include <hash.h>
 #include <logging.h>
 #include <util.h>
+#include <utilstrencodings.h>
 
 #include <algorithm>
 #include <memory>
@@ -80,7 +81,7 @@ CClaimTrie::CClaimTrie(bool fWipe, int height, int proportionalDelayFactor)
     db << "CREATE INDEX IF NOT EXISTS supports_nodeName ON supports (nodeName)";
 
     db << "PRAGMA cache_size=-" + std::to_string(5 * 1024); // in -KB
-    db << "PRAGMA synchronous=NORMAL"; // don't disk sync after transaction commit
+    db << "PRAGMA synchronous=OFF"; // don't disk sync after transaction commit
     db << "PRAGMA journal_mode=MEMORY";
     db << "PRAGMA temp_store=MEMORY";
     db << "PRAGMA case_sensitive_like=true";
@@ -171,15 +172,12 @@ bool CClaimTrieCacheBase::haveSupportInQueue(const std::string& name, const COut
     return false;
 }
 
-bool CClaimTrieCacheBase::deleteNodeIfPossible(const std::string& name, std::string& parent, std::vector<std::string>& claims) {
+bool CClaimTrieCacheBase::deleteNodeIfPossible(const std::string& name, std::string& parent, int64_t& claims) {
     if (name.empty()) return false;
     // to remove a node it must have one or less children and no claims
-    claims.clear();
-    db  << "SELECT name FROM claims WHERE nodeName = ?1 AND validHeight < ?2 AND expirationHeight >= ?2 "
-        << name << nNextHeight >> [&claims](std::string name) {
-            claims.push_back(std::move(name));
-        };
-    if (!claims.empty()) return false; // still has claims
+    db  << "SELECT COUNT(*) FROM claims WHERE nodeName = ?1 AND validHeight < ?2 AND expirationHeight >= ?2 "
+        << name << nNextHeight >> claims;
+    if (claims > 0) return false; // still has claims
     // we now know it has no claims, but we need to check its children
     int64_t count;
     std::string childName;
@@ -202,19 +200,6 @@ bool CClaimTrieCacheBase::deleteNodeIfPossible(const std::string& name, std::str
     if (ret)
         db << "UPDATE nodes SET hash = NULL WHERE name = ?" << parent;
     return ret;
-}
-
-#include <sstream>
-
-std::string bin2hex(const std::string& bin)
-{
-    std::stringstream s;
-    s << std::hex;
-    for (uint8_t i : bin) {
-        if (i < 16) s << '0';
-        s << uint32_t(i);
-    }
-    return s.str();
 }
 
 void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
@@ -251,11 +236,11 @@ void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
 
 
     for (auto& name: names) {
-        std::vector<std::string> claims;
+        int64_t claims;
         std::string parent, node;
         for (node = name; deleteNodeIfPossible(node, parent, claims);)
             node = parent;
-        if (node != name || name.empty() || claims.empty())
+        if (node != name || name.empty() || claims <= 0)
             continue; // if you have no claims but we couldn't delete you, you must have legitimate children
 
         parentQuery << name.substr(0, name.size() - 1);
@@ -275,6 +260,7 @@ void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
             };
         std::size_t splitPos = 0;
         auto psize = parent.size() + 1;
+        const static std::string charsThatBreakLikeOp("_%\0", 3);
         for (auto& sibling: siblings) {
             if (sibling.compare(0, psize, name, 0, psize) == 0) {
                 splitPos = psize;
@@ -294,7 +280,7 @@ void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
                 insertQuery << newNodeName << parent;
                 insertQuery++;
 
-                if (newNodeName.find('_') == std::string::npos && newNodeName.find('%') == std::string::npos) {
+                if (newNodeName.find_first_of(charsThatBreakLikeOp) == std::string::npos) {
                     updateUnaffectedsQuery << newNodeName << newNodeName + "_%" << newNodeName.size();
                     updateUnaffectedsQuery++;
                 }
@@ -308,22 +294,19 @@ void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
             }
         }
 
-        LogPrint(BCLog::CLAIMS, "Inserting or updating node %s(%s), parent %s\n", name, bin2hex(name), parent);
+        LogPrint(BCLog::CLAIMS, "Inserting or updating node %s (%s), parent %s\n", name, HexStr(name), parent);
         insertQuery << name << parent;
         insertQuery++;
         if (splitPos == 0)
             db << "UPDATE nodes SET hash = NULL WHERE name = ?" << parent;
 
-        if (name.find('_') == std::string::npos && name.find('%') == std::string::npos) {
+        if (name.find_first_of(charsThatBreakLikeOp) == std::string::npos) {
             updateUnaffectedsQuery << name << name + "_%" << name.size();
             updateUnaffectedsQuery++;
         }
         else
             db << "UPDATE nodes SET parent = ?1 WHERE SUBSTR(name, 1, ?2) = ?1 AND LENGTH(parent) < ?2 AND name != ?1"
                 << name << name.size();
-
-        if (name.size() == 1 && name[0] == 0)
-            db << "UPDATE nodes SET parent = '' WHERE name = ?" << name;
     }
 
     parentQuery.used(true);
@@ -334,7 +317,7 @@ void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
     // parents should all be set right
     db << "UPDATE nodes SET hash = NULL WHERE name IN (WITH RECURSIVE prefix(p) AS "
           "(SELECT parent FROM nodes WHERE hash IS NULL UNION SELECT parent FROM prefix, nodes "
-          "WHERE name = prefix.p AND prefix.p IS NOT NULL ORDER BY parent DESC) SELECT p FROM prefix)";
+          "WHERE name = prefix.p AND prefix.p != '') SELECT p FROM prefix)";
 }
 
 std::size_t CClaimTrieCacheBase::getTotalNamesInTrie() const
@@ -357,7 +340,7 @@ std::size_t CClaimTrieCacheBase::getTotalClaimsInTrie() const
 CAmount CClaimTrieCacheBase::getTotalValueOfClaimsInTrie(bool fControllingOnly) const
 {
     CAmount ret = 0;
-    std::string query("SELECT IFNULL(SUM(s.amount),0)+c.amount FROM supports s "
+    std::string query("SELECT SUM(SELECT IFNULL(SUM(s.amount),0)+c.amount FROM supports s "
                       "WHERE s.supportedClaimID = c.claimID AND s.validHeight < ?1 AND s.expirationHeight >= ?1) "
                       "FROM claims c WHERE c.validHeight < ?1 AND s.expirationHeight >= ?1");
     if (fControllingOnly)
@@ -454,7 +437,7 @@ uint256 CClaimTrieCacheBase::recursiveComputeMerkleHash(const std::string& name,
         if (child.hash->IsNull()) {
             *child.hash = recursiveComputeMerkleHash(child.name, child.takeoverHeight, checkOnly);
         }
-        LogPrint(BCLog::CLAIMS, "Hash of %s(%s): %s, takeover: %d\n", child.name, bin2hex(child.name), (*child.hash).GetHex(), child.takeoverHeight);
+        LogPrint(BCLog::CLAIMS, "Using hash of %s (%s): %s, takeover: %d\n", child.name, HexStr(child.name), (*child.hash).GetHex(), child.takeoverHeight);
         completeHash(*child.hash, child.name, pos);
         vchToHash.push_back(child.name[pos]);
         vchToHash.insert(vchToHash.end(), child.hash->begin(), child.hash->end());
@@ -547,7 +530,7 @@ CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)
     nNextHeight = base->nNextHeight;
 
     db << "PRAGMA cache_size=-" + std::to_string(200 * 1024); // in -KB
-    db << "PRAGMA synchronous=NORMAL"; // don't disk sync after transaction commit
+    db << "PRAGMA synchronous=OFF"; // don't disk sync after transaction commit
     db << "PRAGMA journal_mode=MEMORY";
     db << "PRAGMA temp_store=MEMORY";
     db << "PRAGMA case_sensitive_like=true";
@@ -606,7 +589,10 @@ bool CClaimTrieCacheBase::addClaim(const std::string& name, const COutPoint& out
     db << "INSERT INTO claims(claimID, name, nodeName, txID, txN, amount, blockHeight, validHeight, expirationHeight, metadata) "
           "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" << claimId << name << nodeName
            << outPoint.hash << outPoint.n << nAmount << nHeight << nValidHeight << expires << metadata;
-    db << "INSERT INTO nodes(name) VALUES(?) ON CONFLICT(name) DO UPDATE SET hash = NULL" << nodeName;
+
+    if (nValidHeight < nNextHeight)
+        db << "INSERT INTO nodes(name) VALUES(?) ON CONFLICT(name) DO UPDATE SET hash = NULL" << nodeName;
+
     return true;
 }
 
@@ -623,7 +609,9 @@ bool CClaimTrieCacheBase::addSupport(const std::string& name, const COutPoint& o
                  "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" << supportedClaimId << name << nodeName
                  << outPoint.hash << outPoint.n << nAmount << nHeight << nValidHeight << expires << metadata;
 
-    db << "INSERT INTO nodes(name) VALUES(?) ON CONFLICT(name) DO UPDATE SET hash = NULL" << nodeName;
+    if (nValidHeight < nNextHeight)
+        db << "UPDATE nodes SET hash = NULL WHERE name = ?" << nodeName;
+
     return true;
 }
 
@@ -961,10 +949,11 @@ bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimUndoTy
     // for all dirty nodes look for new takeovers
     if (!transacting) { transacting = true; db << "begin"; }
 
+    db << "INSERT INTO nodes(name) SELECT nodeName FROM claims "
+          "WHERE validHeight = ?1 AND expirationHeight > ?1 "
+          "ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
     db << "UPDATE nodes SET hash = NULL WHERE name IN "
-                 "(SELECT nodeName FROM claims WHERE validHeight = ?)" << nNextHeight;
-    db << "UPDATE nodes SET hash = NULL WHERE name IN "
-                 "(SELECT nodeName FROM supports WHERE validHeight = ?)" << nNextHeight;
+          "(SELECT nodeName FROM supports WHERE validHeight = ?1 AND expirationHeight > ?1)" << nNextHeight;
 
     assert(expireUndo.empty());
     {
@@ -1027,7 +1016,7 @@ bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimUndoTy
         if (takeoverHappening && activateAllFor(insertUndo, insertSupportUndo, nameWithTakeover))
             hasCandidate = getInfoForName(nameWithTakeover, candidateValue, 1);
 
-        LogPrint(BCLog::CLAIMS, "Takeover on %s(%s) at %d, happening: %d, set before: %d\n", nameWithTakeover, bin2hex(nameWithTakeover), nNextHeight, takeoverHappening, hasBeenSetBefore);
+        LogPrint(BCLog::CLAIMS, "Takeover on %s (%s) at %d, happening: %d, set before: %d\n", nameWithTakeover, HexStr(nameWithTakeover), nNextHeight, takeoverHappening, hasBeenSetBefore);
 
         if (takeoverHappening || !hasBeenSetBefore) {
             takeoverUndo.emplace_back(nameWithTakeover, std::make_pair(existingHeight, hasBeenSetBefore ? *existingID : uint160()));
@@ -1129,9 +1118,9 @@ bool CClaimTrieCacheBase::decrementBlock(insertUndoType& insertUndo, claimUndoTy
 bool CClaimTrieCacheBase::finalizeDecrement(takeoverUndoType& takeoverUndo)
 {
     db << "UPDATE nodes SET hash = NULL WHERE name IN "
-          "(SELECT nodeName FROM claims WHERE validHeight = ?)" << nNextHeight;
+          "(SELECT nodeName FROM claims WHERE validHeight = ?1 AND expirationHeight > ?1)" << nNextHeight;
     db << "UPDATE nodes SET hash = NULL WHERE name IN "
-          "(SELECT nodeName FROM supports WHERE validHeight = ?)" << nNextHeight;
+          "(SELECT nodeName FROM supports WHERE validHeight = ?1 AND expirationHeight > ?1)" << nNextHeight;
 
     for (auto it = takeoverUndo.crbegin(); it != takeoverUndo.crend(); ++it) {
         if (it->second.second.IsNull())
