@@ -39,7 +39,7 @@ bool BCLog::Logger::OpenDebugLog()
 
     if (fs::exists(m_file_path)) {
         fs::path old_file_path(m_file_path);
-        old_file_path.append(".old");
+        old_file_path += ".old";
         fs::rename(m_file_path, old_file_path);
     }
 

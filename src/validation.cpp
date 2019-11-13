@@ -2772,13 +2772,15 @@ bool CChainState::ActivateBestChain(CValidationState &state, const CChainParams&
         if (ShutdownRequested())
             break;
     } while (pindexNewTip != pindexMostWork);
-    CheckBlockIndex(chainparams.GetConsensus());
+
+    auto& consensus = chainparams.GetConsensus();
+    CheckBlockIndex(consensus);
 
     auto flushMode = FlushStateMode::PERIODIC;
-    if (pindexNewTip && pindexNewTip->nTime + chainparams.GetConsensus().nPowTargetSpacing > GetAdjustedTime()) {
+    if (pindexNewTip && chainparams.NetworkIDString() != CBaseChainParams::REGTEST 
+        && pindexNewTip->nTime + consensus.nPowTargetSpacing > GetAdjustedTime()) {
         // trying to ensure that we flush to disk after new blocks when we're caught up to the chain
         // they're technically allowed to be two hours late, but experience says one minute is more likely
-        // LogPrintf("Added tip with time %d but it is now %ll\n", pindexNewTip->nTime, GetAdjustedTime());
         flushMode = FlushStateMode::ALWAYS;
     }
     return FlushStateToDisk(chainparams, state, flushMode);
