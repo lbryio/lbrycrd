@@ -383,6 +383,8 @@ protected:
     mutable sqlite::database db;
     int nNextHeight; // Height of the block that is being worked on, which is
     bool transacting;
+    mutable std::unordered_set<std::string> removalWorkaround;
+
     // one greater than the height of the chain's tip
 
     mutable sqlite::database_binder claimHashQuery, childHashQuery;
