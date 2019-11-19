@@ -144,27 +144,34 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(takeov
 
     // make the new nodes
     db << "INSERT INTO nodes(name) SELECT NORMALIZED(name) AS nn FROM claims WHERE nn != nodeName "
-          "ON CONFLICT(name) DO UPDATE SET hash = NULL";
+          "AND validHeight <= ?1 AND expirationHeight > ?1 ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
     db << "UPDATE nodes SET hash = NULL WHERE name IN "
-          "(SELECT NORMALIZED(name) AS nn FROM supports WHERE nn != nodeName)";
+          "(SELECT NORMALIZED(name) AS nn FROM supports WHERE nn != nodeName "
+          "AND validHeight <= ?1 AND expirationHeight > ?1)" << nNextHeight;
 
     // update the claims and supports
-    db << "UPDATE claims SET nodeName = NORMALIZED(name)";
-    db << "UPDATE supports SET nodeName = NORMALIZED(name)";
+    db << "UPDATE claims SET nodeName = NORMALIZED(name) WHERE validHeight <= ?1 AND expirationHeight > ?1" << nNextHeight;
+    db << "UPDATE supports SET nodeName = NORMALIZED(name) WHERE validHeight <= ?1 AND expirationHeight > ?1" << nNextHeight;
 
     // remove the old nodes
-    auto query = db << "SELECT name, IFNULL(takeoverHeight, 0), takeoverID FROM nodes "
-                       "WHERE name NOT IN (SELECT nodeName FROM claims)";
+    auto query = db << "SELECT name, IFNULL(takeoverHeight, 0), takeoverID FROM nodes WHERE name NOT IN "
+                       "(SELECT nodeName FROM claims WHERE validHeight <= ?1 AND expirationHeight > ?1)";
     for (auto&& row: query) {
         std::string name;
         int takeoverHeight;
         std::unique_ptr<uint160> takeoverID;
         row >> name >> takeoverHeight >> takeoverID;
         if (name.empty()) continue; // preserve our root node
-        takeoverUndo.emplace_back(name, std::make_pair(takeoverHeight, takeoverID ? *takeoverID : uint160()));
+        if (takeoverHeight > 0)
+            takeoverUndo.emplace_back(name, std::make_pair(takeoverHeight, takeoverID ? *takeoverID : uint160()));
         // we need to let the tree structure method do the actual node delete:
         db << "UPDATE nodes SET hash = NULL WHERE name = ?" << name;
     }
+    db << "UPDATE nodes SET hash = NULL WHERE takeoverHeight IS NULL";
+
+    // work around a bug in the old implementation:
+    db << "UPDATE claims SET validHeight = ?1 " // force a takeover on these
+          "WHERE blockHeight < ?1 AND validHeight > ?1 AND nodeName != name" << nNextHeight;
 
     return true;
 }
@@ -177,7 +184,7 @@ bool CClaimTrieCacheNormalizationFork::unnormalizeAllNamesInTrieIfNecessary()
     db.define("NORMALIZED", [this](const std::string& str) { return normalizeClaimName(str, true); });
 
     db << "INSERT INTO nodes(name) SELECT name FROM claims WHERE name != nodeName "
-          "ON CONFLICT(name) DO UPDATE SET hash = NULL";
+          "AND validHeight < ?1 AND expirationHeight > ?1 ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
     db << "UPDATE nodes SET hash = NULL WHERE name IN "
           "(SELECT name FROM supports WHERE name != nodeName UNION "
           "SELECT nodeName FROM supports WHERE name != nodeName UNION "
@@ -197,7 +204,42 @@ bool CClaimTrieCacheNormalizationFork::incrementBlock(insertUndoType& insertUndo
 {
     if (nNextHeight == Params().GetConsensus().nNormalizedNameForkHeight)
         normalizeAllNamesInTrieIfNecessary(takeoverUndo);
-    return CClaimTrieCacheExpirationFork::incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverUndo);
+    auto ret = CClaimTrieCacheExpirationFork::incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverUndo);
+//    if (nNextHeight == 588319) {
+//        getMerkleHash();
+//        auto q2 = db << "SELECT name, nodeName FROM claims WHERE nodeName NOT IN (SELECT name FROM nodes) "
+//                        "AND validHeight < ?1 AND expirationHeight >= ?1" << nNextHeight;
+//        for (auto&& row: q2) {
+//            std::string name, nn;
+//            row >> name >> nn;
+//            LogPrintf("BAD NAME 2: %s, %s\n", name, nn);
+//        }
+//        std::ifstream input("dump588318.txt");
+//        std::string line;
+//        std::vector<std::string> lines;
+//        while (std::getline(input, line)) {
+//            lines.push_back(line);
+//        }
+//        std::sort(lines.begin(), lines.end());
+//        auto q3 = db << "SELECT n.name, n.hash, IFNULL(n.takeoverHeight, 0), "
+//                        "(SELECT COUNT(*) FROM claims c WHERE c.nodeName = n.name "
+//                        "AND validHeight < ?1 AND expirationHeight >= ?1) as cc FROM nodes n ORDER BY n.name" << nNextHeight;
+//        for (auto&& row: q3) {
+//            std::string name; int takeover, childs; uint256 hash;
+//            row >> name >> hash >> takeover >> childs;
+//            std::string m = name + ", " + std::to_string(name.size()) + ", " + hash.GetHex() + ", " + std::to_string(takeover) + ", " + std::to_string(childs);
+//            if (!std::binary_search(lines.begin(), lines.end(), m)) {
+//                LogPrintf("BAD BAD: %s\n", m);
+//            }
+//        }
+//        auto q4 = db << "SELECT n.name, n.parent FROM nodes n LEFT JOIN claims c ON n.name = c.nodeName LEFT JOIN nodes n2 ON n.name = n2.parent WHERE c.nodeName IS NULL AND n2.parent IS NULL";
+//        for (auto&& row: q4) {
+//            std::string name, nn;
+//            row >> name >> nn;
+//            LogPrintf("BAD NAME 3: %s, %s\n", name, nn);
+//        }
+//    }
+    return ret;
 }
 
 bool CClaimTrieCacheNormalizationFork::decrementBlock(insertUndoType& insertUndo, claimUndoType& expireUndo, insertUndoType& insertSupportUndo, supportUndoType& expireSupportUndo)
@@ -353,7 +395,7 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const uin
     proof = CClaimTrieProof();
     auto nodeQuery = db << "SELECT name, IFNULL(takeoverHeight, 0) FROM nodes WHERE "
                                   "name IN (WITH RECURSIVE prefix(p) AS (VALUES(?) UNION ALL "
-                                  "SELECT SUBSTR(p, 1, LENGTH(p)-1) FROM prefix WHERE p != '') SELECT p FROM prefix) "
+                                  "SELECT POPS(p) FROM prefix WHERE p != '') SELECT p FROM prefix) "
                                   "ORDER BY name" << name;
     for (auto&& row: nodeQuery) {
         std::string key;;
