@@ -437,7 +437,8 @@ uint256 CClaimTrieCacheBase::recursiveComputeMerkleHash(const std::string& name,
         if (child.hash->IsNull()) {
             *child.hash = recursiveComputeMerkleHash(child.name, child.takeoverHeight, checkOnly);
         }
-        LogPrint(BCLog::CLAIMS, "Using hash of %s (%s): %s, takeover: %d\n", child.name, HexStr(child.name), (*child.hash).GetHex(), child.takeoverHeight);
+        if (!checkOnly)
+            LogPrint(BCLog::CLAIMS, "Using hash of %s (%s): %s, takeover: %d\n", child.name, HexStr(child.name), (*child.hash).GetHex(), child.takeoverHeight);
         completeHash(*child.hash, child.name, pos);
         vchToHash.push_back(child.name[pos]);
         vchToHash.insert(vchToHash.end(), child.hash->begin(), child.hash->end());
@@ -618,7 +619,7 @@ bool CClaimTrieCacheBase::addSupport(const std::string& name, const COutPoint& o
     return true;
 }
 
-    bool CClaimTrieCacheBase::removeClaim(const uint160& claimId, const COutPoint& outPoint, std::string& nodeName, int& validHeight)
+bool CClaimTrieCacheBase::removeClaim(const uint160& claimId, const COutPoint& outPoint, std::string& nodeName, int& validHeight)
 {
     if (!transacting) { transacting = true; db << "begin"; }
 
@@ -638,7 +639,10 @@ bool CClaimTrieCacheBase::addSupport(const std::string& name, const COutPoint& o
         return false;
     db << "UPDATE nodes SET hash = NULL WHERE name = ?" << nodeName;
 
-    if (nNextHeight < Params().GetConsensus().nMaxTakeoverWorkaroundHeight) {
+    // we should extend removal workaround since we have situation
+    // when node should be deleted from cache but instead it's keept
+    // because it's a parent one and should not be effectively erased
+    if (nNextHeight < Params().GetConsensus().nMaxTakeoverWorkaroundHeight || true) {
         auto workaroundQuery = db << "SELECT nodeName FROM claims WHERE nodeName LIKE ?1 "
               "AND validHeight < ?2 AND expirationHeight >= ?2 ORDER BY nodeName LIMIT 1"
            << nodeName + "%" << nNextHeight;
@@ -1183,7 +1187,7 @@ bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimUndoTy
         getTakeoverQuery << nameWithTakeover >> std::tie(existingHeight, existingID);
         getTakeoverQuery++; // reset it
 
-        auto hasBeenSetBefore = existingID != nullptr && !existingID->IsNull();
+        auto hasBeenSetBefore = existingID && !existingID->IsNull();
         auto takeoverHappening = !hasCandidate || (hasBeenSetBefore && *existingID != candidateValue.claimId);
         if (takeoverHappening && activateAllFor(insertUndo, insertSupportUndo, nameWithTakeover))
             hasCandidate = getInfoForName(nameWithTakeover, candidateValue, 1);
