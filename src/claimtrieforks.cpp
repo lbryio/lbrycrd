@@ -307,13 +307,15 @@ uint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(const std::string& n
     }
 
     std::vector<uint256> claimHashes;
-    for (auto&& row: claimHashQuery << nNextHeight << name) {
-        COutPoint p;
-        row >> p.hash >> p.n;
-        auto claimHash = getValueHash(p, takeoverHeight);
-        claimHashes.push_back(claimHash);
-    }
-    claimHashQuery++;
+    //if (takeoverHeight > 0) {
+        for (auto &&row: claimHashQuery << nNextHeight << name) {
+            COutPoint p;
+            row >> p.hash >> p.n;
+            auto claimHash = getValueHash(p, takeoverHeight);
+            claimHashes.push_back(claimHash);
+        }
+        claimHashQuery++;
+    //}
 
     auto left = childHashes.empty() ? leafHash : ComputeMerkleRoot(childHashes);
     auto right = claimHashes.empty() ? emptyHash : ComputeMerkleRoot(claimHashes);
