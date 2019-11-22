@@ -215,25 +215,22 @@ void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
 
     // the plan: update all the claim hashes first
     std::vector<std::string> names;
-    db  << "SELECT name FROM nodes WHERE hash IS NULL ORDER BY name"
+    db  << "SELECT name FROM nodes WHERE hash IS NULL"
         >> [&names](std::string name) {
             names.push_back(std::move(name));
         };
     if (names.empty()) return; // nothing to do
+    std::sort(names.begin(), names.end()); // guessing this is faster than "ORDER BY name"
 
     // there's an assumption that all nodes with claims are here; we do that as claims are inserted
 
     // assume parents are not set correctly here:
-    auto parentQuery = db << "SELECT name FROM nodes WHERE "
+    auto parentQuery = db << "SELECT MAX(name) FROM nodes WHERE "
                               "name IN (WITH RECURSIVE prefix(p) AS (VALUES(?) UNION ALL "
-                              "SELECT POPS(p) FROM prefix WHERE p != '') SELECT p FROM prefix) "
-                              "ORDER BY name DESC LIMIT 1";
+                              "SELECT POPS(p) FROM prefix WHERE p != '') SELECT p FROM prefix)";
 
     auto insertQuery = db << "INSERT INTO nodes(name, parent, hash) VALUES(?, ?, NULL) "
                              "ON CONFLICT(name) DO UPDATE SET parent = excluded.parent, hash = NULL";
-
-    auto updateUnaffectedsQuery = db << "UPDATE nodes SET parent = ? WHERE name LIKE ? AND LENGTH(parent) < ?";
-
 
     for (auto& name: names) {
         int64_t claims;
@@ -254,22 +251,21 @@ void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
         // we know now that we need to insert it,
         // but we may need to insert a parent node for it first (also called a split)
         std::vector<std::string> siblings;
-        db  << "SELECT name FROM nodes WHERE parent = ? ORDER BY name" << parent
+        db  << "SELECT name FROM nodes WHERE parent = ?" << parent
             >> [&siblings](std::string name) {
                 siblings.push_back(std::move(name));
             };
+        std::sort(siblings.begin(), siblings.end()); // not strictly necessary but helps with determinism in debugging
+
         std::size_t splitPos = 0;
         auto psize = parent.size() + 1;
-        const static std::string charsThatBreakLikeOp("_%\0", 3);
         for (auto& sibling: siblings) {
             if (sibling.compare(0, psize, name, 0, psize) == 0) {
                 splitPos = psize;
                 while(splitPos < sibling.size() && splitPos < name.size() && sibling[splitPos] == name[splitPos])
                     ++splitPos;
                 auto newNodeName = name.substr(0, splitPos);
-                // notify new node's parent:
-                db << "UPDATE nodes SET hash = NULL WHERE name = ?" << parent;
-                // and his sibling:
+                // update the to-be-fostered sibling:
                 db << "UPDATE nodes SET parent = ? WHERE name = ?" << newNodeName << sibling;
                 if (splitPos == name.size()) {
                     // our new node is the same as the one we wanted to insert
@@ -280,15 +276,6 @@ void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
                 insertQuery << newNodeName << parent;
                 insertQuery++;
 
-                if (newNodeName.find_first_of(charsThatBreakLikeOp) == std::string::npos) {
-                    updateUnaffectedsQuery << newNodeName << newNodeName + "_%" << newNodeName.size();
-                    updateUnaffectedsQuery++;
-                }
-                else
-                    db << "UPDATE nodes SET parent = ?1 WHERE SUBSTR(name, 1, ?2) = ?1 AND LENGTH(parent) < ?2 AND name != ?1"
-                       << newNodeName << newNodeName.size();
-
-
                 parent = std::move(newNodeName);
                 break;
             }
@@ -297,21 +284,10 @@ void CClaimTrieCacheBase::ensureTreeStructureIsUpToDate() {
         LogPrint(BCLog::CLAIMS, "Inserting or updating node %s (%s), parent %s\n", name, HexStr(name), parent);
         insertQuery << name << parent;
         insertQuery++;
-        if (splitPos == 0)
-            db << "UPDATE nodes SET hash = NULL WHERE name = ?" << parent;
-
-        if (name.find_first_of(charsThatBreakLikeOp) == std::string::npos) {
-            updateUnaffectedsQuery << name << name + "_%" << name.size();
-            updateUnaffectedsQuery++;
-        }
-        else
-            db << "UPDATE nodes SET parent = ?1 WHERE SUBSTR(name, 1, ?2) = ?1 AND LENGTH(parent) < ?2 AND name != ?1"
-                << name << name.size();
     }
 
     parentQuery.used(true);
     insertQuery.used(true);
-    updateUnaffectedsQuery.used(true);
 
     // now we need to percolate the nulls up the tree
     // parents should all be set right
@@ -432,6 +408,7 @@ uint256 CClaimTrieCacheBase::recursiveComputeMerkleHash(const std::string& name,
         row >> b.name >> b.hash >> b.takeoverHeight;
     }
     childHashQuery++;
+
     for (auto& child: children) {
         if (child.hash == nullptr) child.hash = std::make_unique<uint256>();
         if (child.hash->IsNull()) {
@@ -477,11 +454,18 @@ bool CClaimTrieCacheBase::flush()
 {
     if (transacting) {
         getMerkleHash();
+        RETRY_COMMIT:
         try {
             db << "commit";
         }
-        catch (const std::exception& e) {
+        catch (const sqlite::sqlite_exception& e) {
             LogPrintf("ERROR in ClaimTrieCache flush: %s\n", e.what());
+            auto code = e.get_code();
+            if (code == SQLITE_LOCKED || code == SQLITE_BUSY) {
+                LogPrintf("Retrying the commit in one second.\n", e.what());
+                MilliSleep(1000);
+                goto RETRY_COMMIT;
+            }
             return false;
         }
         transacting = false;
@@ -504,7 +488,7 @@ bool CClaimTrieCacheBase::ValidateTipMatches(const CBlockIndex* tip)
             // well, only do it if we're empty on the sqlite side -- aka, we haven't trie to sync first
             std::size_t count;
             db << "SELECT COUNT(*) FROM nodes" >> count;
-            if (!count) {
+            if (count <= 1) {
                 auto oldDataPath = GetDataDir() / "claimtrie";
                 boost::system::error_code ec;
                 boost::filesystem::remove_all(oldDataPath, ec);
@@ -537,7 +521,7 @@ CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)
     db << "PRAGMA temp_store=MEMORY";
     db << "PRAGMA case_sensitive_like=true";
 
-    db.define("POPS", [](std::string s) -> std::string { if (s.empty()) return s; s.pop_back(); return s; });
+    db.define("POPS", [](std::string s) -> std::string { if (!s.empty()) s.pop_back(); return s; });
 }
 
 int CClaimTrieCacheBase::expirationTime() const
@@ -639,10 +623,10 @@ bool CClaimTrieCacheBase::removeClaim(const uint160& claimId, const COutPoint& o
         return false;
     db << "UPDATE nodes SET hash = NULL WHERE name = ?" << nodeName;
 
-    // we should extend removal workaround since we have situation
-    // when node should be deleted from cache but instead it's keept
+    // when node should be deleted from cache but instead it's kept
     // because it's a parent one and should not be effectively erased
-    if (nNextHeight < Params().GetConsensus().nMaxTakeoverWorkaroundHeight || true) {
+    // we had a bug in the old code where that situation would force a zero delay on re-add
+    if (true) { // TODO: hard fork this out (which we already tried once but failed)
         auto workaroundQuery = db << "SELECT nodeName FROM claims WHERE nodeName LIKE ?1 "
               "AND validHeight < ?2 AND expirationHeight >= ?2 ORDER BY nodeName LIMIT 1"
            << nodeName + "%" << nNextHeight;
@@ -1195,7 +1179,7 @@ bool CClaimTrieCacheBase::incrementBlock(insertUndoType& insertUndo, claimUndoTy
         // This is a super ugly hack to work around bug in old code.
         // The bug: un/support a name then update it. This will cause its takeover height to be reset to current.
         // This is because the old code with add to the cache without setting block originals when dealing in supports.
-        if (nNextHeight >= 496856 && nNextHeight < maxWorkaround) {
+        if (nNextHeight < maxWorkaround) {
             auto wit = takeoverWorkarounds.find(std::make_pair(nNextHeight, nameWithTakeover));
             takeoverHappening |= wit != takeoverWorkarounds.end();
         }
