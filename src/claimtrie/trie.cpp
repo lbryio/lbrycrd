@@ -5,8 +5,10 @@
 #include <trie.h>
 
 #include <algorithm>
+#include <chrono>
 #include <memory>
 #include <iomanip>
+#include <thread>
 #include <tuple>
 
 #include <boost/container/flat_map.hpp>
@@ -466,20 +468,23 @@ bool CClaimTrieCacheBase::flush()
 {
     if (transacting) {
         getMerkleHash();
-        RETRY_COMMIT:
-        try {
-            db << "commit";
-        }
-        catch (const sqlite::sqlite_exception& e) {
-            logPrint << "ERROR in ClaimTrieCache flush: " << e.what() << Clog::endl;
-            auto code = e.get_code();
-            if (code == SQLITE_LOCKED || code == SQLITE_BUSY) {
-                LogPrintf("Retrying the commit in one second.\n", e.what());
-                MilliSleep(1000);
-                goto RETRY_COMMIT;
+        do {
+            try {
+                db << "commit";
+            } catch (const sqlite::sqlite_exception& e) {
+                auto code = e.get_code();
+                if (code == SQLITE_LOCKED || code == SQLITE_BUSY) {
+                    logPrint << "Retrying the commit in one second." << Clog::endl;
+                    using namespace std::chrono_literals;
+                    std::this_thread::sleep_for(1s);
+                    continue;
+                } else {
+                    logPrint << "ERROR in ClaimTrieCache::" << __func__ << "(): " << e.what() << Clog::endl;
+                    return false;
+                }
             }
-            return false;
-        }
+            break;
+        } while (true);
         transacting = false;
     }
     base->nNextHeight = nNextHeight;
