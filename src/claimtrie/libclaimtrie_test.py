@@ -75,29 +75,34 @@ class TestClaimTrieTypes(unittest.TestCase):
     def test_claimtrie(self):
         txp = self.txp
         uint160 = self.uint160
-        claim = CClaimValue(txp, uint160, 20, 1, 1)
+        claim = CClaimValue(txp, uint160, 20, 0, 0)
         wipe = True; height = 1; data_dir = "."
         trie = CClaimTrie(wipe, height, data_dir)
         cache = CClaimTrieCache(trie)
-        self.assertTrue(cache.empty(), "incorrect CClaimtrieCache::empty")
-        self.assertTrue(cache.addClaim("test", txp, uint160, 20, 1), "incorrect CClaimtrieCache::addClaim")
+        self.assertTrue(trie.empty(), "incorrect CClaimtrieCache::empty")
+        self.assertTrue(cache.addClaim("test", txp, uint160, 20, 0, 0), "incorrect CClaimtrieCache::addClaim")
         self.assertTrue(cache.haveClaim("test", txp), "incorrect CClaimtrieCache::haveClaim")
         self.assertEqual(cache.getTotalNamesInTrie(), 1, "incorrect CClaimtrieCache::getTotalNamesInTrie")
         self.assertEqual(cache.getTotalClaimsInTrie(), 1, "incorrect CClaimtrieCache::getTotalClaimsInTrie")
         getNamesInTrie(cache, CacheIterateCallback(["test"]))
         nValidAtHeight = -1
+        # add second claim
+        txp.n = 2
+        uint1601 = CUint160S("1234567890987654321012345678909876543211")
+        self.assertTrue(cache.addClaim("test", txp, uint1601, 20, 1, 1), "incorrect CClaimtrieCache::addClaim")
         result, nValidAtHeight = cache.haveClaimInQueue("test", txp)
         self.assertTrue(result, "incorrect CClaimTrieCache::haveClaimInQueue")
-        self.assertEqual(nValidAtHeight, 0, "incorrect CClaimTrieCache::haveClaimInQueue, nValidAtHeight")
+        self.assertEqual(nValidAtHeight, 1, "incorrect CClaimTrieCache::haveClaimInQueue, nValidAtHeight")
         claim1 = CClaimValue()
         self.assertTrue(cache.getInfoForName("test", claim1), "incorrect CClaimTrieCache::getInfoForName")
         self.assertEqual(claim, claim1, "incorrect CClaimtrieCache::getInfoForName")
         proof = CClaimTrieProof()
-        self.assertTrue(cache.getProofForName(cache, "test", proof), "incorrect CacheProofCallback")
+        self.assertTrue(cache.getProofForName("test", uint160, proof), "incorrect CacheProofCallback")
         self.assertTrue(proof.hasValue, "incorrect CClaimTrieCache::getProofForName")
         claimsToName = cache.getClaimsForName("test")
         claims = claimsToName.claimsNsupports
-        self.assertEqual(claims.size(), 1, "incorrect CClaimTrieCache::getClaimsForName")
+        self.assertEqual(claims.size(), 2, "incorrect CClaimTrieCache::getClaimsForName")
         self.assertFalse(claims[0].IsNull(), "incorrect CClaimNsupports::IsNull")
+        self.assertFalse(claims[1].IsNull(), "incorrect CClaimNsupports::IsNull")
 
 unittest.main()
