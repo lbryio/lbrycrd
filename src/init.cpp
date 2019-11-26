@@ -1458,8 +1458,10 @@ bool AppInitMain()
                 auto& consensus = chainparams.GetConsensus();
                 if (g_logger->Enabled() && LogAcceptCategory(BCLog::CLAIMS))
                     CLogPrint::global().setLogger(g_logger);
+                auto dataDir = GetDataDir() / "claimtrie";
+                TryCreateDirectories(dataDir);
                 pclaimTrie = new CClaimTrie(fReindex || fReindexChainState, 0,
-                                            (GetDataDir() / "claimtrie").string(),
+                                            dataDir.string(),
                                             consensus.nNormalizedNameForkHeight,
                                             consensus.nOriginalClaimExpirationTime,
                                             consensus.nExtendedClaimExpirationTime,
