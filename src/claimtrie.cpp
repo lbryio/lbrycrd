@@ -935,10 +935,14 @@ bool CClaimTrieCacheBase::remove(T& value, const std::string& name, const COutPo
     nValidAtHeight = nHeight + getDelayForName(name);
     std::string adjusted = adjustNameForValidHeight(name, nValidAtHeight);
 
-    if (removeFromQueue(adjusted, outPoint, value) || removeFromCache(name, outPoint, value, fCheckTakeover)) {
+    auto rfq = removeFromQueue(adjusted, outPoint, value);
+    if (rfq || removeFromCache(name, outPoint, value, fCheckTakeover)) {
         int expirationHeight = value.nHeight + expirationTime();
-        if (auto itQueueRow = getExpirationQueueCacheRow<T>(expirationHeight, false))
+        if (auto itQueueRow = getExpirationQueueCacheRow<T>(expirationHeight, false)) {
             eraseOutPoint(*itQueueRow, CNameOutPointType{adjusted, outPoint});
+            if (adjusted != name) // workaround for an off-by-1 error in normalization block (wherein we might get both):
+                eraseOutPoint(*itQueueRow, CNameOutPointType{name, outPoint});
+        }
         nValidAtHeight = value.nValidAtHeight;
         return true;
     }
@@ -1097,9 +1101,12 @@ void CClaimTrieCacheBase::undoIncrement(insertUndoType& insertUndo, std::vector<
     if (auto itExpirationRow = getExpirationQueueCacheRow<T>(nNextHeight, false)) {
         for (const auto& itEntry : *itExpirationRow) {
             T value;
-            assert(removeFromCache(itEntry.name, itEntry.outPoint, value, true));
-            expireUndo.emplace_back(itEntry.name, value);
-            addTo(deleted, value);
+            if (removeFromCache(itEntry.name, itEntry.outPoint, value, true)) {
+                expireUndo.emplace_back(itEntry.name, value);
+                addTo(deleted, value);
+            }
+            else // a bug in the normalization stuff allows some of these to stick around after the claims were spent; don't crash
+                LogPrintf("Warning: missing expired entry %s, %s:%d\n", itEntry.name, itEntry.outPoint.hash.GetHex(), itEntry.outPoint.n);
         }
         itExpirationRow->clear();
     }
