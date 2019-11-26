@@ -38,7 +38,7 @@ CUint256 getValueHash(const CTxOutPoint& outPoint, int nHeightOfLastTakeover)
 }
 
 static const sqlite::sqlite_config sharedConfig {
-    sqlite::OpenFlags::READWRITE | sqlite::OpenFlags::CREATE, // TODO: test with this: | sqlite::OpenFlags::SHAREDCACHE,
+    sqlite::OpenFlags::READWRITE | sqlite::OpenFlags::CREATE,
     nullptr, sqlite::Encoding::UTF8
 };
 
@@ -51,7 +51,7 @@ CClaimTrie::CClaimTrie(bool fWipe, int height,
                        int64_t nAllClaimsInMerkleForkHeight,
                        int proportionalDelayFactor) :
                        nNextHeight(height),
-                       db(dataDir + "/claims.sqlite", sharedConfig),
+                       dbFile(dataDir + "/claims.sqlite"), db(dbFile, sharedConfig),
                        nProportionalDelayFactor(proportionalDelayFactor),
                        nNormalizedNameForkHeight(nNormalizedNameForkHeight),
                        nOriginalClaimExpirationTime(nOriginalClaimExpirationTime),
@@ -493,7 +493,7 @@ bool CClaimTrieCacheBase::flush()
 }
 
 CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)
-    : base(base), db(base->db), transacting(false),
+    : base(base), db(base->dbFile, sharedConfig), transacting(false),
       childHashQuery(db << "SELECT name, hash, IFNULL(takeoverHeight, 0) FROM nodes WHERE parent = ? ORDER BY name"),
       claimHashQuery(db << "SELECT c.txID, c.txN, c.claimID, c.blockHeight, c.validHeight, c.amount, "
                               "(SELECT IFNULL(SUM(s.amount),0)+c.amount FROM supports s WHERE s.supportedClaimID = c.claimID "
