@@ -45,6 +45,7 @@ public:
 
 protected:
     int nNextHeight;
+    const std::string dbFile;
     sqlite::database db;
     const int nProportionalDelayFactor;
 
