@@ -148,8 +148,9 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
         pcoinsdbview.reset(new CCoinsViewDB(1 << 23, true));
         pcoinsTip.reset(new CCoinsViewCache(pcoinsdbview.get()));
         auto& consensus = chainparams.GetConsensus();
-        pclaimTrie = new CClaimTrie(true, 0,
-                                    (GetDataDir() / "claimtrie").string(),
+        auto dataDir = GetDataDir() / "claimtrie";
+        TryCreateDirectories(dataDir);
+        pclaimTrie = new CClaimTrie(true, 0, dataDir.string(),
                                     consensus.nNormalizedNameForkHeight,
                                     consensus.nOriginalClaimExpirationTime,
                                     consensus.nExtendedClaimExpirationTime,
