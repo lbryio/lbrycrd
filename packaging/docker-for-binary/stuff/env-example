@@ -1,0 +1,12 @@
+COMPOSE_PROJECT_NAME=lbrycrd
+
+#############
+## Lbrycrd ##
+#############
+## TODO: The credentials are a formality but we should randomize these with magic.
+RPC_USER=${RPC_USER=lbryrpc}
+RPC_PASSWORD=${RPC_PASSWORD:-changeme}
+
+## This should be the internal container IP from which you'll be calling the RPC for Lbrycrdd from.
+## TODO: make this more dynamic before we move to scalability
+RPC_ALLOW_IP=${RPC_ALLOW_IP:-10.6.1.3}
