@@ -105,7 +105,7 @@ struct ClaimTrieChainFixture: public CClaimTrieCache
 
     int proportionalDelayFactor() const;
 
-    bool getClaimById(const uint160& claimId, std::string& name, CClaimValue& value);
+    bool getClaimById(const CUint160& claimId, std::string& name, CClaimValue& value);
 
     // is a claim in queue
     boost::test_tools::predicate_result is_claim_in_queue(const std::string& name, const CTransaction &tx);
