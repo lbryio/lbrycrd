@@ -63,7 +63,7 @@ bool CClaimTrieCacheExpirationFork::finalizeDecrement(takeoverUndoType& takeover
 
 bool CClaimTrieCacheExpirationFork::forkForExpirationChange(bool increment)
 {
-    if (!transacting) { transacting = true; db << "begin"; }
+    ensureTransacting();
 
     /*
     If increment is True, we have forked to extend the expiration time, thus items in the expiration queue
@@ -73,24 +73,22 @@ bool CClaimTrieCacheExpirationFork::forkForExpirationChange(bool increment)
     will have their expiration extension removed.
     */
 
-    auto extension = base->nExtendedClaimExpirationTime - base->nOriginalClaimExpirationTime;
-    if (increment) {
-        db << "UPDATE claims SET expirationHeight = expirationHeight + ? WHERE expirationHeight >= ?"
-            << extension << nNextHeight;
-        db << "UPDATE supports SET expirationHeight = expirationHeight + ? WHERE expirationHeight >= ?"
-            << extension << nNextHeight;
+    auto height = nNextHeight;
+    int extension = base->nExtendedClaimExpirationTime - base->nOriginalClaimExpirationTime;
+    if (!increment) {
+        height += extension;
+        extension *= -1;
     }
-    else {
-        db << "UPDATE claims SET expirationHeight = expirationHeight - ? WHERE expirationHeight >= ?"
-           << extension << nNextHeight + extension;
-        db << "UPDATE supports SET expirationHeight = expirationHeight - ? WHERE expirationHeight >= ?"
-           << extension << nNextHeight + extension;
-    }
+
+    db << "UPDATE claims SET expirationHeight = expirationHeight + ? WHERE expirationHeight >= ?" << extension << height;
+    db << "UPDATE supports SET expirationHeight = expirationHeight + ? WHERE expirationHeight >= ?" << extension << height;
+
     return true;
 }
 
 CClaimTrieCacheNormalizationFork::CClaimTrieCacheNormalizationFork(CClaimTrie* base) : CClaimTrieCacheExpirationFork(base)
 {
+    db.define("NORMALIZED", [this](const std::string& str) { return normalizeClaimName(str, true); });
 }
 
 bool CClaimTrieCacheNormalizationFork::shouldNormalize() const
@@ -141,10 +139,7 @@ std::string CClaimTrieCacheNormalizationFork::normalizeClaimName(const std::stri
 
 bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(takeoverUndoType& takeoverUndo)
 {
-    if (!transacting) { transacting = true; db << "begin"; }
-
-    // run the one-time upgrade of all names that need to change
-    db.define("NORMALIZED", [this](const std::string& str) { return normalizeClaimName(str, true); });
+    ensureTransacting();
 
     // make the new nodes
     db << "INSERT INTO nodes(name) SELECT NORMALIZED(name) AS nn FROM claims WHERE nn != nodeName "
@@ -182,10 +177,7 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(takeov
 
 bool CClaimTrieCacheNormalizationFork::unnormalizeAllNamesInTrieIfNecessary()
 {
-    if (!transacting) { transacting = true; db << "begin"; }
-
-    // run the one-time upgrade of all names that need to change
-    db.define("NORMALIZED", [this](const std::string& str) { return normalizeClaimName(str, true); });
+    ensureTransacting();
 
     db << "INSERT INTO nodes(name) SELECT name FROM claims WHERE name != nodeName "
           "AND validHeight < ?1 AND expirationHeight > ?1 ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
@@ -376,11 +368,7 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const CUi
     // cache the parent nodes
     getMerkleHash();
     proof = CClaimTrieProof();
-    auto nodeQuery = db << "SELECT name, IFNULL(takeoverHeight, 0) FROM nodes WHERE "
-                                  "name IN (WITH RECURSIVE prefix(p) AS (VALUES(?) UNION ALL "
-                                  "SELECT POPS(p) FROM prefix WHERE p != '') SELECT p FROM prefix) "
-                                  "ORDER BY name" << name;
-    for (auto&& row: nodeQuery) {
+    for (auto&& row: db << proofClaimQuery << name) {
         std::string key;
         int takeoverHeight;
         row >> key >> takeoverHeight;
@@ -416,12 +404,12 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const CUi
         // else it will be hash(x, claims)
         if (key == name) {
             proof.nHeightOfLastTakeover = takeoverHeight;
-            auto hash = childHashes.empty() ? leafHash : ComputeMerkleRoot(childHashes);
+            auto hash = childHashes.empty() ? leafHash : ComputeMerkleRoot(std::move(childHashes));
             proof.pairs.emplace_back(true, hash);
             if (!claimHashes.empty())
                 fillPairs(claimHashes, claimIdx);
         } else {
-            auto hash = claimHashes.empty() ? emptyHash : ComputeMerkleRoot(claimHashes);
+            auto hash = claimHashes.empty() ? emptyHash : ComputeMerkleRoot(std::move(claimHashes));
             proof.pairs.emplace_back(false, hash);
             if (!childHashes.empty())
                 fillPairs(childHashes, nextCurrentIdx);
@@ -436,7 +424,7 @@ void CClaimTrieCacheHashFork::initializeIncrement()
     CClaimTrieCacheNormalizationFork::initializeIncrement();
     // we could do this in the constructor, but that would not allow for multiple increments in a row (as done in unit tests)
     if (nNextHeight == base->nAllClaimsInMerkleForkHeight - 1) {
-        if (!transacting) { transacting = true; db << "begin"; }
+        ensureTransacting();
         db << "UPDATE nodes SET hash = NULL";
     }
 }
@@ -445,7 +433,7 @@ bool CClaimTrieCacheHashFork::finalizeDecrement(takeoverUndoType& takeoverUndo)
 {
     auto ret = CClaimTrieCacheNormalizationFork::finalizeDecrement(takeoverUndo);
     if (ret && nNextHeight == base->nAllClaimsInMerkleForkHeight - 1) {
-        if (!transacting) { transacting = true; db << "begin"; }
+        ensureTransacting();
         db << "UPDATE nodes SET hash = NULL";
     }
     return ret;
