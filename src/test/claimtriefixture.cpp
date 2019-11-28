@@ -401,7 +401,8 @@ boost::test_tools::predicate_result ClaimTrieChainFixture::best_claim_effective_
     return true;
 }
 
-bool ClaimTrieChainFixture::getClaimById(const uint160 &claimId, std::string &name, CClaimValue &value) {
+bool ClaimTrieChainFixture::getClaimById(const CUint160 &claimId, std::string &name, CClaimValue &value)
+{
     auto query = db << "SELECT nodeName, claimID, txID, txN, amount, validHeight, blockHeight "
                        "FROM claims WHERE claimID = ?" << claimId;
     auto hit = false;
@@ -414,7 +415,8 @@ bool ClaimTrieChainFixture::getClaimById(const uint160 &claimId, std::string &na
     return hit;
 }
 
-std::vector<std::string> ClaimTrieChainFixture::getNodeChildren(const std::string &name) {
+std::vector<std::string> ClaimTrieChainFixture::getNodeChildren(const std::string &name)
+{
     std::vector<std::string> ret;
     for (auto&& row: db << "SELECT name FROM nodes WHERE parent = ?" << name) {
         ret.emplace_back();

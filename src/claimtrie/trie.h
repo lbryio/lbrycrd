@@ -130,10 +130,10 @@ public:
     bool findNameForClaim(std::vector<unsigned char> claim, CClaimValue& value, std::string& name) const;
 
 protected:
+    int nNextHeight; // Height of the block that is being worked on, which is
     CClaimTrie* base;
     mutable sqlite::database db;
-    int nNextHeight; // Height of the block that is being worked on, which is
-    bool transacting;
+    const std::string proofClaimQuery;
     mutable std::unordered_set<std::string> removalWorkaround;
 
     mutable sqlite::database_binder claimHashQuery, childHashQuery;
@@ -145,8 +145,10 @@ protected:
 
     bool deleteNodeIfPossible(const std::string& name, std::string& parent, int64_t& claims);
     void ensureTreeStructureIsUpToDate();
+    void ensureTransacting();
 
 private:
+    bool transacting;
     // for unit test
     friend struct ClaimTrieChainFixture;
     friend class CClaimTrieCacheTest;

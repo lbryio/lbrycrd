@@ -140,11 +140,14 @@ BOOST_AUTO_TEST_CASE(hardfork_claim_test)
     // Ensure that we cannot update the original pre-fork expired claim
     CMutableTransaction u1 = fixture.MakeUpdate(tx1,"test","two",ClaimIdHash(tx1.GetHash(),0), 3);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(!fixture.is_best_claim("test",u1));
+    BOOST_CHECK(!fixture.haveClaim("test", COutPoint(u1.GetHash(), 0)));
+    BOOST_CHECK(fixture.is_best_claim("test",tx3));
 
     // Ensure that supports for the expired claim don't support it
     CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(),u1,"test",10);
-    BOOST_CHECK(!fixture.is_best_claim("test",u1));
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(!fixture.haveClaim("test", COutPoint(u1.GetHash(), 0)));
+    BOOST_CHECK(fixture.is_best_claim("test",tx3));
 
     // Ensure that we can update the new post-fork claim
     CMutableTransaction u2 = fixture.MakeUpdate(tx3,"test","two",ClaimIdHash(tx3.GetHash(),0), 1);
@@ -153,6 +156,7 @@ BOOST_AUTO_TEST_CASE(hardfork_claim_test)
 
     // Ensure that supports for the new post-fork claim
     CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(),u2,"test",3);
+    fixture.IncrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("test",u2));
 }
 
