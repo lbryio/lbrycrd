@@ -144,6 +144,7 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(takeov
     // make the new nodes
     db << "INSERT INTO nodes(name) SELECT NORMALIZED(name) AS nn FROM claims WHERE nn != nodeName "
           "AND validHeight <= ?1 AND expirationHeight > ?1 ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
+
     db << "UPDATE nodes SET hash = NULL WHERE name IN "
           "(SELECT NORMALIZED(name) AS nn FROM supports WHERE nn != nodeName "
           "AND validHeight <= ?1 AND expirationHeight > ?1)" << nNextHeight;
@@ -181,6 +182,7 @@ bool CClaimTrieCacheNormalizationFork::unnormalizeAllNamesInTrieIfNecessary()
 
     db << "INSERT INTO nodes(name) SELECT name FROM claims WHERE name != nodeName "
           "AND validHeight < ?1 AND expirationHeight > ?1 ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
+
     db << "UPDATE nodes SET hash = NULL WHERE name IN "
           "(SELECT name FROM supports WHERE name != nodeName UNION "
           "SELECT nodeName FROM supports WHERE name != nodeName UNION "

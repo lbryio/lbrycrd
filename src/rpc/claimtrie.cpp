@@ -742,47 +742,92 @@ UniValue getclaimproofbyseq(const JSONRPCRequest& request)
     return proofToJSON(proof);
 }
 
-extern bool UndoReadFromDisk(CBlockUndo&, const CBlockIndex*);
-
-template <typename T>
-UniValue removedToJSON(const std::vector<queueEntryType<T>>& undo)
-{
-    UniValue ret(UniValue::VARR);
-    for (auto& u : undo) {
-        auto outPoint = COutPoint(u.second.outPoint);
-        ret.push_back(ClaimIdHash(outPoint.hash, outPoint.n).ToString());
-    }
-    return ret;
-}
-
 UniValue getchangesinblock(const JSONRPCRequest& request)
 {
     validateRequest(request, GETCHANGESINBLOCK, 0, 1);
 
-    CBlockUndo undo;
+    CBlock block;
+    LOCK(cs_main);
+    bool allowSupportMetadata;
+    CCoinsViewCache coinsCache(pcoinsTip.get());
     {
-        LOCK(cs_main);
         auto index = chainActive.Tip();
         if (request.params.size() > 0)
             index = BlockHashIndex(ParseHashV(request.params[0], T_BLOCKHASH " (optional parameter)"));
 
-        if (!UndoReadFromDisk(undo, index))
+        if (!ReadBlockFromDisk(block, index, Params().GetConsensus()))
             throw JSONRPCError(RPC_INTERNAL_ERROR,
                                    "Unable to read the undo block for height " + std::to_string(index->nHeight));
+
+        allowSupportMetadata = index->nHeight >= Params().GetConsensus().nAllClaimsInMerkleForkHeight;
     }
 
-    auto addedUpdated = [](const insertUndoType& insertUndo) {
-        UniValue added(UniValue::VARR);
-        for (auto& a : insertUndo)
-            added.push_back(ClaimIdHash(uint256(a.outPoint.hash), a.outPoint.n).ToString());
-        return added;
+    UniValue claimsAddUp(UniValue::VARR),
+             claimsRm(UniValue::VARR),
+             supportsAddUp(UniValue::VARR),
+             supportsRm(UniValue::VARR);
+
+    int op;
+    std::vector<std::vector<unsigned char> > vvchParams;
+
+    auto findScriptKey = [&block](const COutPoint& point) -> CScript {
+        for (auto& tx : block.vtx)
+            if (tx->GetHash() == point.hash && point.n < tx->vout.size())
+                return tx->vout[point.n].scriptPubKey;
+        return CScript{};
     };
 
+    for (auto& tx : block.vtx) {
+        if (tx->IsCoinBase())
+            continue;
+
+        for (auto& txin : tx->vin) {
+            const Coin& coin = coinsCache.AccessCoin(txin.prevout);
+            CScript scriptPubKey = coin.out.IsNull() ?
+                findScriptKey(txin.prevout) : coin.out.scriptPubKey;
+
+            if (scriptPubKey.empty())
+                continue;
+
+            if (!DecodeClaimScript(scriptPubKey, op, vvchParams, allowSupportMetadata))
+                continue;
+
+            switch (op) {
+                case OP_CLAIM_NAME:
+                    claimsRm.push_back(ClaimIdHash(txin.prevout.hash, txin.prevout.n).ToString());
+                    break;
+                case OP_UPDATE_CLAIM:
+                    claimsRm.push_back(uint160(vvchParams[1]).ToString());
+                    break;
+                case OP_SUPPORT_CLAIM:
+                    supportsRm.push_back(uint160(vvchParams[1]).ToString());
+            }
+        }
+
+        for (std::size_t i = 0; i < tx->vout.size(); ++i) {
+            auto& txout = tx->vout[i];
+            if (txout.scriptPubKey.empty())
+                continue;
+
+            if (!DecodeClaimScript(txout.scriptPubKey, op, vvchParams, allowSupportMetadata))
+                continue;
+
+            switch (op) {
+                case OP_CLAIM_NAME:
+                case OP_UPDATE_CLAIM:
+                    claimsAddUp.push_back(ClaimIdHash(tx->GetHash(), i).ToString());
+                    break;
+                case OP_SUPPORT_CLAIM:
+                    supportsAddUp.push_back(ClaimIdHash(tx->GetHash(), i).ToString());
+            }
+        }
+    }
+
     UniValue result(UniValue::VOBJ);
-    result.pushKV(T_CLAIMSADDEDORUPDATED, addedUpdated(undo.insertUndo));
-    result.pushKV(T_CLAIMSREMOVED, removedToJSON(undo.expireUndo));
-    result.pushKV(T_SUPPORTSADDEDORUPDATED, addedUpdated(undo.insertSupportUndo));
-    result.pushKV(T_SUPPORTSREMOVED, removedToJSON(undo.expireSupportUndo));
+    result.pushKV(T_CLAIMSADDEDORUPDATED, claimsAddUp);
+    result.pushKV(T_CLAIMSREMOVED, claimsRm);
+    result.pushKV(T_SUPPORTSADDEDORUPDATED, supportsAddUp);
+    result.pushKV(T_SUPPORTSREMOVED, supportsRm);
     return result;
 }
 
