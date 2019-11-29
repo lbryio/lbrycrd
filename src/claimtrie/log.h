@@ -15,6 +15,7 @@ struct ClogBase
 enum struct Clog
 {
     endl = 0,
+    flush = 1,
 };
 
 struct CLogPrint
