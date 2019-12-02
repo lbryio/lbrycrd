@@ -143,9 +143,7 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
     ::ChainstateActive().InitCoinsDB(
         /* cache_size_bytes */ 1 << 23, /* in_memory */ true, /* should_wipe */ false);
     auto& consensus = chainparams.GetConsensus();
-    auto dataDir = GetDataDir() / "claimtrie";
-    TryCreateDirectories(dataDir);
-    pclaimTrie = new CClaimTrie(true, 0, dataDir.string(),
+    pclaimTrie = new CClaimTrie(true, 0, GetDataDir().string(),
                                     consensus.nNormalizedNameForkHeight,
                                     consensus.nOriginalClaimExpirationTime,
                                     consensus.nExtendedClaimExpirationTime,

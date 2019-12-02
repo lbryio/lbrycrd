@@ -83,7 +83,7 @@ public:
     bool flush();
     bool checkConsistency();
     CUint256 getMerkleHash();
-    bool validateDb(const CUint256& rootHash);
+    bool validateDb(int height, const CUint256& rootHash);
 
     std::size_t getTotalNamesInTrie() const;
     std::size_t getTotalClaimsInTrie() const;
@@ -138,7 +138,7 @@ protected:
 
     mutable sqlite::database_binder claimHashQuery, childHashQuery;
 
-    virtual CUint256 recursiveComputeMerkleHash(const std::string& name, int takeoverHeight, bool checkOnly);
+    virtual CUint256 computeNodeHash(const std::string& name, int takeoverHeight);
     supportEntryType getSupportsForName(const std::string& name) const;
 
     virtual int getDelayForName(const std::string& name, const CUint160& claimId) const;

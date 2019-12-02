@@ -404,38 +404,25 @@ void completeHash(CUint256& partialHash, const std::string& key, int to)
         partialHash = Hash(it, it + 1, partialHash.begin(), partialHash.end());
 }
 
-CUint256 CClaimTrieCacheBase::recursiveComputeMerkleHash(const std::string& name, int takeoverHeight, bool checkOnly)
+CUint256 CClaimTrieCacheBase::computeNodeHash(const std::string& name, int takeoverHeight)
 {
-    std::vector<uint8_t> vchToHash;
     const auto pos = name.size();
+    std::vector<uint8_t> vchToHash;
     // we have to free up the hash query so it can be reused by a child
-    std::vector<std::tuple<std::string, std::unique_ptr<CUint256>, int>> children;
-    childHashQuery << name >> [&children](std::string name, std::unique_ptr<CUint256> hash, int takeoverHeight) {
-        children.push_back(std::make_tuple(std::move(name), std::move(hash), takeoverHeight));
+    childHashQuery << name >> [&vchToHash, pos](std::string name, CUint256 hash) {
+        completeHash(hash, name, pos);
+        vchToHash.push_back(name[pos]);
+        vchToHash.insert(vchToHash.end(), hash.begin(), hash.end());
     };
     childHashQuery++;
 
-    for (auto& child: children) {
-        auto& name = std::get<0>(child);
-        auto& hash = std::get<1>(child);
-        if (!hash) hash = std::make_unique<CUint256>();
-        if (hash->IsNull())
-            *hash = recursiveComputeMerkleHash(name, std::get<2>(child), checkOnly);
-        completeHash(*hash, name, pos);
-        vchToHash.push_back(name[pos]);
-        vchToHash.insert(vchToHash.end(), hash->begin(), hash->end());
-    }
-
     CClaimValue claim;
     if (getInfoForName(name, claim)) {
-        CUint256 valueHash = getValueHash(claim.outPoint, takeoverHeight);
+        auto valueHash = getValueHash(claim.outPoint, takeoverHeight);
         vchToHash.insert(vchToHash.end(), valueHash.begin(), valueHash.end());
     }
 
-    auto computedHash = vchToHash.empty() ? one : Hash(vchToHash.begin(), vchToHash.end());
-    if (!checkOnly)
-        db << "UPDATE nodes SET hash = ? WHERE name = ?" << computedHash << name;
-    return computedHash;
+    return vchToHash.empty() ? one : Hash(vchToHash.begin(), vchToHash.end());
 }
 
 bool CClaimTrieCacheBase::checkConsistency()
@@ -448,15 +435,17 @@ bool CClaimTrieCacheBase::checkConsistency()
         CUint256 hash;
         int takeoverHeight;
         row >> name >> hash >> takeoverHeight;
-        auto computedHash = recursiveComputeMerkleHash(name, takeoverHeight, true);
+        auto computedHash = computeNodeHash(name, takeoverHeight);
         if (computedHash != hash)
             return false;
     }
     return true;
 }
 
-bool CClaimTrieCacheBase::validateDb(const CUint256& rootHash)
+bool CClaimTrieCacheBase::validateDb(int height, const CUint256& rootHash)
 {
+    base->nNextHeight = nNextHeight = height + 1;
+
     logPrint << "Checking claim trie consistency... " << Clog::flush;
     if (checkConsistency()) {
         logPrint << "consistent" << Clog::endl;
@@ -520,6 +509,7 @@ CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)
     db << "PRAGMA temp_store=MEMORY";
     db << "PRAGMA case_sensitive_like=true";
 
+    db.define("SIZE", [](const std::string& s) -> int { return s.size(); });
     db.define("POPS", [](std::string s) -> std::string { if (!s.empty()) s.pop_back(); return s; });
 }
 
@@ -539,15 +529,21 @@ int CClaimTrieCacheBase::expirationTime() const
 CUint256 CClaimTrieCacheBase::getMerkleHash()
 {
     ensureTreeStructureIsUpToDate();
-    std::unique_ptr<CUint256> hash;
-    int takeoverHeight;
-    // can't use childHashQuery here because "IS NULL" must be used instead of parent = NULL
-    db << "SELECT hash, IFNULL(takeoverHeight, 0) FROM nodes WHERE name = ''" >> std::tie(hash, takeoverHeight);
-    if (hash == nullptr || hash->IsNull()) {
-        assert(transacting); // no data changed but we didn't have the root hash there already?
-        return recursiveComputeMerkleHash("", takeoverHeight, false);
-    }
-    return *hash;
+    CUint256 hash;
+    db  << "SELECT hash FROM nodes WHERE name = ''"
+        >>[&hash](std::unique_ptr<CUint256> rootHash) {
+            if (rootHash)
+                hash = std::move(*rootHash);
+        };
+    if (!hash.IsNull())
+        return hash;
+    assert(transacting); // no data changed but we didn't have the root hash there already?
+    db << "SELECT name, IFNULL(takeoverHeight, 0) FROM nodes WHERE hash IS NULL ORDER BY SIZE(name) DESC"
+        >> [this, &hash](const std::string& name, int takeoverHeight) {
+            hash = computeNodeHash(name, takeoverHeight);
+            db << "UPDATE nodes SET hash = ? WHERE name = ?" << hash << name;
+        };
+    return hash;
 }
 
 bool CClaimTrieCacheBase::getLastTakeoverForName(const std::string& name, CUint160& claimId, int& takeoverHeight) const

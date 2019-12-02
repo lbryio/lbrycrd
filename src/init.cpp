@@ -1483,20 +1483,6 @@ bool AppInitMain(InitInterfaces& interfaces)
                 // fails if it's still open from the previous loop. Close it first:
                 pblocktree.reset();
                 pblocktree.reset(new CBlockTreeDB(nBlockTreeDBCache, false, fReset));
-                delete pclaimTrie;
-                auto& consensus = chainparams.GetConsensus();
-                if (g_logger->Enabled() && LogAcceptCategory(BCLog::CLAIMS))
-                    CLogPrint::global().setLogger(g_logger);
-                auto dataDir = GetDataDir() / "claimtrie";
-                TryCreateDirectories(dataDir);
-                pclaimTrie = new CClaimTrie(fReindex || fReindexChainState, 0,
-                                            dataDir.string(),
-                                            consensus.nNormalizedNameForkHeight,
-                                            consensus.nOriginalClaimExpirationTime,
-                                            consensus.nExtendedClaimExpirationTime,
-                                            consensus.nExtendedClaimExpirationForkHeight,
-                                            consensus.nAllClaimsInMerkleForkHeight,
-                                            32);
 
                 if (fReset) {
                     pblocktree->WriteReindexing(true);
@@ -1561,6 +1547,20 @@ bool AppInitMain(InitInterfaces& interfaces)
                     break;
                 }
 
+                if (g_logger->Enabled() && LogAcceptCategory(BCLog::CLAIMS))
+                    CLogPrint::global().setLogger(g_logger);
+
+                delete pclaimTrie;
+                auto& consensus = chainparams.GetConsensus();
+                pclaimTrie = new CClaimTrie(fReindex || fReindexChainState, 0,
+                                            GetDataDir().string(),
+                                            consensus.nNormalizedNameForkHeight,
+                                            consensus.nOriginalClaimExpirationTime,
+                                            consensus.nExtendedClaimExpirationTime,
+                                            consensus.nExtendedClaimExpirationForkHeight,
+                                            consensus.nAllClaimsInMerkleForkHeight,
+                                            32);
+
                 // ReplayBlocks is a no-op if we cleared the coinsviewdb with -reindex or -reindex-chainstate
                 if (!::ChainstateActive().ReplayBlocks(chainparams)) {
                     strLoadError = _("Unable to replay blocks. You will need to rebuild the database using -reindex-chainstate.").translated;
@@ -1586,12 +1586,13 @@ bool AppInitMain(InitInterfaces& interfaces)
                 strLoadError = _("Error opening block database").translated;
                 break;
             }
+
                 auto tip = chainActive.Tip();
-                assert(tip);
-                if (!CClaimTrieCache(pclaimTrie).validateDb(tip->hashClaimTrie)) {
-                    strLoadError = _("Error loading the claim trie from disk");
+                if (tip && !CClaimTrieCache(pclaimTrie).validateDb(tip->nHeight, tip->hashClaimTrie)) {
+                    strLoadError = _("Error validating the claim trie from disk");
                     break;
                 }
+
             if (!fReset) {
                 // Note that RewindBlockIndex MUST run even if we're about to -reindex-chainstate.
                 // It both disconnects blocks based on ::ChainActive(), and drops block data in
