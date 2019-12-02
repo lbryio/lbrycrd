@@ -260,34 +260,23 @@ CUint256 ComputeMerkleRoot(std::vector<CUint256> hashes)
     return hashes.empty() ? CUint256{} : hashes[0];
 }
 
-CUint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(const std::string& name, int takeoverHeight, bool checkOnly)
+CUint256 CClaimTrieCacheHashFork::computeNodeHash(const std::string& name, int takeoverHeight)
 {
     if (nNextHeight < base->nAllClaimsInMerkleForkHeight)
-        return CClaimTrieCacheNormalizationFork::recursiveComputeMerkleHash(name, takeoverHeight, checkOnly);
+        return CClaimTrieCacheNormalizationFork::computeNodeHash(name, takeoverHeight);
 
-    // it may be that using RAM for this is more expensive than preparing a new query statement in each recursive call
-    std::vector<std::tuple<std::string, std::unique_ptr<CUint256>, int>> children;
-    childHashQuery << name >> [&children](std::string name, std::unique_ptr<CUint256> hash, int takeoverHeight) {
-        children.push_back(std::make_tuple(std::move(name), std::move(hash), takeoverHeight));
+    std::vector<CUint256> childHashes;
+    childHashQuery << name >> [&childHashes](std::string name, CUint256 hash) {
+        childHashes.push_back(std::move(hash));
     };
     childHashQuery++;
-    std::vector<CUint256> childHashes;
-    for (auto& child: children) {
-        auto& name = std::get<0>(child);
-        auto& hash = std::get<1>(child);
-        if (!hash || hash->IsNull())
-            childHashes.push_back(recursiveComputeMerkleHash(name, std::get<2>(child), checkOnly));
-        else
-            childHashes.push_back(*hash);
-    }
 
     std::vector<CUint256> claimHashes;
     //if (takeoverHeight > 0) {
         for (auto &&row: claimHashQuery << nNextHeight << name) {
             CTxOutPoint p;
             row >> p.hash >> p.n;
-            auto claimHash = getValueHash(p, takeoverHeight);
-            claimHashes.push_back(claimHash);
+            claimHashes.push_back(getValueHash(p, takeoverHeight));
         }
         claimHashQuery++;
     //}
@@ -295,10 +284,7 @@ CUint256 CClaimTrieCacheHashFork::recursiveComputeMerkleHash(const std::string& 
     auto left = childHashes.empty() ? leafHash : ComputeMerkleRoot(std::move(childHashes));
     auto right = claimHashes.empty() ? emptyHash : ComputeMerkleRoot(std::move(claimHashes));
 
-    auto computedHash = Hash(left.begin(), left.end(), right.begin(), right.end());
-    if (!checkOnly)
-        db << "UPDATE nodes SET hash = ? WHERE name = ?" << computedHash << name;
-    return computedHash;
+    return Hash(left.begin(), left.end(), right.begin(), right.end());
 }
 
 std::vector<CUint256> ComputeMerklePath(const std::vector<CUint256>& hashes, uint32_t idx)
