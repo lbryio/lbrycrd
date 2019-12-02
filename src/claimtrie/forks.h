@@ -79,7 +79,7 @@ public:
     bool allowSupportMetadata() const;
 
 protected:
-    CUint256 recursiveComputeMerkleHash(const std::string& name, int takeoverHeight, bool checkOnly) override;
+    CUint256 computeNodeHash(const std::string& name, int takeoverHeight) override;
 };
 
 typedef CClaimTrieCacheHashFork CClaimTrieCache;
