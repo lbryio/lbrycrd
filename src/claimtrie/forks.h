@@ -12,18 +12,9 @@ public:
     int expirationTime() const override;
 
     virtual void initializeIncrement();
-    bool finalizeDecrement(takeoverUndoType& takeoverHeightUndo) override;
-
-    bool incrementBlock(insertUndoType& insertUndo,
-                        claimUndoType& expireUndo,
-                        insertUndoType& insertSupportUndo,
-                        supportUndoType& expireSupportUndo,
-                        takeoverUndoType& takeoverHeightUndo) override;
-
-    bool decrementBlock(insertUndoType& insertUndo,
-                        claimUndoType& expireUndo,
-                        insertUndoType& insertSupportUndo,
-                        supportUndoType& expireSupportUndo) override;
+    bool incrementBlock() override;
+    bool decrementBlock() override;
+    bool finalizeDecrement() override;
 
 protected:
     int expirationHeight;
@@ -43,16 +34,8 @@ public:
     // see: https://unicode.org/reports/tr15/#Norm_Forms
     std::string normalizeClaimName(const std::string& name, bool force = false) const; // public only for validating name field on update op
 
-    bool incrementBlock(insertUndoType& insertUndo,
-                        claimUndoType& expireUndo,
-                        insertUndoType& insertSupportUndo,
-                        supportUndoType& expireSupportUndo,
-                        takeoverUndoType& takeoverHeightUndo) override;
-
-    bool decrementBlock(insertUndoType& insertUndo,
-                        claimUndoType& expireUndo,
-                        insertUndoType& insertSupportUndo,
-                        supportUndoType& expireSupportUndo) override;
+    bool incrementBlock() override;
+    bool decrementBlock() override;
 
     bool getProofForName(const std::string& name, const CUint160& claim, CClaimTrieProof& proof) override;
     bool getInfoForName(const std::string& name, CClaimValue& claim, int heightOffset = 0) const override;
@@ -63,7 +46,7 @@ protected:
     int getDelayForName(const std::string& name, const CUint160& claimId) const override;
 
 private:
-    bool normalizeAllNamesInTrieIfNecessary(takeoverUndoType& takeovers);
+    bool normalizeAllNamesInTrieIfNecessary();
     bool unnormalizeAllNamesInTrieIfNecessary();
 };
 
@@ -74,7 +57,7 @@ public:
 
     bool getProofForName(const std::string& name, const CUint160& claim, CClaimTrieProof& proof) override;
     void initializeIncrement() override;
-    bool finalizeDecrement(takeoverUndoType& takeoverHeightUndo) override;
+    bool finalizeDecrement() override;
 
     bool allowSupportMetadata() const;
 
