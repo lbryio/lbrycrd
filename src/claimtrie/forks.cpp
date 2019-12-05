@@ -25,19 +25,18 @@ int CClaimTrieCacheExpirationFork::expirationTime() const
     return base->nExtendedClaimExpirationTime;
 }
 
-bool CClaimTrieCacheExpirationFork::incrementBlock(insertUndoType& insertUndo, claimUndoType& expireUndo,
-        insertUndoType& insertSupportUndo, supportUndoType& expireSupportUndo, takeoverUndoType& takeoverUndo)
+bool CClaimTrieCacheExpirationFork::incrementBlock()
 {
-    if (CClaimTrieCacheBase::incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverUndo)) {
+    if (CClaimTrieCacheBase::incrementBlock()) {
         expirationHeight = nNextHeight;
         return true;
     }
     return false;
 }
 
-bool CClaimTrieCacheExpirationFork::decrementBlock(insertUndoType& insertUndo, claimUndoType& expireUndo, insertUndoType& insertSupportUndo, supportUndoType& expireSupportUndo)
+bool CClaimTrieCacheExpirationFork::decrementBlock()
 {
-    if (CClaimTrieCacheBase::decrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo)) {
+    if (CClaimTrieCacheBase::decrementBlock()) {
         expirationHeight = nNextHeight;
         return true;
     }
@@ -53,9 +52,9 @@ void CClaimTrieCacheExpirationFork::initializeIncrement()
     forkForExpirationChange(true);
 }
 
-bool CClaimTrieCacheExpirationFork::finalizeDecrement(takeoverUndoType& takeoverUndo)
+bool CClaimTrieCacheExpirationFork::finalizeDecrement()
 {
-    auto ret = CClaimTrieCacheBase::finalizeDecrement(takeoverUndo);
+    auto ret = CClaimTrieCacheBase::finalizeDecrement();
     if (ret && nNextHeight == base->nExtendedClaimExpirationForkHeight)
        forkForExpirationChange(false);
     return ret;
@@ -137,41 +136,30 @@ std::string CClaimTrieCacheNormalizationFork::normalizeClaimName(const std::stri
     return normalized;
 }
 
-bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary(takeoverUndoType& takeoverUndo)
+bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary()
 {
     ensureTransacting();
 
     // make the new nodes
-    db << "INSERT INTO nodes(name) SELECT NORMALIZED(name) AS nn FROM claims WHERE nn != nodeName "
-          "AND validHeight <= ?1 AND expirationHeight > ?1 ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
-
-    db << "UPDATE nodes SET hash = NULL WHERE name IN "
-          "(SELECT NORMALIZED(name) AS nn FROM supports WHERE nn != nodeName "
-          "AND validHeight <= ?1 AND expirationHeight > ?1)" << nNextHeight;
+    db << "INSERT INTO nodes(name) "
+          "SELECT NORMALIZED(name) AS nc FROM claims WHERE nc != nodeName "
+          "AND activationHeight <= ?1 AND expirationHeight > ?1 "
+          "UNION SELECT NORMALIZED(name) AS ns FROM supports WHERE ns != nodeName "
+          "AND activationHeight <= ?1 AND expirationHeight > ?1 "
+          "ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
 
     // update the claims and supports
-    db << "UPDATE claims SET nodeName = NORMALIZED(name) WHERE validHeight <= ?1 AND expirationHeight > ?1" << nNextHeight;
-    db << "UPDATE supports SET nodeName = NORMALIZED(name) WHERE validHeight <= ?1 AND expirationHeight > ?1" << nNextHeight;
+    db << "UPDATE claims SET nodeName = NORMALIZED(name) WHERE activationHeight <= ?1 AND expirationHeight > ?1" << nNextHeight;
+    db << "UPDATE supports SET nodeName = NORMALIZED(name) WHERE activationHeight <= ?1 AND expirationHeight > ?1" << nNextHeight;
 
     // remove the old nodes
-    auto query = db << "SELECT name, IFNULL(takeoverHeight, 0), takeoverID FROM nodes WHERE name NOT IN "
-                       "(SELECT nodeName FROM claims WHERE validHeight <= ?1 AND expirationHeight > ?1)";
-    for (auto&& row: query) {
-        std::string name;
-        int takeoverHeight;
-        std::unique_ptr<CUint160> takeoverID;
-        row >> name >> takeoverHeight >> takeoverID;
-        if (name.empty()) continue; // preserve our root node
-        if (takeoverHeight > 0)
-            takeoverUndo.emplace_back(name, std::make_pair(takeoverHeight, takeoverID ? *takeoverID : CUint160()));
-        // we need to let the tree structure method do the actual node delete:
-        db << "UPDATE nodes SET hash = NULL WHERE name = ?" << name;
-    }
-    db << "UPDATE nodes SET hash = NULL WHERE takeoverHeight IS NULL";
+    db << "UPDATE nodes SET hash = NULL WHERE name NOT IN "
+          "(SELECT nodeName FROM claims WHERE activationHeight <= ?1 AND expirationHeight > ?1 "
+          "UNION SELECT nodeName FROM supports WHERE activationHeight <= ?1 AND expirationHeight > ?1)" << nNextHeight;
 
     // work around a bug in the old implementation:
-    db << "UPDATE claims SET validHeight = ?1 " // force a takeover on these
-          "WHERE blockHeight < ?1 AND validHeight > ?1 AND nodeName != name" << nNextHeight;
+    db << "UPDATE claims SET activationHeight = ?1 " // force a takeover on these
+          "WHERE blockHeight < ?1 AND activationHeight > ?1 AND nodeName != name" << nNextHeight;
 
     return true;
 }
@@ -180,34 +168,37 @@ bool CClaimTrieCacheNormalizationFork::unnormalizeAllNamesInTrieIfNecessary()
 {
     ensureTransacting();
 
-    db << "INSERT INTO nodes(name) SELECT name FROM claims WHERE name != nodeName "
-          "AND validHeight < ?1 AND expirationHeight > ?1 ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
+    db << "INSERT INTO nodes(name) "
+          "SELECT name FROM claims WHERE name != nodeName "
+          "AND activationHeight < ?1 AND expirationHeight > ?1 "
+          "UNION SELECT name FROM supports WHERE name != nodeName "
+          "AND activationHeight < ?1 AND expirationHeight > ?1 "
+          "ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
 
     db << "UPDATE nodes SET hash = NULL WHERE name IN "
-          "(SELECT name FROM supports WHERE name != nodeName UNION "
-          "SELECT nodeName FROM supports WHERE name != nodeName UNION "
-          "SELECT nodeName FROM claims WHERE name != nodeName)";
+          "(SELECT nodeName FROM supports WHERE name != nodeName "
+          "UNION SELECT nodeName FROM claims WHERE name != nodeName)";
 
     db << "UPDATE claims SET nodeName = name";
     db << "UPDATE supports SET nodeName = name";
+
     // we need to let the tree structure method do the actual node delete
     db << "UPDATE nodes SET hash = NULL WHERE name NOT IN "
-          "(SELECT name FROM claims)";
+          "(SELECT DISTINCT name FROM claims)";
 
     return true;
 }
 
-bool CClaimTrieCacheNormalizationFork::incrementBlock(insertUndoType& insertUndo, claimUndoType& expireUndo,
-        insertUndoType& insertSupportUndo, supportUndoType& expireSupportUndo, takeoverUndoType& takeoverUndo)
+bool CClaimTrieCacheNormalizationFork::incrementBlock()
 {
     if (nNextHeight == base->nNormalizedNameForkHeight)
-        normalizeAllNamesInTrieIfNecessary(takeoverUndo);
-    return CClaimTrieCacheExpirationFork::incrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo, takeoverUndo);
+        normalizeAllNamesInTrieIfNecessary();
+    return CClaimTrieCacheExpirationFork::incrementBlock();
 }
 
-bool CClaimTrieCacheNormalizationFork::decrementBlock(insertUndoType& insertUndo, claimUndoType& expireUndo, insertUndoType& insertSupportUndo, supportUndoType& expireSupportUndo)
+bool CClaimTrieCacheNormalizationFork::decrementBlock()
 {
-    auto ret = CClaimTrieCacheExpirationFork::decrementBlock(insertUndo, expireUndo, insertSupportUndo, expireSupportUndo);
+    auto ret = CClaimTrieCacheExpirationFork::decrementBlock();
     if (ret && nNextHeight == base->nNormalizedNameForkHeight)
         unnormalizeAllNamesInTrieIfNecessary();
     return ret;
@@ -417,9 +408,9 @@ void CClaimTrieCacheHashFork::initializeIncrement()
     }
 }
 
-bool CClaimTrieCacheHashFork::finalizeDecrement(takeoverUndoType& takeoverUndo)
+bool CClaimTrieCacheHashFork::finalizeDecrement()
 {
-    auto ret = CClaimTrieCacheNormalizationFork::finalizeDecrement(takeoverUndo);
+    auto ret = CClaimTrieCacheNormalizationFork::finalizeDecrement();
     if (ret && nNextHeight == base->nAllClaimsInMerkleForkHeight - 1) {
         ensureTransacting();
         db << "UPDATE nodes SET hash = NULL";
