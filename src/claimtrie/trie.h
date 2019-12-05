@@ -56,24 +56,6 @@ protected:
     const int64_t nAllClaimsInMerkleForkHeight;
 };
 
-template <typename T>
-using queueEntryType = std::pair<std::string, T>;
-
-#ifdef SWIG_INTERFACE // swig has a problem with using in typedef
-using claimUndoPair = std::pair<std::string, CClaimValue>;
-using supportUndoPair = std::pair<std::string, CSupportValue>;
-using takeoverUndoPair = std::pair<std::string, std::pair<int, CUint160>>;
-#else
-using claimUndoPair = queueEntryType<CClaimValue>;
-using supportUndoPair = queueEntryType<CSupportValue>;
-using takeoverUndoPair = queueEntryType<std::pair<int, CUint160>>;
-#endif
-
-typedef std::vector<claimUndoPair> claimUndoType;
-typedef std::vector<supportUndoPair> supportUndoType;
-typedef std::vector<CNameOutPointHeightType> insertUndoType;
-typedef std::vector<takeoverUndoPair> takeoverUndoType;
-
 class CClaimTrieCacheBase
 {
 public:
@@ -104,23 +86,14 @@ public:
     bool removeClaim(const CUint160& claimId, const CTxOutPoint& outPoint, std::string& nodeName, int& validHeight);
     bool removeSupport(const CTxOutPoint& outPoint, std::string& nodeName, int& validHeight);
 
-    virtual bool incrementBlock(insertUndoType& insertUndo,
-                                claimUndoType& expireUndo,
-                                insertUndoType& insertSupportUndo,
-                                supportUndoType& expireSupportUndo,
-                                takeoverUndoType& takeoverHeightUndo);
-
-    virtual bool decrementBlock(insertUndoType& insertUndo,
-                                claimUndoType& expireUndo,
-                                insertUndoType& insertSupportUndo,
-                                supportUndoType& expireSupportUndo);
-
-    virtual bool getProofForName(const std::string& name, const CUint160& claim, CClaimTrieProof& proof);
-    virtual bool getInfoForName(const std::string& name, CClaimValue& claim, int heightOffset = 0) const;
+    virtual bool incrementBlock();
+    virtual bool decrementBlock();
+    virtual bool finalizeDecrement();
 
     virtual int expirationTime() const;
 
-    virtual bool finalizeDecrement(takeoverUndoType& takeoverHeightUndo);
+    virtual bool getProofForName(const std::string& name, const CUint160& claim, CClaimTrieProof& proof);
+    virtual bool getInfoForName(const std::string& name, CClaimValue& claim, int heightOffset = 0) const;
 
     virtual CClaimSupportToName getClaimsForName(const std::string& name) const;
     virtual std::string adjustNameForValidHeight(const std::string& name, int validHeight) const;
@@ -153,7 +126,7 @@ private:
     friend struct ClaimTrieChainFixture;
     friend class CClaimTrieCacheTest;
 
-    bool activateAllFor(insertUndoType& insertUndo, insertUndoType& insertSupportUndo, const std::string& takeover);
+    bool activateAllFor(const std::string& name);
 };
 
 #endif // CLAIMTRIE_TRIE_H

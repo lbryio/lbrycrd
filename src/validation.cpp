@@ -1772,8 +1772,7 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
         return DISCONNECT_FAILED;
     }
 
-    const bool decremented = trieCache.decrementBlock(blockUndo.insertUndo, blockUndo.expireUndo, blockUndo.insertSupportUndo, blockUndo.expireSupportUndo);
-    assert(decremented);
+    assert(trieCache.decrementBlock());
 
     // undo transactions in reverse order
     for (int i = block.vtx.size() - 1; i >= 0; i--) {
@@ -1827,7 +1826,7 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
 
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
-    assert(trieCache.finalizeDecrement(blockUndo.takeoverUndo));
+    assert(trieCache.finalizeDecrement());
     if (!equals(trieCache.getMerkleHash(), pindex->pprev->hashClaimTrie)) {
         LogPrintf("Hash comparison failure at block %d\n", pindex->nHeight);
         assert(false);
@@ -2311,9 +2310,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     }
 
     // TODO: if the "just check" flag is set, we should reduce the work done here. Incrementing blocks twice per mine is not efficient.
-    const auto incremented = trieCache.incrementBlock(blockundo.insertUndo, blockundo.expireUndo,
-            blockundo.insertSupportUndo, blockundo.expireSupportUndo, blockundo.takeoverUndo);
-    assert(incremented);
+    assert(trieCache.incrementBlock());
 
     if (!equals(trieCache.getMerkleHash(), block.hashClaimTrie)) {
         return state.DoS(100, error("ConnectBlock() : the merkle root of the claim trie does not match "

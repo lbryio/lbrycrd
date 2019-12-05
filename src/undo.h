@@ -76,22 +76,12 @@ class CBlockUndo
 {
 public:
     std::vector<CTxUndo> vtxundo; // for all but the coinbase
-    insertUndoType insertUndo; // any claims that went from the queue to the trie
-    claimUndoType expireUndo; // any claims that expired
-    insertUndoType insertSupportUndo; // any supports that went from the support queue to the support map
-    supportUndoType expireSupportUndo; // any supports that expired
-    takeoverUndoType takeoverUndo;
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(vtxundo);
-        READWRITE(insertUndo);
-        READWRITE(expireUndo);
-        READWRITE(insertSupportUndo);
-        READWRITE(expireSupportUndo);
-        READWRITE(takeoverUndo);
     }
 };
 
