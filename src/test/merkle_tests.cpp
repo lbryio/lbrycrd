@@ -4,6 +4,8 @@
 
 #include <consensus/merkle.h>
 #include <test/setup_common.h>
+#include <util/strencodings.h>
+
 
 #include <boost/test/unit_test.hpp>
 

@@ -50,7 +50,7 @@ bool BCLog::Logger::StartLogging()
         assert(!m_file_path.empty());
         if (fs::exists(m_file_path)) {
             fs::path old_file_path(m_file_path);
-            old_file_path.append(".old");
+            old_file_path += ".old";
             fs::rename(m_file_path, old_file_path);
         }
 

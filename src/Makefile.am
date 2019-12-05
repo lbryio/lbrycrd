@@ -19,7 +19,7 @@ else
 LIBUNIVALUE = $(UNIVALUE_LIBS)
 endif
 
-BITCOIN_INCLUDES=-I$(builddir) $(BDB_CPPFLAGS) $(ICU_CPPFLAGS) $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(ICU_CFLAGS)
+BITCOIN_INCLUDES=-I$(builddir) $(BDB_CPPFLAGS) $(ICU_CPPFLAGS) $(BOOST_CPPFLAGS) $(CRYPTO_CFLAGS) $(ICU_CFLAGS)
 
 BITCOIN_INCLUDES += -I$(srcdir)/secp256k1/include
 BITCOIN_INCLUDES += $(UNIVALUE_CFLAGS)
@@ -137,9 +137,7 @@ BITCOIN_CORE_H = \
   fs.h \
   httprpc.h \
   httpserver.h \
-  index/base.h \
   index/blockfilterindex.h \
-  index/txindex.h \
   indirectmap.h \
   init.h \
   interfaces/chain.h \
@@ -149,7 +147,6 @@ BITCOIN_CORE_H = \
   key.h \
   key_io.h \
   lbry.h \
-  dbwrapper.h \
   limitedmap.h \
   logging.h \
   memusage.h \
@@ -278,13 +275,10 @@ libbitcoin_server_a_SOURCES = \
   flatfile.cpp \
   httprpc.cpp \
   httpserver.cpp \
-  index/base.cpp \
   index/blockfilterindex.cpp \
-  index/txindex.cpp \
   interfaces/chain.cpp \
   interfaces/node.cpp \
   init.cpp \
-  dbwrapper.cpp \
   lbry.cpp \
   miner.cpp \
   nameclaim.cpp \
@@ -496,7 +490,7 @@ claimtrie_libclaimtrie_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 claimtrie_libclaimtrie_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 claimtrie_libclaimtrie_a_CFLAGS = $(PIE_FLAGS)
 claimtrie_libclaimtrie_a_SOURCES = \
-  claimtrie/sqlite/sqlite3.c \
+  sqlite/sqlite3.c \
   claimtrie/data.cpp \
   claimtrie/forks.cpp \
   claimtrie/hashes.cpp \
@@ -578,8 +572,6 @@ lbrycrdd_LDADD = \
   $(LIBBITCOIN_ZMQ) \
   $(LIBBITCOIN_CONSENSUS) \
   $(LIBBITCOIN_CRYPTO) \
-  $(LIBLEVELDB) \
-  $(LIBLEVELDB_SSE42) \
   $(LIBMEMENV) \
   $(LIBSECP256K1)
 
@@ -704,7 +696,6 @@ $(top_srcdir)/$(subdir)/config/bitcoin-config.h.in:  $(am__configure_deps)
 clean-local:
 	-$(MAKE) -C secp256k1 clean
 	-$(MAKE) -C univalue clean
-	-rm -f leveldb/*/*.gcda leveldb/*/*.gcno leveldb/helpers/memenv/*.gcda leveldb/helpers/memenv/*.gcno
 	-rm -f config.h
 	-rm -rf test/__pycache__
 
@@ -729,10 +720,6 @@ if ENABLE_BIP70
 %.pb.cc %.pb.h: %.proto
 	@test -f $(PROTOC)
 	$(AM_V_GEN) $(PROTOC) --cpp_out=$(@D) --proto_path=$(<D) $<
-endif
-
-if EMBEDDED_LEVELDB
-include Makefile.leveldb.include
 endif
 
 if ENABLE_TESTS

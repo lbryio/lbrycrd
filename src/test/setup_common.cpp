@@ -130,43 +130,49 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
     const CChainParams& chainparams = Params();
     // Ideally we'd move all the RPC tests to the functional testing framework
     // instead of unit tests, but for now we need these here.
-    RegisterAllCoreRPCCommands(tableRPC);
+    try {
+        RegisterAllCoreRPCCommands(tableRPC);
 
-    // We have to run a scheduler thread to prevent ActivateBestChain
-    // from blocking due to queue overrun.
-    threadGroup.create_thread(std::bind(&CScheduler::serviceQueue, &scheduler));
-    GetMainSignals().RegisterBackgroundSignalScheduler(scheduler);
+        // We have to run a scheduler thread to prevent ActivateBestChain
+        // from blocking due to queue overrun.
+        threadGroup.create_thread(std::bind(&CScheduler::serviceQueue, &scheduler));
+        GetMainSignals().RegisterBackgroundSignalScheduler(scheduler);
 
-    mempool.setSanityCheck(1.0);
-    pblocktree.reset(new CBlockTreeDB(1 << 20, true));
-    g_chainstate = MakeUnique<CChainState>();
-    ::ChainstateActive().InitCoinsDB(
-        /* cache_size_bytes */ 1 << 23, /* in_memory */ true, /* should_wipe */ false);
-    auto& consensus = chainparams.GetConsensus();
-    pclaimTrie = new CClaimTrie(true, 0, GetDataDir().string(),
+        mempool.setSanityCheck(1.0);
+        pblocktree.reset(new CBlockTreeDB(1 << 20, true));
+        g_chainstate = MakeUnique<CChainState>();
+        ::ChainstateActive().InitCoinsDB(
+            /* cache_size_bytes */ 1 << 23, /* in_memory */ true, /* should_wipe */ false);
+        auto &consensus = chainparams.GetConsensus();
+        pclaimTrie = new CClaimTrie(20000000, true, 0, GetDataDir().string(),
                                     consensus.nNormalizedNameForkHeight,
                                     consensus.nOriginalClaimExpirationTime,
                                     consensus.nExtendedClaimExpirationTime,
                                     consensus.nExtendedClaimExpirationForkHeight,
                                     consensus.nAllClaimsInMerkleForkHeight, 1);
-    assert(!::ChainstateActive().CanFlushToDisk());
-    ::ChainstateActive().InitCoinsCache();
-    assert(::ChainstateActive().CanFlushToDisk());
-    if (!LoadGenesisBlock(chainparams)) {
-        throw std::runtime_error("LoadGenesisBlock failed.");
+        assert(!::ChainstateActive().CanFlushToDisk());
+        ::ChainstateActive().InitCoinsCache();
+        assert(::ChainstateActive().CanFlushToDisk());
+        if (!LoadGenesisBlock(chainparams)) {
+            throw std::runtime_error("LoadGenesisBlock failed.");
+        }
+        {
+            CValidationState state;
+            if (!ActivateBestChain(state, chainparams)) {
+                throw std::runtime_error(strprintf("ActivateBestChain failed. (%s)", FormatStateMessage(state)));
+            }
+        }
+        nScriptCheckThreads = 3;
+        for (int i = 0; i < nScriptCheckThreads - 1; i++)
+            threadGroup.create_thread([i]() { return ThreadScriptCheck(i); });
+
+        g_banman = MakeUnique<BanMan>(GetDataDir() / "banlist.dat", nullptr, DEFAULT_MISBEHAVING_BANTIME);
+        g_connman = MakeUnique<CConnman>(0x1337, 0x1337); // Deterministic randomness for tests.
     }
-
-    CValidationState state;
-    if (!ActivateBestChain(state, chainparams)) {
-        throw std::runtime_error(strprintf("ActivateBestChain failed. (%s)", FormatStateMessage(state)));
+    catch(const std::exception& e) {
+        fprintf(stderr, "Error constructing the test framework: %s\n", e.what());
+        throw;
     }
-
-    nScriptCheckThreads = 3;
-    for (int i = 0; i < nScriptCheckThreads - 1; i++)
-        threadGroup.create_thread([i]() { return ThreadScriptCheck(i); });
-
-    g_banman = MakeUnique<BanMan>(GetDataDir() / "banlist.dat", nullptr, DEFAULT_MISBEHAVING_BANTIME);
-    g_connman = MakeUnique<CConnman>(0x1337, 0x1337); // Deterministic randomness for tests.
 }
 
 TestingSetup::~TestingSetup()

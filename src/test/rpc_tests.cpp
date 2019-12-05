@@ -10,6 +10,7 @@
 #include <init.h>
 #include <interfaces/chain.h>
 #include <test/setup_common.h>
+#include <util/strencodings.h>
 #include <util/time.h>
 
 #include <boost/algorithm/string.hpp>

@@ -2,6 +2,7 @@
 #include <forks.h>
 #include <hashes.h>
 #include <log.h>
+#include <sqlite.h>
 #include <trie.h>
 
 #include <algorithm>
@@ -47,7 +48,7 @@ void applyPragmas(sqlite::database& db, std::size_t cache)
     db << "PRAGMA case_sensitive_like=true";
 }
 
-CClaimTrie::CClaimTrie(bool fWipe, int height,
+CClaimTrie::CClaimTrie(int64_t cacheBytes, bool fWipe, int height,
                        const std::string& dataDir,
                        int nNormalizedNameForkHeight,
                        int64_t nOriginalClaimExpirationTime,
