@@ -134,7 +134,7 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
     const CChainParams& chainparams = Params();
         // Ideally we'd move all the RPC tests to the functional testing framework
         // instead of unit tests, but for now we need these here.
-
+    try {
         RegisterAllCoreRPCCommands(tableRPC);
         ClearDatadirCache();
 
@@ -147,8 +147,8 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
         pblocktree.reset(new CBlockTreeDB(1 << 20, true));
         pcoinsdbview.reset(new CCoinsViewDB(1 << 23, true));
         pcoinsTip.reset(new CCoinsViewCache(pcoinsdbview.get()));
-        auto& consensus = chainparams.GetConsensus();
-        pclaimTrie = new CClaimTrie(true, 0, GetDataDir().string(),
+        auto &consensus = chainparams.GetConsensus();
+        pclaimTrie = new CClaimTrie(20000000, true, 0, GetDataDir().string(),
                                     consensus.nNormalizedNameForkHeight,
                                     consensus.nOriginalClaimExpirationTime,
                                     consensus.nExtendedClaimExpirationTime,
@@ -165,11 +165,16 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
             }
         }
         nScriptCheckThreads = 3;
-        for (int i=0; i < nScriptCheckThreads-1; i++)
+        for (int i = 0; i < nScriptCheckThreads - 1; i++)
             threadGroup.create_thread(&ThreadScriptCheck);
         g_connman = std::unique_ptr<CConnman>(new CConnman(0x1337, 0x1337)); // Deterministic randomness for tests.
         connman = g_connman.get();
         peerLogic.reset(new PeerLogicValidation(connman, scheduler, /*enable_bip61=*/true));
+    }
+    catch(const std::exception& e) {
+        fprintf(stderr, "Error constructing the test framework: %s\n", e.what());
+        throw;
+    }
 }
 
 TestingSetup::~TestingSetup()

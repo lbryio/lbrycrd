@@ -7,6 +7,7 @@
 #include <chainparams.h>
 #include <pow.h>
 #include <random.h>
+#include <streams.h>
 
 #include <test/test_bitcoin.h>
 

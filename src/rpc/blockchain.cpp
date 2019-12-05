@@ -14,7 +14,6 @@
 #include <consensus/validation.h>
 #include <validation.h>
 #include <core_io.h>
-#include <index/txindex.h>
 #include <key_io.h>
 #include <policy/feerate.h>
 #include <policy/policy.h>
@@ -1873,9 +1872,6 @@ static UniValue getblockstats(const JSONRPCRequest& request)
 
         if (loop_inputs) {
 
-            if (!g_txindex) {
-                throw JSONRPCError(RPC_INVALID_PARAMETER, "One or more of the selected stats requires -txindex enabled");
-            }
             CAmount tx_total_in = 0;
             for (const CTxIn& in : tx->vin) {
                 CTransactionRef tx_in;

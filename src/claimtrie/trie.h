@@ -27,7 +27,7 @@ public:
     CClaimTrie() = delete;
     CClaimTrie(CClaimTrie&&) = delete;
     CClaimTrie(const CClaimTrie&) = delete;
-    CClaimTrie(bool fWipe, int height = 0,
+    CClaimTrie(int64_t cacheBytes, bool fWipe, int height = 0,
                const std::string& dataDir = ".",
                int nNormalizedNameForkHeight = 1,
                int64_t nOriginalClaimExpirationTime = 1,

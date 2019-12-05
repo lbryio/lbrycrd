@@ -15,7 +15,7 @@ set(CLAIMTRIE_SRC
     trie.cpp
     txoutpoint.cpp
     uints.cpp
-    sqlite/sqlite3.c
+    ../sqlite/sqlite3.c
 )
 
 if(BIND)

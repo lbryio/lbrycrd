@@ -8,6 +8,8 @@
 #include <core_io.h>
 #include <key_io.h>
 #include <netbase.h>
+#include <utilstrencodings.h>
+#include <utiltime.h>
 
 #include <test/test_bitcoin.h>
 

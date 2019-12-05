@@ -11,13 +11,13 @@
 #include <checkpoints.h>
 #include <checkqueue.h>
 #include <claimscriptop.h>
+#include <clientversion.h>
 #include <consensus/consensus.h>
 #include <consensus/merkle.h>
 #include <consensus/tx_verify.h>
 #include <consensus/validation.h>
 #include <cuckoocache.h>
 #include <hash.h>
-#include <index/txindex.h>
 #include <nameclaim.h>
 #include <policy/fees.h>
 #include <policy/policy.h>
@@ -31,6 +31,7 @@
 #include <script/script.h>
 #include <script/sigcache.h>
 #include <script/standard.h>
+#include <streams.h>
 #include <shutdown.h>
 #include <timedata.h>
 #include <tinyformat.h>
@@ -44,6 +45,7 @@
 #include <validationinterface.h>
 #include <warnings.h>
 
+#include <cmath>
 #include <future>
 #include <sstream>
 
@@ -852,11 +854,34 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
     return AcceptToMemoryPoolWithTime(chainparams, pool, state, tx, pfMissingInputs, GetTime(), plTxnReplaced, bypass_limits, nAbsurdFee, test_accept);
 }
 
+bool FillTx(const uint256& tx_hash, const CDiskTxPos& postx, uint256& block_hash, CTransactionRef& tx) {
+    CAutoFile file(OpenBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
+    if (file.IsNull()) {
+        return error("%s: OpenBlockFile failed", __func__);
+    }
+    CBlockHeader header;
+    try {
+        file >> header;
+        if (fseek(file.Get(), postx.nTxOffset, SEEK_CUR)) {
+            return error("%s: fseek(...) failed", __func__);
+        }
+        file >> tx;
+    } catch (const std::exception& e) {
+        return error("%s: Deserialize or I/O error - %s", __func__, e.what());
+    }
+    if (tx->GetHash() != tx_hash) {
+        return error("%s: txid mismatch", __func__);
+    }
+    block_hash = header.GetHash();
+    return true;
+}
+
 /**
  * Return transaction in txOut, and if it was found inside a block, its hash is placed in hashBlock.
  * If blockIndex is provided, the transaction is fetched from the corresponding block.
  */
-bool GetTransaction(const uint256& hash, CTransactionRef& txOut, const Consensus::Params& consensusParams, uint256& hashBlock, bool fAllowSlow, CBlockIndex* blockIndex)
+bool GetTransaction(const uint256& hash, CTransactionRef& txOut, const Consensus::Params& consensusParams,
+        uint256& hashBlock, bool fAllowSlow, CBlockIndex* blockIndex)
 {
     CBlockIndex* pindexSlow = blockIndex;
 
@@ -868,9 +893,12 @@ bool GetTransaction(const uint256& hash, CTransactionRef& txOut, const Consensus
             txOut = ptx;
             return true;
         }
-
-        if (g_txindex) {
-            return g_txindex->FindTx(hash, hashBlock, txOut);
+        if (pblocktree) {
+            CDiskTxPos pos;
+            if (pblocktree->ReadTxIndex(hash, pos) && FillTx(hash, pos, hashBlock, ptx)) {
+                txOut = ptx;
+                return true;
+            }
         }
 
         if (fAllowSlow) { // use coin database to locate block that contains transaction, and scan it
@@ -1044,7 +1072,7 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
     }
     CAmount nStartingSubsidy = 500 * COIN;
     int nLevel = (nHeight - 55001) / consensusParams.nSubsidyLevelInterval;
-    int nReduction = ((-1 + (int)sqrt((8 * nLevel) + 1)) / 2);
+    int nReduction = ((-1 + (int)std::sqrt((8 * nLevel) + 1)) / 2);
     while (!(withinLevelBounds(nReduction, nLevel)))
     {
         if (((nReduction * nReduction + nReduction) >> 1) > nLevel)
@@ -1187,11 +1215,11 @@ void static InvalidChainFound(CBlockIndex* pindexNew)
 
     LogPrintf("%s: invalid block=%s  height=%d  log2_work=%.8g  date=%s\n", __func__,
       pindexNew->GetBlockHash().ToString(), pindexNew->nHeight,
-      log(pindexNew->nChainWork.getdouble())/log(2.0), FormatISO8601DateTime(pindexNew->GetBlockTime()));
+      std::log(pindexNew->nChainWork.getdouble())/std::log(2.0), FormatISO8601DateTime(pindexNew->GetBlockTime()));
     CBlockIndex *tip = chainActive.Tip();
     assert (tip);
     LogPrintf("%s:  current best=%s  height=%d  log2_work=%.8g  date=%s\n", __func__,
-      tip->GetBlockHash().ToString(), chainActive.Height(), log(tip->nChainWork.getdouble())/log(2.0),
+      tip->GetBlockHash().ToString(), chainActive.Height(), std::log(tip->nChainWork.getdouble())/std::log(2.0),
       FormatISO8601DateTime(tip->GetBlockTime()));
     CheckForkWarningConditions();
 }
@@ -2161,7 +2189,7 @@ bool static FlushStateToDisk(const CChainParams& chainparams, CValidationState &
                     vBlocks.push_back(*it);
                     setDirtyBlockIndex.erase(it++);
                 }
-                if (!pblocktree->WriteBatchSync(vFiles, nLastBlockFile, vBlocks)) {
+                if (!pblocktree->BatchWrite(vFiles, nLastBlockFile, vBlocks, mode == FlushStateMode::ALWAYS)) {
                     return AbortNode(state, "Failed to write to block index database");
                 }
             }
@@ -2182,7 +2210,7 @@ bool static FlushStateToDisk(const CChainParams& chainparams, CValidationState &
             if (mode == FlushStateMode::ALWAYS && !pclaimTrie->SyncToDisk())
                 return state.Error("Failed to write to claim trie database");
             // Flush the chainstate (which may refer to block index entries).
-            if (!pcoinsTip->Flush())
+            if (!pcoinsTip->Flush(mode == FlushStateMode::ALWAYS))
                 return AbortNode(state, "Failed to write to coin database");
             nLastFlush = nNow;
             full_flush_completed = true;
@@ -2285,7 +2313,7 @@ void static UpdateTip(const CBlockIndex *pindexNew, const CChainParams& chainPar
         lastBlockPrintTime = currentTime;
         LogPrintf("%s: new best=%s height=%d version=0x%08x log2_work=%.8g txb=%lu tx=%lu date='%s' progress=%f cache=%.1fMiB(%utxo)%s",
                 __func__, pindexNew->GetBlockHash().ToString(), pindexNew->nHeight, pindexNew->nVersion,
-                log(pindexNew->nChainWork.getdouble()) / log(2.0), (unsigned long) pindexNew->nTx,
+                std::log(pindexNew->nChainWork.getdouble()) / std::log(2.0), (unsigned long) pindexNew->nTx,
                 (unsigned long) pindexNew->nChainTx, FormatISO8601DateTime(pindexNew->GetBlockTime()),
                 GuessVerificationProgress(chainParams.TxData(), pindexNew),
                 pcoinsTip->DynamicMemoryUsage() * (1.0 / (1U << 20U)), pcoinsTip->GetCacheSize(),
