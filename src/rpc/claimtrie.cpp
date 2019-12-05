@@ -13,6 +13,7 @@
 #include <txmempool.h>
 #include <undo.h>
 #include <univalue.h>
+#include <utilstrencodings.h>
 #include <validation.h>
 
 #include <boost/locale.hpp>

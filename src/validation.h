@@ -14,7 +14,6 @@
 #include <claimtrie/forks.h>
 #include <coins.h>
 #include <fs.h>
-#include <index/txindex.h>
 #include <nameclaim.h>
 #include <protocol.h> // For CMessageHeader::MessageStartChars
 #include <policy/feerate.h>

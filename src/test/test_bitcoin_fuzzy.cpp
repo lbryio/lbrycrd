@@ -45,7 +45,6 @@ enum TEST_ID {
     CADDRESS_DESERIALIZE,
     CINV_DESERIALIZE,
     CBLOOMFILTER_DESERIALIZE,
-    CDISKBLOCKINDEX_DESERIALIZE,
     CTXOUTCOMPRESSOR_DESERIALIZE,
     BLOCKTRANSACTIONS_DESERIALIZE,
     BLOCKTRANSACTIONSREQUEST_DESERIALIZE,
@@ -226,15 +225,6 @@ static int test_one_input(std::vector<uint8_t> buffer) {
             {
                 CBloomFilter bf;
                 ds >> bf;
-            } catch (const std::ios_base::failure& e) {return 0;}
-            break;
-        }
-        case CDISKBLOCKINDEX_DESERIALIZE:
-        {
-            try
-            {
-                CDiskBlockIndex dbi;
-                ds >> dbi;
             } catch (const std::ios_base::failure& e) {return 0;}
             break;
         }

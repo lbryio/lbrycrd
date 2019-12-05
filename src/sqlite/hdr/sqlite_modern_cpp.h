@@ -178,6 +178,7 @@ namespace sqlite {
             explicit operator bool() {
                 return sqlite3_column_count(_binder->_stmt.get()) >= next_index;
             }
+            int& index() { return next_index; }
         private:
             template<class Tuple, std::size_t ...Index>
             Tuple handle_tuple(std::index_sequence<Index...>) {
