@@ -565,14 +565,18 @@ CUint256 CClaimTrieCacheBase::getMerkleHash()
 
 bool CClaimTrieCacheBase::getLastTakeoverForName(const std::string& name, CUint160& claimId, int& takeoverHeight) const
 {
-    auto query = db << "SELECT t.height, t.claimID FROM takeover t JOIN claims c "
-                        "ON t.claimID = c.claimID AND c.expirationHeight > ?1 "
-                        "WHERE t.name = ?2 ORDER BY t.height DESC LIMIT 1" << nNextHeight << name;
+    auto query = db << "SELECT t.height, t.claimID FROM takeover t "
+                       "WHERE t.name = ?2 ORDER BY t.height DESC LIMIT 1" << nNextHeight << name;
     auto it = query.begin();
-    if (it == query.end())
-        return false;
-    *it >> takeoverHeight >> claimId;
-    return !claimId.IsNull();
+    if (it != query.end()) {
+        std::unique_ptr<CUint160> claimIdOrNull;
+        *it >> takeoverHeight >> claimIdOrNull;
+        if (claimIdOrNull) {
+            claimId = *claimIdOrNull;
+            return true;
+        }
+    }
+    return false;
 }
 
 bool CClaimTrieCacheBase::addClaim(const std::string& name, const CTxOutPoint& outPoint, const CUint160& claimId,
@@ -1153,8 +1157,11 @@ bool CClaimTrieCacheBase::incrementBlock()
         // now that they're all in get the winner:
         CUint160 existingID;
         int existingHeight = 0;
-        auto hasBeenSetBefore = getLastTakeoverForName(nameWithTakeover, existingID, existingHeight);
-        auto takeoverHappening = !hasCandidate || (hasBeenSetBefore && existingID != candidateValue.claimId);
+        auto hasCurrentWinner = getLastTakeoverForName(nameWithTakeover, existingID, existingHeight);
+        // we have a takeover if we had a winner and its changing or we never had a winner
+        auto takeoverHappening = hasCandidate && hasCurrentWinner && existingID != candidateValue.claimId;
+        takeoverHappening |= !hasCandidate && hasCurrentWinner;
+        takeoverHappening |= hasCandidate && !hasCurrentWinner;
         if (takeoverHappening && activateAllFor(nameWithTakeover))
             hasCandidate = getInfoForName(nameWithTakeover, candidateValue, 1);
 
@@ -1166,13 +1173,13 @@ bool CClaimTrieCacheBase::incrementBlock()
             takeoverHappening |= wit != takeoverWorkarounds.end();
         }
 
-        logPrint << "Takeover on " << nameWithTakeover << " at " << nNextHeight << ", happening: " << takeoverHappening << ", set before: " << hasBeenSetBefore << Clog::endl;
+        logPrint << "Takeover on " << nameWithTakeover << " at " << nNextHeight << ", happening: " << takeoverHappening << ", set before: " << hasCurrentWinner << Clog::endl;
 
-        if (takeoverHappening || !hasBeenSetBefore) {
+        if (takeoverHappening) {
             if (hasCandidate)
                 db << "INSERT INTO takeover(name, height, claimID) VALUES(?, ?, ?)"
                    << nameWithTakeover << nNextHeight << candidateValue.claimId;
-            else if (hasBeenSetBefore)
+            else
                 db << "INSERT INTO takeover(name, height, claimID) VALUES(?, ?, NULL)"
                    << nameWithTakeover << nNextHeight;
         }
@@ -1202,18 +1209,21 @@ bool CClaimTrieCacheBase::decrementBlock()
 
     nNextHeight--;
 
-    db << "INSERT INTO nodes(name) SELECT name FROM claims "
-            "WHERE expirationHeight = ?1 OR activationHeight = ?1 "
-            "UNION SELECT name FROM supports "
-            "WHERE expirationHeight = ?1 OR activationHeight = ?1 "
-            "ON CONFLICT(name) DO UPDATE SET hash = NULL"
-        << nNextHeight;
+    db << "INSERT INTO nodes(name) SELECT nodeName FROM claims "
+          "WHERE expirationHeight = ? ON CONFLICT(name) DO UPDATE SET hash = NULL"
+          << nNextHeight;
+
+    db << "UPDATE nodes SET hash = NULL WHERE name IN("
+          "SELECT nodeName FROM supports WHERE expirationHeight = ?1 "
+          "UNION SELECT nodeName FROM supports WHERE activationHeight = ?1 "
+          "UNION SELECT nodeName FROM claims WHERE activationHeight = ?1)"
+          << nNextHeight;
 
     db << "UPDATE claims SET activationHeight = validHeight WHERE activationHeight = ?"
-        << nNextHeight;
+          << nNextHeight;
 
     db << "UPDATE supports SET activationHeight = validHeight WHERE activationHeight = ?"
-        << nNextHeight;
+          << nNextHeight;
 
     return true;
 }
@@ -1234,8 +1244,8 @@ int CClaimTrieCacheBase::getDelayForName(const std::string& name, const CUint160
 {
     CUint160 winningClaimId;
     int winningTakeoverHeight;
-    auto found = getLastTakeoverForName(name, winningClaimId, winningTakeoverHeight);
-    if (found && winningClaimId == claimId) {
+    auto hasCurrentWinner = getLastTakeoverForName(name, winningClaimId, winningTakeoverHeight);
+    if (hasCurrentWinner && winningClaimId == claimId) {
         assert(winningTakeoverHeight <= nNextHeight);
         return 0;
     }
@@ -1247,7 +1257,7 @@ int CClaimTrieCacheBase::getDelayForName(const std::string& name, const CUint160
         removalWorkaround.erase(hit);
         return 0;
     }
-    return found ? std::min((nNextHeight - winningTakeoverHeight) / base->nProportionalDelayFactor, 4032) : 0;
+    return hasCurrentWinner ? std::min((nNextHeight - winningTakeoverHeight) / base->nProportionalDelayFactor, 4032) : 0;
 }
 
 std::string CClaimTrieCacheBase::adjustNameForValidHeight(const std::string& name, int validHeight) const
