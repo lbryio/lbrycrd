@@ -67,9 +67,8 @@ CClaimTrie::CClaimTrie(bool fWipe, int height,
     db << "CREATE INDEX IF NOT EXISTS nodes_parent ON nodes (parent)";
 
     db << "CREATE TABLE IF NOT EXISTS takeover (name TEXT NOT NULL, height INTEGER NOT NULL, "
-           "claimID BLOB COLLATE BINARY, UNIQUE (name, height, claimID));";
+           "claimID BLOB COLLATE BINARY, PRIMARY KEY(name, height));";
 
-    db << "CREATE INDEX IF NOT EXISTS takeover_name ON takeover (name)";
     db << "CREATE INDEX IF NOT EXISTS takeover_height ON takeover (height)";
 
     db << "CREATE TABLE IF NOT EXISTS claims (claimID BLOB NOT NULL COLLATE BINARY PRIMARY KEY, name TEXT NOT NULL, "
@@ -363,10 +362,14 @@ bool CClaimTrieCacheBase::getInfoForName(const std::string& name, CClaimValue& c
 
 CClaimSupportToName CClaimTrieCacheBase::getClaimsForName(const std::string& name) const
 {
-    int nLastTakeoverHeight;
-    db  << "SELECT IFNULL(MAX(height), 0) FROM takeover WHERE name = ?" << name
-        >> nLastTakeoverHeight;
-
+    int nLastTakeoverHeight = 0;
+    {
+        auto query = db << "SELECT CASE WHEN claimID IS NULL THEN 0 ELSE height END "
+                           "FROM takeover WHERE name = ? ORDER BY height DESC LIMIT 1" << name;
+        for (auto&& row: query) {
+            row >> nLastTakeoverHeight;
+        }
+    }
     claimEntryType claims;
     {
         auto query = db << "SELECT claimID, txID, txN, blockHeight, activationHeight, amount "
@@ -436,8 +439,8 @@ bool CClaimTrieCacheBase::checkConsistency()
     // verify that all claims hash to the values on the nodes
 
     auto query = db << "SELECT n.name, n.hash, "
-                        "(SELECT t.height FROM takeover t WHERE t.name = n.name "
-                        "ORDER BY t.height DESC LIMIT 1) FROM nodes n";
+                        "IFNULL((SELECT CASE WHEN t.claimID IS NULL THEN 0 ELSE t.height END "
+                        "FROM takeover t WHERE t.name = n.name ORDER BY t.height DESC LIMIT 1), 0) FROM nodes n";
     for (auto&& row: query) {
         std::string name;
         CUint256 hash;
@@ -497,8 +500,8 @@ bool CClaimTrieCacheBase::flush()
 
 CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)
     : base(base), db(base->dbFile, sharedConfig), transacting(false),
-      childHashQuery(db << "SELECT n.name, n.hash, (SELECT t.height FROM takeover t "
-                            "WHERE t.name = n.name ORDER BY t.height DESC LIMIT 1) FROM nodes n "
+      childHashQuery(db << "SELECT n.name, n.hash, IFNULL((SELECT CASE WHEN t.claimID IS NULL THEN 0 ELSE t.height END FROM takeover t "
+                            "WHERE t.name = n.name ORDER BY t.height DESC LIMIT 1), 0) FROM nodes n "
                             "WHERE n.parent = ? ORDER BY n.name"),
       claimHashQuery(db << "SELECT c.txID, c.txN, c.claimID, c.blockHeight, c.activationHeight, c.amount, "
                             "(SELECT IFNULL(SUM(s.amount),0)+c.amount FROM supports s "
@@ -507,11 +510,11 @@ CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)
                             "FROM claims c WHERE c.nodeName = ?2 AND c.activationHeight < ?1 "
                             "AND c.expirationHeight >= ?1 "
                             "ORDER BY effectiveAmount DESC, c.blockHeight, c.txID, c.txN"),
-      proofClaimQuery("SELECT n.name, (SELECT t.height FROM takeover t WHERE t.name = n.name "
-                        "ORDER BY t.height DESC LIMIT 1) FROM nodes n "
-                        "WHERE n.name IN (WITH RECURSIVE prefix(p) AS (VALUES(?) UNION ALL "
-                        "SELECT POPS(p) FROM prefix WHERE p != '') SELECT p FROM prefix) "
-                        "ORDER BY n.name")
+      proofClaimQuery("SELECT n.name, IFNULL((SELECT CASE WHEN t.claimID IS NULL THEN 0 ELSE t.height END "
+                      "FROM takeover t WHERE t.name = n.name ORDER BY t.height DESC LIMIT 1), 0) FROM nodes n "
+                      "WHERE n.name IN (WITH RECURSIVE prefix(p) AS (VALUES(?) UNION ALL "
+                      "SELECT POPS(p) FROM prefix WHERE p != '') SELECT p FROM prefix) "
+                      "ORDER BY n.name")
 {
     assert(base);
     nNextHeight = base->nNextHeight;
@@ -551,8 +554,8 @@ CUint256 CClaimTrieCacheBase::getMerkleHash()
     if (!hash.IsNull())
         return hash;
     assert(transacting); // no data changed but we didn't have the root hash there already?
-    db << "SELECT n.name, (SELECT t.height FROM takeover t WHERE t.name = n.name "
-            "ORDER BY t.height DESC LIMIT 1) FROM nodes n WHERE n.hash IS NULL ORDER BY SIZE(n.name) DESC"
+    db << "SELECT n.name, IFNULL((SELECT CASE WHEN t.claimID IS NULL THEN 0 ELSE t.height END FROM takeover t WHERE t.name = n.name "
+            "ORDER BY t.height DESC LIMIT 1), 0) FROM nodes n WHERE n.hash IS NULL ORDER BY SIZE(n.name) DESC"
         >> [this, &hash](const std::string& name, int takeoverHeight) {
             hash = computeNodeHash(name, takeoverHeight);
             db << "UPDATE nodes SET hash = ? WHERE name = ?" << hash << name;
@@ -1132,12 +1135,14 @@ bool CClaimTrieCacheBase::incrementBlock()
     ensureTransacting();
 
     db << "INSERT INTO nodes(name) SELECT nodeName FROM claims "
-          "WHERE (activationHeight = ?1 AND expirationHeight > ?1) "
-          "OR expirationHeight = ?1 "
-          "UNION SELECT nodeName FROM supports "
-          "WHERE (activationHeight = ?1 AND expirationHeight > ?1) "
-          "OR expirationHeight = ?1 "
+          "WHERE activationHeight = ?1 AND expirationHeight > ?1 "
           "ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
+
+    // don't make new nodes for items in supports or items that expire this block that don't exist in claims
+    db << "UPDATE nodes SET hash = NULL WHERE name IN "
+          "(SELECT nodeName FROM claims WHERE expirationHeight = ?1 "
+          "UNION SELECT nodeName FROM supports WHERE expirationHeight = ?1 OR "
+          "(validHeight = ?1 AND expirationHeight > ?1))" << nNextHeight;
 
     // takeover handling:
     db  << "SELECT name FROM nodes WHERE hash IS NULL"
@@ -1163,10 +1168,13 @@ bool CClaimTrieCacheBase::incrementBlock()
 
         logPrint << "Takeover on " << nameWithTakeover << " at " << nNextHeight << ", happening: " << takeoverHappening << ", set before: " << hasBeenSetBefore << Clog::endl;
 
-        if ((takeoverHappening || !hasBeenSetBefore) && hasCandidate) {
-            db << "INSERT INTO takeover(name, height, claimID) VALUES(?, ?, ?)"
-                << nameWithTakeover << nNextHeight << candidateValue.claimId;
-            assert(db.rows_modified());
+        if (takeoverHappening || !hasBeenSetBefore) {
+            if (hasCandidate)
+                db << "INSERT INTO takeover(name, height, claimID) VALUES(?, ?, ?)"
+                   << nameWithTakeover << nNextHeight << candidateValue.claimId;
+            else if (hasBeenSetBefore)
+                db << "INSERT INTO takeover(name, height, claimID) VALUES(?, ?, NULL)"
+                   << nameWithTakeover << nNextHeight;
         }
     };
 
@@ -1215,9 +1223,9 @@ bool CClaimTrieCacheBase::finalizeDecrement()
     db << "UPDATE nodes SET hash = NULL WHERE name IN "
           "(SELECT nodeName FROM claims WHERE activationHeight = ?1 AND expirationHeight > ?1 "
           "UNION SELECT nodeName FROM supports WHERE activationHeight = ?1 AND expirationHeight > ?1 "
-          "UNION SELECT DISTINCT name FROM takeover WHERE height = ?1)" << nNextHeight;
+          "UNION SELECT name FROM takeover WHERE height = ?1)" << nNextHeight;
 
-    db << "DELETE FROM takeover WHERE height = ?" << nNextHeight;
+    db << "DELETE FROM takeover WHERE height >= ?" << nNextHeight;
 
     return true;
 }

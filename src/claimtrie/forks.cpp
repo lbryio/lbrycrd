@@ -141,12 +141,13 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary()
     ensureTransacting();
 
     // make the new nodes
-    db << "INSERT INTO nodes(name) "
-          "SELECT NORMALIZED(name) AS nc FROM claims WHERE nc != nodeName "
-          "AND activationHeight <= ?1 AND expirationHeight > ?1 "
-          "UNION SELECT NORMALIZED(name) AS ns FROM supports WHERE ns != nodeName "
-          "AND activationHeight <= ?1 AND expirationHeight > ?1 "
-          "ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
+    db << "INSERT INTO nodes(name) SELECT NORMALIZED(name) AS nn FROM claims WHERE nn != nodeName "
+          "AND activationHeight <= ?1 AND expirationHeight > ?1 ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
+
+    // there's a subtlety here: names in supports don't make new nodes
+    db << "UPDATE nodes SET hash = NULL WHERE name IN "
+          "(SELECT NORMALIZED(name) AS nn FROM supports WHERE nn != nodeName "
+          "AND activationHeight <= ?1 AND expirationHeight > ?1)" << nNextHeight;
 
     // update the claims and supports
     db << "UPDATE claims SET nodeName = NORMALIZED(name) WHERE activationHeight <= ?1 AND expirationHeight > ?1" << nNextHeight;
@@ -168,12 +169,8 @@ bool CClaimTrieCacheNormalizationFork::unnormalizeAllNamesInTrieIfNecessary()
 {
     ensureTransacting();
 
-    db << "INSERT INTO nodes(name) "
-          "SELECT name FROM claims WHERE name != nodeName "
-          "AND activationHeight < ?1 AND expirationHeight > ?1 "
-          "UNION SELECT name FROM supports WHERE name != nodeName "
-          "AND activationHeight < ?1 AND expirationHeight > ?1 "
-          "ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
+    db << "INSERT INTO nodes(name) SELECT name FROM claims WHERE name != nodeName "
+          "AND activationHeight < ?1 AND expirationHeight > ?1 ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
 
     db << "UPDATE nodes SET hash = NULL WHERE name IN "
           "(SELECT nodeName FROM supports WHERE name != nodeName "
