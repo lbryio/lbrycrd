@@ -554,12 +554,15 @@ CUint256 CClaimTrieCacheBase::getMerkleHash()
     if (!hash.IsNull())
         return hash;
     assert(transacting); // no data changed but we didn't have the root hash there already?
+    auto updateQuery = db << "UPDATE nodes SET hash = ? WHERE name = ?";
     db << "SELECT n.name, IFNULL((SELECT CASE WHEN t.claimID IS NULL THEN 0 ELSE t.height END FROM takeover t WHERE t.name = n.name "
-            "ORDER BY t.height DESC LIMIT 1), 0) FROM nodes n WHERE n.hash IS NULL ORDER BY SIZE(n.name) DESC"
-        >> [this, &hash](const std::string& name, int takeoverHeight) {
+            "ORDER BY t.height DESC LIMIT 1), 0) FROM nodes n WHERE n.hash IS NULL ORDER BY n.name DESC"
+        >> [this, &hash, &updateQuery](const std::string& name, int takeoverHeight) {
             hash = computeNodeHash(name, takeoverHeight);
-            db << "UPDATE nodes SET hash = ? WHERE name = ?" << hash << name;
+            updateQuery << hash << name;
+            updateQuery++;
         };
+    updateQuery.used(true);
     return hash;
 }
 
@@ -1138,19 +1141,22 @@ bool CClaimTrieCacheBase::incrementBlock()
     // for all dirty nodes look for new takeovers
     ensureTransacting();
 
-    db << "INSERT INTO nodes(name) SELECT nodeName FROM claims "
+    db << "INSERT INTO nodes(name) SELECT nodeName FROM claims INDEXED BY claims_activationHeight "
           "WHERE activationHeight = ?1 AND expirationHeight > ?1 "
-          "ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
+          "ON CONFLICT(name) DO UPDATE SET hash = NULL"
+          << nNextHeight;
 
     // don't make new nodes for items in supports or items that expire this block that don't exist in claims
     db << "UPDATE nodes SET hash = NULL WHERE name IN "
           "(SELECT nodeName FROM claims WHERE expirationHeight = ?1 "
-          "UNION SELECT nodeName FROM supports WHERE expirationHeight = ?1 OR "
-          "(validHeight = ?1 AND expirationHeight > ?1))" << nNextHeight;
+          "UNION SELECT nodeName FROM supports WHERE expirationHeight = ?1 OR activationHeight = ?1)"
+          << nNextHeight;
+
+    auto insertTakeoverQuery = db << "INSERT INTO takeover(name, height, claimID) VALUES(?, ?, ?)";
 
     // takeover handling:
     db  << "SELECT name FROM nodes WHERE hash IS NULL"
-        >> [this](const std::string& nameWithTakeover) {
+        >> [this, &insertTakeoverQuery](const std::string& nameWithTakeover) {
         // if somebody activates on this block and they are the new best, then everybody activates on this block
         CClaimValue candidateValue;
         auto hasCandidate = getInfoForName(nameWithTakeover, candidateValue, 1);
@@ -1177,13 +1183,14 @@ bool CClaimTrieCacheBase::incrementBlock()
 
         if (takeoverHappening) {
             if (hasCandidate)
-                db << "INSERT INTO takeover(name, height, claimID) VALUES(?, ?, ?)"
-                   << nameWithTakeover << nNextHeight << candidateValue.claimId;
+                insertTakeoverQuery << nameWithTakeover << nNextHeight << candidateValue.claimId;
             else
-                db << "INSERT INTO takeover(name, height, claimID) VALUES(?, ?, NULL)"
-                   << nameWithTakeover << nNextHeight;
+                insertTakeoverQuery << nameWithTakeover << nNextHeight << nullptr;
+            insertTakeoverQuery++;
         }
     };
+
+    insertTakeoverQuery.used(true);
 
     nNextHeight++;
     return true;
@@ -1214,8 +1221,7 @@ bool CClaimTrieCacheBase::decrementBlock()
           << nNextHeight;
 
     db << "UPDATE nodes SET hash = NULL WHERE name IN("
-          "SELECT nodeName FROM supports WHERE expirationHeight = ?1 "
-          "UNION SELECT nodeName FROM supports WHERE activationHeight = ?1 "
+          "SELECT nodeName FROM supports WHERE expirationHeight = ?1 OR activationHeight = ?1 "
           "UNION SELECT nodeName FROM claims WHERE activationHeight = ?1)"
           << nNextHeight;
 
