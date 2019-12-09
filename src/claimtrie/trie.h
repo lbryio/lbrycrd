@@ -106,10 +106,9 @@ protected:
     int nNextHeight; // Height of the block that is being worked on, which is
     CClaimTrie* base;
     mutable sqlite::database db;
-    const std::string proofClaimQuery;
     mutable std::unordered_set<std::string> removalWorkaround;
 
-    mutable sqlite::database_binder claimHashQuery, childHashQuery;
+    mutable sqlite::database_binder claimHashQuery, childHashQuery, claimHashQueryLimit;
 
     virtual CUint256 computeNodeHash(const std::string& name, int takeoverHeight);
     supportEntryType getSupportsForName(const std::string& name) const;
