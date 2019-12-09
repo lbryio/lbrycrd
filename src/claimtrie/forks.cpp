@@ -330,6 +330,8 @@ std::vector<CUint256> ComputeMerklePath(const std::vector<CUint256>& hashes, uin
     return res;
 }
 
+extern const std::string proofClaimQuery_s;
+
 bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const CUint160& claim, CClaimTrieProof& proof)
 {
     if (nNextHeight < base->nAllClaimsInMerkleForkHeight)
@@ -344,7 +346,7 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const CUi
     // cache the parent nodes
     getMerkleHash();
     proof = CClaimTrieProof();
-    for (auto&& row: db << proofClaimQuery << name) {
+    for (auto&& row: db << proofClaimQuery_s << name) {
         std::string key;
         int takeoverHeight;
         row >> key >> takeoverHeight;
