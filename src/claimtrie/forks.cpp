@@ -4,8 +4,6 @@
 #include <log.h>
 #include <trie.h>
 
-#include <tuple>
-
 #include <boost/locale.hpp>
 #include <boost/locale/conversion.hpp>
 #include <boost/locale/localization_backend.hpp>
@@ -254,15 +252,15 @@ CUint256 CClaimTrieCacheHashFork::computeNodeHash(const std::string& name, int t
         return CClaimTrieCacheNormalizationFork::computeNodeHash(name, takeoverHeight);
 
     std::vector<CUint256> childHashes;
-    childHashQuery << name >> [&childHashes](std::string name, CUint256 hash) {
+    childHashQuery << name >> [&childHashes](std::string, CUint256 hash) {
         childHashes.push_back(std::move(hash));
     };
     childHashQuery++;
 
     std::vector<CUint256> claimHashes;
     //if (takeoverHeight > 0) {
+        CTxOutPoint p;
         for (auto &&row: claimHashQuery << nNextHeight << name) {
-            CTxOutPoint p;
             row >> p.hash >> p.n;
             claimHashes.push_back(getValueHash(p, takeoverHeight));
         }
