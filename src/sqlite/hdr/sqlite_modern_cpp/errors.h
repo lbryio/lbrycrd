@@ -9,8 +9,8 @@ namespace sqlite {
 
     class sqlite_exception: public std::runtime_error {
     public:
-        sqlite_exception(const char* msg, str_ref sql, int code = -1): runtime_error(sql + ':' + msg), code(code), sql(sql) {}
-        sqlite_exception(int code, str_ref sql, const char *msg = nullptr): runtime_error(sql + ':' + (msg ? msg : sqlite3_errstr(code))), code(code), sql(sql) {}
+        sqlite_exception(const char* msg, str_ref sql, int code = -1): runtime_error(msg + std::string(": ") + sql), code(code), sql(sql) {}
+        sqlite_exception(int code, str_ref sql, const char *msg = nullptr): runtime_error((msg ? msg : sqlite3_errstr(code)) + std::string(": ") + sql), code(code), sql(sql) {}
         int get_code() const {return code & 0xFF;}
         int get_extended_code() const {return code;}
         std::string get_sql() const {return sql;}
