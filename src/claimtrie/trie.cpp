@@ -6,9 +6,7 @@
 #include <trie.h>
 
 #include <algorithm>
-#include <chrono>
 #include <memory>
-#include <thread>
 
 #define logPrint CLogPrint::global()
 
@@ -467,23 +465,11 @@ bool CClaimTrieCacheBase::flush()
 {
     if (transacting) {
         getMerkleHash();
-        do {
-            try {
-                db << "commit";
-            } catch (const sqlite::sqlite_exception& e) {
-                auto code = e.get_code();
-                if (code == SQLITE_LOCKED || code == SQLITE_BUSY) {
-                    logPrint << "Retrying the commit in one second." << Clog::endl;
-                    using namespace std::chrono_literals;
-                    std::this_thread::sleep_for(1s);
-                    continue;
-                } else {
-                    logPrint << "ERROR in ClaimTrieCache::" << __func__ << "(): " << e.what() << Clog::endl;
-                    return false;
-                }
-            }
-            break;
-        } while (true);
+        auto code = sqlite::commit(db);
+        if (code != SQLITE_OK) {
+            logPrint << "ERROR in CClaimTrieCacheBase::" << __func__ << "(): SQLite code: " << code << Clog::endl;
+            return false;
+        }
         transacting = false;
     }
     base->nNextHeight = nNextHeight;
