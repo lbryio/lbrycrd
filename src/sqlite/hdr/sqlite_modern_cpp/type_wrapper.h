@@ -12,8 +12,6 @@
 #ifdef __has_include
 #if __cplusplus > 201402 && __has_include(<optional>)
 #define MODERN_SQLITE_STD_OPTIONAL_SUPPORT
-#elif __has_include(<experimental/optional>) && __apple_build_version__ < 11000000
-#define MODERN_SQLITE_EXPERIMENTAL_OPTIONAL_SUPPORT
 #endif
 #endif
 
@@ -25,11 +23,6 @@
 
 #ifdef MODERN_SQLITE_STD_OPTIONAL_SUPPORT
 #include <optional>
-#endif
-
-#ifdef MODERN_SQLITE_EXPERIMENTAL_OPTIONAL_SUPPORT
-#include <experimental/optional>
-#define MODERN_SQLITE_STD_OPTIONAL_SUPPORT
 #endif
 
 #ifdef MODERN_SQLITE_STD_VARIANT_SUPPORT
@@ -310,13 +303,8 @@ namespace sqlite {
 
     // std::optional support for NULL values
 #ifdef MODERN_SQLITE_STD_OPTIONAL_SUPPORT
-#ifdef MODERN_SQLITE_EXPERIMENTAL_OPTIONAL_SUPPORT
-    template<class T>
-    using optional = std::experimental::optional<T>;
-#else
     template<class T>
 	using optional = std::optional<T>;
-#endif
 
     template<typename T, int Type>
     struct has_sqlite_type<optional<T>, Type, void> : has_sqlite_type<T, Type> {};
@@ -334,30 +322,16 @@ namespace sqlite {
     }
 
     template <typename OptionalT> inline optional<OptionalT> get_col_from_db(sqlite3_stmt* stmt, int inx, result_type<optional<OptionalT>>) {
-#ifdef MODERN_SQLITE_EXPERIMENTAL_OPTIONAL_SUPPORT
-        if(sqlite3_column_type(stmt, inx) == SQLITE_NULL) {
-            return std::experimental::nullopt;
-        }
-        return std::experimental::make_optional(get_col_from_db(stmt, inx, result_type<OptionalT>()));
-#else
         if(sqlite3_column_type(stmt, inx) == SQLITE_NULL) {
 			return std::nullopt;
 		}
 		return std::make_optional(get_col_from_db(stmt, inx, result_type<OptionalT>()));
-#endif
     }
     template <typename OptionalT> inline optional<OptionalT> get_val_from_db(sqlite3_value *value, result_type<optional<OptionalT>>) {
-#ifdef MODERN_SQLITE_EXPERIMENTAL_OPTIONAL_SUPPORT
-        if(sqlite3_value_type(value) == SQLITE_NULL) {
-            return std::experimental::nullopt;
-        }
-        return std::experimental::make_optional(get_val_from_db(value, result_type<OptionalT>()));
-#else
         if(sqlite3_value_type(value) == SQLITE_NULL) {
 			return std::nullopt;
 		}
 		return std::make_optional(get_val_from_db(value, result_type<OptionalT>()));
-#endif
     }
 #endif
 
