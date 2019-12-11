@@ -36,6 +36,7 @@
 #include <rpc/blockchain.h>
 #include <script/standard.h>
 #include <script/sigcache.h>
+#include <sqlite/hdr/sqlite_modern_cpp/log.h>
 #include <scheduler.h>
 #include <shutdown.h>
 #include <timedata.h>
@@ -1241,6 +1242,15 @@ bool AppInitMain()
             gArgs.GetArg("-datadir", ""), fs::current_path().string());
     }
 
+    sqlite::error_log(
+            [](sqlite::sqlite_exception& e) {
+                LogPrintf("Error with Sqlite: %s\n", e.what());
+            },
+            [](sqlite::errors::misuse& e) {
+                // You can behave differently to specific errors
+            }
+    );
+
     InitSignatureCache();
     InitScriptExecutionCache();
 
@@ -1425,7 +1435,6 @@ bool AppInitMain()
 
     bool fLoaded = false;
     while (!fLoaded && !ShutdownRequested()) {
-        bool fReset = fReindex;
         std::string strLoadError;
 
         uiInterface.InitMessage(_("Loading block index..."));
@@ -1442,9 +1451,9 @@ bool AppInitMain()
                 // new CBlockTreeDB tries to delete the existing file, which
                 // fails if it's still open from the previous loop. Close it first:
                 pblocktree.reset();
-                pblocktree.reset(new CBlockTreeDB(nBlockTreeDBCache, false, fReset));
+                pblocktree.reset(new CBlockTreeDB(nBlockTreeDBCache, false, fReindex));
 
-                if (fReset) {
+                if (fReindex) {
                     pblocktree->WriteReindexing(true);
                     //If we're reindexing in prune mode, wipe away unusable block files and all undo data files
                     if (fPruneMode)
@@ -1458,7 +1467,7 @@ bool AppInitMain()
                 // Note that it also sets fReindex based on the disk flag!
                 // From here on out fReindex and fReset mean something different!
                 if (!LoadBlockIndex(chainparams)) {
-                    strLoadError = _("Error loading block database");
+                    strLoadError = _("Error loading block index database");
                     break;
                 }
 
@@ -1487,7 +1496,7 @@ bool AppInitMain()
                 // At this point we're either in reindex or we've loaded a useful
                 // block tree into mapBlockIndex!
 
-                pcoinsdbview.reset(new CCoinsViewDB(nCoinDBCache, false, fReset || fReindexChainState));
+                pcoinsdbview.reset(new CCoinsViewDB(nCoinDBCache, false, fReindex || fReindexChainState));
                 pcoinscatcher.reset(new CCoinsViewErrorCatcher(pcoinsdbview.get()));
 
                 if (g_logger->Enabled() && LogAcceptCategory(BCLog::CLAIMS))
@@ -1513,7 +1522,7 @@ bool AppInitMain()
                 // The on-disk coinsdb is now in a good state, create the cache
                 pcoinsTip.reset(new CCoinsViewCache(pcoinscatcher.get()));
 
-                bool is_coinsview_empty = fReset || fReindexChainState || pcoinsTip->GetBestBlock().IsNull();
+                bool is_coinsview_empty = fReindex || fReindexChainState || pcoinsTip->GetBestBlock().IsNull();
                 if (!is_coinsview_empty) {
                     // LoadChainTip sets chainActive based on pcoinsTip's best block
                     if (!LoadChainTip(chainparams)) {
@@ -1529,7 +1538,7 @@ bool AppInitMain()
                     break;
                 }
 
-                if (!fReset) {
+                if (!fReindex) {
                     // Note that RewindBlockIndex MUST run even if we're about to -reindex-chainstate.
                     // It both disconnects blocks based on chainActive, and drops block data in
                     // mapBlockIndex based on lack of available witness data.
@@ -1574,10 +1583,10 @@ bool AppInitMain()
 
         if (!fLoaded && !ShutdownRequested()) {
             // first suggest a reindex
-            if (!fReset) {
+            if (!fReindex) {
                 bool fRet = uiInterface.ThreadSafeQuestion(
                     strLoadError + ".\n\n" + _("Do you want to rebuild the block database now?"),
-                    strLoadError + ".\nPlease restart with -reindex or -reindex-chainstate to recover.",
+                    strLoadError + ".\nPlease restart with -reindex to recover.",
                     "", CClientUIInterface::MSG_ERROR | CClientUIInterface::BTN_ABORT);
                 if (fRet) {
                     fReindex = true;
@@ -1589,6 +1598,14 @@ bool AppInitMain()
             } else {
                 return InitError(strLoadError);
             }
+        }
+
+        if (fReindex) {
+            // remove old LevelDB indexes
+            boost::system::error_code ec;
+            fs::remove_all(GetDataDir() / "blocks" / "index", ec);
+            fs::remove_all(GetDataDir() / "chainstate", ec);
+            fs::remove_all(GetDataDir() / "claimtrie", ec);
         }
     }
 

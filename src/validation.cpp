@@ -4359,6 +4359,16 @@ bool LoadBlockIndex(const CChainParams& chainparams)
         bool ret = LoadBlockIndexDB(chainparams);
         if (!ret) return false;
         needs_init = mapBlockIndex.empty();
+
+        if (needs_init) {
+            auto blockDir = GetDataDir() / "blocks";
+            for (auto it: fs::directory_iterator(blockDir)) {
+                boost::system::error_code ec;
+                if (fs::file_size(it, ec) > 100000000) {
+                    return error("Block index is empty but block files exist. Please re-run with -reindex.");
+                }
+            }
+        }
     }
 
     if (needs_init) {
