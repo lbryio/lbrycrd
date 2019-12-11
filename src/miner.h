@@ -121,6 +121,8 @@ struct update_for_parent_inclusion
     CTxMemPool::txiter iter;
 };
 
+extern CTxMemPool mempool;
+
 /** Generate a new block, without valid proof-of-work */
 class BlockAssembler
 {
