@@ -10,33 +10,30 @@
 #include <coins.h>
 #include <consensus/merkle.h>
 #include <consensus/validation.h>
-#include <miner.h>
 #include <nameclaim.h>
 #include <policy/policy.h>
 #include <pow.h>
-#include <primitives/transaction.h>
 #include <random.h>
 #include <rpc/claimrpchelp.h>
 #include <rpc/server.h>
 #include <streams.h>
 #include <test/test_bitcoin.h>
-#include <txmempool.h>
 #include <util.h>
-#include <validation.h>
 
 #include <boost/test/unit_test.hpp>
 #include <iostream>
 
-extern ::CChainState g_chainstate;
 extern ::ArgsManager gArgs;
 extern std::vector<std::string> random_strings(std::size_t count);
 
-
+class CTransaction;
 CMutableTransaction BuildTransaction(const uint256& prevhash);
 CMutableTransaction BuildTransaction(const CTransaction& prev, uint32_t prevout=0, unsigned int numOutputs=1, int locktime=0);
 
+class BlockAssembler;
 BlockAssembler AssemblerForTest();
 
+class CBlockTemplate;
 // Test Fixtures
 struct ClaimTrieChainFixture: public CClaimTrieCache
 {
@@ -85,7 +82,7 @@ struct ClaimTrieChainFixture: public CClaimTrieCache
     // make update at the current block
     CMutableTransaction MakeUpdate(const CTransaction &prev, const std::string& name, const std::string& value, const uint160& claimId, CAmount quantity);
 
-    CTransaction GetCoinbase();
+    CTransaction& GetCoinbase();
 
     // create i blocks
     void IncrementBlocks(int num_blocks, bool mark = false);

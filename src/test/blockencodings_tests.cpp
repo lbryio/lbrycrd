@@ -8,6 +8,7 @@
 #include <pow.h>
 #include <streams.h>
 #include <streams.h>
+#include <txmempool.h>
 
 #include <test/setup_common.h>
 
@@ -18,6 +19,8 @@ std::vector<std::pair<uint256, CTransactionRef>> extra_txn;
 struct RegtestingSetup : public TestingSetup {
     RegtestingSetup() : TestingSetup(CBaseChainParams::REGTEST) {}
 };
+
+extern CTxMemPoolEntry FromTx(CTransactionRef tx, const TestMemPoolEntryHelper& entry);
 
 BOOST_FIXTURE_TEST_SUITE(blockencodings_tests, RegtestingSetup)
 
@@ -64,7 +67,7 @@ BOOST_AUTO_TEST_CASE(SimpleRoundTripTest)
     CBlock block(BuildBlockTestCase());
 
     LOCK2(cs_main, pool.cs);
-    pool.addUnchecked(entry.FromTx(block.vtx[2]));
+    pool.addUnchecked(FromTx(block.vtx[2], entry));
     BOOST_CHECK_EQUAL(pool.mapTx.find(block.vtx[2]->GetHash())->GetSharedTx().use_count(), SHARED_TX_OFFSET + 0);
 
     // Do a simple ShortTxIDs RT
@@ -164,7 +167,7 @@ BOOST_AUTO_TEST_CASE(NonCoinbasePreforwardRTTest)
     CBlock block(BuildBlockTestCase());
 
     LOCK2(cs_main, pool.cs);
-    pool.addUnchecked(entry.FromTx(block.vtx[2]));
+    pool.addUnchecked(FromTx(block.vtx[2], entry));
     BOOST_CHECK_EQUAL(pool.mapTx.find(block.vtx[2]->GetHash())->GetSharedTx().use_count(), SHARED_TX_OFFSET + 0);
 
     uint256 txhash;
@@ -234,7 +237,7 @@ BOOST_AUTO_TEST_CASE(SufficientPreforwardRTTest)
     CBlock block(BuildBlockTestCase());
 
     LOCK2(cs_main, pool.cs);
-    pool.addUnchecked(entry.FromTx(block.vtx[1]));
+    pool.addUnchecked(FromTx(block.vtx[1], entry));
     BOOST_CHECK_EQUAL(pool.mapTx.find(block.vtx[1]->GetHash())->GetSharedTx().use_count(), SHARED_TX_OFFSET + 0);
 
     uint256 txhash;

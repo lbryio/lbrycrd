@@ -2,7 +2,9 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://opensource.org/licenses/mit-license.php
 
+#include <miner.h>
 #include <test/claimtriefixture.h>
+#include <validation.h>
 
 using namespace std;
 

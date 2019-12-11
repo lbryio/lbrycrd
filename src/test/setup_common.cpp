@@ -204,7 +204,7 @@ TestChain100Setup::TestChain100Setup() : TestingSetup(CBaseChainParams::REGTEST)
     {
         std::vector<CMutableTransaction> noTxns;
         CBlock b = CreateAndProcessBlock(noTxns, scriptPubKey);
-        m_coinbase_txns.push_back(b.vtx[0]);
+        m_coinbase_txns.emplace_back(*b.vtx[0]);
     }
 }
 
@@ -257,14 +257,15 @@ RegTestingSetup::~RegTestingSetup()
     minRelayTxFee = CFeeRate(DEFAULT_MIN_RELAY_TX_FEE);
 }
 
-CTxMemPoolEntry TestMemPoolEntryHelper::FromTx(const CMutableTransaction &tx) {
-    return FromTx(MakeTransactionRef(tx));
+CTxMemPoolEntry FromTx(CTransactionRef tx, const TestMemPoolEntryHelper& entry)
+{
+    return CTxMemPoolEntry(tx, entry.nFee, entry.nTime, entry.nHeight,
+                           entry.spendsCoinbase, entry.sigOpCost, LockPoints{});
 }
 
-CTxMemPoolEntry TestMemPoolEntryHelper::FromTx(const CTransactionRef& tx)
+CTxMemPoolEntry TestMemPoolEntryHelper::FromTx(const CMutableTransaction &tx)
 {
-    return CTxMemPoolEntry(tx, nFee, nTime, nHeight,
-                           spendsCoinbase, sigOpCost, lp);
+    return ::FromTx(MakeTransactionRef(tx), *this);
 }
 
 /**

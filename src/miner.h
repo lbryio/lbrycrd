@@ -9,7 +9,6 @@
 #include <optional.h>
 #include <primitives/block.h>
 #include <txmempool.h>
-#include <validation.h>
 
 #include <memory>
 #include <stdint.h>

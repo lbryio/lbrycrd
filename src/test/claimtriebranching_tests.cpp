@@ -3,6 +3,7 @@
 // file COPYING or http://opensource.org/licenses/mit-license.php
 
 #include <test/claimtriefixture.h>
+#include <validation.h>
 
 using namespace std;
 

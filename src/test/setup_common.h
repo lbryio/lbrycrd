@@ -5,13 +5,13 @@
 #ifndef BITCOIN_TEST_SETUP_COMMON_H
 #define BITCOIN_TEST_SETUP_COMMON_H
 
+#include <amount.h>
 #include <chainparamsbase.h>
 #include <fs.h>
 #include <key.h>
 #include <pubkey.h>
 #include <random.h>
 #include <scheduler.h>
-#include <txmempool.h>
 
 #include <type_traits>
 
@@ -92,7 +92,7 @@ struct TestChain100Setup : public TestingSetup {
 
     ~TestChain100Setup() override;
 
-    std::vector<CTransactionRef> m_coinbase_txns; // For convenience, coinbase transactions
+    std::vector<CMutableTransaction> m_coinbase_txns; // For convenience, coinbase transactions
     CKey coinbaseKey; // private/public key needed to spend coinbase transactions
 };
 
@@ -111,14 +111,12 @@ struct TestMemPoolEntryHelper
     unsigned int nHeight;
     bool spendsCoinbase;
     unsigned int sigOpCost;
-    LockPoints lp;
 
     TestMemPoolEntryHelper() :
         nFee(0), nTime(0), nHeight(1),
         spendsCoinbase(false), sigOpCost(4) { }
 
     CTxMemPoolEntry FromTx(const CMutableTransaction& tx);
-    CTxMemPoolEntry FromTx(const CTransactionRef& tx);
 
     // Change the default value
     TestMemPoolEntryHelper &Fee(CAmount _fee) { nFee = _fee; return *this; }
@@ -131,8 +129,11 @@ struct TestMemPoolEntryHelper
 CBlock getTestBlock();
 
 // define an implicit conversion here so that uint256 may be used directly in BOOST_CHECK_*
+
 std::ostream& operator<<(std::ostream& os, const uint256& num);
 std::ostream& operator<<(std::ostream& os, const uint160& num);
+
+class COutPoint;
 std::ostream& operator<<(std::ostream& os, const COutPoint& point);
 
 std::ostream& operator<<(std::ostream& os, const CUint256& num);

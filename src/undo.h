@@ -8,7 +8,6 @@
 
 #include <coins.h>
 #include <compressor.h>
-#include <claimtrie/forks.h>
 #include <primitives/transaction.h>
 #include <serialize.h>
 #include <version.h>
