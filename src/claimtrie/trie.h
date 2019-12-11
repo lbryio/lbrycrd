@@ -27,7 +27,7 @@ public:
     CClaimTrie() = delete;
     CClaimTrie(CClaimTrie&&) = delete;
     CClaimTrie(const CClaimTrie&) = delete;
-    CClaimTrie(int64_t cacheBytes, bool fWipe, int height = 0,
+    CClaimTrie(std::size_t cacheBytes, bool fWipe, int height = 0,
                const std::string& dataDir = ".",
                int nNormalizedNameForkHeight = 1,
                int64_t nOriginalClaimExpirationTime = 1,
@@ -44,6 +44,7 @@ public:
 
 protected:
     int nNextHeight;
+    std::size_t dbCacheBytes;
     const std::string dbFile;
     sqlite::database db;
     const int nProportionalDelayFactor;
@@ -77,10 +78,10 @@ public:
     bool haveSupportInQueue(const std::string& name, const CTxOutPoint& outPoint, int& nValidAtHeight) const;
 
     bool addClaim(const std::string& name, const CTxOutPoint& outPoint, const CUint160& claimId, int64_t nAmount,
-                  int nHeight, int nValidHeight = -1, const std::vector<unsigned char>& metadata = {});
+                  int nHeight, int nValidHeight = -1);
 
     bool addSupport(const std::string& name, const CTxOutPoint& outPoint, const CUint160& supportedClaimId, int64_t nAmount,
-                    int nHeight, int nValidHeight = -1, const std::vector<unsigned char>& metadata = {});
+                    int nHeight, int nValidHeight = -1);
 
     bool removeClaim(const CUint160& claimId, const CTxOutPoint& outPoint, std::string& nodeName, int& validHeight);
     bool removeSupport(const CTxOutPoint& outPoint, std::string& nodeName, int& validHeight);

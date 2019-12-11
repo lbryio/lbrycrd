@@ -6,7 +6,6 @@
 #define BITCOIN_TEST_TEST_BITCOIN_H
 
 #include <chainparamsbase.h>
-#include <claimtrie/forks.h>
 #include <fs.h>
 #include <key.h>
 #include <pubkey.h>
@@ -138,6 +137,9 @@ std::ostream& operator<<(std::ostream& os, const COutPoint& point);
 std::ostream& operator<<(std::ostream& os, const CUint256& num);
 std::ostream& operator<<(std::ostream& os, const CUint160& num);
 std::ostream& operator<<(std::ostream& os, const CTxOutPoint& point);
+
+class CClaimValue;
+class CSupportValue;
 std::ostream& operator<<(std::ostream& os, const CClaimValue& claim);
 std::ostream& operator<<(std::ostream& os, const CSupportValue& support);
 #endif

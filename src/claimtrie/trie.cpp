@@ -48,7 +48,7 @@ void applyPragmas(sqlite::database& db, std::size_t cache)
     db << "PRAGMA case_sensitive_like=true";
 }
 
-CClaimTrie::CClaimTrie(int64_t cacheBytes, bool fWipe, int height,
+CClaimTrie::CClaimTrie(std::size_t cacheBytes, bool fWipe, int height,
                        const std::string& dataDir,
                        int nNormalizedNameForkHeight,
                        int64_t nOriginalClaimExpirationTime,
@@ -57,6 +57,7 @@ CClaimTrie::CClaimTrie(int64_t cacheBytes, bool fWipe, int height,
                        int64_t nAllClaimsInMerkleForkHeight,
                        int proportionalDelayFactor) :
                        nNextHeight(height),
+                       dbCacheBytes(cacheBytes),
                        dbFile(dataDir + "/claims.sqlite"), db(dbFile, sharedConfig),
                        nProportionalDelayFactor(proportionalDelayFactor),
                        nNormalizedNameForkHeight(nNormalizedNameForkHeight),
@@ -65,6 +66,8 @@ CClaimTrie::CClaimTrie(int64_t cacheBytes, bool fWipe, int height,
                        nExtendedClaimExpirationForkHeight(nExtendedClaimExpirationForkHeight),
                        nAllClaimsInMerkleForkHeight(nAllClaimsInMerkleForkHeight)
 {
+    applyPragmas(db, 5U * 1024U); // in KB
+
     db << "CREATE TABLE IF NOT EXISTS nodes (name TEXT NOT NULL PRIMARY KEY, "
           "parent TEXT REFERENCES nodes(name) DEFERRABLE INITIALLY DEFERRED, "
           "hash BLOB COLLATE BINARY)";
@@ -81,7 +84,7 @@ CClaimTrie::CClaimTrie(int64_t cacheBytes, bool fWipe, int height,
            "nodeName TEXT NOT NULL REFERENCES nodes(name) DEFERRABLE INITIALLY DEFERRED, "
            "txID BLOB NOT NULL COLLATE BINARY, txN INTEGER NOT NULL, blockHeight INTEGER NOT NULL, "
            "validHeight INTEGER NOT NULL, activationHeight INTEGER NOT NULL, "
-           "expirationHeight INTEGER NOT NULL, amount INTEGER NOT NULL, metadata BLOB COLLATE BINARY);";
+           "expirationHeight INTEGER NOT NULL, amount INTEGER NOT NULL);";
 
     db << "CREATE INDEX IF NOT EXISTS claims_activationHeight ON claims (activationHeight)";
     db << "CREATE INDEX IF NOT EXISTS claims_expirationHeight ON claims (expirationHeight)";
@@ -90,14 +93,12 @@ CClaimTrie::CClaimTrie(int64_t cacheBytes, bool fWipe, int height,
     db << "CREATE TABLE IF NOT EXISTS supports (txID BLOB NOT NULL COLLATE BINARY, txN INTEGER NOT NULL, "
            "supportedClaimID BLOB NOT NULL COLLATE BINARY, name TEXT NOT NULL, nodeName TEXT NOT NULL, "
            "blockHeight INTEGER NOT NULL, validHeight INTEGER NOT NULL, activationHeight INTEGER NOT NULL, "
-           "expirationHeight INTEGER NOT NULL, amount INTEGER NOT NULL, metadata BLOB COLLATE BINARY, PRIMARY KEY(txID, txN));";
+           "expirationHeight INTEGER NOT NULL, amount INTEGER NOT NULL, PRIMARY KEY(txID, txN));";
 
     db << "CREATE INDEX IF NOT EXISTS supports_supportedClaimID ON supports (supportedClaimID)";
     db << "CREATE INDEX IF NOT EXISTS supports_activationHeight ON supports (activationHeight)";
     db << "CREATE INDEX IF NOT EXISTS supports_expirationHeight ON supports (expirationHeight)";
     db << "CREATE INDEX IF NOT EXISTS supports_nodeName ON supports (nodeName)";
-
-    applyPragmas(db, std::size_t(5) * 1024); // in -KB
 
     if (fWipe) {
         db << "DELETE FROM nodes";
@@ -518,7 +519,7 @@ CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)
     assert(base);
     nNextHeight = base->nNextHeight;
 
-    applyPragmas(db, std::size_t(200) * 1024); // in -KB
+    applyPragmas(db, base->dbCacheBytes >> 10U); // in KB
 
     db.define("SIZE", [](const std::string& s) -> int { return s.size(); });
     db.define("POPS", [](std::string s) -> std::string { if (!s.empty()) s.pop_back(); return s; });
@@ -578,7 +579,7 @@ bool CClaimTrieCacheBase::getLastTakeoverForName(const std::string& name, CUint1
 }
 
 bool CClaimTrieCacheBase::addClaim(const std::string& name, const CTxOutPoint& outPoint, const CUint160& claimId,
-        int64_t nAmount, int nHeight, int nValidHeight, const std::vector<unsigned char>& metadata)
+        int64_t nAmount, int nHeight, int nValidHeight)
 {
     ensureTransacting();
 
@@ -599,9 +600,9 @@ bool CClaimTrieCacheBase::addClaim(const std::string& name, const CTxOutPoint& o
     auto nodeName = adjustNameForValidHeight(name, nValidHeight);
     auto expires = expirationTime() + nHeight;
 
-    db << "INSERT INTO claims(claimID, name, nodeName, txID, txN, amount, blockHeight, validHeight, activationHeight, expirationHeight, metadata) "
-            "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        << claimId << name << nodeName << outPoint.hash << outPoint.n << nAmount << nHeight << nValidHeight << nValidHeight << expires << metadata;
+    db << "INSERT INTO claims(claimID, name, nodeName, txID, txN, amount, blockHeight, validHeight, activationHeight, expirationHeight) "
+            "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        << claimId << name << nodeName << outPoint.hash << outPoint.n << nAmount << nHeight << nValidHeight << nValidHeight << expires;
 
     if (nValidHeight < nNextHeight)
         db << "INSERT INTO nodes(name) VALUES(?) ON CONFLICT(name) DO UPDATE SET hash = NULL" << nodeName;
@@ -610,7 +611,7 @@ bool CClaimTrieCacheBase::addClaim(const std::string& name, const CTxOutPoint& o
 }
 
 bool CClaimTrieCacheBase::addSupport(const std::string& name, const CTxOutPoint& outPoint, const CUint160& supportedClaimId,
-        int64_t nAmount, int nHeight, int nValidHeight, const std::vector<unsigned char>& metadata)
+        int64_t nAmount, int nHeight, int nValidHeight)
 {
     ensureTransacting();
 
@@ -620,9 +621,9 @@ bool CClaimTrieCacheBase::addSupport(const std::string& name, const CTxOutPoint&
     auto nodeName = adjustNameForValidHeight(name, nValidHeight);
     auto expires = expirationTime() + nHeight;
 
-    db << "INSERT INTO supports(supportedClaimID, name, nodeName, txID, txN, amount, blockHeight, validHeight, activationHeight, expirationHeight, metadata) "
-            "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        << supportedClaimId << name << nodeName << outPoint.hash << outPoint.n << nAmount << nHeight << nValidHeight << nValidHeight << expires << metadata;
+    db << "INSERT INTO supports(supportedClaimID, name, nodeName, txID, txN, amount, blockHeight, validHeight, activationHeight, expirationHeight) "
+            "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        << supportedClaimId << name << nodeName << outPoint.hash << outPoint.n << nAmount << nHeight << nValidHeight << nValidHeight << expires;
 
     if (nValidHeight < nNextHeight)
         db << "UPDATE nodes SET hash = NULL WHERE name = ?" << nodeName;
