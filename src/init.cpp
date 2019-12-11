@@ -390,6 +390,7 @@ void SetupServerArgs()
 #else
     hidden_args.emplace_back("-sysperms");
 #endif
+    gArgs.AddArg("-txindex", "Deprecated", false, OptionsCategory::HIDDEN);
     gArgs.AddArg("-addnode=<ip>", "Add a node to connect to and attempt to keep the connection open (see the `addnode` RPC command help for more info). This option can be specified multiple times to add multiple nodes.", false, OptionsCategory::CONNECTION);
     gArgs.AddArg("-banscore=<n>", strprintf("Threshold for disconnecting misbehaving peers (default: %u)", DEFAULT_BANSCORE_THRESHOLD), false, OptionsCategory::CONNECTION);
     gArgs.AddArg("-bantime=<n>", strprintf("Number of seconds to keep misbehaving peers from reconnecting (default: %u)", DEFAULT_MISBEHAVING_BANTIME), false, OptionsCategory::CONNECTION);
@@ -1605,6 +1606,11 @@ bool AppInitMain()
     if (!est_filein.IsNull())
         ::feeEstimator.Read(est_filein);
     fFeeEstimatesInitialized = true;
+
+    // ********************************************************* Step 8: start indexers
+    if (gArgs.GetBoolArg("-txindex", DEFAULT_TXINDEX)) {
+        LogPrintf("The txindex parameter is no longer necessary. It is always on.\n");
+    }
 
     // ********************************************************* Step 9: load wallet
     if (!g_wallet_init_interface.Open()) return false;
