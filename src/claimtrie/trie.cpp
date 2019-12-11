@@ -641,14 +641,21 @@ bool CClaimTrieCacheBase::removeClaim(const CUint160& claimId, const CTxOutPoint
     // because it's a parent one and should not be effectively erased
     // we had a bug in the old code where that situation would force a zero delay on re-add
     if (true) { // TODO: hard fork this out (which we already tried once but failed)
-        db << "SELECT nodeName FROM claims WHERE nodeName LIKE ?1 "
-                "AND activationHeight < ?2 AND expirationHeight > ?2 ORDER BY nodeName LIMIT 1"
-           << nodeName + '%' << nNextHeight
-           >> [this, &nodeName](const std::string& shortestMatch) {
-                if (shortestMatch != nodeName)
-                    // set this when there are no more claims on that name and that node still has children
-                    removalWorkaround.insert(nodeName);
-            };
+        const static std::string charsThatBreakLikeOp("_%\0", 3);
+        bool cantUseLike = nodeName.find_first_of(charsThatBreakLikeOp) != std::string::npos;
+        auto query = cantUseLike ? (db << "SELECT nodeName FROM claims WHERE SUBSTR(nodeName, 1, ?3) = ?1 "
+                           "AND activationHeight < ?2 AND expirationHeight > ?2 ORDER BY nodeName LIMIT 1"
+                            << nodeName << nNextHeight << nodeName.size()) :
+                        (db << "SELECT nodeName FROM claims WHERE nodeName LIKE ?1 "
+                            "AND activationHeight < ?2 AND expirationHeight > ?2 ORDER BY nodeName LIMIT 1"
+                            << nodeName + '%' << nNextHeight);
+        for (auto&& row: query) {
+            std::string shortestMatch;
+            row >> shortestMatch;
+            if (shortestMatch != nodeName)
+                // set this when there are no more claims on that name and that node still has children
+                removalWorkaround.insert(nodeName);
+        }
     }
     return true;
 }
