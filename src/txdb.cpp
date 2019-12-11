@@ -6,6 +6,7 @@
 #include <txdb.h>
 
 #include <chainparams.h>
+#include <claimtrie/sqlite.h>
 #include <hash.h>
 #include <random.h>
 #include <pow.h>
@@ -132,7 +133,11 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock, boo
     db << "INSERT OR REPLACE INTO marker VALUES('best_block', ?)" << hashBlock;
     db << "DELETE FROM marker WHERE name = 'head_block'";
 
-    db << "commit";
+    auto code = sqlite::commit(db);
+    if (code != SQLITE_OK) {
+        LogPrint(BCLog::COINDB, "Error committing transaction outputs changes to coin database. SQLite error: %d\n", code);
+        return false;
+    }
     LogPrint(BCLog::COINDB, "Committed %u changed transaction outputs (out of %u) to coin database...\n", (unsigned int)changed, (unsigned int)count);
     if (sync) {
         auto rc = sqlite3_wal_checkpoint_v2(db.connection().get(), nullptr, SQLITE_CHECKPOINT_FULL, nullptr, nullptr);
@@ -305,7 +310,11 @@ bool CBlockTreeDB::BatchWrite(const std::vector<std::pair<int, const CBlockFileI
         ibi++;
     }
     ibi.used(true);
-    db << "commit";
+    auto code = sqlite::commit(db);
+    if (code != SQLITE_OK) {
+        LogPrintf("%s: Error committing block info to database. SQLite error: %d\n", __func__, code);
+        return false;
+    }
     // by Sync they mean disk sync:
     if (sync) {
         auto rc = sqlite3_wal_checkpoint_v2(db.connection().get(), nullptr, SQLITE_CHECKPOINT_FULL, nullptr, nullptr);
@@ -380,7 +389,11 @@ bool CBlockTreeDB::WriteTxIndex(const std::vector<std::pair<uint256, CDiskTxPos>
         query++;
     }
     query.used(true);
-    db << "commit";
+    auto code = sqlite::commit(db);
+    if (code != SQLITE_OK) {
+        LogPrintf("%s: Error committing tx to database. SQLite error: %d\n", __func__, code);
+        return false;
+    }
     return true;
 }
 

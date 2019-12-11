@@ -5,6 +5,9 @@
 #include <sqlite/sqlite3.h>
 #include <uints.h>
 
+#include <chrono>
+#include <thread>
+
  namespace sqlite
 {
     inline int bind_col_in_db(sqlite3_stmt* stmt, int inx, const CUint160& val) {
@@ -52,6 +55,26 @@ namespace sqlite
         assert(bytes <= ret.size());
         std::memcpy(ret.begin(), ptr, bytes);
         return ret;
+    }
+
+    inline int commit(database& db, std::size_t attempts = 60)
+    {
+        int code = SQLITE_OK;
+        for (auto i = 0u; i < attempts; ++i) {
+            try {
+                db << "commit";
+            } catch (const sqlite_exception& e) {
+                code = e.get_code();
+                if (code == SQLITE_LOCKED || code == SQLITE_BUSY) {
+                    using namespace std::chrono_literals;
+                    std::this_thread::sleep_for(1s);
+                    continue;
+                }
+                return code;
+            }
+            return SQLITE_OK;
+        }
+        return code;
     }
 }
 
