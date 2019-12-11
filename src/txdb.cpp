@@ -372,6 +372,7 @@ bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, 
 }
 
 bool CBlockTreeDB::WriteTxIndex(const std::vector<std::pair<uint256, CDiskTxPos>> &list) {
+    if (list.empty()) return true;
     db << "begin";
     auto query = db << "INSERT OR REPLACE INTO tx_to_block VALUES(?,?,?,?)";
     for (auto& kvp: list) {

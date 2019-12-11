@@ -2363,10 +2363,12 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     if (fJustCheck)
         return true;
 
-    if (pindex->pprev != nullptr &&
-        !WriteUndoDataForBlock(blockundo, state, pindex, chainparams) &&
-        !pblocktree->WriteTxIndex(vPos))
-        return false;
+    if (pindex->pprev != nullptr) {
+        if (!WriteUndoDataForBlock(blockundo, state, pindex, chainparams))
+            return error("Unable to write to the Undo data block");
+        if (!pblocktree->WriteTxIndex(vPos))
+            return error("Unable to write to the TX Index");
+    }
 
     if (!pindex->IsValid(BLOCK_VALID_SCRIPTS)) {
         pindex->RaiseValidity(BLOCK_VALID_SCRIPTS);
