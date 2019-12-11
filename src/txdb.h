@@ -51,11 +51,18 @@ namespace sqlite {
     struct has_sqlite_type<uint256, SQLITE_BLOB, void> : std::true_type {};
 
     inline uint256 get_col_from_db(sqlite3_stmt* stmt, int inx, result_type<uint256>) {
-        uint256 ret;
+        auto type = sqlite3_column_type(stmt, inx);
+        if (type == SQLITE_NULL)
+            return {};
+        if (type == SQLITE_INTEGER)
+            return ArithToUint256(arith_uint256(sqlite3_column_int64(stmt, inx)));
+
+        assert(type == SQLITE_BLOB);
         auto ptr = sqlite3_column_blob(stmt, inx);
+        uint256 ret;
         if (!ptr) return ret;
         int bytes = sqlite3_column_bytes(stmt, inx);
-        assert(bytes == ret.size());
+        assert(bytes <= ret.size());
         std::memcpy(ret.begin(), ptr, bytes);
         return ret;
     }

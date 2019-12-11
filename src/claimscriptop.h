@@ -28,24 +28,21 @@ public:
      * @param[in] trieCache     trie to operate on
      * @param[in] name          name of the claim
      */
-    virtual bool claimName(CClaimTrieCache& trieCache, const std::string& name,
-            const std::vector<unsigned char>& metadata) = 0;
+    virtual bool claimName(CClaimTrieCache& trieCache, const std::string& name) = 0;
     /**
      * Pure virtual, OP_UPDATE_CLAIM handler
      * @param[in] trieCache     trie to operate on
      * @param[in] name          name of the claim
      * @param[in] claimId       id of the claim
      */
-    virtual bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
-            const std::vector<unsigned char>& metadata) = 0;
+    virtual bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) = 0;
     /**
      * Pure virtual, OP_SUPPORT_CLAIM handler
      * @param[in] trieCache     trie to operate on
      * @param[in] name          name of the claim
      * @param[in] claimId       id of the claim
      */
-    virtual bool supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
-            const std::vector<unsigned char>& metadata) = 0;
+    virtual bool supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) = 0;
 };
 
 /**
@@ -65,20 +62,17 @@ public:
      * Implementation of OP_CLAIM_NAME handler
      * @see CClaimScriptOp::claimName
      */
-    bool claimName(CClaimTrieCache& trieCache, const std::string& name,
-            const std::vector<unsigned char>& metadata) override;
+    bool claimName(CClaimTrieCache& trieCache, const std::string& name) override;
     /**
      * Implementation of OP_UPDATE_CLAIM handler
      * @see CClaimScriptOp::updateClaim
      */
-    bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
-            const std::vector<unsigned char>& metadata) override;
+    bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override;
     /**
      * Implementation of OP_SUPPORT_CLAIM handler
      * @see CClaimScriptOp::supportClaim
      */
-    bool supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
-            const std::vector<unsigned char>& metadata) override;
+    bool supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override;
 
 protected:
     /**
@@ -87,8 +81,7 @@ protected:
      * @param[in] name          name of the claim
      * @param[in] claimId       id of the claim
      */
-    virtual bool addClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
-                          int takeoverHeight, const std::vector<unsigned char>& metadata);
+    virtual bool addClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId, int takeoverHeight);
     const COutPoint point;
     const CAmount nValue;
     const int nHeight;
@@ -110,20 +103,17 @@ public:
      * Implementation of OP_CLAIM_NAME handler
      * @see CClaimScriptOp::claimName
      */
-    bool claimName(CClaimTrieCache& trieCache, const std::string& name,
-            const std::vector<unsigned char>& metadata) override;
+    bool claimName(CClaimTrieCache& trieCache, const std::string& name) override;
     /**
      * Implementation of OP_UPDATE_CLAIM handler
      * @see CClaimScriptOp::updateClaim
      */
-    bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
-            const std::vector<unsigned char>& metadata) override;
+    bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override;
     /**
      * Implementation of OP_SUPPORT_CLAIM handler
      * @see CClaimScriptOp::supportClaim
      */
-    bool supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
-            const std::vector<unsigned char>& metadata) override;
+    bool supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override;
 
 protected:
     /**
@@ -154,20 +144,17 @@ public:
      * Implementation of OP_CLAIM_NAME handler
      * @see CClaimScriptOp::claimName
      */
-    bool claimName(CClaimTrieCache& trieCache, const std::string& name,
-            const std::vector<unsigned char>& metadata) override;
+    bool claimName(CClaimTrieCache& trieCache, const std::string& name) override;
     /**
      * Implementation of OP_UPDATE_CLAIM handler
      * @see CClaimScriptOp::updateClaim
      */
-    bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
-            const std::vector<unsigned char>& metadata) override;
+    bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override;
     /**
      * Implementation of OP_SUPPORT_CLAIM handler
      * @see CClaimScriptOp::supportClaim
      */
-    bool supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
-            const std::vector<unsigned char>& metadata) override;
+    bool supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override;
 
 protected:
     /**
@@ -200,20 +187,17 @@ public:
      * Implementation of OP_CLAIM_NAME handler
      * @see CClaimScriptOp::claimName
      */
-    bool claimName(CClaimTrieCache& trieCache, const std::string& name,
-            const std::vector<unsigned char>& metadata) override;
+    bool claimName(CClaimTrieCache& trieCache, const std::string& name) override;
     /**
      * Implementation of OP_UPDATE_CLAIM handler
      * @see CClaimScriptOp::updateClaim
      */
-    bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
-            const std::vector<unsigned char>& metadata) override;
+    bool updateClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override;
     /**
      * Implementation of OP_SUPPORT_CLAIM handler
      * @see CClaimScriptOp::supportClaim
      */
-    bool supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
-            const std::vector<unsigned char>& metadata) override;
+    bool supportClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId) override;
 
 protected:
     /**
@@ -222,8 +206,7 @@ protected:
      * @param[in] name          name of the claim
      * @param[in] claimId       id of the claim
      */
-    virtual bool undoSpendClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
-            const std::vector<unsigned char>& metadata);
+    virtual bool undoSpendClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId);
     const COutPoint point;
     const CAmount nValue;
     const int nHeight;

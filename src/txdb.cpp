@@ -52,7 +52,7 @@ bool CCoinsViewDB::GetCoin(const COutPoint &outpoint, Coin &coin) const {
         uint32_t coinbase = 0, height = 0;
         row >> coinbase >> height >> coin.out.nValue >> coin.out.scriptPubKey;
         coin.fCoinBase = coinbase;
-        coin.nHeight = coin.nHeight;
+        coin.nHeight = height;
         return true;
     }
     return false;
@@ -290,6 +290,7 @@ bool CBlockTreeDB::BatchWrite(const std::vector<std::pair<int, const CBlockFileI
             << kvp.second->nHeightFirst << kvp.second->nHeightLast << kvp.second->nTimeFirst << kvp.second->nTimeLast;
         ibf++;
     }
+    ibf.used(true);
     db << "INSERT OR REPLACE INTO flag VALUES('last_block', ?)" << nLastFile; // TODO: is this always max(file column)?
 
     auto ibi = db << "INSERT OR REPLACE INTO block_info(hash, prevHash, height, file, dataPos, undoPos, "
@@ -302,6 +303,7 @@ bool CBlockTreeDB::BatchWrite(const std::vector<std::pair<int, const CBlockFileI
             << bi->nTime << bi->nBits << bi->nNonce;
         ibi++;
     }
+    ibi.used(true);
     db << "commit";
     // by Sync they mean disk sync:
     if (sync) {
@@ -330,8 +332,8 @@ bool CBlockTreeDB::ReadFlag(const std::string &name, bool &fValue) {
 bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, std::function<CBlockIndex*(const uint256&)> insertBlockIndex)
 {
     auto query = db << "SELECT hash, prevHash, height, file, dataPos, undoPos, txCount, "
-                       "status, version, rootTxHash, rootTrieHash, time, bits, nonce "
-                       "FROM block_info ORDER BY height";
+                       "version, rootTxHash, rootTrieHash, time, bits, nonce, status "
+                       "FROM block_info"; // insertBlockIndex puts them in order
 
     // Load m_block_index
     for (auto&& row: query) {
@@ -376,6 +378,7 @@ bool CBlockTreeDB::WriteTxIndex(const std::vector<std::pair<uint256, CDiskTxPos>
         query << kvp.first << kvp.second.nFile << kvp.second.nPos << kvp.second.nTxOffset;
         query++;
     }
+    query.used(true);
     db << "commit";
     return true;
 }

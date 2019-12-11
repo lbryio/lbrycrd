@@ -1655,6 +1655,11 @@ bool AppInitMain(InitInterfaces& interfaces)
         ::feeEstimator.Read(est_filein);
     fFeeEstimatesInitialized = true;
 
+    // ********************************************************* Step 8: start indexers
+    if (gArgs.GetBoolArg("-txindex", DEFAULT_TXINDEX)) {
+        LogPrintf("The txindex parameter is no longer necessary. It is always on.\n");
+    }
+
     for (const auto& filter_type : g_enabled_filter_types) {
         InitBlockFilterIndex(filter_type, filter_index_cache, false, fReindex);
         GetBlockFilterIndex(filter_type)->Start();

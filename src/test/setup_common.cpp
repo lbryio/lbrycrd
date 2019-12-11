@@ -6,6 +6,7 @@
 
 #include <banman.h>
 #include <chainparams.h>
+#include <claimtrie/forks.h>
 #include <consensus/consensus.h>
 #include <consensus/params.h>
 #include <consensus/validation.h>
@@ -144,7 +145,7 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
         ::ChainstateActive().InitCoinsDB(
             /* cache_size_bytes */ 1 << 23, /* in_memory */ true, /* should_wipe */ false);
         auto &consensus = chainparams.GetConsensus();
-        pclaimTrie = new CClaimTrie(20000000, true, 0, GetDataDir().string(),
+        pclaimTrie = new CClaimTrie(20000000U, true, 0, GetDataDir().string(),
                                     consensus.nNormalizedNameForkHeight,
                                     consensus.nOriginalClaimExpirationTime,
                                     consensus.nExtendedClaimExpirationTime,

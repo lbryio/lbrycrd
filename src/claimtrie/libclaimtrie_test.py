@@ -77,7 +77,7 @@ class TestClaimTrieTypes(unittest.TestCase):
         uint160 = self.uint160
         claim = CClaimValue(txp, uint160, 20, 0, 0)
         wipe = True; height = 1; data_dir = "."
-        trie = CClaimTrie(wipe, height, data_dir)
+        trie = CClaimTrie(10*1024*1024, wipe, height, data_dir)
         cache = CClaimTrieCache(trie)
         self.assertTrue(trie.empty(), "incorrect CClaimtrieCache::empty")
         self.assertTrue(cache.addClaim("test", txp, uint160, 20, 0, 0), "incorrect CClaimtrieCache::addClaim")
