@@ -1,5 +1,4 @@
 
-#include <claimtrie/forks.h>
 #include <nameclaim.h>
 #include <uint256.h>
 #include <validation.h>

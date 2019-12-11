@@ -4,6 +4,7 @@
 
 #include <test/claimtriefixture.h>
 #include <utilstrencodings.h>
+#include <validation.h>
 
 using namespace std;
 
