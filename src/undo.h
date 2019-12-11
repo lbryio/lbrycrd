@@ -7,7 +7,6 @@
 #define BITCOIN_UNDO_H
 
 #include <compressor.h>
-#include <claimtrie/forks.h>
 #include <primitives/transaction.h>
 #include <serialize.h>
 

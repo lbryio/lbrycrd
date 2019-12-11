@@ -3,7 +3,10 @@
 // file COPYING or http://opensource.org/licenses/mit-license.php
 
 #include <functional>
+#include <miner.h>
+#include <primitives/transaction.h>
 #include <test/claimtriefixture.h>
+#include <validation.h>
 
 using namespace std;
 
@@ -267,7 +270,7 @@ CMutableTransaction ClaimTrieChainFixture::MakeUpdate(const CTransaction &prev, 
     return tx;
 }
 
-CTransaction ClaimTrieChainFixture::GetCoinbase()
+CTransaction& ClaimTrieChainFixture::GetCoinbase()
 {
     return coinbase_txs.at(coinbase_txs_used++);
 }

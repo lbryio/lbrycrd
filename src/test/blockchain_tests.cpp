@@ -4,6 +4,7 @@
 
 #include <rpc/blockchain.h>
 #include <test/test_bitcoin.h>
+#include <txdb.h>
 
 /* Equality between doubles is imprecise. Comparison should be done
  * with a small threshold of tolerance, rather than exact equality.

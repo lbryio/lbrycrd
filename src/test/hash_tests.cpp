@@ -4,6 +4,7 @@
 
 #include <clientversion.h>
 #include <hash.h>
+#include <primitives/transaction.h>
 #include <utilstrencodings.h>
 #include <test/test_bitcoin.h>
 
