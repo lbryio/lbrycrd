@@ -7,7 +7,7 @@ darwin_CC=clang -target $(host) -mmacosx-version-min=$(OSX_MIN_VERSION) -isysroo
 darwin_CXX=clang++ -target $(host) -mmacosx-version-min=$(OSX_MIN_VERSION) -isysroot $(OSX_SDK) -mlinker-version=$(LD64_VERSION) -stdlib=libc++ -B $(host_prefix)/native/bin
 
 darwin_CFLAGS=-pipe
-darwin_CXXFLAGS=$(darwin_CFLAGS)
+darwin_CXXFLAGS=$(darwin_CFLAGS) -std=c++11
 
 darwin_release_CFLAGS=-O2
 darwin_release_CXXFLAGS=$(darwin_release_CFLAGS)
