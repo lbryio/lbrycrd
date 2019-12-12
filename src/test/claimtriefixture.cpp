@@ -323,28 +323,28 @@ void ClaimTrieChainFixture::DecrementBlocks()
 bool ClaimTrieChainFixture::queueEmpty() const
 {
     int64_t count;
-    db << "SELECT COUNT(*) FROM claims WHERE validHeight >= ?" << nNextHeight >> count;
+    db << "SELECT COUNT(*) FROM claim WHERE validHeight >= ?" << nNextHeight >> count;
     return count == 0;
 }
 
 bool ClaimTrieChainFixture::expirationQueueEmpty() const
 {
     int64_t count;
-    db << "SELECT COUNT(*) FROM claims WHERE expirationHeight >= ?" << nNextHeight >> count;
+    db << "SELECT COUNT(*) FROM claim WHERE expirationHeight >= ?" << nNextHeight >> count;
     return count == 0;
 }
 
 bool ClaimTrieChainFixture::supportEmpty() const
 {
     int64_t count;
-    db << "SELECT COUNT(*) FROM supports WHERE validHeight < ? AND expirationHeight >= ?" << nNextHeight << nNextHeight >> count;
+    db << "SELECT COUNT(*) FROM support WHERE validHeight < ? AND expirationHeight >= ?" << nNextHeight << nNextHeight >> count;
     return count == 0;
 }
 
 bool ClaimTrieChainFixture::supportQueueEmpty() const
 {
     int64_t count;
-    db << "SELECT COUNT(*) FROM supports WHERE validHeight >= ?" << nNextHeight >> count;
+    db << "SELECT COUNT(*) FROM support WHERE validHeight >= ?" << nNextHeight >> count;
     return count == 0;
 }
 
@@ -407,7 +407,7 @@ boost::test_tools::predicate_result ClaimTrieChainFixture::best_claim_effective_
 bool ClaimTrieChainFixture::getClaimById(const CUint160 &claimId, std::string &name, CClaimValue &value)
 {
     auto query = db << "SELECT nodeName, claimID, txID, txN, amount, validHeight, blockHeight "
-                       "FROM claims WHERE claimID = ?" << claimId;
+                       "FROM claim WHERE claimID = ?" << claimId;
     auto hit = false;
     for (auto&& row: query) {
         if (hit) return false;
@@ -421,7 +421,7 @@ bool ClaimTrieChainFixture::getClaimById(const CUint160 &claimId, std::string &n
 std::vector<std::string> ClaimTrieChainFixture::getNodeChildren(const std::string &name)
 {
     std::vector<std::string> ret;
-    for (auto&& row: db << "SELECT name FROM nodes WHERE parent = ?" << name) {
+    for (auto&& row: db << "SELECT name FROM node WHERE parent = ?" << name) {
         ret.emplace_back();
         row >> ret.back();
     }
