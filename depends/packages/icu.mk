@@ -15,7 +15,6 @@ define $(package)_set_vars
   $(package)_archiver_darwin=$($(package)_libtool)
   $(package)_cflags_linux=-fPIC
   $(package)_cppflags_linux=-fPIC
-  $(package)_cxxflags=-std=c++11
 endef
 
 define $(package)_preprocess_cmds
