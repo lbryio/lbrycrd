@@ -490,11 +490,11 @@ claimtrie_libclaimtrie_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 claimtrie_libclaimtrie_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 claimtrie_libclaimtrie_a_CFLAGS = $(PIE_FLAGS)
 claimtrie_libclaimtrie_a_SOURCES = \
-  sqlite/sqlite3.c \
   claimtrie/data.cpp \
   claimtrie/forks.cpp \
   claimtrie/hashes.cpp \
   claimtrie/log.cpp \
+  claimtrie/sqlite/sqlite3.c \
   claimtrie/trie.cpp \
   claimtrie/txoutpoint.cpp \
   claimtrie/uints.cpp
