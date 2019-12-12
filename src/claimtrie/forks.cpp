@@ -7,7 +7,6 @@
 #include <boost/locale.hpp>
 #include <boost/locale/conversion.hpp>
 #include <boost/locale/localization_backend.hpp>
-#include <boost/scoped_ptr.hpp>
 
 #define logPrint CLogPrint::global()
 
@@ -77,8 +76,8 @@ bool CClaimTrieCacheExpirationFork::forkForExpirationChange(bool increment)
         extension *= -1;
     }
 
-    db << "UPDATE claims SET expirationHeight = expirationHeight + ? WHERE expirationHeight >= ?" << extension << height;
-    db << "UPDATE supports SET expirationHeight = expirationHeight + ? WHERE expirationHeight >= ?" << extension << height;
+    db << "UPDATE claim SET expirationHeight = expirationHeight + ? WHERE expirationHeight >= ?" << extension << height;
+    db << "UPDATE support SET expirationHeight = expirationHeight + ? WHERE expirationHeight >= ?" << extension << height;
 
     return true;
 }
@@ -139,25 +138,25 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary()
     ensureTransacting();
 
     // make the new nodes
-    db << "INSERT INTO nodes(name) SELECT NORMALIZED(name) AS nn FROM claims WHERE nn != nodeName "
+    db << "INSERT INTO node(name) SELECT NORMALIZED(name) AS nn FROM claim WHERE nn != nodeName "
           "AND activationHeight <= ?1 AND expirationHeight > ?1 ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
 
     // there's a subtlety here: names in supports don't make new nodes
-    db << "UPDATE nodes SET hash = NULL WHERE name IN "
-          "(SELECT NORMALIZED(name) AS nn FROM supports WHERE nn != nodeName "
+    db << "UPDATE node SET hash = NULL WHERE name IN "
+          "(SELECT NORMALIZED(name) AS nn FROM support WHERE nn != nodeName "
           "AND activationHeight <= ?1 AND expirationHeight > ?1)" << nNextHeight;
 
     // update the claims and supports
-    db << "UPDATE claims SET nodeName = NORMALIZED(name) WHERE activationHeight <= ?1 AND expirationHeight > ?1" << nNextHeight;
-    db << "UPDATE supports SET nodeName = NORMALIZED(name) WHERE activationHeight <= ?1 AND expirationHeight > ?1" << nNextHeight;
+    db << "UPDATE claim SET nodeName = NORMALIZED(name) WHERE activationHeight <= ?1 AND expirationHeight > ?1" << nNextHeight;
+    db << "UPDATE support SET nodeName = NORMALIZED(name) WHERE activationHeight <= ?1 AND expirationHeight > ?1" << nNextHeight;
 
     // remove the old nodes
-    db << "UPDATE nodes SET hash = NULL WHERE name NOT IN "
-          "(SELECT nodeName FROM claims WHERE activationHeight <= ?1 AND expirationHeight > ?1 "
-          "UNION SELECT nodeName FROM supports WHERE activationHeight <= ?1 AND expirationHeight > ?1)" << nNextHeight;
+    db << "UPDATE node SET hash = NULL WHERE name NOT IN "
+          "(SELECT nodeName FROM claim WHERE activationHeight <= ?1 AND expirationHeight > ?1 "
+          "UNION SELECT nodeName FROM support WHERE activationHeight <= ?1 AND expirationHeight > ?1)" << nNextHeight;
 
     // work around a bug in the old implementation:
-    db << "UPDATE claims SET activationHeight = ?1 " // force a takeover on these
+    db << "UPDATE claim SET activationHeight = ?1 " // force a takeover on these
           "WHERE blockHeight < ?1 AND activationHeight > ?1 AND nodeName != name" << nNextHeight;
 
     return true;
@@ -167,19 +166,19 @@ bool CClaimTrieCacheNormalizationFork::unnormalizeAllNamesInTrieIfNecessary()
 {
     ensureTransacting();
 
-    db << "INSERT INTO nodes(name) SELECT name FROM claims WHERE name != nodeName "
+    db << "INSERT INTO node(name) SELECT name FROM claim WHERE name != nodeName "
           "AND activationHeight < ?1 AND expirationHeight > ?1 ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
 
-    db << "UPDATE nodes SET hash = NULL WHERE name IN "
-          "(SELECT nodeName FROM supports WHERE name != nodeName "
-          "UNION SELECT nodeName FROM claims WHERE name != nodeName)";
+    db << "UPDATE node SET hash = NULL WHERE name IN "
+          "(SELECT nodeName FROM support WHERE name != nodeName "
+          "UNION SELECT nodeName FROM claim WHERE name != nodeName)";
 
-    db << "UPDATE claims SET nodeName = name";
-    db << "UPDATE supports SET nodeName = name";
+    db << "UPDATE claim SET nodeName = name";
+    db << "UPDATE support SET nodeName = name";
 
     // we need to let the tree structure method do the actual node delete
-    db << "UPDATE nodes SET hash = NULL WHERE name NOT IN "
-          "(SELECT DISTINCT name FROM claims)";
+    db << "UPDATE node SET hash = NULL WHERE name NOT IN "
+          "(SELECT DISTINCT name FROM claim)";
 
     return true;
 }
@@ -401,7 +400,7 @@ void CClaimTrieCacheHashFork::initializeIncrement()
     // we could do this in the constructor, but that would not allow for multiple increments in a row (as done in unit tests)
     if (nNextHeight == base->nAllClaimsInMerkleForkHeight - 1) {
         ensureTransacting();
-        db << "UPDATE nodes SET hash = NULL";
+        db << "UPDATE node SET hash = NULL";
     }
 }
 
@@ -410,7 +409,7 @@ bool CClaimTrieCacheHashFork::finalizeDecrement()
     auto ret = CClaimTrieCacheNormalizationFork::finalizeDecrement();
     if (ret && nNextHeight == base->nAllClaimsInMerkleForkHeight - 1) {
         ensureTransacting();
-        db << "UPDATE nodes SET hash = NULL";
+        db << "UPDATE node SET hash = NULL";
     }
     return ret;
 }
