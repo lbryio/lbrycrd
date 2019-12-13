@@ -751,22 +751,34 @@ UniValue getchangesinblock(const JSONRPCRequest& request)
     LOCK(cs_main);
     bool allowSupportMetadata;
     CCoinsViewCache coinsCache(pcoinsTip.get());
+
+    UniValue claimsAddUp(UniValue::VARR),
+            claimsRm(UniValue::VARR),
+            supportsAddUp(UniValue::VARR),
+            supportsRm(UniValue::VARR);
+
     {
         auto index = chainActive.Tip();
         if (request.params.size() > 0)
             index = BlockHashIndex(ParseHashV(request.params[0], T_BLOCKHASH " (optional parameter)"));
 
+        CClaimTrieCache trieCache(pclaimTrie);
+        RollBackTo(index, coinsCache, trieCache);
         if (!ReadBlockFromDisk(block, index, Params().GetConsensus()))
             throw JSONRPCError(RPC_INTERNAL_ERROR,
                                    "Unable to read the undo block for height " + std::to_string(index->nHeight));
 
         allowSupportMetadata = index->nHeight >= Params().GetConsensus().nAllClaimsInMerkleForkHeight;
-    }
 
-    UniValue claimsAddUp(UniValue::VARR),
-             claimsRm(UniValue::VARR),
-             supportsAddUp(UniValue::VARR),
-             supportsRm(UniValue::VARR);
+        for (auto& claim: trieCache.getActivatedClaims(index->nHeight))
+            claimsAddUp.push_back(claim.ToString());
+        for (auto& claim: trieCache.getClaimsWithActivatedSupports(index->nHeight))
+            supportsAddUp.push_back(claim.ToString());
+        for (auto& claim: trieCache.getExpiredClaims(index->nHeight))
+            claimsRm.push_back(claim.ToString());
+        for (auto& claim: trieCache.getClaimsWithExpiredSupports(index->nHeight))
+            supportsRm.push_back(claim.ToString());
+    }
 
     int op;
     std::vector<std::vector<unsigned char> > vvchParams;
@@ -802,6 +814,7 @@ UniValue getchangesinblock(const JSONRPCRequest& request)
                     break;
                 case OP_SUPPORT_CLAIM:
                     supportsRm.push_back(uint160(vvchParams[1]).ToString());
+                    break;
             }
         }
 
@@ -815,11 +828,14 @@ UniValue getchangesinblock(const JSONRPCRequest& request)
 
             switch (op) {
                 case OP_CLAIM_NAME:
-                case OP_UPDATE_CLAIM:
                     claimsAddUp.push_back(ClaimIdHash(tx->GetHash(), i).ToString());
                     break;
+                case OP_UPDATE_CLAIM:
+                    claimsAddUp.push_back(uint160(vvchParams[1]).ToString());
+                    break;
                 case OP_SUPPORT_CLAIM:
-                    supportsAddUp.push_back(ClaimIdHash(tx->GetHash(), i).ToString());
+                    supportsAddUp.push_back(uint160(vvchParams[1]).ToString());
+                    break;
             }
         }
     }

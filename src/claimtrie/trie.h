@@ -102,6 +102,11 @@ public:
     bool getLastTakeoverForName(const std::string& name, CUint160& claimId, int& takeoverHeight) const;
     bool findNameForClaim(std::vector<unsigned char> claim, CClaimValue& value, std::string& name) const;
 
+    std::vector<CUint160> getActivatedClaims(int height);
+    std::vector<CUint160> getClaimsWithActivatedSupports(int height);
+    std::vector<CUint160> getExpiredClaims(int height);
+    std::vector<CUint160> getClaimsWithExpiredSupports(int height);
+
 protected:
     int nNextHeight; // Height of the block that is being worked on, which is
     CClaimTrie* base;

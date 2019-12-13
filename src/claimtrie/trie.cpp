@@ -888,3 +888,40 @@ void CClaimTrieCacheBase::getNamesInTrie(std::function<void(const std::string&)>
             callback(name);
         };
 }
+
+std::vector<CUint160> CClaimTrieCacheBase::getActivatedClaims(int height) {
+    std::vector<CUint160> ret;
+    auto query = db << "SELECT DISTINCT claimID FROM claim WHERE activationHeight = ?1 AND blockHeight < ?1" << height;
+    for (auto&& row: query) {
+        ret.emplace_back();
+        row >> ret.back();
+    }
+    return ret;
+}
+std::vector<CUint160> CClaimTrieCacheBase::getClaimsWithActivatedSupports(int height) {
+    std::vector<CUint160> ret;
+    auto query = db << "SELECT DISTINCT supportedClaimID FROM support WHERE activationHeight = ?1 AND blockHeight < ?1" << height;
+    for (auto&& row: query) {
+        ret.emplace_back();
+        row >> ret.back();
+    }
+    return ret;
+}
+std::vector<CUint160> CClaimTrieCacheBase::getExpiredClaims(int height) {
+    std::vector<CUint160> ret;
+    auto query = db << "SELECT DISTINCT claimID FROM claim WHERE expirationHeight = ?1 AND blockHeight < ?1" << height;
+    for (auto&& row: query) {
+        ret.emplace_back();
+        row >> ret.back();
+    }
+    return ret;
+}
+std::vector<CUint160> CClaimTrieCacheBase::getClaimsWithExpiredSupports(int height) {
+    std::vector<CUint160> ret;
+    auto query = db << "SELECT DISTINCT supportedClaimID FROM support WHERE expirationHeight = ?1 AND blockHeight < ?1" << height;
+    for (auto&& row: query) {
+        ret.emplace_back();
+        row >> ret.back();
+    }
+    return ret;
+}
