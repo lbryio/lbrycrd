@@ -42,7 +42,7 @@ namespace sqlite
         auto ptr = sqlite3_column_blob(stmt, inx);
         if (!ptr) return ret;
         int bytes = sqlite3_column_bytes(stmt, inx);
-        assert(bytes <= ret.size());
+        assert(bytes > 0 && bytes <= int(ret.size()));
         std::memcpy(ret.begin(), ptr, bytes);
         return ret;
     }
@@ -52,7 +52,7 @@ namespace sqlite
         auto ptr = sqlite3_column_blob(stmt, inx);
         if (!ptr) return ret;
         int bytes = sqlite3_column_bytes(stmt, inx);
-        assert(bytes <= ret.size());
+        assert(bytes > 0 && bytes <= int(ret.size()));
         std::memcpy(ret.begin(), ptr, bytes);
         return ret;
     }
