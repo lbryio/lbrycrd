@@ -360,8 +360,10 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
     req.params.push_back(UniValue(blockhash.GetHex()));
 
     result = getchangesinblock(req);
-    BOOST_CHECK_EQUAL(result[T_CLAIMSADDEDORUPDATED].size(), 1);
-    BOOST_CHECK_EQUAL(result[T_CLAIMSADDEDORUPDATED][0].get_str(), claimId4.GetHex());
+    BOOST_CHECK_EQUAL(result[T_CLAIMSADDEDORUPDATED].size(), 3);
+    BOOST_CHECK_EQUAL(result[T_CLAIMSADDEDORUPDATED][0].get_str(), claimId2.GetHex());
+    BOOST_CHECK_EQUAL(result[T_CLAIMSADDEDORUPDATED][1].get_str(), claimId3.GetHex());
+    BOOST_CHECK_EQUAL(result[T_CLAIMSADDEDORUPDATED][2].get_str(), claimId4.GetHex());
     BOOST_CHECK_EQUAL(result[T_CLAIMSREMOVED].size(), 0);
     BOOST_CHECK_EQUAL(result[T_SUPPORTSADDEDORUPDATED].size(), 0);
     BOOST_CHECK_EQUAL(result[T_SUPPORTSREMOVED].size(), 0);
