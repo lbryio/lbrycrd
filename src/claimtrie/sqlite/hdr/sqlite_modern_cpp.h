@@ -421,12 +421,12 @@ namespace sqlite {
         }
 
         template <typename Function>
-        void define(const std::string &name, Function&& func) {
+        void define(const std::string &name, Function&& func, bool deterministic = true) {
             typedef utility::function_traits<Function> traits;
 
             auto funcPtr = new auto(std::forward<Function>(func));
             if(int result = sqlite3_create_function_v2(
-                    _db.get(), name.data(), traits::arity, SQLITE_UTF8, funcPtr,
+                    _db.get(), name.data(), traits::arity, SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0), funcPtr,
                     sql_function_binder::scalar<traits::arity, typename std::remove_reference<Function>::type>,
                     nullptr, nullptr, [](void* ptr){
                         delete static_cast<decltype(funcPtr)>(ptr);
@@ -435,13 +435,13 @@ namespace sqlite {
         }
 
         template <typename StepFunction, typename FinalFunction>
-        void define(const std::string &name, StepFunction&& step, FinalFunction&& final) {
+        void define(const std::string &name, StepFunction&& step, FinalFunction&& final, bool deterministic = true) {
             typedef utility::function_traits<StepFunction> traits;
             using ContextType = typename std::remove_reference<typename traits::template argument<0>>::type;
 
             auto funcPtr = new auto(std::make_pair(std::forward<StepFunction>(step), std::forward<FinalFunction>(final)));
             if(int result = sqlite3_create_function_v2(
-                    _db.get(), name.c_str(), traits::arity - 1, SQLITE_UTF8, funcPtr, nullptr,
+                    _db.get(), name.c_str(), traits::arity - 1, SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0), funcPtr, nullptr,
                     sql_function_binder::step<ContextType, traits::arity, typename std::remove_reference<decltype(*funcPtr)>::type>,
                     sql_function_binder::final<ContextType, typename std::remove_reference<decltype(*funcPtr)>::type>,
                     [](void* ptr){
