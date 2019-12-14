@@ -41,6 +41,8 @@
 extern "C" {
 #endif
 
+#define SQLITE_OMIT_COMPILEOPTION_DIAGS 1
+#define SQLITE_OMIT_DEPRECATED 1
 
 /*
 ** Provide the ability to override linkage features of the interface.

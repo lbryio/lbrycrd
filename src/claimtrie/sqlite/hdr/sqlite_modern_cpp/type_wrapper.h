@@ -180,27 +180,47 @@ namespace sqlite {
 
     // str_ref
     template<>
-    struct has_sqlite_type<std::string, SQLITE3_TEXT, void> : std::true_type {};
+    struct has_sqlite_type<std::string, SQLITE_BLOB, void> : std::true_type {}; //
     inline int bind_col_in_db(sqlite3_stmt* stmt, int inx, str_ref val) {
-        return sqlite3_bind_text(stmt, inx, val.data(), val.length(), SQLITE_TRANSIENT);
+        return sqlite3_bind_blob(stmt, inx, val.data(), val.length(), SQLITE_TRANSIENT);
     }
 
     // Convert char* to string_view to trigger op<<(..., const str_ref )
     template<std::size_t N> inline int bind_col_in_db(sqlite3_stmt* stmt, int inx, const char(&STR)[N]) {
-        return sqlite3_bind_text(stmt, inx, &STR[0], N-1, SQLITE_TRANSIENT);
+        return sqlite3_bind_blob(stmt, inx, &STR[0], N-1, SQLITE_TRANSIENT);
     }
 
     inline std::string get_col_from_db(sqlite3_stmt* stmt, int inx, result_type<std::string>) {
-        return sqlite3_column_type(stmt, inx) == SQLITE_NULL ? std::string() :
-               std::string(reinterpret_cast<char const *>(sqlite3_column_text(stmt, inx)), sqlite3_column_bytes(stmt, inx));
+        auto type = sqlite3_column_type(stmt, inx);
+        switch (type) {
+            case SQLITE_INTEGER:
+                return std::to_string(sqlite3_column_int64(stmt, inx));
+            case SQLITE_FLOAT:
+                return std::to_string(sqlite3_column_double(stmt, inx));
+            case SQLITE_BLOB: // It's important to support both text and blob data as txdb has some text and trie has some blob
+                return std::string(reinterpret_cast<char const *>(sqlite3_column_blob(stmt, inx)), sqlite3_column_bytes(stmt, inx));
+            case SQLITE3_TEXT:
+                return std::string(reinterpret_cast<char const *>(sqlite3_column_text(stmt, inx)), sqlite3_column_bytes(stmt, inx));
+        }
+        return std::string(); // NULL
     }
-    inline std::string  get_val_from_db(sqlite3_value *value, result_type<std::string >) {
-        return sqlite3_value_type(value) == SQLITE_NULL ? std::string() :
-               std::string(reinterpret_cast<char const *>(sqlite3_value_text(value)), sqlite3_value_bytes(value));
+    inline std::string get_val_from_db(sqlite3_value *value, result_type<std::string >) {
+        auto type = sqlite3_value_type(value);
+        switch (type) {
+            case SQLITE_INTEGER:
+                return std::to_string(sqlite3_value_int64(value));
+            case SQLITE_FLOAT:
+                return std::to_string(sqlite3_value_double(value));
+            case SQLITE_BLOB:
+                return std::string(reinterpret_cast<char const *>(sqlite3_value_blob(value)), sqlite3_value_bytes(value));
+            case SQLITE3_TEXT:
+                return std::string(reinterpret_cast<char const *>(sqlite3_value_text(value)), sqlite3_value_bytes(value));
+        }
+        return std::string(); // NULL
     }
 
     inline void store_result_in_db(sqlite3_context* db, str_ref val) {
-        sqlite3_result_text(db, val.data(), val.length(), SQLITE_TRANSIENT);
+        sqlite3_result_blob(db, val.data(), val.length(), SQLITE_TRANSIENT);
     }
     // u16str_ref
     template<>
