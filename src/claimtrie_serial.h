@@ -6,27 +6,39 @@
 #include <claimtrie/txoutpoint.h>
 #include <claimtrie/uints.h>
 
-template<typename Stream, uint32_t BITS>
-void Serialize(Stream& s, const CBaseBlob<BITS>& u)
+template<typename Stream>
+void Serialize(Stream& s, const uint160& u)
 {
     s.write((const char*)u.begin(), u.size());
 }
 
-template<typename Stream, uint32_t BITS>
-void Unserialize(Stream& s, CBaseBlob<BITS>& u)
+template<typename Stream>
+void Serialize(Stream& s, const uint256& u)
+{
+    s.write((const char*)u.begin(), u.size());
+}
+
+template<typename Stream>
+void Unserialize(Stream& s, uint160& u)
 {
     s.read((char*)u.begin(), u.size());
 }
 
 template<typename Stream>
-void Serialize(Stream& s, const CTxOutPoint& u)
+void Unserialize(Stream& s, uint256& u)
+{
+    s.read((char*)u.begin(), u.size());
+}
+
+template<typename Stream>
+void Serialize(Stream& s, const COutPoint& u)
 {
     Serialize(s, u.hash);
     Serialize(s, u.n);
 }
 
 template<typename Stream>
-void Unserialize(Stream& s, CTxOutPoint& u)
+void Unserialize(Stream& s, COutPoint& u)
 {
     Unserialize(s, u.hash);
     Unserialize(s, u.n);

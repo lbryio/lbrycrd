@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <sstream>
 
-CClaimValue::CClaimValue(CTxOutPoint outPoint, CUint160 claimId, int64_t nAmount, int nHeight, int nValidAtHeight)
+CClaimValue::CClaimValue(COutPoint outPoint, uint160 claimId, int64_t nAmount, int nHeight, int nValidAtHeight)
     : outPoint(std::move(outPoint)), claimId(std::move(claimId)), nAmount(nAmount), nEffectiveAmount(nAmount), nHeight(nHeight), nValidAtHeight(nValidAtHeight)
 {
 }
@@ -44,7 +44,7 @@ std::string CClaimValue::ToString() const
     return ss.str();
 }
 
-CSupportValue::CSupportValue(CTxOutPoint outPoint, CUint160 supportedClaimId, int64_t nAmount, int nHeight, int nValidAtHeight)
+CSupportValue::CSupportValue(COutPoint outPoint, uint160 supportedClaimId, int64_t nAmount, int nHeight, int nValidAtHeight)
     : outPoint(std::move(outPoint)), supportedClaimId(std::move(supportedClaimId)), nAmount(nAmount), nHeight(nHeight), nValidAtHeight(nValidAtHeight)
 {
 }
@@ -70,7 +70,7 @@ std::string CSupportValue::ToString() const
     return ss.str();
 }
 
-CNameOutPointHeightType::CNameOutPointHeightType(std::string name, CTxOutPoint outPoint, int nValidHeight)
+CNameOutPointHeightType::CNameOutPointHeightType(std::string name, COutPoint outPoint, int nValidHeight)
     : name(std::move(name)), outPoint(std::move(outPoint)), nValidHeight(nValidHeight)
 {
 }
@@ -92,7 +92,7 @@ CClaimSupportToName::CClaimSupportToName(std::string name, int nLastTakeoverHeig
 
 static const CClaimNsupports invalid;
 
-const CClaimNsupports& CClaimSupportToName::find(const CUint160& claimId) const
+const CClaimNsupports& CClaimSupportToName::find(const uint160& claimId) const
 {
     auto it = std::find_if(claimsNsupports.begin(), claimsNsupports.end(), [&claimId](const CClaimNsupports& value) {
         return claimId == value.claim.claimId;
@@ -117,7 +117,7 @@ bool CClaimNsupports::operator<(const CClaimNsupports& other) const
     return claim < other.claim;
 }
 
-CClaimTrieProofNode::CClaimTrieProofNode(std::vector<std::pair<unsigned char, CUint256>> children, bool hasValue, CUint256 valHash)
+CClaimTrieProofNode::CClaimTrieProofNode(std::vector<std::pair<unsigned char, uint256>> children, bool hasValue, uint256 valHash)
     : children(std::move(children)), hasValue(hasValue), valHash(std::move(valHash))
 {
 }

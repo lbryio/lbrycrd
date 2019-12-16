@@ -132,7 +132,7 @@ std::vector<CClaimNsupports> seqSort(const std::vector<CClaimNsupports>& source)
     return claimsNsupports;
 }
 
-std::size_t indexOf(const std::vector<CClaimNsupports>& source, const CUint160& claimId)
+std::size_t indexOf(const std::vector<CClaimNsupports>& source, const uint160& claimId)
 {
     auto it = std::find_if(source.begin(), source.end(), [&claimId](const CClaimNsupports& claimNsupports) {
         return claimNsupports.claim.claimId == claimId;
@@ -291,7 +291,7 @@ static UniValue getvalueforname(const JSONRPCRequest& request)
         return ret;
 
     auto& claimNsupports =
-        claimId.length() == claimIdHexLength ? csToName.find(CUint160S(claimId)) :
+        claimId.length() == claimIdHexLength ? csToName.find(uint160S(claimId)) :
         !claimId.empty() ? csToName.find(claimId) : csToName.claimsNsupports[0];
 
     if (claimNsupports.IsNull())
@@ -541,11 +541,11 @@ UniValue getclaimsfortx(const JSONRPCRequest& request)
         std::string sName(vvchParams[0].begin(), vvchParams[0].end());
         o.pushKV(T_NAME, escapeNonUtf8(sName));
         if (op == OP_CLAIM_NAME) {
-            CUint160 claimId = ClaimIdHash(hash, i);
+            uint160 claimId = ClaimIdHash(hash, i);
             o.pushKV(T_CLAIMID, claimId.GetHex());
             o.pushKV(T_VALUE, HexStr(vvchParams[1].begin(), vvchParams[1].end()));
         } else if (op == OP_UPDATE_CLAIM || op == OP_SUPPORT_CLAIM) {
-            CUint160 claimId(vvchParams[1]);
+            uint160 claimId(vvchParams[1]);
             o.pushKV(T_CLAIMID, claimId.GetHex());
             if (vvchParams.size() > 2)
                 o.pushKV(T_VALUE, HexStr(vvchParams[2].begin(), vvchParams[2].end()));

@@ -8,7 +8,7 @@
 
 using namespace std;
 
-void ValidatePairs(CClaimTrieCache& cache, const std::vector<std::pair<bool, CUint256>>& pairs, CUint256 claimHash)
+void ValidatePairs(CClaimTrieCache& cache, const std::vector<std::pair<bool, uint256>>& pairs, uint256 claimHash)
 {
     for (auto& pair : pairs)
         if (pair.first) // we're on the right because we were an odd index number
@@ -179,9 +179,9 @@ BOOST_AUTO_TEST_CASE(hash_claims_children_fuzzer_test)
     }
 }
 
-bool verify_proof(const CClaimTrieProof proof, CUint256 rootHash, const std::string& name)
+bool verify_proof(const CClaimTrieProof proof, uint256 rootHash, const std::string& name)
 {
-    CUint256 previousComputedHash;
+    uint256 previousComputedHash;
     std::string computedReverseName;
     bool verifiedValue = false;
 
@@ -190,7 +190,7 @@ bool verify_proof(const CClaimTrieProof proof, CUint256 rootHash, const std::str
         std::vector<unsigned char> vchToHash;
         for (auto itChildren = itNodes->children.begin(); itChildren != itNodes->children.end(); ++itChildren) {
             vchToHash.push_back(itChildren->first);
-            CUint256 childHash;
+            uint256 childHash;
             if (itChildren->second.IsNull()) {
                 if (previousComputedHash.IsNull()) {
                     return false;
@@ -210,7 +210,7 @@ bool verify_proof(const CClaimTrieProof proof, CUint256 rootHash, const std::str
             return false;
         }
         if (itNodes->hasValue) {
-            CUint256 valHash;
+            uint256 valHash;
             if (itNodes->valHash.IsNull()) {
                 if (itNodes != proof.nodes.rbegin()) {
                     return false;
@@ -233,7 +233,7 @@ bool verify_proof(const CClaimTrieProof proof, CUint256 rootHash, const std::str
         std::vector<unsigned char> vchHash(hasher.OUTPUT_SIZE);
         hasher.Write(vchToHash.data(), vchToHash.size());
         hasher.Finalize(&(vchHash[0]));
-        CUint256 calculatedHash(vchHash);
+        uint256 calculatedHash(vchHash);
         previousComputedHash = calculatedHash;
     }
     if (previousComputedHash != rootHash) {

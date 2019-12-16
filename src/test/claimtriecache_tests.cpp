@@ -30,7 +30,7 @@ public:
         return addClaim(key, p, c, value.nAmount, value.nHeight);
     }
 
-    bool removeClaimFromTrie(const std::string& key, const CTxOutPoint& outPoint) {
+    bool removeClaimFromTrie(const std::string& key, const COutPoint& outPoint) {
         int validHeight;
         std::string nodeName;
 
@@ -51,7 +51,7 @@ public:
         return addSupport(key, p, value.supportedClaimId, value.nAmount, value.nHeight);
     }
 
-    bool removeSupportFromMap(const std::string& key, const CTxOutPoint& outPoint) {
+    bool removeSupportFromMap(const std::string& key, const COutPoint& outPoint) {
         int validHeight;
         std::string nodeName;
 
@@ -70,7 +70,7 @@ BOOST_FIXTURE_TEST_SUITE(claimtriecache_tests, RegTestingSetup)
 BOOST_AUTO_TEST_CASE(merkle_hash_single_test)
 {
     // check empty trie
-    auto one = CUint256S("0000000000000000000000000000000000000000000000000000000000000001");
+    auto one = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
     CClaimTrieCacheTest cc(pclaimTrie);
     BOOST_CHECK_EQUAL(one, cc.getMerkleHash());
 
@@ -82,30 +82,30 @@ BOOST_AUTO_TEST_CASE(merkle_hash_single_test)
 BOOST_AUTO_TEST_CASE(merkle_hash_multiple_test)
 {
     auto hash0 = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
-    CUint160 hash160;
+    uint160 hash160;
     CMutableTransaction tx1 = BuildTransaction(hash0);
-    CTxOutPoint tx1OutPoint(tx1.GetHash(), 0);
+    COutPoint tx1OutPoint(tx1.GetHash(), 0);
     CMutableTransaction tx2 = BuildTransaction(tx1.GetHash());
-    CTxOutPoint tx2OutPoint(tx2.GetHash(), 0);
+    COutPoint tx2OutPoint(tx2.GetHash(), 0);
     CMutableTransaction tx3 = BuildTransaction(tx2.GetHash());
-    CTxOutPoint tx3OutPoint(tx3.GetHash(), 0);
+    COutPoint tx3OutPoint(tx3.GetHash(), 0);
     CMutableTransaction tx4 = BuildTransaction(tx3.GetHash());
-    CTxOutPoint tx4OutPoint(tx4.GetHash(), 0);
+    COutPoint tx4OutPoint(tx4.GetHash(), 0);
     CMutableTransaction tx5 = BuildTransaction(tx4.GetHash());
-    CTxOutPoint tx5OutPoint(tx5.GetHash(), 0);
+    COutPoint tx5OutPoint(tx5.GetHash(), 0);
     CMutableTransaction tx6 = BuildTransaction(tx5.GetHash());
-    CTxOutPoint tx6OutPoint(tx6.GetHash(), 0);
+    COutPoint tx6OutPoint(tx6.GetHash(), 0);
 
-    CUint256 hash1;
+    uint256 hash1;
     hash1.SetHex("71c7b8d35b9a3d7ad9a1272b68972979bbd18589f1efe6f27b0bf260a6ba78fa");
 
-    CUint256 hash2;
+    uint256 hash2;
     hash2.SetHex("c4fc0e2ad56562a636a0a237a96a5f250ef53495c2cb5edd531f087a8de83722");
 
-    CUint256 hash3;
+    uint256 hash3;
     hash3.SetHex("baf52472bd7da19fe1e35116cfb3bd180d8770ffbe3ae9243df1fb58a14b0975");
 
-    CUint256 hash4;
+    uint256 hash4;
     hash4.SetHex("c73232a755bf015f22eaa611b283ff38100f2a23fb6222e86eca363452ba0c51");
 
     {
@@ -215,8 +215,8 @@ BOOST_AUTO_TEST_CASE(basic_insertion_info_test)
     // create and insert claim
     auto hash0 = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
     CMutableTransaction tx1 = BuildTransaction(hash0);
-    CUint160 claimId = ClaimIdHash(tx1.GetHash(), 0);
-    CTxOutPoint claimOutPoint(tx1.GetHash(), 0);
+    uint160 claimId = ClaimIdHash(tx1.GetHash(), 0);
+    COutPoint claimOutPoint(tx1.GetHash(), 0);
     CAmount amount(10);
     int height = 0;
     int validHeight = 0;
@@ -239,7 +239,7 @@ BOOST_AUTO_TEST_CASE(basic_insertion_info_test)
     CAmount supportAmount(10);
     auto hash1 = uint256S("0000000000000000000000000000000000000000000000000000000000000002");
     CMutableTransaction tx2 = BuildTransaction(hash1);
-    CTxOutPoint supportOutPoint(tx2.GetHash(), 0);
+    COutPoint supportOutPoint(tx2.GetHash(), 0);
 
     CSupportValue support(supportOutPoint, claimId, supportAmount, height, validHeight);
     ctc.insertSupportIntoMap("test", support);
@@ -257,7 +257,7 @@ BOOST_AUTO_TEST_CASE(basic_insertion_info_test)
 //    CClaimTrieCacheTest cc(pclaimTrie);
 //    BOOST_CHECK_EQUAL(0, cc.getTotalClaimsInTrie());
 //
-//    CTxOutPoint outpoint;
+//    COutPoint outpoint;
 //    uint160 claimId;
 //    CAmount amount(20);
 //    int height = 0;
@@ -318,7 +318,7 @@ BOOST_AUTO_TEST_CASE(trie_stays_consistent_test)
 
     for (auto& name: names) {
         auto hash = Hash(name.begin(), name.end());
-        BOOST_CHECK(cache.removeClaimFromTrie(name, CTxOutPoint(hash, 0)));
+        BOOST_CHECK(cache.removeClaimFromTrie(name, COutPoint(hash, 0)));
         cache.flush();
         BOOST_CHECK(cache.checkConsistency());
     }
@@ -328,7 +328,7 @@ BOOST_AUTO_TEST_CASE(trie_stays_consistent_test)
 BOOST_AUTO_TEST_CASE(verify_basic_serialization)
 {
     CClaimValue cv;
-    cv.outPoint = CTxOutPoint(CUint256S("123"), 2);
+    cv.outPoint = COutPoint(uint256S("123"), 2);
     cv.nHeight = 3;
     cv.claimId.SetHex("4567");
     cv.nEffectiveAmount = 4;

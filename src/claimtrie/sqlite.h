@@ -10,19 +10,19 @@
 
  namespace sqlite
 {
-    inline int bind_col_in_db(sqlite3_stmt* stmt, int inx, const CUint160& val) {
+    inline int bind_col_in_db(sqlite3_stmt* stmt, int inx, const uint160& val) {
         return sqlite3_bind_blob(stmt, inx, val.begin(), int(val.size()), SQLITE_STATIC);
     }
 
-    inline int bind_col_in_db(sqlite3_stmt* stmt, int inx, const CUint256& val) {
+    inline int bind_col_in_db(sqlite3_stmt* stmt, int inx, const uint256& val) {
         return sqlite3_bind_blob(stmt, inx, val.begin(), int(val.size()), SQLITE_STATIC);
     }
 
-    inline void store_result_in_db(sqlite3_context* db, const CUint160& val) {
+    inline void store_result_in_db(sqlite3_context* db, const uint160& val) {
         sqlite3_result_blob(db, val.begin(), int(val.size()), SQLITE_TRANSIENT);
     }
 
-    inline void store_result_in_db(sqlite3_context* db, const CUint256& val) {
+    inline void store_result_in_db(sqlite3_context* db, const uint256& val) {
         sqlite3_result_blob(db, val.begin(), int(val.size()), SQLITE_TRANSIENT);
     }
 }
@@ -31,11 +31,14 @@
 
 namespace sqlite
 {
+    template<>
+    struct has_sqlite_type<uint256, SQLITE_BLOB, void> : std::true_type {};
 
     template<>
-    struct has_sqlite_type<CUint160, SQLITE_BLOB, void> : std::true_type {};
-    inline CUint160 get_col_from_db(sqlite3_stmt* stmt, int inx, result_type<CUint160>) {
-        CUint160 ret;
+    struct has_sqlite_type<uint160, SQLITE_BLOB, void> : std::true_type {};
+
+    inline uint160 get_col_from_db(sqlite3_stmt* stmt, int inx, result_type<uint160>) {
+        uint160 ret;
         auto ptr = sqlite3_column_blob(stmt, inx);
         if (!ptr) return ret;
         int bytes = sqlite3_column_bytes(stmt, inx);
@@ -44,10 +47,8 @@ namespace sqlite
         return ret;
     }
 
-    template<>
-    struct has_sqlite_type<CUint256, SQLITE_BLOB, void> : std::true_type {};
-    inline CUint256 get_col_from_db(sqlite3_stmt* stmt, int inx, result_type<CUint256>) {
-        CUint256 ret;
+    inline uint256 get_col_from_db(sqlite3_stmt* stmt, int inx, result_type<uint256>) {
+        uint256 ret;
         auto ptr = sqlite3_column_blob(stmt, inx);
         if (!ptr) return ret;
         int bytes = sqlite3_column_bytes(stmt, inx);

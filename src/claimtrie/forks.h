@@ -37,13 +37,13 @@ public:
     bool incrementBlock() override;
     bool decrementBlock() override;
 
-    bool getProofForName(const std::string& name, const CUint160& claim, CClaimTrieProof& proof) override;
+    bool getProofForName(const std::string& name, const uint160& claim, CClaimTrieProof& proof) override;
     bool getInfoForName(const std::string& name, CClaimValue& claim, int heightOffset = 0) const override;
     CClaimSupportToName getClaimsForName(const std::string& name) const override;
     std::string adjustNameForValidHeight(const std::string& name, int validHeight) const override;
 
 protected:
-    int getDelayForName(const std::string& name, const CUint160& claimId) const override;
+    int getDelayForName(const std::string& name, const uint160& claimId) const override;
 
 private:
     bool normalizeAllNamesInTrieIfNecessary();
@@ -55,14 +55,14 @@ class CClaimTrieCacheHashFork : public CClaimTrieCacheNormalizationFork
 public:
     explicit CClaimTrieCacheHashFork(CClaimTrie* base);
 
-    bool getProofForName(const std::string& name, const CUint160& claim, CClaimTrieProof& proof) override;
+    bool getProofForName(const std::string& name, const uint160& claim, CClaimTrieProof& proof) override;
     void initializeIncrement() override;
     bool finalizeDecrement() override;
 
     bool allowSupportMetadata() const;
 
 protected:
-    CUint256 computeNodeHash(const std::string& name, int takeoverHeight) override;
+    uint256 computeNodeHash(const std::string& name, int takeoverHeight) override;
 };
 
 typedef CClaimTrieCacheHashFork CClaimTrieCache;

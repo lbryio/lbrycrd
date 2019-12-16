@@ -11,26 +11,26 @@
 #include <utility>
 
 /** An outpoint - a combination of a transaction hash and an index n into its vout */
-class CTxOutPoint
+class COutPoint
 {
 public:
-    CUint256 hash;
+    uint256 hash;
     uint32_t n = uint32_t(-1);
 
-    CTxOutPoint() = default;
-    CTxOutPoint(CTxOutPoint&&) = default;
-    CTxOutPoint(const CTxOutPoint&) = default;
-    CTxOutPoint(CUint256 hashIn, uint32_t nIn);
+    COutPoint() = default;
+    COutPoint(COutPoint&&) = default;
+    COutPoint(const COutPoint&) = default;
+    COutPoint(uint256 hashIn, uint32_t nIn);
 
-    CTxOutPoint& operator=(CTxOutPoint&&) = default;
-    CTxOutPoint& operator=(const CTxOutPoint&) = default;
+    COutPoint& operator=(COutPoint&&) = default;
+    COutPoint& operator=(const COutPoint&) = default;
 
     void SetNull();
     bool IsNull() const;
 
-    bool operator<(const CTxOutPoint& b) const;
-    bool operator==(const CTxOutPoint& b) const;
-    bool operator!=(const CTxOutPoint& b) const;
+    bool operator<(const COutPoint& b) const;
+    bool operator==(const COutPoint& b) const;
+    bool operator!=(const COutPoint& b) const;
 
     std::string ToString() const;
 };
