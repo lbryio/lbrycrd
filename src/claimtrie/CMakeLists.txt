@@ -8,6 +8,7 @@ include(../../contrib/cmake/cmake/CPM.cmake)
 include(ExternalProject)
 
 set(CLAIMTRIE_SRC
+    blob.cpp
     data.cpp
     forks.cpp
     hashes.cpp

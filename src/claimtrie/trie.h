@@ -13,7 +13,7 @@
 #include <unordered_set>
 #include <utility>
 
-CUint256 getValueHash(const CTxOutPoint& outPoint, int nHeightOfLastTakeover);
+uint256 getValueHash(const COutPoint& outPoint, int nHeightOfLastTakeover);
 
 class CClaimTrie
 {
@@ -64,27 +64,27 @@ public:
 
     bool flush();
     bool checkConsistency();
-    CUint256 getMerkleHash();
-    bool validateDb(int height, const CUint256& rootHash);
+    uint256 getMerkleHash();
+    bool validateDb(int height, const uint256& rootHash);
 
     std::size_t getTotalNamesInTrie() const;
     std::size_t getTotalClaimsInTrie() const;
     int64_t getTotalValueOfClaimsInTrie(bool fControllingOnly) const;
 
-    bool haveClaim(const std::string& name, const CTxOutPoint& outPoint) const;
-    bool haveClaimInQueue(const std::string& name, const CTxOutPoint& outPoint, int& nValidAtHeight) const;
+    bool haveClaim(const std::string& name, const COutPoint& outPoint) const;
+    bool haveClaimInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const;
 
-    bool haveSupport(const std::string& name, const CTxOutPoint& outPoint) const;
-    bool haveSupportInQueue(const std::string& name, const CTxOutPoint& outPoint, int& nValidAtHeight) const;
+    bool haveSupport(const std::string& name, const COutPoint& outPoint) const;
+    bool haveSupportInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const;
 
-    bool addClaim(const std::string& name, const CTxOutPoint& outPoint, const CUint160& claimId, int64_t nAmount,
+    bool addClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId, int64_t nAmount,
                   int nHeight, int nValidHeight = -1);
 
-    bool addSupport(const std::string& name, const CTxOutPoint& outPoint, const CUint160& supportedClaimId, int64_t nAmount,
+    bool addSupport(const std::string& name, const COutPoint& outPoint, const uint160& supportedClaimId, int64_t nAmount,
                     int nHeight, int nValidHeight = -1);
 
-    bool removeClaim(const CUint160& claimId, const CTxOutPoint& outPoint, std::string& nodeName, int& validHeight);
-    bool removeSupport(const CTxOutPoint& outPoint, std::string& nodeName, int& validHeight);
+    bool removeClaim(const uint160& claimId, const COutPoint& outPoint, std::string& nodeName, int& validHeight);
+    bool removeSupport(const COutPoint& outPoint, std::string& nodeName, int& validHeight);
 
     virtual bool incrementBlock();
     virtual bool decrementBlock();
@@ -92,20 +92,20 @@ public:
 
     virtual int expirationTime() const;
 
-    virtual bool getProofForName(const std::string& name, const CUint160& claim, CClaimTrieProof& proof);
+    virtual bool getProofForName(const std::string& name, const uint160& claim, CClaimTrieProof& proof);
     virtual bool getInfoForName(const std::string& name, CClaimValue& claim, int heightOffset = 0) const;
 
     virtual CClaimSupportToName getClaimsForName(const std::string& name) const;
     virtual std::string adjustNameForValidHeight(const std::string& name, int validHeight) const;
 
     void getNamesInTrie(std::function<void(const std::string&)> callback) const;
-    bool getLastTakeoverForName(const std::string& name, CUint160& claimId, int& takeoverHeight) const;
+    bool getLastTakeoverForName(const std::string& name, uint160& claimId, int& takeoverHeight) const;
     bool findNameForClaim(std::vector<unsigned char> claim, CClaimValue& value, std::string& name) const;
 
-    std::vector<CUint160> getActivatedClaims(int height);
-    std::vector<CUint160> getClaimsWithActivatedSupports(int height);
-    std::vector<CUint160> getExpiredClaims(int height);
-    std::vector<CUint160> getClaimsWithExpiredSupports(int height);
+    std::vector<uint160> getActivatedClaims(int height);
+    std::vector<uint160> getClaimsWithActivatedSupports(int height);
+    std::vector<uint160> getExpiredClaims(int height);
+    std::vector<uint160> getClaimsWithExpiredSupports(int height);
 
 protected:
     int nNextHeight; // Height of the block that is being worked on, which is
@@ -115,10 +115,10 @@ protected:
 
     mutable sqlite::database_binder claimHashQuery, childHashQuery, claimHashQueryLimit;
 
-    virtual CUint256 computeNodeHash(const std::string& name, int takeoverHeight);
+    virtual uint256 computeNodeHash(const std::string& name, int takeoverHeight);
     supportEntryType getSupportsForName(const std::string& name) const;
 
-    virtual int getDelayForName(const std::string& name, const CUint160& claimId) const;
+    virtual int getDelayForName(const std::string& name, const uint160& claimId) const;
 
     bool deleteNodeIfPossible(const std::string& name, std::string& parent, int64_t& claims);
     void ensureTreeStructureIsUpToDate();

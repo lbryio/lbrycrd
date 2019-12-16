@@ -141,7 +141,7 @@ static const int DEFAULT_STOPATHEIGHT = 0;
 
 struct BlockHasher
 {
-    size_t operator()(const uint256& hash) const { return hash.GetCheapHash(); }
+    size_t operator()(const uint256& hash) const { return GetCheapHash(hash); }
 };
 
 extern CScript COINBASE_FLAGS;

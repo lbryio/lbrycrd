@@ -198,7 +198,7 @@ bool CClaimTrieCacheNormalizationFork::decrementBlock()
     return ret;
 }
 
-bool CClaimTrieCacheNormalizationFork::getProofForName(const std::string& name, const CUint160& claim, CClaimTrieProof& proof)
+bool CClaimTrieCacheNormalizationFork::getProofForName(const std::string& name, const uint160& claim, CClaimTrieProof& proof)
 {
     return CClaimTrieCacheExpirationFork::getProofForName(normalizeClaimName(name), claim, proof);
 }
@@ -213,7 +213,7 @@ CClaimSupportToName CClaimTrieCacheNormalizationFork::getClaimsForName(const std
     return CClaimTrieCacheExpirationFork::getClaimsForName(normalizeClaimName(name));
 }
 
-int CClaimTrieCacheNormalizationFork::getDelayForName(const std::string& name, const CUint160& claimId) const
+int CClaimTrieCacheNormalizationFork::getDelayForName(const std::string& name, const uint160& claimId) const
 {
     return CClaimTrieCacheExpirationFork::getDelayForName(normalizeClaimName(name), claimId);
 }
@@ -227,10 +227,10 @@ CClaimTrieCacheHashFork::CClaimTrieCacheHashFork(CClaimTrie* base) : CClaimTrieC
 {
 }
 
-static const auto leafHash = CUint256S("0000000000000000000000000000000000000000000000000000000000000002");
-static const auto emptyHash = CUint256S("0000000000000000000000000000000000000000000000000000000000000003");
+static const auto leafHash = uint256S("0000000000000000000000000000000000000000000000000000000000000002");
+static const auto emptyHash = uint256S("0000000000000000000000000000000000000000000000000000000000000003");
 
-CUint256 ComputeMerkleRoot(std::vector<CUint256> hashes)
+uint256 ComputeMerkleRoot(std::vector<uint256> hashes)
 {
     while (hashes.size() > 1) {
         if (hashes.size() & 1)
@@ -242,23 +242,23 @@ CUint256 ComputeMerkleRoot(std::vector<CUint256> hashes)
 
         hashes.resize(hashes.size() / 2);
     }
-    return hashes.empty() ? CUint256{} : hashes[0];
+    return hashes.empty() ? uint256{} : hashes[0];
 }
 
-CUint256 CClaimTrieCacheHashFork::computeNodeHash(const std::string& name, int takeoverHeight)
+uint256 CClaimTrieCacheHashFork::computeNodeHash(const std::string& name, int takeoverHeight)
 {
     if (nNextHeight < base->nAllClaimsInMerkleForkHeight)
         return CClaimTrieCacheNormalizationFork::computeNodeHash(name, takeoverHeight);
 
-    std::vector<CUint256> childHashes;
-    childHashQuery << name >> [&childHashes](std::string, CUint256 hash) {
+    std::vector<uint256> childHashes;
+    childHashQuery << name >> [&childHashes](std::string, uint256 hash) {
         childHashes.push_back(std::move(hash));
     };
     childHashQuery++;
 
-    std::vector<CUint256> claimHashes;
+    std::vector<uint256> claimHashes;
     //if (takeoverHeight > 0) {
-        CTxOutPoint p;
+        COutPoint p;
         for (auto &&row: claimHashQuery << nNextHeight << name) {
             row >> p.hash >> p.n;
             claimHashes.push_back(getValueHash(p, takeoverHeight));
@@ -272,14 +272,14 @@ CUint256 CClaimTrieCacheHashFork::computeNodeHash(const std::string& name, int t
     return Hash(left.begin(), left.end(), right.begin(), right.end());
 }
 
-std::vector<CUint256> ComputeMerklePath(const std::vector<CUint256>& hashes, uint32_t idx)
+std::vector<uint256> ComputeMerklePath(const std::vector<uint256>& hashes, uint32_t idx)
 {
     uint32_t count = 0;
     int matchlevel = -1;
     bool matchh = false;
-    CUint256 inner[32], h;
+    uint256 inner[32], h;
     const uint32_t one = 1;
-    std::vector<CUint256> res;
+    std::vector<uint256> res;
 
     const auto iterateInner = [&](int& level) {
         for (; !(count & (one << level)); level++) {
@@ -329,12 +329,12 @@ std::vector<CUint256> ComputeMerklePath(const std::vector<CUint256>& hashes, uin
 
 extern const std::string proofClaimQuery_s;
 
-bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const CUint160& claim, CClaimTrieProof& proof)
+bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const uint160& claim, CClaimTrieProof& proof)
 {
     if (nNextHeight < base->nAllClaimsInMerkleForkHeight)
         return CClaimTrieCacheNormalizationFork::getProofForName(name, claim, proof);
 
-    auto fillPairs = [&proof](const std::vector<CUint256>& hashes, uint32_t idx) {
+    auto fillPairs = [&proof](const std::vector<uint256>& hashes, uint32_t idx) {
         auto partials = ComputeMerklePath(hashes, idx);
         for (int i = partials.size() - 1; i >= 0; --i)
             proof.pairs.emplace_back((idx >> i) & 1, partials[i]);
@@ -348,10 +348,10 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const CUi
         int takeoverHeight;
         row >> key >> takeoverHeight;
         uint32_t nextCurrentIdx = 0;
-        std::vector<CUint256> childHashes;
+        std::vector<uint256> childHashes;
         for (auto&& child : childHashQuery << key) {
             std::string childKey;
-            CUint256 childHash;
+            uint256 childHash;
             child >> childKey >> childHash;
             if (name.find(childKey) == 0)
                 nextCurrentIdx = uint32_t(childHashes.size());
@@ -359,11 +359,11 @@ bool CClaimTrieCacheHashFork::getProofForName(const std::string& name, const CUi
         }
         childHashQuery++;
 
-        std::vector<CUint256> claimHashes;
+        std::vector<uint256> claimHashes;
         uint32_t claimIdx = 0;
         for (auto&& child: claimHashQuery << nNextHeight << key) {
-            CTxOutPoint childOutPoint;
-            CUint160 childClaimID;
+            COutPoint childOutPoint;
+            uint160 childClaimID;
             child >> childOutPoint.hash >> childOutPoint.n >> childClaimID;
             if (childClaimID == claim && key == name) {
                 claimIdx = uint32_t(claimHashes.size());

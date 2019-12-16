@@ -10,7 +10,7 @@
 
 #define logPrint CLogPrint::global()
 
-static const auto one = CUint256S("0000000000000000000000000000000000000000000000000000000000000001");
+static const auto one = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
 
 std::vector<unsigned char> heightToVch(int n)
 {
@@ -22,7 +22,7 @@ std::vector<unsigned char> heightToVch(int n)
     return vchHeight;
 }
 
-CUint256 getValueHash(const CTxOutPoint& outPoint, int nHeightOfLastTakeover)
+uint256 getValueHash(const COutPoint& outPoint, int nHeightOfLastTakeover)
 {
     auto hash1 = Hash(outPoint.hash.begin(), outPoint.hash.end());
     auto snOut = std::to_string(outPoint.n);
@@ -134,7 +134,7 @@ bool CClaimTrie::empty()
     return count == 0;
 }
 
-bool CClaimTrieCacheBase::haveClaim(const std::string& name, const CTxOutPoint& outPoint) const
+bool CClaimTrieCacheBase::haveClaim(const std::string& name, const COutPoint& outPoint) const
 {
     auto query = db << "SELECT 1 FROM claim WHERE nodeName = ?1 AND txID = ?2 AND txN = ?3 "
                         "AND activationHeight < ?4 AND expirationHeight >= ?4 LIMIT 1"
@@ -142,7 +142,7 @@ bool CClaimTrieCacheBase::haveClaim(const std::string& name, const CTxOutPoint& 
     return query.begin() != query.end();
 }
 
-bool CClaimTrieCacheBase::haveSupport(const std::string& name, const CTxOutPoint& outPoint) const
+bool CClaimTrieCacheBase::haveSupport(const std::string& name, const COutPoint& outPoint) const
 {
     auto query = db << "SELECT 1 FROM support WHERE nodeName = ?1 AND txID = ?2 AND txN = ?3 "
                         "AND activationHeight < ?4 AND expirationHeight >= ?4 LIMIT 1"
@@ -165,7 +165,7 @@ supportEntryType CClaimTrieCacheBase::getSupportsForName(const std::string& name
     return ret;
 }
 
-bool CClaimTrieCacheBase::haveClaimInQueue(const std::string& name, const CTxOutPoint& outPoint, int& nValidAtHeight) const
+bool CClaimTrieCacheBase::haveClaimInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const
 {
     auto query = db << "SELECT activationHeight FROM claim WHERE nodeName = ? AND txID = ? AND txN = ? "
                         "AND activationHeight >= ? AND expirationHeight >= activationHeight LIMIT 1"
@@ -177,7 +177,7 @@ bool CClaimTrieCacheBase::haveClaimInQueue(const std::string& name, const CTxOut
     return false;
 }
 
-bool CClaimTrieCacheBase::haveSupportInQueue(const std::string& name, const CTxOutPoint& outPoint, int& nValidAtHeight) const
+bool CClaimTrieCacheBase::haveSupportInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const
 {
     auto query = db << "SELECT activationHeight FROM support WHERE nodeName = ? AND txID = ? AND txN = ? "
                         "AND activationHeight >= ? AND expirationHeight >= activationHeight LIMIT 1"
@@ -364,7 +364,7 @@ bool CClaimTrieCacheBase::getInfoForName(const std::string& name, CClaimValue& c
 
 CClaimSupportToName CClaimTrieCacheBase::getClaimsForName(const std::string& name) const
 {
-    CUint160 claimId;
+    uint160 claimId;
     int nLastTakeoverHeight = 0;
     getLastTakeoverForName(name, claimId, nLastTakeoverHeight);
 
@@ -399,18 +399,18 @@ CClaimSupportToName CClaimTrieCacheBase::getClaimsForName(const std::string& nam
     return {name, nLastTakeoverHeight, std::move(claimsNsupports), std::move(supports)};
 }
 
-void completeHash(CUint256& partialHash, const std::string& key, int to)
+void completeHash(uint256& partialHash, const std::string& key, int to)
 {
     for (auto it = key.rbegin(); std::distance(it, key.rend()) > to + 1; ++it)
         partialHash = Hash(it, it + 1, partialHash.begin(), partialHash.end());
 }
 
-CUint256 CClaimTrieCacheBase::computeNodeHash(const std::string& name, int takeoverHeight)
+uint256 CClaimTrieCacheBase::computeNodeHash(const std::string& name, int takeoverHeight)
 {
     const auto pos = name.size();
     std::vector<uint8_t> vchToHash;
     // we have to free up the hash query so it can be reused by a child
-    childHashQuery << name >> [&vchToHash, pos](std::string name, CUint256 hash) {
+    childHashQuery << name >> [&vchToHash, pos](std::string name, uint256 hash) {
         completeHash(hash, name, pos);
         vchToHash.push_back(name[pos]);
         vchToHash.insert(vchToHash.end(), hash.begin(), hash.end());
@@ -435,7 +435,7 @@ bool CClaimTrieCacheBase::checkConsistency()
                         "FROM takeover t WHERE t.name = n.name ORDER BY t.height DESC LIMIT 1), 0) FROM node n";
     for (auto&& row: query) {
         std::string name;
-        CUint256 hash;
+        uint256 hash;
         int takeoverHeight;
         row >> name >> hash >> takeoverHeight;
         auto computedHash = computeNodeHash(name, takeoverHeight);
@@ -445,7 +445,7 @@ bool CClaimTrieCacheBase::checkConsistency()
     return true;
 }
 
-bool CClaimTrieCacheBase::validateDb(int height, const CUint256& rootHash)
+bool CClaimTrieCacheBase::validateDb(int height, const uint256& rootHash)
 {
     base->nNextHeight = nNextHeight = height + 1;
 
@@ -523,12 +523,12 @@ int CClaimTrieCacheBase::expirationTime() const
     return base->nOriginalClaimExpirationTime;
 }
 
-CUint256 CClaimTrieCacheBase::getMerkleHash()
+uint256 CClaimTrieCacheBase::getMerkleHash()
 {
     ensureTreeStructureIsUpToDate();
-    CUint256 hash;
+    uint256 hash;
     db  << "SELECT hash FROM node WHERE name = x''"
-        >> [&hash](std::unique_ptr<CUint256> rootHash) {
+        >> [&hash](std::unique_ptr<uint256> rootHash) {
             if (rootHash)
                 hash = std::move(*rootHash);
         };
@@ -547,13 +547,13 @@ CUint256 CClaimTrieCacheBase::getMerkleHash()
     return hash;
 }
 
-bool CClaimTrieCacheBase::getLastTakeoverForName(const std::string& name, CUint160& claimId, int& takeoverHeight) const
+bool CClaimTrieCacheBase::getLastTakeoverForName(const std::string& name, uint160& claimId, int& takeoverHeight) const
 {
     auto query = db << "SELECT t.height, t.claimID FROM takeover t "
                        "WHERE t.name = ?1 ORDER BY t.height DESC LIMIT 1" << name;
     auto it = query.begin();
     if (it != query.end()) {
-        std::unique_ptr<CUint160> claimIdOrNull;
+        std::unique_ptr<uint160> claimIdOrNull;
         *it >> takeoverHeight >> claimIdOrNull;
         if (claimIdOrNull) {
             claimId = *claimIdOrNull;
@@ -563,7 +563,7 @@ bool CClaimTrieCacheBase::getLastTakeoverForName(const std::string& name, CUint1
     return false;
 }
 
-bool CClaimTrieCacheBase::addClaim(const std::string& name, const CTxOutPoint& outPoint, const CUint160& claimId,
+bool CClaimTrieCacheBase::addClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId,
         int64_t nAmount, int nHeight, int nValidHeight)
 {
     ensureTransacting();
@@ -595,7 +595,7 @@ bool CClaimTrieCacheBase::addClaim(const std::string& name, const CTxOutPoint& o
     return true;
 }
 
-bool CClaimTrieCacheBase::addSupport(const std::string& name, const CTxOutPoint& outPoint, const CUint160& supportedClaimId,
+bool CClaimTrieCacheBase::addSupport(const std::string& name, const COutPoint& outPoint, const uint160& supportedClaimId,
         int64_t nAmount, int nHeight, int nValidHeight)
 {
     ensureTransacting();
@@ -616,7 +616,7 @@ bool CClaimTrieCacheBase::addSupport(const std::string& name, const CTxOutPoint&
     return true;
 }
 
-bool CClaimTrieCacheBase::removeClaim(const CUint160& claimId, const CTxOutPoint& outPoint, std::string& nodeName, int& validHeight)
+bool CClaimTrieCacheBase::removeClaim(const uint160& claimId, const COutPoint& outPoint, std::string& nodeName, int& validHeight)
 {
     ensureTransacting();
 
@@ -668,7 +668,7 @@ bool CClaimTrieCacheBase::removeClaim(const CUint160& claimId, const CTxOutPoint
     return true;
 }
 
-bool CClaimTrieCacheBase::removeSupport(const CTxOutPoint& outPoint, std::string& nodeName, int& validHeight)
+bool CClaimTrieCacheBase::removeSupport(const COutPoint& outPoint, std::string& nodeName, int& validHeight)
 {
     ensureTransacting();
 
@@ -715,7 +715,7 @@ bool CClaimTrieCacheBase::incrementBlock()
         CClaimValue candidateValue;
         auto hasCandidate = getInfoForName(nameWithTakeover, candidateValue, 1);
         // now that they're all in get the winner:
-        CUint160 existingID;
+        uint160 existingID;
         int existingHeight = 0;
         auto hasCurrentWinner = getLastTakeoverForName(nameWithTakeover, existingID, existingHeight);
         // we have a takeover if we had a winner and its changing or we never had a winner
@@ -799,9 +799,9 @@ bool CClaimTrieCacheBase::finalizeDecrement()
     return true;
 }
 
-int CClaimTrieCacheBase::getDelayForName(const std::string& name, const CUint160& claimId) const
+int CClaimTrieCacheBase::getDelayForName(const std::string& name, const uint160& claimId) const
 {
-    CUint160 winningClaimId;
+    uint160 winningClaimId;
     int winningTakeoverHeight;
     auto hasCurrentWinner = getLastTakeoverForName(name, winningClaimId, winningTakeoverHeight);
     if (hasCurrentWinner && winningClaimId == claimId) {
@@ -824,7 +824,7 @@ std::string CClaimTrieCacheBase::adjustNameForValidHeight(const std::string& nam
     return name;
 }
 
-bool CClaimTrieCacheBase::getProofForName(const std::string& name, const CUint160& finalClaim, CClaimTrieProof& proof)
+bool CClaimTrieCacheBase::getProofForName(const std::string& name, const uint160& finalClaim, CClaimTrieProof& proof)
 {
     // cache the parent nodes
     getMerkleHash();
@@ -835,25 +835,25 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, const CUint16
         int takeoverHeight;
         row >> key >> takeoverHeight;
         bool fNodeHasValue = getInfoForName(key, claim);
-        CUint256 valueHash;
+        uint256 valueHash;
         if (fNodeHasValue)
             valueHash = getValueHash(claim.outPoint, takeoverHeight);
 
         const auto pos = key.size();
-        std::vector<std::pair<unsigned char, CUint256>> children;
+        std::vector<std::pair<unsigned char, uint256>> children;
         for (auto&& child : childHashQuery << key) {
             std::string childKey;
-            CUint256 hash;
+            uint256 hash;
             child >> childKey >> hash;
             if (name.find(childKey) == 0) {
                 for (auto i = pos; i + 1 < childKey.size(); ++i) {
-                    children.emplace_back(childKey[i], CUint256{});
+                    children.emplace_back(childKey[i], uint256{});
                     proof.nodes.emplace_back(children, fNodeHasValue, valueHash);
                     children.clear();
                     valueHash.SetNull();
                     fNodeHasValue = false;
                 }
-                children.emplace_back(childKey.back(), CUint256{});
+                children.emplace_back(childKey.back(), uint256{});
                 continue;
             }
             completeHash(hash, childKey, pos);
@@ -897,8 +897,8 @@ void CClaimTrieCacheBase::getNamesInTrie(std::function<void(const std::string&)>
         };
 }
 
-std::vector<CUint160> CClaimTrieCacheBase::getActivatedClaims(int height) {
-    std::vector<CUint160> ret;
+std::vector<uint160> CClaimTrieCacheBase::getActivatedClaims(int height) {
+    std::vector<uint160> ret;
     auto query = db << "SELECT DISTINCT claimID FROM claim WHERE activationHeight = ?1 AND blockHeight < ?1" << height;
     for (auto&& row: query) {
         ret.emplace_back();
@@ -906,8 +906,8 @@ std::vector<CUint160> CClaimTrieCacheBase::getActivatedClaims(int height) {
     }
     return ret;
 }
-std::vector<CUint160> CClaimTrieCacheBase::getClaimsWithActivatedSupports(int height) {
-    std::vector<CUint160> ret;
+std::vector<uint160> CClaimTrieCacheBase::getClaimsWithActivatedSupports(int height) {
+    std::vector<uint160> ret;
     auto query = db << "SELECT DISTINCT supportedClaimID FROM support WHERE activationHeight = ?1 AND blockHeight < ?1" << height;
     for (auto&& row: query) {
         ret.emplace_back();
@@ -915,8 +915,8 @@ std::vector<CUint160> CClaimTrieCacheBase::getClaimsWithActivatedSupports(int he
     }
     return ret;
 }
-std::vector<CUint160> CClaimTrieCacheBase::getExpiredClaims(int height) {
-    std::vector<CUint160> ret;
+std::vector<uint160> CClaimTrieCacheBase::getExpiredClaims(int height) {
+    std::vector<uint160> ret;
     auto query = db << "SELECT DISTINCT claimID FROM claim WHERE expirationHeight = ?1 AND blockHeight < ?1" << height;
     for (auto&& row: query) {
         ret.emplace_back();
@@ -924,8 +924,8 @@ std::vector<CUint160> CClaimTrieCacheBase::getExpiredClaims(int height) {
     }
     return ret;
 }
-std::vector<CUint160> CClaimTrieCacheBase::getClaimsWithExpiredSupports(int height) {
-    std::vector<CUint160> ret;
+std::vector<uint160> CClaimTrieCacheBase::getClaimsWithExpiredSupports(int height) {
+    std::vector<uint160> ret;
     auto query = db << "SELECT DISTINCT supportedClaimID FROM support WHERE expirationHeight = ?1 AND blockHeight < ?1" << height;
     for (auto&& row: query) {
         ret.emplace_back();

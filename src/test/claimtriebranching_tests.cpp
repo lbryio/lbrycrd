@@ -31,7 +31,7 @@ BOOST_AUTO_TEST_CASE(takeover_stability_test) {
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "@bass", "two", 2);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("@bass", tx2));
-    CUint160 id; int takeover;
+    uint160 id; int takeover;
     BOOST_REQUIRE(fixture.getLastTakeoverForName("@bass", id, takeover));
     auto height = chainActive.Tip()->nHeight;
     BOOST_CHECK_EQUAL(takeover, height);
@@ -427,7 +427,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_takeover_test)
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 5);
     auto cid = ClaimIdHash(tx1.GetHash(), 0);
     fixture.IncrementBlocks(1);
-    CUint160 cid2;
+    uint160 cid2;
     int takeover;
     int height = chainActive.Tip()->nHeight;
     fixture.getLastTakeoverForName("test", cid2, takeover);
@@ -1921,7 +1921,7 @@ BOOST_AUTO_TEST_CASE(update_on_support2_test)
     CMutableTransaction s2 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, name, 1);
     fixture.IncrementBlocks(1);
 
-    CUint160 claimId;
+    uint160 claimId;
     int lastTakeover;
     BOOST_CHECK(fixture.getLastTakeoverForName(name, claimId, lastTakeover));
     BOOST_CHECK_EQUAL(lastTakeover, height + 1);

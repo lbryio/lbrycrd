@@ -1,6 +1,7 @@
 
 %module(directors="1") libclaimtrie
 %{
+#include "blob.h"
 #include "uints.h"
 #include "txoutpoint.h"
 #include "data.h"
@@ -13,6 +14,7 @@
 
 %include stl.i
 %include stdint.i
+%include std_array.i
 %include std_pair.i
 
 %apply int& OUTPUT { int& nValidAtHeight };
@@ -22,8 +24,15 @@
 %ignore CClaimTrieProof(CClaimTrieProof &&);
 %ignore CClaimTrieProofNode(CClaimTrieProofNode &&);
 %ignore CClaimValue(CClaimValue &&);
+%ignore COutPoint(COutPoint &&);
 %ignore CSupportValue(CSupportValue &&);
-%ignore CTxOutPoint(CTxOutPoint &&);
+%ignore uint160(uint160 &&);
+%ignore uint256(uint256 &&);
+
+%include "blob.h"
+
+%template(blob160) CBaseBlob<160>;
+%template(blob256) CBaseBlob<256>;
 
 %include "uints.h"
 %include "txoutpoint.h"
@@ -34,20 +43,16 @@
 %include "trie.h"
 %include "forks.h"
 
-%template(CUint160) CBaseBlob<160>;
-%template(CUint256) CBaseBlob<256>;
-%template(uint8vec) std::vector<uint8_t>;
-
 %template(claimEntryType) std::vector<CClaimValue>;
 %template(supportEntryType) std::vector<CSupportValue>;
 %template(claimsNsupports) std::vector<CClaimNsupports>;
 
-%template(proofPair) std::pair<bool, CUint256>;
-%template(proofNodePair) std::pair<unsigned char, CUint256>;
+%template(proofPair) std::pair<bool, uint256>;
+%template(proofNodePair) std::pair<unsigned char, uint256>;
 
 %template(proofNodes) std::vector<CClaimTrieProofNode>;
-%template(proofPairs) std::vector<std::pair<bool, CUint256>>;
-%template(proofNodeChildren) std::vector<std::pair<unsigned char, CUint256>>;
+%template(proofPairs) std::vector<std::pair<bool, uint256>>;
+%template(proofNodeChildren) std::vector<std::pair<unsigned char, uint256>>;
 
 %inline %{
 struct CIterateCallback {

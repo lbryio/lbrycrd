@@ -11,15 +11,15 @@
 
 struct CClaimValue
 {
-    CTxOutPoint outPoint;
-    CUint160 claimId;
+    COutPoint outPoint;
+    uint160 claimId;
     int64_t nAmount = 0;
     int64_t nEffectiveAmount = 0;
     int nHeight = 0;
     int nValidAtHeight = 0;
 
     CClaimValue() = default;
-    CClaimValue(CTxOutPoint outPoint, CUint160 claimId, int64_t nAmount, int nHeight, int nValidAtHeight);
+    CClaimValue(COutPoint outPoint, uint160 claimId, int64_t nAmount, int nHeight, int nValidAtHeight);
 
     CClaimValue(CClaimValue&&) = default;
     CClaimValue(const CClaimValue&) = default;
@@ -35,14 +35,14 @@ struct CClaimValue
 
 struct CSupportValue
 {
-    CTxOutPoint outPoint;
-    CUint160 supportedClaimId;
+    COutPoint outPoint;
+    uint160 supportedClaimId;
     int64_t nAmount = 0;
     int nHeight = 0;
     int nValidAtHeight = 0;
 
     CSupportValue() = default;
-    CSupportValue(CTxOutPoint outPoint, CUint160 supportedClaimId, int64_t nAmount, int nHeight, int nValidAtHeight);
+    CSupportValue(COutPoint outPoint, uint160 supportedClaimId, int64_t nAmount, int nHeight, int nValidAtHeight);
 
     CSupportValue(CSupportValue&&) = default;
     CSupportValue(const CSupportValue&) = default;
@@ -61,11 +61,11 @@ typedef std::vector<CSupportValue> supportEntryType;
 struct CNameOutPointHeightType
 {
     std::string name;
-    CTxOutPoint outPoint;
+    COutPoint outPoint;
     int nValidHeight = 0;
 
     CNameOutPointHeightType() = default;
-    CNameOutPointHeightType(std::string name, CTxOutPoint outPoint, int nValidHeight);
+    CNameOutPointHeightType(std::string name, COutPoint outPoint, int nValidHeight);
 };
 
 struct CClaimNsupports
@@ -91,7 +91,7 @@ struct CClaimSupportToName
 {
     CClaimSupportToName(std::string name, int nLastTakeoverHeight, std::vector<CClaimNsupports> claimsNsupports, std::vector<CSupportValue> unmatchedSupports);
 
-    const CClaimNsupports& find(const CUint160& claimId) const;
+    const CClaimNsupports& find(const uint160& claimId) const;
     const CClaimNsupports& find(const std::string& partialId) const;
 
     const std::string name;
@@ -102,7 +102,7 @@ struct CClaimSupportToName
 
 struct CClaimTrieProofNode
 {
-    CClaimTrieProofNode(std::vector<std::pair<unsigned char, CUint256>> children, bool hasValue, CUint256 valHash);
+    CClaimTrieProofNode(std::vector<std::pair<unsigned char, uint256>> children, bool hasValue, uint256 valHash);
 
     CClaimTrieProofNode() = default;
     CClaimTrieProofNode(CClaimTrieProofNode&&) = default;
@@ -110,9 +110,9 @@ struct CClaimTrieProofNode
     CClaimTrieProofNode& operator=(CClaimTrieProofNode&&) = default;
     CClaimTrieProofNode& operator=(const CClaimTrieProofNode&) = default;
 
-    std::vector<std::pair<unsigned char, CUint256>> children;
+    std::vector<std::pair<unsigned char, uint256>> children;
     bool hasValue;
-    CUint256 valHash;
+    uint256 valHash;
 };
 
 struct CClaimTrieProof
@@ -123,11 +123,11 @@ struct CClaimTrieProof
     CClaimTrieProof& operator=(CClaimTrieProof&&) = default;
     CClaimTrieProof& operator=(const CClaimTrieProof&) = default;
 
-    std::vector<std::pair<bool, CUint256>> pairs;
+    std::vector<std::pair<bool, uint256>> pairs;
     std::vector<CClaimTrieProofNode> nodes;
     int nHeightOfLastTakeover = 0;
     bool hasValue = false;
-    CTxOutPoint outPoint;
+    COutPoint outPoint;
 };
 
 #endif // CLAIMTRIE_DATA_H
