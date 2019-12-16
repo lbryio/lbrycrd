@@ -22,6 +22,18 @@ class CKeyID : public uint160
 public:
     CKeyID() : uint160() {}
     explicit CKeyID(const uint160& in) : uint160(in) {}
+
+    template<typename Stream>
+    void Serialize(Stream& s) const
+    {
+        s.write((const char*)begin(), size());
+    }
+
+    template<typename Stream>
+    void Unserialize(Stream& s)
+    {
+        s.read((char*)begin(), size());
+    }
 };
 
 typedef uint256 ChainCode;

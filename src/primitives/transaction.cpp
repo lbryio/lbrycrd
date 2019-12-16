@@ -9,11 +9,6 @@
 #include <tinyformat.h>
 #include <util/strencodings.h>
 
-std::string COutPoint::ToString() const
-{
-    return strprintf("COutPoint(%s, %u)", hash.ToString().substr(0,10), n);
-}
-
 CTxIn::CTxIn(COutPoint prevoutIn, CScript scriptSigIn, uint32_t nSequenceIn)
 {
     prevout = prevoutIn;

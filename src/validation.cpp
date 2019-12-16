@@ -1767,20 +1767,12 @@ int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CC
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
 
-template <typename T1, typename T2>
-inline bool equals(const T1& hash1, const T2& hash2)
-{
-    static_assert((std::is_same<T1, uint256>::value && std::is_same<T2, CUint256>::value) ||
-                  (std::is_same<T2, uint256>::value && std::is_same<T1, CUint256>::value), "Hash types are incompatible");
-    return std::equal(hash1.begin(), hash1.end(), hash2.begin());
-}
-
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
  *  When FAILED is returned, view is left in an indeterminate state. */
 DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view, CClaimTrieCache& trieCache)
 {
     assert(pindex->GetBlockHash() == view.GetBestBlock());
-    if (!equals(pindex->hashClaimTrie, trieCache.getMerkleHash())) {
+    if (pindex->hashClaimTrie != trieCache.getMerkleHash()) {
         LogPrintf("%s: Indexed claim hash doesn't match current: %s vs %s\n",
                 __func__, pindex->hashClaimTrie.ToString(), trieCache.getMerkleHash().ToString());
         assert(false);
@@ -1854,7 +1846,7 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
     assert(trieCache.finalizeDecrement());
-    if (!equals(trieCache.getMerkleHash(), pindex->pprev->hashClaimTrie)) {
+    if (trieCache.getMerkleHash() != pindex->pprev->hashClaimTrie) {
         LogPrintf("Hash comparison failure at block %d\n", pindex->nHeight);
         assert(false);
     }
@@ -2054,7 +2046,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     assert(hashPrevBlock == view.GetBestBlock());
 
     // also verify that the trie cache's current state corresponds to the previous block
-    if (pindex->pprev != nullptr && !equals(pindex->pprev->hashClaimTrie, trieCache.getMerkleHash())) {
+    if (pindex->pprev != nullptr && pindex->pprev->hashClaimTrie != trieCache.getMerkleHash()) {
         LogPrintf("%s: Previous block claim hash doesn't match current: %s vs %s\n",
                 __func__, pindex->pprev->hashClaimTrie.ToString(), trieCache.getMerkleHash().ToString());
         assert(false);
@@ -2339,7 +2331,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     // TODO: if the "just check" flag is set, we should reduce the work done here. Incrementing blocks twice per mine is not efficient.
     assert(trieCache.incrementBlock());
 
-    if (!equals(trieCache.getMerkleHash(), block.hashClaimTrie)) {
+    if (trieCache.getMerkleHash() != block.hashClaimTrie) {
         return state.DoS(100, error("ConnectBlock() : the merkle root of the claim trie does not match "
                                "(actual=%s vs block=%s on height=%d)", trieCache.getMerkleHash().GetHex(),
                                block.hashClaimTrie.GetHex(), pindex->nHeight), REJECT_INVALID, "bad-claim-merkle-hash");
@@ -2627,7 +2619,7 @@ bool CChainState::DisconnectTip(CValidationState& state, const CChainParams& cha
         bool flushed = view.Flush();
         assert(flushed);
         assert(trieCache.flush());
-        assert(equals(pindexDelete->pprev->hashClaimTrie, trieCache.getMerkleHash()));
+        assert(pindexDelete->pprev->hashClaimTrie == trieCache.getMerkleHash());
     }
     LogPrint(BCLog::BENCH, "- Disconnect block: %.2fms\n", (GetTimeMicros() - nStart) * MILLI);
     // Write the chain state to disk, if necessary.

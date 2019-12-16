@@ -136,10 +136,6 @@ std::ostream& operator<<(std::ostream& os, const uint160& num);
 class COutPoint;
 std::ostream& operator<<(std::ostream& os, const COutPoint& point);
 
-std::ostream& operator<<(std::ostream& os, const CUint256& num);
-std::ostream& operator<<(std::ostream& os, const CUint160& num);
-std::ostream& operator<<(std::ostream& os, const CTxOutPoint& point);
-
 class CClaimValue;
 class CSupportValue;
 std::ostream& operator<<(std::ostream& os, const CClaimValue& claim);

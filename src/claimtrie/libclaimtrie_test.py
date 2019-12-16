@@ -13,9 +13,9 @@ class CacheIterateCallback(CIterateCallback):
 class TestClaimTrieTypes(unittest.TestCase):
     def setUp(self):
         self.uint256s = "1234567890987654321012345678909876543210123456789098765432101234"
-        self.uint160 = CUint160S("1234567890987654321012345678909876543210")
-        self.uint = CUint256S(self.uint256s)
-        self.txp = CTxOutPoint(self.uint, 1)
+        self.uint160 = uint160S("1234567890987654321012345678909876543210")
+        self.uint = uint256S(self.uint256s)
+        self.txp = COutPoint(self.uint, 1)
 
     def assertClaimEqual(self, claim, txo, cid, amount, effe, height, validHeight, msg):
         self.assertEqual(claim.outPoint, txo, msg)
@@ -34,14 +34,14 @@ class TestClaimTrieTypes(unittest.TestCase):
 
     def test_uint256(self):
         uint = self.uint
-        self.assertFalse(uint.IsNull(), "incorrect CUint256S or CBaseBlob::IsNull")
+        self.assertFalse(uint.IsNull(), "incorrect uint256S or CBaseBlob::IsNull")
         self.assertEqual(uint.GetHex(), self.uint256s, "incorrect CBaseBlob::GetHex")
         self.assertEqual(uint.GetHex(), uint.ToString(), "incorrect CBaseBlob::ToString")
         self.assertEqual(uint.size(), 32, "incorrect CBaseBlob::size")
-        copy = CUint256()
+        copy = uint256()
         self.assertNotEqual(copy, uint, "incorrect CBaseBlob::operator!=")
         self.assertTrue(copy.IsNull(), "incorrect CBaseBlob::IsNull")
-        copy = CUint256(uint)
+        copy = uint256(uint)
         self.assertEqual(copy, uint, "incorrect CBaseBlob::operator==")
         copy.SetNull()
         self.assertTrue(copy.IsNull()), "incorrect CBaseBlob::SetNull"
@@ -49,14 +49,14 @@ class TestClaimTrieTypes(unittest.TestCase):
     def test_txoupoint(self):
         txp = self.txp
         uint = self.uint
-        self.assertEqual(txp.hash, uint, "incorrect CTxOutPoint::CTxOutPoint")
-        self.assertEqual(txp.n, 1, "incorrect CTxOutPoint::CTxOutPoint")
-        self.assertFalse(txp.IsNull(), "incorrect CTxOutPoint::IsNull")
-        pcopy = CTxOutPoint()
-        self.assertTrue(pcopy.IsNull(), "incorrect CTxOutPoint::IsNull")
-        self.assertEqual(pcopy.hash, CUint256(), "incorrect CTxOutPoint::CTxOutPoint")
-        self.assertNotEqual(pcopy, txp, "incorrect CTxOutPoint::operator!=")
-        self.assertIn(uint.ToString()[:10], txp.ToString(), "incorrect CTxOutPoint::ToString")
+        self.assertEqual(txp.hash, uint, "incorrect COutPoint::COutPoint")
+        self.assertEqual(txp.n, 1, "incorrect COutPoint::COutPoint")
+        self.assertFalse(txp.IsNull(), "incorrect COutPoint::IsNull")
+        pcopy = COutPoint()
+        self.assertTrue(pcopy.IsNull(), "incorrect COutPoint::IsNull")
+        self.assertEqual(pcopy.hash, uint256(), "incorrect COutPoint::COutPoint")
+        self.assertNotEqual(pcopy, txp, "incorrect COutPoint::operator!=")
+        self.assertIn(uint.ToString()[:10], txp.ToString(), "incorrect COutPoint::ToString")
 
     def test_claim(self):
         txp = self.txp
@@ -88,7 +88,7 @@ class TestClaimTrieTypes(unittest.TestCase):
         nValidAtHeight = -1
         # add second claim
         txp.n = 2
-        uint1601 = CUint160S("1234567890987654321012345678909876543211")
+        uint1601 = uint160S("1234567890987654321012345678909876543211")
         self.assertTrue(cache.addClaim("test", txp, uint1601, 20, 1, 1), "incorrect CClaimtrieCache::addClaim")
         result, nValidAtHeight = cache.haveClaimInQueue("test", txp)
         self.assertTrue(result, "incorrect CClaimTrieCache::haveClaimInQueue")

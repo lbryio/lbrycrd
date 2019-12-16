@@ -26,16 +26,10 @@ namespace sqlite {
     inline void store_result_in_db(sqlite3_context* db, const CScript& val) {
         sqlite3_result_blob(db, val.data(), int(val.size()), SQLITE_TRANSIENT);
     }
-
-    inline int bind_col_in_db(sqlite3_stmt* stmt, int inx, const uint256& val) {
-        return sqlite3_bind_blob(stmt, inx, val.begin(), int(val.size()), SQLITE_STATIC);
-    }
-
-    inline void store_result_in_db(sqlite3_context* db, const uint256& val) {
-        sqlite3_result_blob(db, val.begin(), int(val.size()), SQLITE_TRANSIENT);
-    }
 }
+
 #include <sqlite.h>
+
 namespace sqlite {
     template<>
     struct has_sqlite_type<CScript, SQLITE_BLOB, void> : std::true_type {};
@@ -46,26 +40,6 @@ namespace sqlite {
         int bytes = sqlite3_column_bytes(stmt, inx);
         assert(bytes >= 0);
         return CScript(ptr, ptr + bytes);
-    }
-
-    template<>
-    struct has_sqlite_type<uint256, SQLITE_BLOB, void> : std::true_type {};
-
-    inline uint256 get_col_from_db(sqlite3_stmt* stmt, int inx, result_type<uint256>) {
-        auto type = sqlite3_column_type(stmt, inx);
-        if (type == SQLITE_NULL)
-            return {};
-        if (type == SQLITE_INTEGER)
-            return ArithToUint256(arith_uint256(sqlite3_column_int64(stmt, inx)));
-
-        assert(type == SQLITE_BLOB);
-        auto ptr = sqlite3_column_blob(stmt, inx);
-        uint256 ret;
-        if (!ptr) return ret;
-        int bytes = sqlite3_column_bytes(stmt, inx);
-        assert(bytes > 0 && bytes <= int(ret.size()));
-        std::memcpy(ret.begin(), ptr, bytes);
-        return ret;
     }
 }
 

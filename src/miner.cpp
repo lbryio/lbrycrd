@@ -191,7 +191,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     {
         CClaimTrieCache trieCache(pclaimTrie);
         blockToCache(pblock, trieCache, nHeight);
-        pblock->hashClaimTrie = uint256(trieCache.getMerkleHash());
+        pblock->hashClaimTrie = trieCache.getMerkleHash();
     }
     CValidationState state;
     if (!TestBlockValidity(state, chainparams, *pblock, pindexPrev, false, false)) {

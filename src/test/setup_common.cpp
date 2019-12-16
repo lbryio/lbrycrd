@@ -56,24 +56,6 @@ std::ostream& operator<<(std::ostream& os, const COutPoint& point)
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const CUint256& num)
-{
-    os << num.ToString();
-    return os;
-}
-
-std::ostream& operator<<(std::ostream& os, const CUint160& num)
-{
-    os << num.ToString();
-    return os;
-}
-
-std::ostream& operator<<(std::ostream& os, const CTxOutPoint& point)
-{
-    os << point.ToString();
-    return os;
-}
-
 std::ostream& operator<<(std::ostream& os, const CClaimValue& claim)
 {
     os << claim.ToString();

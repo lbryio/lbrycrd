@@ -10,7 +10,6 @@
 
 #include <algorithm>
 #include <assert.h>
-#include <claimtrie_serial.h>
 #include <ios>
 #include <limits>
 #include <map>
@@ -240,8 +239,7 @@ template<typename Stream> inline void Serialize(Stream& s, bool a)    { char f=a
 template<typename Stream> inline void Unserialize(Stream& s, bool& a) { char f=ser_readdata8(s); a=f; }
 
 
-
-
+#include <claimtrie_serial.h>
 
 
 /**
