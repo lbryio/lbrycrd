@@ -49,6 +49,7 @@ struct ClaimTrieChainFixture: public CClaimTrieCache
     int64_t originalExpiration;
     int64_t extendedExpiration;
     int64_t forkhash_original;
+    int minRemovalWorkaroundHeight, maxRemovalWorkaroundHeight;
 
     using CClaimTrieCache::getSupportsForName;
 
@@ -61,6 +62,8 @@ struct ClaimTrieChainFixture: public CClaimTrieCache
     void setNormalizationForkHeight(int targetMinusCurrent);
 
     void setHashForkHeight(int targetMinusCurrent);
+
+    void setRemovalWorkaroundHeight(int targetMinusCurrent, int blocks);
 
     bool CreateBlock(const std::unique_ptr<CBlockTemplate>& pblocktemplate);
 
@@ -104,6 +107,8 @@ struct ClaimTrieChainFixture: public CClaimTrieCache
     int proportionalDelayFactor() const;
 
     bool getClaimById(const uint160& claimId, std::string& name, CClaimValue& value);
+
+    int64_t nodeCount() const;
 
     // is a claim in queue
     boost::test_tools::predicate_result is_claim_in_queue(const std::string& name, const CTransaction &tx);

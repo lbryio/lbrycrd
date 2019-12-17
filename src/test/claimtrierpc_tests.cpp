@@ -306,7 +306,7 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
 
     // check by partial id (at least 3 chars)
     req.params = UniValue(UniValue::VARR);
-    req.params.push_back(UniValue(claimId3.GetHex().substr(0, 3)));
+    req.params.push_back(UniValue(claimId3.GetHex().substr(34)));
 
     result = getclaimbyid(req);
     BOOST_CHECK_EQUAL(result[T_LASTTAKEOVERHEIGHT].get_int(), height);
@@ -331,7 +331,7 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
     req.params = UniValue(UniValue::VARR);
     req.params.push_back(UniValue(name));
     req.params.push_back(UniValue(blockhash.GetHex()));
-    req.params.push_back(UniValue(claimId2.GetHex().substr(0, 2)));
+    req.params.push_back(UniValue(claimId2.GetHex().substr(14)));
 
     result = getnameproof(req);
     claimHash = getValueHash(COutPoint(tx2.GetHash(), 0), result[T_LASTTAKEOVERHEIGHT].get_int());

@@ -56,7 +56,40 @@ BOOST_AUTO_TEST_CASE(unaffected_children_get_new_parents_test) {
     auto n2 = fixture.getNodeChildren("longest1");
     BOOST_CHECK_EQUAL(n1[0], "longest1");
     BOOST_CHECK_EQUAL(n2[0], "longest123");
-    // TODO: this test at present fails to cover the split node case of the same thing (which occurs on block 202577)
+    BOOST_CHECK_EQUAL(4, fixture.nodeCount());
+
+    // now test the split node case of the same thing (which occurs on block 202577)
+    CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(), "longing", "5", 5);
+    CMutableTransaction tx6 = fixture.MakeClaim(fixture.GetCoinbase(), "longing1234", "5", 5);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK_EQUAL(7, fixture.nodeCount());
+    auto n3 = fixture.getNodeChildren("long");
+    auto n4 = fixture.getNodeChildren("longing");
+    BOOST_CHECK_EQUAL(n4[0], "longing1234");
+    BOOST_CHECK_EQUAL(2U, n3.size());
+}
+
+BOOST_AUTO_TEST_CASE(gen2_update_wins) {
+    ClaimTrieChainFixture fixture;
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "a", "1", 1);
+    fixture.IncrementBlocks(2);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "a", "2", 2);
+    fixture.IncrementBlocks(2);
+    CMutableTransaction tx3 = fixture.MakeUpdate(tx1, "a", "3", ClaimIdHash(tx1.GetHash(), 0), 3);
+    fixture.IncrementBlocks(2);
+    BOOST_CHECK(fixture.is_best_claim("a",tx3));
+}
+
+BOOST_AUTO_TEST_CASE(gen3_update_wins) {
+    ClaimTrieChainFixture fixture;
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "a", "1", 1);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "a", "2", 4);
+    fixture.IncrementBlocks(1);
+    CMutableTransaction tx3 = fixture.MakeUpdate(tx1, "a", "3", ClaimIdHash(tx1.GetHash(), 0), 3);
+    fixture.IncrementBlocks(1);
+    CMutableTransaction tx4 = fixture.MakeUpdate(tx3, "a", "3", ClaimIdHash(tx1.GetHash(), 0), 5);
+    fixture.IncrementBlocks(3);
+    BOOST_CHECK(fixture.is_best_claim("a",tx4));
 }
 
 /*
