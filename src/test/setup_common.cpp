@@ -129,6 +129,8 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
         auto &consensus = chainparams.GetConsensus();
         pclaimTrie = new CClaimTrie(20000000U, true, 0, GetDataDir().string(),
                                     consensus.nNormalizedNameForkHeight,
+                                    consensus.nMinRemovalWorkaroundHeight,
+                                    consensus.nMaxRemovalWorkaroundHeight,
                                     consensus.nOriginalClaimExpirationTime,
                                     consensus.nExtendedClaimExpirationTime,
                                     consensus.nExtendedClaimExpirationForkHeight,

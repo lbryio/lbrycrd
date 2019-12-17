@@ -1546,6 +1546,8 @@ bool AppInitMain(InitInterfaces& interfaces)
                 pclaimTrie = new CClaimTrie(nClaimtrieCache, fReindex || fReindexChainState, 0,
                                             GetDataDir().string(),
                                             consensus.nNormalizedNameForkHeight,
+                                            consensus.nMinRemovalWorkaroundHeight,
+                                            consensus.nMaxRemovalWorkaroundHeight,
                                             consensus.nOriginalClaimExpirationTime,
                                             consensus.nExtendedClaimExpirationTime,
                                             consensus.nExtendedClaimExpirationForkHeight,

@@ -49,6 +49,8 @@ void applyPragmas(sqlite::database& db, std::size_t cache)
 CClaimTrie::CClaimTrie(std::size_t cacheBytes, bool fWipe, int height,
                        const std::string& dataDir,
                        int nNormalizedNameForkHeight,
+                       int nMinRemovalWorkaroundHeight,
+                       int nMaxRemovalWorkaroundHeight,
                        int64_t nOriginalClaimExpirationTime,
                        int64_t nExtendedClaimExpirationTime,
                        int64_t nExtendedClaimExpirationForkHeight,
@@ -59,6 +61,8 @@ CClaimTrie::CClaimTrie(std::size_t cacheBytes, bool fWipe, int height,
                        dbFile(dataDir + "/claims.sqlite"), db(dbFile, sharedConfig),
                        nProportionalDelayFactor(proportionalDelayFactor),
                        nNormalizedNameForkHeight(nNormalizedNameForkHeight),
+                       nMinRemovalWorkaroundHeight(nMinRemovalWorkaroundHeight),
+                       nMaxRemovalWorkaroundHeight(nMaxRemovalWorkaroundHeight),
                        nOriginalClaimExpirationTime(nOriginalClaimExpirationTime),
                        nExtendedClaimExpirationTime(nExtendedClaimExpirationTime),
                        nExtendedClaimExpirationForkHeight(nExtendedClaimExpirationForkHeight),
@@ -639,24 +643,13 @@ bool CClaimTrieCacheBase::removeClaim(const uint160& claimId, const COutPoint& o
     // when node should be deleted from cache but instead it's kept
     // because it's a parent one and should not be effectively erased
     // we had a bug in the old code where that situation would force a zero delay on re-add
-    if (nNextHeight >= 297706) { // TODO: hard fork this out (which we already tried once but failed)
-        // we have to jump through some hoops here to make the claim_nodeName index be used on partial blobs
-        // neither LIKE nor SUBSTR will use an index on a blob (which is lame because it would be simple)
-        auto end = nodeName;
-        auto usingRange = false;
-        if (!end.empty() && end.back() < std::numeric_limits<char>::max()) {
-            ++end.back(); // the fast path
-            usingRange = true;
-        }
-        // else
-        //    end += std::string(256U, std::numeric_limits<char>::max()); // 256 is our supposed max length claim, but that's not enforced anywhere presently
-        auto query = usingRange ?
-                     (db << "SELECT nodeName FROM claim WHERE nodeName BETWEEN ?1 AND ?2 "
-                            "AND nodeName != ?2 AND activationHeight < ?3 AND expirationHeight > ?3 ORDER BY nodeName LIMIT 1"
-                         << nodeName << end << nNextHeight) :
-                    (db << "SELECT nodeName FROM claim INDEXED BY claim_nodeName WHERE SUBSTR(nodeName, 1, ?3) = ?1 "
-                           "AND activationHeight < ?2 AND expirationHeight > ?2 ORDER BY nodeName LIMIT 1"
-                            << nodeName << nNextHeight << nodeName.size());
+    if (nNextHeight >= base->nMinRemovalWorkaroundHeight
+        && nNextHeight < base->nMaxRemovalWorkaroundHeight) { // TODO: hard fork this out (which we already tried once but failed)
+        // neither LIKE nor SUBSTR will use an index on a blob, but BETWEEN is a good, fast alternative
+        auto end = nodeName + std::string( 256, std::numeric_limits<char>::max()); // 256 == MAX_CLAIM_NAME_SIZE + 1
+        auto query = db << "SELECT nodeName FROM claim WHERE nodeName BETWEEN ?1 AND ?2 "
+                           "AND activationHeight < ?3 AND expirationHeight >= ?3 ORDER BY nodeName LIMIT 1"
+                        << nodeName << end << nNextHeight;
         for (auto&& row: query) {
             std::string shortestMatch;
             row >> shortestMatch;
@@ -875,10 +868,15 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, const uint160
 
 bool CClaimTrieCacheBase::findNameForClaim(std::vector<unsigned char> claim, CClaimValue& value, std::string& name) const
 {
-    std::reverse(claim.begin(), claim.end());
+    if (claim.size() > 20U) // expecting RIPEMD160 -- 20 chars
+        return false;
+    // because the data coming in here is reversed we support removing chars from the left of the claimID
+    auto start = std::string(claim.rbegin(), claim.rend());
+    auto end = start + std::string(21U - claim.size(), std::numeric_limits<char>::max());
     auto query = db << "SELECT nodeName, claimID, txID, txN, amount, activationHeight, blockHeight "
-                        "FROM claim WHERE SUBSTR(claimID, ?1) = ?2 AND activationHeight < ?3 AND expirationHeight >= ?3"
-                    << -int(claim.size()) << claim << nNextHeight;
+                        "FROM claim WHERE claimID BETWEEN ?1 AND ?2 AND activationHeight < ?3 AND expirationHeight >= ?3 "
+                        "LIMIT 2"
+                    << start << end << nNextHeight;
     auto hit = false;
     for (auto&& row: query) {
         if (hit) return false;

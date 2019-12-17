@@ -30,6 +30,8 @@ public:
     CClaimTrie(std::size_t cacheBytes, bool fWipe, int height = 0,
                const std::string& dataDir = ".",
                int nNormalizedNameForkHeight = 1,
+               int nMinRemovalWorkaroundHeight = 1,
+               int nMaxRemovalWorkaroundHeight = -1,
                int64_t nOriginalClaimExpirationTime = 1,
                int64_t nExtendedClaimExpirationTime = 1,
                int64_t nExtendedClaimExpirationForkHeight = 1,
@@ -50,6 +52,7 @@ protected:
     const int nProportionalDelayFactor;
 
     const int nNormalizedNameForkHeight;
+    const int nMinRemovalWorkaroundHeight, nMaxRemovalWorkaroundHeight;
     const int64_t nOriginalClaimExpirationTime;
     const int64_t nExtendedClaimExpirationTime;
     const int64_t nExtendedClaimExpirationForkHeight;

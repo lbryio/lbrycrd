@@ -74,7 +74,8 @@ BlockAssembler AssemblerForTest()
 }
 
 ClaimTrieChainFixture::ClaimTrieChainFixture() : CClaimTrieCache(pclaimTrie),
-    unique_block_counter(0), normalization_original(-1), expirationForkHeight(-1), forkhash_original(-1)
+    unique_block_counter(0), normalization_original(-1), expirationForkHeight(-1), forkhash_original(-1),
+    minRemovalWorkaroundHeight(-1), maxRemovalWorkaroundHeight(-1)
 {
     fRequireStandard = false;
     BOOST_CHECK_EQUAL(nNextHeight, chainActive.Height() + 1);
@@ -114,6 +115,25 @@ ClaimTrieChainFixture::~ClaimTrieChainFixture()
         consensus.nAllClaimsInMerkleForkHeight = forkhash_original;
         const_cast<int64_t&>(base->nAllClaimsInMerkleForkHeight) = forkhash_original;
     }
+    if (minRemovalWorkaroundHeight >= 0) {
+        consensus.nMinRemovalWorkaroundHeight = minRemovalWorkaroundHeight;
+        consensus.nMaxRemovalWorkaroundHeight = maxRemovalWorkaroundHeight;
+        const_cast<int&>(base->nMinRemovalWorkaroundHeight) = minRemovalWorkaroundHeight;
+        const_cast<int&>(base->nMaxRemovalWorkaroundHeight) = maxRemovalWorkaroundHeight;
+    }
+}
+
+void ClaimTrieChainFixture::setRemovalWorkaroundHeight(int targetMinusCurrent, int blocks = 1000) {
+    int target = chainActive.Height() + targetMinusCurrent;
+    auto& consensus = const_cast<Consensus::Params&>(Params().GetConsensus());
+    if (minRemovalWorkaroundHeight < 0) {
+        minRemovalWorkaroundHeight = consensus.nMinRemovalWorkaroundHeight;
+        maxRemovalWorkaroundHeight = consensus.nMaxRemovalWorkaroundHeight;
+    }
+    consensus.nMinRemovalWorkaroundHeight = target;
+    consensus.nMaxRemovalWorkaroundHeight = target + blocks;
+    const_cast<int&>(base->nMinRemovalWorkaroundHeight) = target;
+    const_cast<int&>(base->nMaxRemovalWorkaroundHeight) = target + blocks;
 }
 
 void ClaimTrieChainFixture::setExpirationForkHeight(int targetMinusCurrent, int64_t preForkExpirationTime, int64_t postForkExpirationTime)
@@ -263,6 +283,11 @@ CMutableTransaction ClaimTrieChainFixture::MakeSupport(const CTransaction &prev,
 CMutableTransaction ClaimTrieChainFixture::MakeUpdate(const CTransaction &prev, const std::string& name, const std::string& value, const uint160& claimId, CAmount quantity)
 {
     CMutableTransaction tx = BuildTransaction(prev, 0);
+    if (prev.vout[0].nValue < quantity) {
+        auto coverIt = GetCoinbase();
+        tx.vin.push_back(CTxIn(coverIt.GetHash(), 0));
+    }
+
     tx.vout[0].scriptPubKey = UpdateClaimScript(name, claimId, value);
     tx.vout[0].nValue = quantity;
 
@@ -416,6 +441,12 @@ bool ClaimTrieChainFixture::getClaimById(const uint160 &claimId, std::string &na
         hit = true;
     }
     return hit;
+}
+
+int64_t ClaimTrieChainFixture::nodeCount() const {
+    int64_t ret = 0;
+    db << "SELECT COUNT(*) FROM node" >> ret;
+    return ret;
 }
 
 std::vector<std::string> ClaimTrieChainFixture::getNodeChildren(const std::string &name)
