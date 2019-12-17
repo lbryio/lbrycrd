@@ -453,7 +453,7 @@ UniValue getclaimbyid(const JSONRPCRequest& request)
     std::string claimId;
     ParseClaimtrieId(request.params[0], claimId, T_CLAIMID " (parameter 1)");
 
-    if (claimId.length() < 3)
+    if (claimId.length() < 6)
         throw JSONRPCError(RPC_INVALID_PARAMETER, T_CLAIMID " (parameter 1) should be at least 3 chars");
 
     std::string foundName;

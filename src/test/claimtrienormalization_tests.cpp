@@ -375,6 +375,44 @@ BOOST_AUTO_TEST_CASE(normalization_does_not_fail_on_spend)
     BOOST_CHECK(fixture.is_best_claim(sName1, tx1));
 }
 
+BOOST_AUTO_TEST_CASE(unnormalized_expires_before_fork)
+{
+    ClaimTrieChainFixture fixture;
+    fixture.setNormalizationForkHeight(4);
+    fixture.setExpirationForkHeight(1, 3, 3);
+
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "A", "1", 1);
+    fixture.IncrementBlocks(3);
+    CMutableTransaction sp1 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, "A", 1);
+    BOOST_CHECK(fixture.is_best_claim("A", tx1));
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(!fixture.is_best_claim("A", tx1));
+    BOOST_CHECK(!fixture.is_best_claim("a", tx1));
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(!fixture.is_best_claim("A", tx1));
+    BOOST_CHECK(!fixture.is_best_claim("a", tx1));
+    fixture.DecrementBlocks(2);
+    BOOST_CHECK(fixture.is_best_claim("A", tx1));
+}
+
+BOOST_AUTO_TEST_CASE(unnormalized_activates_on_fork)
+{
+    // this was an unfortunate bug; the normalization fork should not have activated anything
+    // alas, it's now part of our history; we hereby test it to keep it that way
+    ClaimTrieChainFixture fixture;
+    fixture.setNormalizationForkHeight(4);
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "A", "1", 1);
+    fixture.IncrementBlocks(3);
+    BOOST_CHECK(fixture.is_best_claim("A", tx1));
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "A", "2", 2);
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(fixture.is_best_claim("a", tx2));
+    fixture.IncrementBlocks(2);
+    BOOST_CHECK(fixture.is_best_claim("a", tx2));
+    fixture.DecrementBlocks(3);
+    BOOST_CHECK(fixture.is_best_claim("A", tx1));
+}
+
 BOOST_AUTO_TEST_CASE(normalization_does_not_kill_sort_order)
 {
     ClaimTrieChainFixture fixture;
