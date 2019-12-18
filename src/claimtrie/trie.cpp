@@ -868,15 +868,10 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, const uint160
 
 bool CClaimTrieCacheBase::findNameForClaim(std::vector<unsigned char> claim, CClaimValue& value, std::string& name) const
 {
-    if (claim.size() > 20U) // expecting RIPEMD160 -- 20 chars
-        return false;
-    // because the data coming in here is reversed we support removing chars from the left of the claimID
-    auto start = std::string(claim.rbegin(), claim.rend());
-    auto end = start + std::string(21U - claim.size(), std::numeric_limits<char>::max());
+    std::reverse(claim.begin(), claim.end());
     auto query = db << "SELECT nodeName, claimID, txID, txN, amount, activationHeight, blockHeight "
-                        "FROM claim WHERE claimID BETWEEN ?1 AND ?2 AND activationHeight < ?3 AND expirationHeight >= ?3 "
-                        "LIMIT 2"
-                    << start << end << nNextHeight;
+                        "FROM claim WHERE SUBSTR(claimID, ?1) = ?2 AND activationHeight < ?3 AND expirationHeight >= ?3"
+                    << -int(claim.size()) << claim << nNextHeight;
     auto hit = false;
     for (auto&& row: query) {
         if (hit) return false;

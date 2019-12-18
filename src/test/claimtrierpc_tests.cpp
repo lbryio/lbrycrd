@@ -304,9 +304,9 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
     BOOST_CHECK_EQUAL(result[T_SEQUENCE].get_int(), claim1seq);
     BOOST_CHECK_EQUAL(result[T_CLAIMID].get_str(), claimId1.GetHex());
 
-    // check by partial id (at least 3 chars)
+    // check by partial id (at least 6 chars)
     req.params = UniValue(UniValue::VARR);
-    req.params.push_back(UniValue(claimId3.GetHex().substr(34)));
+    req.params.push_back(UniValue(claimId3.GetHex().substr(0, 6)));
 
     result = getclaimbyid(req);
     BOOST_CHECK_EQUAL(result[T_LASTTAKEOVERHEIGHT].get_int(), height);
@@ -327,11 +327,11 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
     auto claimHash = getValueHash(COutPoint(tx2.GetHash(), 1), result[T_LASTTAKEOVERHEIGHT].get_int());
     ValidatePairs(fixture, jsonToPairs(result[T_PAIRS]), claimHash);
 
-    // check by partial id (can be even 1 char)
+    // check by partial id (can be even 2 chars)
     req.params = UniValue(UniValue::VARR);
     req.params.push_back(UniValue(name));
     req.params.push_back(UniValue(blockhash.GetHex()));
-    req.params.push_back(UniValue(claimId2.GetHex().substr(14)));
+    req.params.push_back(UniValue(claimId2.GetHex().substr(0, 2)));
 
     result = getnameproof(req);
     claimHash = getValueHash(COutPoint(tx2.GetHash(), 0), result[T_LASTTAKEOVERHEIGHT].get_int());

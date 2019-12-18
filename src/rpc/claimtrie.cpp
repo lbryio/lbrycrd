@@ -454,7 +454,7 @@ UniValue getclaimbyid(const JSONRPCRequest& request)
     ParseClaimtrieId(request.params[0], claimId, T_CLAIMID " (parameter 1)");
 
     if (claimId.length() < 6)
-        throw JSONRPCError(RPC_INVALID_PARAMETER, T_CLAIMID " (parameter 1) should be at least 3 chars");
+        throw JSONRPCError(RPC_INVALID_PARAMETER, T_CLAIMID " (parameter 1) should be at least 6 chars");
 
     std::string foundName;
     CClaimValue foundClaim;
@@ -660,12 +660,14 @@ UniValue getnameproof(const JSONRPCRequest& request)
     if (request.params.size() > 2) {
         std::string claimId;
         ParseClaimtrieId(request.params[2], claimId, T_CLAIMID " (optional parameter 3)");
+        if (claimId.length() < 2)
+            throw JSONRPCError(RPC_INVALID_PARAMETER, T_CLAIMID " (optional parameter 3) should be at least 2 chars");
         std::string foundClaimName;
         if (!trieCache.findNameForClaim(ParseHex(claimId), claim, foundClaimName)
-            || foundClaimName != trieCache.adjustNameForValidHeight(name, validHeight))
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Failed to locate a claim with ID " + claimId);
-    }
-    else trieCache.getInfoForName(name, claim);
+        || foundClaimName != trieCache.adjustNameForValidHeight(name, validHeight))
+            return {UniValue::VOBJ};
+    } else if (!trieCache.getInfoForName(name, claim))
+        return {UniValue::VOBJ};
 
     CClaimTrieProof proof;
     if (!trieCache.getProofForName(name, claim.claimId, proof))
@@ -698,7 +700,7 @@ UniValue getclaimproofbybid(const JSONRPCRequest& request)
 
     auto csToName = trieCache.getClaimsForName(name);
     if (std::size_t(bid) >= csToName.claimsNsupports.size())
-        return {UniValue::VARR};
+        return {UniValue::VOBJ};
     auto match = csToName.claimsNsupports[bid].claim.claimId;
 
     CClaimTrieProof proof;
@@ -731,7 +733,7 @@ UniValue getclaimproofbyseq(const JSONRPCRequest& request)
     std::string name = request.params[0].get_str();
     auto csToName = trieCache.getClaimsForName(name);
     if (std::size_t(seq) >= csToName.claimsNsupports.size())
-        return {UniValue::VARR};
+        return {UniValue::VOBJ};
 
     auto sorted = seqSort(csToName.claimsNsupports);
     auto match = sorted[seq].claim.claimId;
