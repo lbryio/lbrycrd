@@ -802,4 +802,32 @@ BOOST_AUTO_TEST_CASE(get_claim_by_id_test_3)
     BOOST_CHECK_EQUAL(claimValue.claimId, claimId2);
 }
 
+BOOST_AUTO_TEST_CASE(removal_workaround_functions)
+{
+    // to hit the removalWorkaround, you must
+    // 1. have all claims of a name removed (but still have children of that claim not removed)
+    // 2.
+
+    ClaimTrieChainFixture fixture;
+    fixture.setRemovalWorkaroundHeight(7, 20);
+    CMutableTransaction tx1a = fixture.MakeClaim(fixture.GetCoinbase(), "a", "a", 3);
+    CMutableTransaction tx1b = fixture.MakeClaim(fixture.GetCoinbase(), "a", "a", 2);
+    CMutableTransaction tx1c = fixture.MakeClaim(fixture.GetCoinbase(), "ack", "ack", 3);
+    CMutableTransaction tx2a = fixture.MakeClaim(fixture.GetCoinbase(), "b", "b", 3);
+    CMutableTransaction tx2b = fixture.MakeClaim(fixture.GetCoinbase(), "b", "b", 2);
+    CMutableTransaction tx2c = fixture.MakeClaim(fixture.GetCoinbase(), "bob", "bob", 3);
+    fixture.IncrementBlocks(3);
+
+    CMutableTransaction tx3a = fixture.MakeUpdate(tx1a, "a", "a", ClaimIdHash(tx1a.GetHash(), 0), 4);
+    CMutableTransaction tx3b = fixture.MakeUpdate(tx1b, "a", "a", ClaimIdHash(tx1b.GetHash(), 0), 5); // trigger a takeover
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(fixture.is_best_claim("a", tx3a));
+
+    fixture.IncrementBlocks(7);
+    CMutableTransaction tx4a = fixture.MakeUpdate(tx2a, "b", "b", ClaimIdHash(tx2a.GetHash(), 0), 4);
+    CMutableTransaction tx4b = fixture.MakeUpdate(tx2b, "b", "b", ClaimIdHash(tx2b.GetHash(), 0), 5); // trigger a takeover
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(fixture.is_best_claim("b", tx4b));
+}
+
 BOOST_AUTO_TEST_SUITE_END()
