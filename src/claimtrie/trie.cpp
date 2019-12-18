@@ -44,6 +44,9 @@ void applyPragmas(sqlite::database& db, std::size_t cache)
     db << "PRAGMA journal_mode=MEMORY";
     db << "PRAGMA temp_store=MEMORY";
     db << "PRAGMA case_sensitive_like=true";
+
+    db.define("POPS", [](std::string s) -> std::string { if (!s.empty()) s.pop_back(); return s; });
+    db.define("REVERSE", [](std::vector<uint8_t> s) -> std::vector<uint8_t> { std::reverse(s.begin(), s.end()); return s; });
 }
 
 CClaimTrie::CClaimTrie(std::size_t cacheBytes, bool fWipe, int height,
@@ -460,6 +463,10 @@ bool CClaimTrieCacheBase::validateDb(int height, const uint256& rootHash)
             logPrint << "CClaimTrieCacheBase::" << __func__ << "(): the block's root claim hash doesn't match the persisted claim root hash." << Clog::endl;
             return false;
         }
+
+        if (nNextHeight > base->nAllClaimsInMerkleForkHeight) // index not used as part of sync:
+            db << "CREATE UNIQUE INDEX IF NOT EXISTS claim_reverseClaimID ON claim (REVERSE(claimID))";
+
         return true;
     }
     logPrint << "inconsistent!" << Clog::endl;
@@ -511,7 +518,6 @@ CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)
     nNextHeight = base->nNextHeight;
 
     applyPragmas(db, base->dbCacheBytes >> 10U); // in KB
-    db.define("POPS", [](std::string s) -> std::string { if (!s.empty()) s.pop_back(); return s; });
 }
 
 void CClaimTrieCacheBase::ensureTransacting()
@@ -868,10 +874,14 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, const uint160
 
 bool CClaimTrieCacheBase::findNameForClaim(std::vector<unsigned char> claim, CClaimValue& value, std::string& name) const
 {
-    std::reverse(claim.begin(), claim.end());
+    if (claim.size() > 20)
+        return false;
+    auto maximum = claim;
+    maximum.insert(maximum.end(), 20 - claim.size(), std::numeric_limits<unsigned char>::max());
     auto query = db << "SELECT nodeName, claimID, txID, txN, amount, activationHeight, blockHeight "
-                        "FROM claim WHERE SUBSTR(claimID, ?1) = ?2 AND activationHeight < ?3 AND expirationHeight >= ?3"
-                    << -int(claim.size()) << claim << nNextHeight;
+                       "FROM claim WHERE REVERSE(claimID) BETWEEN ?1 AND ?2 "
+                       "AND activationHeight < ?3 AND expirationHeight >= ?3 LIMIT 2"
+                    << claim << maximum << nNextHeight;
     auto hit = false;
     for (auto&& row: query) {
         if (hit) return false;
