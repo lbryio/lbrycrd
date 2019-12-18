@@ -192,7 +192,7 @@ S1("    ]")
 S1("getclaimbyid \"" T_CLAIMID R"("
 Get a claim by claim id
 Arguments:)")
-S3("1. ", T_CLAIMID, "                 (string) the claimId of this claim or patial id (at least 3 chars)")
+S3("1. ", T_CLAIMID, "                 (string) the claimId of this claim or patial id (at least 6 chars)")
 S1("Result: [")
 CLAIM_OUTPUT
 "]",
