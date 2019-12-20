@@ -15,6 +15,7 @@
 #include <chainparams.h>
 #include <checkpoints.h>
 #include <claimtrie/forks.h>
+#include <claimtrie/hashes.h>
 #include <clientversion.h>
 #include <compat/sanity.h>
 #include <consensus/validation.h>
@@ -1533,6 +1534,13 @@ bool AppInitMain()
                     }
                     assert(chainActive.Tip() != nullptr);
                 }
+
+                // use faster N way hash function
+                // NOTE: it assumes memory is continuous
+                // that means uint256 itself should use std::array or raw pointer
+                sha256n_way = [](std::vector<uint256>& hashes) {
+                    SHA256D64(hashes[0].begin(), hashes[0].begin(), hashes.size() / 2);
+                };
 
                 auto tip = chainActive.Tip();
                 if (tip && !CClaimTrieCache(pclaimTrie).validateDb(tip->nHeight, tip->hashClaimTrie)) {
