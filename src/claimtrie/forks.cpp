@@ -236,10 +236,7 @@ uint256 ComputeMerkleRoot(std::vector<uint256> hashes)
         if (hashes.size() & 1)
             hashes.push_back(hashes.back());
 
-        for (std::size_t i = 0, j = 0; i < hashes.size(); i += 2)
-            hashes[j++] = Hash(hashes[i].begin(), hashes[i].end(),
-                               hashes[i+1].begin(), hashes[i+1].end());
-
+        sha256n_way(hashes);
         hashes.resize(hashes.size() / 2);
     }
     return hashes.empty() ? uint256{} : hashes[0];

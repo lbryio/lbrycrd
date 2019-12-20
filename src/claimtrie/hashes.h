@@ -4,6 +4,9 @@
 
 #include <openssl/sha.h>
 
+#include <functional>
+#include <vector>
+
 #include <uints.h>
 
 uint256 CalcHash(SHA256_CTX* sha);
@@ -24,5 +27,7 @@ uint256 Hash(TIterator begin, TIterator end, Args... args)
     SHA256_Init(&sha);
     return CalcHash(&sha, begin, end, args...);
 }
+
+extern std::function<void(std::vector<uint256>&)> sha256n_way;
 
 #endif // CLAIMTRIE_HASHES_H
