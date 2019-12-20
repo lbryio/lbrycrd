@@ -200,10 +200,13 @@ bool ClaimTrieChainFixture::CreateCoinbases(unsigned int num_coinbases, std::vec
 {
     std::unique_ptr<CBlockTemplate> pblocktemplate;
     coinbases.clear();
-    BOOST_CHECK(pblocktemplate = AssemblerForTest().CreateNewBlock(CScript() << OP_TRUE));
-    BOOST_CHECK_EQUAL(pblocktemplate->block.vtx.size(), 1);
+    BOOST_REQUIRE(pblocktemplate = AssemblerForTest().CreateNewBlock(CScript() << OP_TRUE));
+    BOOST_REQUIRE_EQUAL(pblocktemplate->block.vtx.size(), 1);
     for (unsigned int i = 0; i < 100 + num_coinbases; ++i) {
-        BOOST_CHECK(CreateBlock(pblocktemplate));
+        if (!CreateBlock(pblocktemplate)) {
+            BOOST_REQUIRE(pblocktemplate = AssemblerForTest().CreateNewBlock(CScript() << OP_TRUE));
+            BOOST_REQUIRE(CreateBlock(pblocktemplate));
+        }
         if (coinbases.size() < num_coinbases)
             coinbases.push_back(std::move(*pblocktemplate->block.vtx[0]));
     }
