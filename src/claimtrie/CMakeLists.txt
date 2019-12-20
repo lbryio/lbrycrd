@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(claimtrie)
+project(libclaimtrie)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
@@ -22,27 +22,55 @@ set(CLAIMTRIE_SRC
 if(BIND)
     find_program(SWIG NAMES swig)
     string(TOLOWER ${BIND} BIND)
-    set(INTERFACE_NAME libclaimtrie)
     if(${BIND} STREQUAL "python")
         find_package(PythonInterp 3.6 REQUIRED)
         find_package(PythonLibs 3.6 REQUIRED)
         set(BIND_INCLUDE_DIRS ${PYTHON_INCLUDE_DIRS})
         set(SWIG_OPTIONS -python;-py3)
         set(CMAKE_SHARED_LIBRARY_PREFIX _lib)
+    elseif(${BIND} STREQUAL "go")
+        find_program(GOLANG NAMES go)
+        if(NOT GOLANG)
+            message(FATAL_ERROR "Golang was not found in system path")
+        endif()
+        execute_process(COMMAND ${GOLANG} "version" OUTPUT_VARIABLE GOLANG_VERSION)
+        STRING(REGEX MATCH "[0-9]+.[0-9]+.[0-9]" GOLANG_VERSION "${GOLANG_VERSION}")
+        if(GOLANG_VERSION VERSION_LESS 1.5)
+            message(FATAL_ERROR "Update Golang to at least 1.5, now " ${GOLANG_VERSION})
+        endif()
+        set(SWIG_OPTIONS -go;-cgo;-intgosize;32)
+        set(POST_BUILD_COMMAND go)
+        set(POST_BUILD_ARGS install;-x;${CMAKE_PROJECT_NAME}.go)
+        # CGO_LDFLAGS is buggy so we should inject linker flags in generated go file
+        set(POST_BUILD_PATCH -i "\"s/import \\\"C\\\"/\\/\\/ #cgo LDFLAGS: -L\\\$$\\{SRCDIR\\} -lclaimtrie\\nimport \\\"C\\\"/\"" ${CMAKE_PROJECT_NAME}.go)
     else()
         message(FATAL_ERROR "Implement a handler for ${BIND}")
     endif()
-    add_custom_command(OUTPUT ${INTERFACE_NAME}_wrap.cxx
+    add_custom_command(OUTPUT ${CMAKE_PROJECT_NAME}_wrap.cxx
         COMMAND ${SWIG}
-        ARGS -c++ ${SWIG_OPTIONS} -outcurrentdir ${CMAKE_CURRENT_SOURCE_DIR}/${INTERFACE_NAME}.i
+        ARGS -c++ ${SWIG_OPTIONS} -outcurrentdir ${CMAKE_CURRENT_SOURCE_DIR}/${CMAKE_PROJECT_NAME}.i
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     )
     set(CLAIMTRIE_SRC ${CLAIMTRIE_SRC}
-        ${INTERFACE_NAME}_wrap.cxx
+        ${CMAKE_PROJECT_NAME}_wrap.cxx
     )
 endif()
 
 add_library(claimtrie SHARED ${CLAIMTRIE_SRC})
+if (POST_BUILD_PATCH)
+    add_custom_command(TARGET claimtrie POST_BUILD
+        COMMAND sed
+        ARGS ${POST_BUILD_PATCH}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    )
+endif()
+if(POST_BUILD_COMMAND)
+    add_custom_command(TARGET claimtrie POST_BUILD
+        COMMAND ${POST_BUILD_COMMAND}
+        ARGS ${POST_BUILD_ARGS}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    )
+endif()
 
 target_include_directories(claimtrie PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -76,7 +104,7 @@ target_link_libraries(claimtrie PRIVATE ssl)
 
 set(BOOST_LIBS filesystem,locale,system,chrono,thread,test)
 
-set(BOOST_COMPONENTS filesystem;locale;system,chrono,thread,unit_test_framework)
+set(BOOST_COMPONENTS filesystem;locale;system;chrono;thread;unit_test_framework)
 
 CPMAddPackage(
     NAME Boost
