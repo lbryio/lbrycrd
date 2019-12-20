@@ -14,8 +14,7 @@
 
 %include stl.i
 %include stdint.i
-%include std_array.i
-%include std_pair.i
+%include typemaps.i
 
 %apply int& OUTPUT { int& nValidAtHeight };
 
@@ -28,6 +27,8 @@
 %ignore CSupportValue(CSupportValue &&);
 %ignore uint160(uint160 &&);
 %ignore uint256(uint256 &&);
+
+%template(vecUint8) std::vector<uint8_t>;
 
 %include "blob.h"
 
