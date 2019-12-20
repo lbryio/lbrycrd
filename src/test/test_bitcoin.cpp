@@ -6,6 +6,7 @@
 
 #include <chainparams.h>
 #include <claimtrie/forks.h>
+#include <claimtrie/hashes.h>
 #include <consensus/consensus.h>
 #include <consensus/validation.h>
 #include <crypto/sha256.h>
@@ -121,6 +122,10 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
     try {
         RegisterAllCoreRPCCommands(tableRPC);
         ClearDatadirCache();
+
+        sha256n_way = [](std::vector<uint256>& hashes) {
+            SHA256D64(hashes[0].begin(), hashes[0].begin(), hashes.size() / 2);
+        };
 
         // We have to run a scheduler thread to prevent ActivateBestChain
         // from blocking due to queue overrun.
