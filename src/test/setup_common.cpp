@@ -7,6 +7,7 @@
 #include <banman.h>
 #include <chainparams.h>
 #include <claimtrie/forks.h>
+#include <claimtrie/hashes.h>
 #include <consensus/consensus.h>
 #include <consensus/params.h>
 #include <consensus/validation.h>
@@ -115,6 +116,10 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
     // instead of unit tests, but for now we need these here.
     try {
         RegisterAllCoreRPCCommands(tableRPC);
+
+        sha256n_way = [](std::vector<uint256>& hashes) {
+            SHA256D64(hashes[0].begin(), hashes[0].begin(), hashes.size() / 2);
+        };
 
         // We have to run a scheduler thread to prevent ActivateBestChain
         // from blocking due to queue overrun.
