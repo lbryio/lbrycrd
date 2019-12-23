@@ -13,6 +13,7 @@
 #include <scheduler.h>
 #include <txdb.h>
 #include <txmempool.h>
+#include <util.h>
 #include <utiltime.h>
 #include <validation.h>
 #include <validationinterface.h>
@@ -40,7 +41,7 @@ static CTxIn MineBlock(const CScript& coinbase_scriptPubKey)
 {
     auto block = PrepareBlock(coinbase_scriptPubKey);
 
-    while (!CheckProofOfWork(block->GetHash(), block->nBits, Params().GetConsensus())) {
+    while (!CheckProofOfWork(block->GetPoWHash(), block->nBits, Params().GetConsensus())) {
         ++block->nNonce;
         assert(block->nNonce);
     }
@@ -72,18 +73,29 @@ static void AssembleBlock(benchmark::State& state)
     boost::thread_group thread_group;
     CScheduler scheduler;
     {
+        delete ::pclaimTrie;
+        const CChainParams& chainparams = Params();
+        auto &consensus = chainparams.GetConsensus();
         ::pblocktree.reset(new CBlockTreeDB(1 << 20, true));
         ::pcoinsdbview.reset(new CCoinsViewDB(1 << 23, true));
         ::pcoinsTip.reset(new CCoinsViewCache(pcoinsdbview.get()));
+        ::pclaimTrie = new CClaimTrie(1 << 25, true, 0, GetDataDir().string(),
+                                      consensus.nNormalizedNameForkHeight,
+                                      consensus.nMinRemovalWorkaroundHeight,
+                                      consensus.nMaxRemovalWorkaroundHeight,
+                                      consensus.nOriginalClaimExpirationTime,
+                                      consensus.nExtendedClaimExpirationTime,
+                                      consensus.nExtendedClaimExpirationForkHeight,
+                                      consensus.nAllClaimsInMerkleForkHeight, 1);
 
-        const CChainParams& chainparams = Params();
         thread_group.create_thread(boost::bind(&CScheduler::serviceQueue, &scheduler));
         GetMainSignals().RegisterBackgroundSignalScheduler(scheduler);
         LoadGenesisBlock(chainparams);
         CValidationState state;
         ActivateBestChain(state, chainparams);
         assert(::chainActive.Tip() != nullptr);
-        const bool witness_enabled{IsWitnessEnabled(::chainActive.Tip(), chainparams.GetConsensus())};
+        const_cast<int&>(consensus.nWitnessForkHeight) = ::chainActive.Height();
+        const bool witness_enabled{IsWitnessEnabled(::chainActive.Tip(), consensus)};
         assert(witness_enabled);
     }
 
