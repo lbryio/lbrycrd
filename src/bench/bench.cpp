@@ -116,6 +116,8 @@ void benchmark::BenchRunner::RunAll(Printer& printer, uint64_t num_evals, double
         {
             LOCK(cs_main);
             assert(::ChainActive().Height() == 0);
+            auto &consensus = Params().GetConsensus();
+            const_cast<int&>(consensus.SegwitHeight) = ::ChainActive().Height();
             const bool witness_enabled{IsWitnessEnabled(::ChainActive().Tip(), Params().GetConsensus())};
             assert(witness_enabled);
         }

@@ -7,6 +7,7 @@
 #include <crypto/sha256.h>
 #include <test/util.h>
 #include <txmempool.h>
+#include <util.h>
 #include <validation.h>
 
 
@@ -24,6 +25,17 @@ static void AssembleBlock(benchmark::State& state)
 
     const CScript SCRIPT_PUB{CScript(OP_0) << std::vector<unsigned char>{witness_program.begin(), witness_program.end()}};
 
+        delete ::pclaimTrie;
+        const CChainParams& chainparams = Params();
+        auto &consensus = chainparams.GetConsensus();
+        ::pclaimTrie = new CClaimTrie(1 << 25, true, 0, GetDataDir().string(),
+                                      consensus.nNormalizedNameForkHeight,
+                                      consensus.nMinRemovalWorkaroundHeight,
+                                      consensus.nMaxRemovalWorkaroundHeight,
+                                      consensus.nOriginalClaimExpirationTime,
+                                      consensus.nExtendedClaimExpirationTime,
+                                      consensus.nExtendedClaimExpirationForkHeight,
+                                      consensus.nAllClaimsInMerkleForkHeight, 1);
     // Collect some loose transactions that spend the coinbases of our mined blocks
     constexpr size_t NUM_BLOCKS{200};
     std::array<CTransactionRef, NUM_BLOCKS - COINBASE_MATURITY + 1> txs;

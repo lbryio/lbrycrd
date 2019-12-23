@@ -1483,6 +1483,13 @@ bool AppInitMain(InitInterfaces& interfaces)
                 pblocktree.reset();
                 pblocktree.reset(new CBlockTreeDB(nBlockTreeDBCache, false, fReindex));
 
+                // use faster N way hash function
+                // NOTE: it assumes memory is continuous
+                // that means uint256 itself should use std::array or raw pointer
+                sha256n_way = [](std::vector<uint256>& hashes) {
+                    SHA256D64(hashes[0].begin(), hashes[0].begin(), hashes.size() / 2);
+                };
+
                 if (fReindex) {
                     pblocktree->WriteReindexing(true);
                     //If we're reindexing in prune mode, wipe away unusable block files and all undo data files
@@ -1580,13 +1587,6 @@ bool AppInitMain(InitInterfaces& interfaces)
                 strLoadError = _("Error opening block database").translated;
                 break;
             }
-
-                // use faster N way hash function
-                // NOTE: it assumes memory is continuous
-                // that means uint256 itself should use std::array or raw pointer
-                sha256n_way = [](std::vector<uint256>& hashes) {
-                    SHA256D64(hashes[0].begin(), hashes[0].begin(), hashes.size() / 2);
-                };
 
                 auto tip = chainActive.Tip();
                 if (tip && !CClaimTrieCache(pclaimTrie).validateDb(tip->nHeight, tip->hashClaimTrie)) {

@@ -5,6 +5,9 @@
 #include <consensus/merkle.h>
 #include <hash.h>
 
+#include <functional>
+#include <vector>
+
 /*     WARNING! If you're reading this because you're learning about crypto
        and/or designing a new system that will use merkle trees, keep in mind
        that the following merkle tree algorithm has a serious flaw related to
@@ -41,6 +44,7 @@
        root.
 */
 
+extern std::function<void(std::vector<uint256>&)> sha256n_way;
 
 uint256 ComputeMerkleRoot(std::vector<uint256> hashes, bool* mutated) {
     bool mutation = false;
@@ -53,7 +57,7 @@ uint256 ComputeMerkleRoot(std::vector<uint256> hashes, bool* mutated) {
         if (hashes.size() & 1) {
             hashes.push_back(hashes.back());
         }
-        SHA256D64(hashes[0].begin(), hashes[0].begin(), hashes.size() / 2);
+        sha256n_way(hashes);
         hashes.resize(hashes.size() / 2);
     }
     if (mutated) *mutated = mutation;
