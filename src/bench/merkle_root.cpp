@@ -4,11 +4,13 @@
 
 #include <bench/bench.h>
 
-#include <uint256.h>
-#include <random.h>
+#include <claimtrie/hashes.h>
 #include <consensus/merkle.h>
+#include <crypto/sha256.h>
+#include <random.h>
+#include <uint256.h>
 
-static void MerkleRoot(benchmark::State& state)
+static void MerkleRootUni(benchmark::State& state)
 {
     FastRandomContext rng(true);
     std::vector<uint256> leaves;
@@ -18,9 +20,18 @@ static void MerkleRoot(benchmark::State& state)
     }
     while (state.KeepRunning()) {
         bool mutation = false;
-        uint256 hash = ComputeMerkleRoot(std::vector<uint256>(leaves), &mutation);
+        uint256 hash = ComputeMerkleRoot(leaves, &mutation);
         leaves[mutation] = hash;
     }
 }
 
+static void MerkleRoot(benchmark::State& state)
+{
+    sha256n_way = [](std::vector<uint256>& hashes) {
+        SHA256D64(hashes[0].begin(), hashes[0].begin(), hashes.size() / 2);
+    };
+    MerkleRootUni(state);
+}
+
 BENCHMARK(MerkleRoot, 800);
+BENCHMARK(MerkleRootUni, 800);
