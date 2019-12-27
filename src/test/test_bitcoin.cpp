@@ -22,8 +22,10 @@
 #include <script/sigcache.h>
 #include <txdb.h>
 
+#ifdef BOOST_TEST_DYN_LINK // do not include in qt
 #include <boost/test/unit_test.hpp>
 #include <boost/test/unit_test_parameters.hpp>
+#endif
 
 void CConnmanTest::AddNode(CNode& node)
 {
@@ -78,6 +80,7 @@ std::ostream& operator<<(std::ostream& os, const CSupportValue& support)
 BasicTestingSetup::BasicTestingSetup(const std::string& chainName)
     : m_path_root(fs::temp_directory_path() / "test_lbrycrd" / strprintf("%lu_%i", (unsigned long)GetTime(), (int)(InsecureRandRange(1 << 30))))
 {
+#ifdef BOOST_TEST_DYN_LINK // do not include in qt
     // for debugging:
     if (boost::unit_test::runtime_config::get<boost::unit_test::log_level>(boost::unit_test::runtime_config::btrt_log_level)
             <= boost::unit_test::log_level::log_messages) {
@@ -86,7 +89,7 @@ BasicTestingSetup::BasicTestingSetup(const std::string& chainName)
         g_logger->EnableCategory(BCLog::ALL);
         CLogPrint::global().setLogger(g_logger);
     }
-
+#endif
     SHA256AutoDetect();
     RandomInit();
     ECC_Start();
