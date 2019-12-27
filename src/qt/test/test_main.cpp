@@ -8,6 +8,7 @@
 
 #include <interfaces/node.h>
 #include <qt/bitcoin.h>
+#include <qt/guiconstants.h>
 #include <qt/test/apptests.h>
 #include <qt/test/rpcnestedtests.h>
 #include <qt/test/uritests.h>
@@ -69,7 +70,7 @@ int main(int argc, char *argv[])
     // Don't remove this, it's needed to access
     // QApplication:: and QCoreApplication:: in the tests
     BitcoinApplication app(*node);
-    app.setApplicationName("Bitcoin-Qt-test");
+    app.setApplicationName(QAPP_APP_NAME_DEFAULT "-test");
 
     AppTests app_tests(app);
     if (QTest::qExec(&app_tests) != 0) {

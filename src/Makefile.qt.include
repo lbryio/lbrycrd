@@ -377,10 +377,10 @@ CLEAN_QT = $(nodist_qt_libbitcoinqt_a_SOURCES) $(QT_QM) $(QT_FORMS_H) qt/*.gcda 
 
 CLEANFILES += $(CLEAN_QT)
 
-bitcoin_qt_clean: FORCE
+lbrycrd_qt_clean: FORCE
 	rm -f $(CLEAN_QT) $(qt_libbitcoinqt_a_OBJECTS) $(qt_lbrycrd_qt_OBJECTS) qt/lbrycrd-qt$(EXEEXT) $(LIBBITCOINQT)
 
-bitcoin_qt : qt/lbrycrd-qt$(EXEEXT)
+lbrycrd_qt : qt/lbrycrd-qt$(EXEEXT)
 
 ui_%.h: %.ui
 	@test -f $(UIC)

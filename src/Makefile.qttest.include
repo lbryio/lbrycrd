@@ -4,6 +4,7 @@
 
 bin_PROGRAMS += qt/test/test_lbrycrd-qt
 TESTS += qt/test/test_lbrycrd-qt
+TEST_QT_BINARY=qt/test/test_lbrycrd-qt$(EXEEXT)
 
 TEST_QT_MOC_CPP = \
   qt/test/moc_apptests.cpp \
@@ -82,10 +83,10 @@ CLEAN_BITCOIN_QT_TEST = $(TEST_QT_MOC_CPP) qt/test/*.gcda qt/test/*.gcno
 
 CLEANFILES += $(CLEAN_BITCOIN_QT_TEST)
 
-test_lbrycrd_qt : qt/test/test_bitcoin-qt$(EXEEXT)
+test_lbrycrd_qt : $(TEST_QT_BINARY)
 
-test_lbrycrd_qt_check : qt/test/test_bitcoin-qt$(EXEEXT) FORCE
+test_lbrycrd_qt_check : $(TEST_QT_BINARY) FORCE
 	$(MAKE) check-TESTS TESTS=$^
 
 test_lbrycrd_qt_clean: FORCE
-	rm -f $(CLEAN_BITCOIN_QT_TEST) $(qt_test_test_lbrycrd_qt_OBJECTS)
+	rm -f $(CLEAN_BITCOIN_QT_TEST) $(qt_test_test_lbrycrd_qt_OBJECTS) $(TEST_QT_BINARY)

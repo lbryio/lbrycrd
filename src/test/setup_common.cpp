@@ -72,14 +72,6 @@ std::ostream& operator<<(std::ostream& os, const CSupportValue& support)
 BasicTestingSetup::BasicTestingSetup(const std::string& chainName)
     : m_path_root(fs::temp_directory_path() / "test_common_" PACKAGE_NAME / strprintf("%lu_%i", (unsigned long)GetTime(), (int)(InsecureRandRange(1 << 30))))
 {
-    // for debugging:
-    if (boost::unit_test::runtime_config::get<boost::unit_test::log_level>(boost::unit_test::runtime_config::btrt_log_level)
-            <= boost::unit_test::log_level::log_messages) {
-        g_logger->m_print_to_console = true;
-        g_logger->m_log_time_micros = true;
-        g_logger->EnableCategory(BCLog::ALL);
-        CLogPrint::global().setLogger(g_logger);
-    }
     fs::create_directories(m_path_root);
     gArgs.ForceSetArg("-datadir", m_path_root.string());
     ClearDatadirCache();
@@ -87,7 +79,6 @@ BasicTestingSetup::BasicTestingSetup(const std::string& chainName)
     gArgs.ForceSetArg("-printtoconsole", "0");
     InitLogging();
     LogInstance().StartLogging();
-
     SHA256AutoDetect();
     ECC_Start();
     SetupEnvironment();

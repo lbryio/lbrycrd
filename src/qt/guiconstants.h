@@ -42,11 +42,11 @@ static const int TOOLTIP_WRAP_THRESHOLD = 80;
 /* Number of frames in spinner animation */
 #define SPINNER_FRAMES 36
 
-#define QAPP_ORG_NAME "Bitcoin"
-#define QAPP_ORG_DOMAIN "bitcoin.org"
-#define QAPP_APP_NAME_DEFAULT "Bitcoin-Qt"
-#define QAPP_APP_NAME_TESTNET "Bitcoin-Qt-testnet"
-#define QAPP_APP_NAME_REGTEST "Bitcoin-Qt-regtest"
+#define QAPP_ORG_NAME "LBRY"
+#define QAPP_ORG_DOMAIN "lbry.com"
+#define QAPP_APP_NAME_DEFAULT QAPP_ORG_NAME "-Qt"
+#define QAPP_APP_NAME_TESTNET QAPP_APP_NAME_DEFAULT "-testnet"
+#define QAPP_APP_NAME_REGTEST QAPP_APP_NAME_DEFAULT "-regtest"
 
 /* One gigabyte (GB) in bytes */
 static constexpr uint64_t GB_BYTES{1000000000};
