@@ -1489,7 +1489,10 @@ int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CC
     // restore claim if applicable
     if (undo.fIsClaim && !undo.txout.scriptPubKey.empty()) {
         auto nValidHeight = undo.nClaimValidHeight;
-        CClaimScriptUndoSpendOp undoSpend(COutPoint(out.hash, out.n), undo.txout.nValue, undo.nHeight, nValidHeight);
+        auto nOriginalHeight = undo.nClaimOriginalHeight;
+        // assert(nValidHeight > 0 && nOriginalHeight > 0); // fails unit tests
+        CClaimScriptUndoSpendOp undoSpend(COutPoint(out.hash, out.n), undo.txout.nValue, undo.nHeight,
+                nValidHeight, nOriginalHeight);
         ProcessClaim(undoSpend, trieCache, undo.txout.scriptPubKey);
     }
 
@@ -1966,7 +1969,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     for (unsigned int i = 0; i < block.vtx.size(); i++)
     {
         const CTransaction &tx = *(block.vtx[i]);
-        std::map<unsigned int, unsigned int> mClaimUndoHeights;
+        std::map<uint32_t, std::pair<uint32_t, uint32_t>> mClaimUndoHeights;
 
         nInputs += tx.vin.size();
 
@@ -2016,8 +2019,8 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
             control.Add(vChecks);
             CUpdateCacheCallbacks callbacks = {
                 .findScriptKey = {},
-                .claimUndoHeights = [&mClaimUndoHeights](int index, int nValidAtHeight) {
-                    mClaimUndoHeights.emplace(index, nValidAtHeight);
+                .claimUndoHeights = [&mClaimUndoHeights](uint32_t index, uint32_t nValidAtHeight, uint32_t nOriginalHeight) {
+                    mClaimUndoHeights.emplace(index, std::make_pair(nValidAtHeight, nOriginalHeight));
                 }
             };
             UpdateCache(tx, trieCache, view, pindex->nHeight, callbacks);
@@ -2033,7 +2036,8 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
             auto& txinUndos = blockundo.vtxundo.back().vprevout;
             for (auto itHeight = mClaimUndoHeights.begin(); itHeight != mClaimUndoHeights.end(); ++itHeight)
             {
-                txinUndos[itHeight->first].nClaimValidHeight = itHeight->second;
+                txinUndos[itHeight->first].nClaimValidHeight = itHeight->second.first;
+                txinUndos[itHeight->first].nClaimOriginalHeight = itHeight->second.second;
                 txinUndos[itHeight->first].fIsClaim = true;
             }
         }

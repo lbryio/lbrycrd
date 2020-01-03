@@ -75,8 +75,8 @@ CNameOutPointHeightType::CNameOutPointHeightType(std::string name, COutPoint out
 {
 }
 
-CClaimNsupports::CClaimNsupports(CClaimValue claim, int64_t effectiveAmount, std::vector<CSupportValue> supports)
-    : claim(std::move(claim)), effectiveAmount(effectiveAmount), supports(std::move(supports))
+CClaimNsupports::CClaimNsupports(CClaimValue claim, int64_t effectiveAmount, int originalHeight, std::vector<CSupportValue> supports)
+    : claim(std::move(claim)), effectiveAmount(effectiveAmount), originalHeight(originalHeight), supports(std::move(supports))
 {
 }
 

@@ -78,12 +78,14 @@ struct CClaimNsupports
     CClaimNsupports& operator=(CClaimNsupports&&) = default;
     CClaimNsupports& operator=(const CClaimNsupports&) = default;
 
-    CClaimNsupports(CClaimValue claim, int64_t effectiveAmount, std::vector<CSupportValue> supports = {});
+    CClaimNsupports(CClaimValue claim, int64_t effectiveAmount, int originalHeight,
+            std::vector<CSupportValue> supports = {});
 
     bool IsNull() const;
 
     CClaimValue claim;
     int64_t effectiveAmount = 0;
+    int originalHeight = -1;
     std::vector<CSupportValue> supports;
 };
 

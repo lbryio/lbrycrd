@@ -157,7 +157,7 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary()
 
     // work around a bug in the old implementation:
     db << "UPDATE claim SET activationHeight = ?1 " // force a takeover on these
-          "WHERE blockHeight < ?1 AND activationHeight > ?1 AND nodeName != name" << nNextHeight;
+          "WHERE updateHeight < ?1 AND activationHeight > ?1 AND nodeName != name" << nNextHeight;
 
     return true;
 }

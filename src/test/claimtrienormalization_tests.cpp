@@ -215,13 +215,13 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
     CClaimTrieCache trieCache(pclaimTrie);
     CBlockIndex* pindex = chainActive.Tip();
     CBlock block;
-    int amelieValidHeight;
+    int amelieValidHeight, ameliaOriginalHeight;
     std::string removed;
     BOOST_CHECK(trieCache.shouldNormalize());
     BOOST_CHECK(ReadBlockFromDisk(block, pindex, Params().GetConsensus()));
     BOOST_CHECK(g_chainstate.DisconnectBlock(block, pindex, coins, trieCache) == DisconnectResult::DISCONNECT_OK);
     BOOST_CHECK(!trieCache.shouldNormalize());
-    BOOST_CHECK(trieCache.removeClaim(ClaimIdHash(tx2.GetHash(), 0), COutPoint(tx2.GetHash(), 0), removed, amelieValidHeight));
+    BOOST_CHECK(trieCache.removeClaim(ClaimIdHash(tx2.GetHash(), 0), COutPoint(tx2.GetHash(), 0), removed, amelieValidHeight, ameliaOriginalHeight));
 
     BOOST_CHECK(trieCache.getInfoForName(name, nval1));
     BOOST_CHECK_EQUAL(nval1.claimId, ClaimIdHash(tx1.GetHash(), 0));
@@ -301,7 +301,7 @@ BOOST_AUTO_TEST_CASE(normalization_removal_test)
     CMutableTransaction sx2 = fixture.MakeSupport(fixture.GetCoinbase(), tx2, "Ab", 1);
 
     CClaimTrieCache cache(pclaimTrie);
-    int height = chainActive.Height() + 1;
+    int height = chainActive.Height() + 1, originalHeight;
     cache.addClaim("AB", COutPoint(tx1.GetHash(), 0), ClaimIdHash(tx1.GetHash(), 0), 1, height);
     cache.addClaim("Ab", COutPoint(tx2.GetHash(), 0), ClaimIdHash(tx2.GetHash(), 0), 2, height);
     cache.addClaim("aB", COutPoint(tx3.GetHash(), 0), ClaimIdHash(tx3.GetHash(), 0), 3, height);
@@ -317,9 +317,9 @@ BOOST_AUTO_TEST_CASE(normalization_removal_test)
     std::string unused;
     BOOST_CHECK(cache.removeSupport(COutPoint(sx1.GetHash(), 0), unused, height));
     BOOST_CHECK(cache.removeSupport(COutPoint(sx2.GetHash(), 0), unused, height));
-    BOOST_CHECK(cache.removeClaim(ClaimIdHash(tx1.GetHash(), 0), COutPoint(tx1.GetHash(), 0), unused, height));
-    BOOST_CHECK(cache.removeClaim(ClaimIdHash(tx2.GetHash(), 0), COutPoint(tx2.GetHash(), 0), unused, height));
-    BOOST_CHECK(cache.removeClaim(ClaimIdHash(tx3.GetHash(), 0), COutPoint(tx3.GetHash(), 0), unused, height));
+    BOOST_CHECK(cache.removeClaim(ClaimIdHash(tx1.GetHash(), 0), COutPoint(tx1.GetHash(), 0), unused, height, originalHeight));
+    BOOST_CHECK(cache.removeClaim(ClaimIdHash(tx2.GetHash(), 0), COutPoint(tx2.GetHash(), 0), unused, height, originalHeight));
+    BOOST_CHECK(cache.removeClaim(ClaimIdHash(tx3.GetHash(), 0), COutPoint(tx3.GetHash(), 0), unused, height, originalHeight));
     BOOST_CHECK(cache.getClaimsForName("ab").claimsNsupports.size() == 0U);
 }
 
