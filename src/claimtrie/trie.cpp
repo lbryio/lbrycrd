@@ -41,7 +41,7 @@ void applyPragmas(sqlite::database& db, std::size_t cache)
 {
     db << "PRAGMA cache_size=-" + std::to_string(cache); // in -KB
     db << "PRAGMA synchronous=OFF"; // don't disk sync after transaction commit
-    db << "PRAGMA journal_mode=MEMORY";
+    db << "PRAGMA journal_mode=WAL";
     db << "PRAGMA temp_store=MEMORY";
     db << "PRAGMA case_sensitive_like=true";
 
