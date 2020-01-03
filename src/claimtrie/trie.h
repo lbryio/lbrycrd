@@ -86,12 +86,13 @@ public:
     bool haveSupportInQueue(const std::string& name, const COutPoint& outPoint, int& nValidAtHeight) const;
 
     bool addClaim(const std::string& name, const COutPoint& outPoint, const uint160& claimId, int64_t nAmount,
-                  int nHeight, int nValidHeight = -1);
+                  int nHeight, int nValidHeight = -1, int originalHeight = -1);
 
     bool addSupport(const std::string& name, const COutPoint& outPoint, const uint160& supportedClaimId, int64_t nAmount,
                     int nHeight, int nValidHeight = -1);
 
-    bool removeClaim(const uint160& claimId, const COutPoint& outPoint, std::string& nodeName, int& validHeight);
+    bool removeClaim(const uint160& claimId, const COutPoint& outPoint, std::string& nodeName,
+            int& validHeight, int& originalHeight);
     bool removeSupport(const COutPoint& outPoint, std::string& nodeName, int& validHeight);
 
     virtual bool incrementBlock();

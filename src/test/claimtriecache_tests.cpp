@@ -30,14 +30,14 @@ public:
     }
 
     bool removeClaimFromTrie(const std::string& key, const COutPoint& outPoint) {
-        int validHeight;
+        int validHeight, originalHeight;
         std::string nodeName;
 
         auto p = outPoint;
         if (p.hash.IsNull())
             p.hash = Hash(key.begin(), key.end());
 
-        auto ret = removeClaim(ClaimIdHash(uint256(p.hash), p.n), p, nodeName, validHeight);
+        auto ret = removeClaim(ClaimIdHash(uint256(p.hash), p.n), p, nodeName, validHeight, originalHeight);
         assert(!ret || nodeName == key);
         return ret;
     }

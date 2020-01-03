@@ -1775,7 +1775,10 @@ int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CC
         auto it = txUndo.claimHeights.find(index);
         // restore claim if applicable
         if (it != txUndo.claimHeights.end()) {
-            CClaimScriptUndoSpendOp undoSpend(out, undo.out.nValue, undo.nHeight, it->second);
+            auto nValidHeight = it->second.first;
+            auto nOriginalHeight = it->second.second;
+            // assert(nValidHeight > 0 && nOriginalHeight > 0); // fails unit tests
+            CClaimScriptUndoSpendOp undoSpend(out, undo.out.nValue, undo.nHeight, nValidHeight, nOriginalHeight);
             ProcessClaim(undoSpend, trieCache, undo.out.scriptPubKey);
         }
     }
@@ -2244,7 +2247,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     for (unsigned int i = 0; i < block.vtx.size(); i++)
     {
         const CTransaction &tx = *(block.vtx[i]);
-        std::map<unsigned int, unsigned int> mClaimUndoHeights;
+        std::map<uint32_t, std::pair<uint32_t, uint32_t>> mClaimUndoHeights;
 
         nInputs += tx.vin.size();
 
@@ -2313,8 +2316,8 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
             control.Add(vChecks);
             CUpdateCacheCallbacks callbacks = {
                 .findScriptKey = {},
-                .claimUndoHeights = [&mClaimUndoHeights](int index, int nValidAtHeight) {
-                    mClaimUndoHeights.emplace(index, nValidAtHeight);
+                .claimUndoHeights = [&mClaimUndoHeights](uint32_t index, uint32_t nValidAtHeight, uint32_t nOriginalHeight) {
+                    mClaimUndoHeights.emplace(index, std::make_pair(nValidAtHeight, nOriginalHeight));
                 }
             };
             UpdateCache(tx, trieCache, view, pindex->nHeight, callbacks);

@@ -71,8 +71,8 @@ class CTxUndo
 public:
     // undo information for all txins
     std::vector<Coin> vprevout;
-    // tx index to claim valid height
-    std::map<int, int> claimHeights;
+    // tx index to claim otiginal and valid height
+    std::map<int, std::pair<int, int>> claimHeights;
 
     template <typename Stream>
     void Serialize(Stream& s) const {

@@ -210,6 +210,8 @@ UniValue claimAndSupportsToJSON(const CCoinsViewCache& coinsCache, const CClaimN
 
     auto result = claimToJSON(coinsCache, claim);
     result.pushKV(T_EFFECTIVEAMOUNT, claimNsupports.effectiveAmount);
+    if (claimNsupports.originalHeight > 0)
+        result.pushKV(T_ORIGINALHEIGHT, claimNsupports.originalHeight);
 
     auto fullAmount = amountToClaim(claimNsupports);
     if (fullAmount > claimNsupports.effectiveAmount)
