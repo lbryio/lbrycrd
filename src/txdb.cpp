@@ -6,8 +6,10 @@
 #include <txdb.h>
 
 #include <claimtrie/sqlite.h>
+#include <key_io.h>
 #include <pow.h>
 #include <random.h>
+#include <script/standard.h>
 #include <shutdown.h>
 #include <ui_interface.h>
 #include <uint256.h>
@@ -28,26 +30,28 @@ CCoinsViewDB::CCoinsViewDB(fs::path ldb_path, size_t nCacheSize, bool fMemory, b
 {
     db << "PRAGMA cache_size=-" + std::to_string(nCacheSize >> 10); // in -KB
     db << "PRAGMA synchronous=OFF"; // don't disk sync after transaction commit
-    db << "PRAGMA journal_mode=MEMORY";
+    db << "PRAGMA journal_mode=WAL";
     db << "PRAGMA temp_store=MEMORY";
     db << "PRAGMA case_sensitive_like=true";
 
-    db << "CREATE TABLE IF NOT EXISTS coin (txID BLOB NOT NULL COLLATE BINARY, txN INTEGER NOT NULL, "
+    db << "CREATE TABLE IF NOT EXISTS unspent (txID BLOB NOT NULL COLLATE BINARY, txN INTEGER NOT NULL, "
           "isCoinbase INTEGER NOT NULL, blockHeight INTEGER NOT NULL, amount INTEGER NOT NULL, "
-          "script BLOB NOT NULL COLLATE BINARY, PRIMARY KEY(txID, txN));";
+          "script BLOB NOT NULL COLLATE BINARY, address TEXT, PRIMARY KEY(txID, txN));";
+
+    db << "CREATE INDEX IF NOT EXISTS unspent_address ON unspent(address)";
 
     db << "CREATE TABLE IF NOT EXISTS marker ("
           "name TEXT NOT NULL PRIMARY KEY, "
           "value BLOB NOT NULL)";
 
     if (fWipe) {
-        db << "DELETE FROM coin";
+        db << "DELETE FROM unspent";
         db << "DELETE FROM marker";
     }
 }
 
 bool CCoinsViewDB::GetCoin(const COutPoint &outpoint, Coin &coin) const {
-    auto query = db << "SELECT isCoinbase, blockHeight, amount, script FROM coin "
+    auto query = db << "SELECT isCoinbase, blockHeight, amount, script FROM unspent "
           "WHERE txID = ? and txN = ?" << outpoint.hash << outpoint.n;
     for (auto&& row: query) {
         uint32_t coinbase = 0, height = 0;
@@ -60,7 +64,7 @@ bool CCoinsViewDB::GetCoin(const COutPoint &outpoint, Coin &coin) const {
 }
 
 bool CCoinsViewDB::HaveCoin(const COutPoint &outpoint) const {
-    auto query = db << "SELECT 1 FROM coin "
+    auto query = db << "SELECT 1 FROM unspent "
                        "WHERE txID = ? and txN = ?" << outpoint.hash << outpoint.n;
     return query.begin() != query.end();
 }
@@ -108,12 +112,19 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock, boo
     db << "INSERT OR REPLACE INTO marker VALUES('head_block', ?)" << hashBlock;
     for (auto it = mapCoins.begin(); it != mapCoins.end();) {
         if (it->second.flags & CCoinsCacheEntry::DIRTY) {
-            if (it->second.coin.IsSpent())
-                db << "DELETE FROM coin WHERE txID = ? AND txN = ?" << it->first.hash << it->first.n;
-            else
-                db << "INSERT OR REPLACE INTO coin VALUES(?,?,?,?,?,?)" << it->first.hash << it->first.n
+            if (it->second.coin.IsSpent()) {
+                // at present the "IsSpent" flag is used for both "spent" and "block going backwards"
+                db << "DELETE FROM unspent WHERE txID = ? AND txN = ?" << it->first.hash << it->first.n;
+            }
+            else {
+                CTxDestination address;
+                std::string destination;
+                if (ExtractDestination(it->second.coin.out.scriptPubKey, address))
+                    destination = EncodeDestination(address);
+                db << "INSERT OR REPLACE INTO unspent VALUES(?,?,?,?,?,?,?)" << it->first.hash << it->first.n
                    << it->second.coin.fCoinBase << it->second.coin.nHeight
-                   << it->second.coin.out.nValue << it->second.coin.out.scriptPubKey;
+                   << it->second.coin.out.nValue << it->second.coin.out.scriptPubKey << destination;
+            }
             changed++;
         }
         count++;
@@ -146,7 +157,7 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock, boo
 size_t CCoinsViewDB::EstimateSize() const
 {
     size_t ret = 0;
-    db << "SELECT COUNT(*) FROM coin" >> ret;
+    db << "SELECT COUNT(*) FROM unspent" >> ret;
     return ret * 100;
 }
 
@@ -155,7 +166,7 @@ CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe)
 {
     db << "PRAGMA cache_size=-" + std::to_string(nCacheSize >> 10); // in -KB
     db << "PRAGMA synchronous=OFF"; // don't disk sync after transaction commit
-    db << "PRAGMA journal_mode=MEMORY";
+    db << "PRAGMA journal_mode=WAL";
     db << "PRAGMA temp_store=MEMORY";
     db << "PRAGMA case_sensitive_like=true";
 
@@ -187,7 +198,8 @@ CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe)
           "nonce INTEGER NOT NULL "
           ")";
 
-    db << "CREATE INDEX IF NOT EXISTS block_info_height ON block_info (height)";
+    db << "CREATE UNIQUE INDEX IF NOT EXISTS block_info_height ON block_info (height)";
+    db << "CREATE UNIQUE INDEX IF NOT EXISTS block_file_data_pos ON block_info (file, dataPos)";
 
     db << "CREATE TABLE IF NOT EXISTS tx_to_block ("
           "txID BLOB NOT NULL PRIMARY KEY, "
@@ -243,7 +255,7 @@ CCoinsViewCursor *CCoinsViewDB::Cursor() const
 
 CCoinsViewDBCursor::CCoinsViewDBCursor(const uint256 &hashBlockIn, const CCoinsViewDB* view)
         : CCoinsViewCursor(hashBlockIn), owner(view),
-        query(owner->db << "SELECT * FROM coin") // txID, txN, isCoinbase, blockHeight, amount, script
+        query(owner->db << "SELECT txID, txN, isCoinbase, blockHeight, amount, script FROM unspent")
 {
     iter = query.begin();
 }
