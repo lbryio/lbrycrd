@@ -17,6 +17,7 @@
 #define T_NAMES                         "names"
 #define T_EFFECTIVEAMOUNT               "effectiveAmount"
 #define T_LASTTAKEOVERHEIGHT            "lastTakeoverHeight"
+#define T_ORIGINALHEIGHT                "originalHeight"
 #define T_SUPPORTS                      "supports"
 #define T_SUPPORTSWITHOUTCLAIM          "supportsWithoutClaim"
 #define T_TOTALNAMES                    "totalNames"
@@ -83,12 +84,13 @@ S3("    ", T_NAME, "                   (string) the original name of this claim 
 S3("    ", T_VALUE, "                  (string) the value of this claim") \
 S3("    ", T_ADDRESS, "                (string) the destination address of this claim") \
 S3("    ", T_CLAIMID, "                (string) the claimId of the claim") \
-S3("    ", T_TXID, "                   (string) the txid of the claim") \
+S3("    ", T_TXID, "                   (string) the txid of the claim or its most recent update") \
 S3("    ", T_N, "                      (numeric) the index of the claim in the transaction's list of outputs") \
 S3("    ", T_HEIGHT, "                 (numeric) the height of the block in which this transaction is located") \
 S3("    ", T_VALIDATHEIGHT, "          (numeric) the height at which the support became/becomes valid") \
-S3("    ", T_AMOUNT, "                 (numeric) the amount of the claim") \
+S3("    ", T_AMOUNT, "                 (numeric) the amount of the claim or its most recent update") \
 S3("    ", T_EFFECTIVEAMOUNT, "        (numeric) the amount plus amount from all supports associated with the claim") \
+S3("    ", T_ORIGINALHEIGHT, "         (numeric) the block height where the claim was first created") \
 S3("    ", T_PENDINGAMOUNT, "          (numeric) expected amount when claim and its supports are all valid") \
 S3("    ", T_SUPPORTS, ": [            (array of object) supports for this claim") \
 S3("        ", T_VALUE, "              (string) the metadata of the support if any") \
@@ -159,12 +161,13 @@ S3("        ", T_NAME, "               (string) the original name of this claim 
 S3("        ", T_VALUE, "              (string) the value of this claim")
 S3("        ", T_ADDRESS, "            (string) the destination address of this claim")
 S3("        ", T_CLAIMID, "            (string) the claimId of the claim")
-S3("        ", T_TXID, "               (string) the txid of the claim")
+S3("        ", T_TXID, "               (string) the txid of the claim or its most recent update")
 S3("        ", T_N, "                  (numeric) the index of the claim in the transaction's list of outputs")
 S3("        ", T_HEIGHT, "             (numeric) the height of the block in which this transaction is located")
 S3("        ", T_VALIDATHEIGHT, "      (numeric) the height at which the claim became/becomes valid")
-S3("        ", T_AMOUNT, "             (numeric) the amount of the claim")
+S3("        ", T_AMOUNT, "             (numeric) the amount of the claim or its most recent update")
 S3("        ", T_EFFECTIVEAMOUNT, "    (numeric) the amount plus amount from all supports associated with the claim")
+S3("        ", T_ORIGINALHEIGHT, "     (numeric) the block height where the claim was first created") \
 S3("        ", T_PENDINGAMOUNT, "      (numeric) expected amount when claim and its support got valid")
 S3("        ", T_SUPPORTS, ": [        (array of object) supports for this claim")
 S3("            ", T_VALUE, "          (string) the metadata of the support if any")

@@ -81,7 +81,8 @@ protected:
      * @param[in] name          name of the claim
      * @param[in] claimId       id of the claim
      */
-    virtual bool addClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId, int takeoverHeight);
+    virtual bool addClaim(CClaimTrieCache& trieCache, const std::string& name, const uint160& claimId,
+            int takeoverHeight, int originalHeight);
     const COutPoint point;
     const CAmount nValue;
     const int nHeight;
@@ -167,6 +168,7 @@ protected:
     const COutPoint point;
     const int nHeight;
     int& nValidHeight;
+    int nOriginalHeight;
 };
 
 /**
@@ -182,7 +184,7 @@ public:
      * @param[in] nHeight       entry height of the claim
      * @param[in] nValidHeight  valid height of the claim
      */
-    CClaimScriptUndoSpendOp(const COutPoint& point, CAmount nValue, int nHeight, int nValidHeight);
+    CClaimScriptUndoSpendOp(const COutPoint& point, CAmount nValue, int nHeight, int nValidHeight, int nOriginalHeight);
     /**
      * Implementation of OP_CLAIM_NAME handler
      * @see CClaimScriptOp::claimName
@@ -211,6 +213,7 @@ protected:
     const CAmount nValue;
     const int nHeight;
     const int nValidHeight;
+    const int nOriginalHeight;
 };
 
 /**
@@ -221,13 +224,13 @@ protected:
  */
 bool ProcessClaim(CClaimScriptOp& claimOp, CClaimTrieCache& trieCache, const CScript& scriptPubKey);
 
-typedef std::pair<std::string, uint160> spentClaimType;
+struct spentClaimType { std::string name; uint160 id; int originalHeight; };
 typedef std::vector<spentClaimType> spentClaimsType;
 
 struct CUpdateCacheCallbacks
 {
     std::function<CScript(const COutPoint& point)> findScriptKey;
-    std::function<void(int, int)> claimUndoHeights;
+    std::function<void(uint32_t, uint32_t, uint32_t)> claimUndoHeights;
 };
 
 /**

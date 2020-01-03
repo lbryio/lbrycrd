@@ -57,7 +57,7 @@ namespace sqlite
         return ret;
     }
 
-    inline int commit(database& db, std::size_t attempts = 60)
+    inline int commit(database& db, std::size_t attempts = 200)
     {
         int code = SQLITE_OK;
         for (auto i = 0u; i < attempts; ++i) {
@@ -67,7 +67,7 @@ namespace sqlite
                 code = e.get_code();
                 if (code == SQLITE_LOCKED || code == SQLITE_BUSY) {
                     using namespace std::chrono_literals;
-                    std::this_thread::sleep_for(1s);
+                    std::this_thread::sleep_for(100ms);
                     continue;
                 }
                 return code;

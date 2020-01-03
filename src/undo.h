@@ -26,10 +26,11 @@ public:
     uint32_t nHeight; // if the outpoint was the last unspent: its height
     uint32_t nClaimValidHeight;   // If the outpoint was a claim or support, the height at which the claim or support should be inserted into the trie
     bool fIsClaim;        // if the outpoint was a claim or support
+    uint32_t nClaimOriginalHeight; // If we are a claim, we need to track the original insertion height for that claim
 
-    CTxInUndo() : txout(), fCoinBase(false), nHeight(0), nClaimValidHeight(0), fIsClaim(false) {}
+    CTxInUndo() : txout(), fCoinBase(false), nHeight(0), nClaimValidHeight(0), fIsClaim(false), nClaimOriginalHeight(0) {}
     CTxInUndo(const CTxOut &txoutIn, bool fCoinBaseIn = false, uint32_t nHeightIn = 0) :
-        txout(txoutIn), fCoinBase(fCoinBaseIn), nHeight(nHeightIn), nClaimValidHeight(0), fIsClaim(false) {}
+        txout(txoutIn), fCoinBase(fCoinBaseIn), nHeight(nHeightIn), nClaimValidHeight(0), fIsClaim(false), nClaimOriginalHeight(0) {}
 
     ADD_SERIALIZE_METHODS;
 
@@ -50,6 +51,7 @@ public:
         READWRITE(REF(CTxOutCompressor(REF(txout))));
         READWRITE(VARINT(nClaimValidHeight));
         READWRITE(fIsClaim);
+        READWRITE(VARINT(nClaimOriginalHeight));
     }
 };
 
