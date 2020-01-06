@@ -331,10 +331,10 @@ void ClaimTrieChainFixture::DecrementBlocks(int num_blocks)
     {
         LOCK(cs_main);
         CBlockIndex* pblockindex = ::ChainActive()[::ChainActive().Height() - num_blocks + 1];
-        BOOST_CHECK_EQUAL(InvalidateBlock(state, Params(), pblockindex), true);
+        BOOST_REQUIRE(InvalidateBlock(state, Params(), pblockindex));
     }
-    BOOST_CHECK_EQUAL(state.IsValid(), true);
-    BOOST_CHECK_EQUAL(ActivateBestChain(state, Params()), true);
+    BOOST_REQUIRE(state.IsValid());
+    BOOST_REQUIRE(ActivateBestChain(state, Params()));
     mempool.clear();
     num_txs_for_next_block = 0;
     expirationHeight = ::ChainActive().Height();
