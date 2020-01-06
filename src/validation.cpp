@@ -1488,8 +1488,8 @@ int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CC
 
     // restore claim if applicable
     if (undo.fIsClaim && !undo.txout.scriptPubKey.empty()) {
-        auto nValidHeight = undo.nClaimValidHeight;
-        auto nOriginalHeight = undo.nClaimOriginalHeight;
+        auto nValidHeight = int(undo.nClaimValidHeight);
+        auto nOriginalHeight = int(undo.nClaimOriginalHeight);
         // assert(nValidHeight > 0 && nOriginalHeight > 0); // fails unit tests
         CClaimScriptUndoSpendOp undoSpend(COutPoint(out.hash, out.n), undo.txout.nValue, undo.nHeight,
                 nValidHeight, nOriginalHeight);
@@ -1552,12 +1552,12 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
         }
 
         // remove any claims
-        for (size_t j = 0; j < tx.vout.size(); j++)
+        for (uint32_t j = tx.vout.size(); j > 0; --j)
         {
-            const CTxOut& txout = tx.vout[j];
+            const CTxOut& txout = tx.vout[j - 1];
 
             if (!txout.scriptPubKey.empty()) {
-                CClaimScriptUndoAddOp undoAdd(COutPoint(hash, j), pindex->nHeight);
+                CClaimScriptUndoAddOp undoAdd(COutPoint(hash, j - 1), pindex->nHeight);
                 ProcessClaim(undoAdd, trieCache, txout.scriptPubKey);
             }
         }
