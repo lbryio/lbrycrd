@@ -402,11 +402,11 @@ namespace sqlite {
         database(std::shared_ptr<sqlite3> db):
                 _db(db) {}
 
-        database_binder operator<<(str_ref sql) {
+        database_binder operator<<(str_ref sql) const {
             return database_binder(_db, sql);
         }
 
-        database_binder operator<<(u16str_ref sql) {
+        database_binder operator<<(u16str_ref sql) const {
             return database_binder(_db, sql);
         }
 

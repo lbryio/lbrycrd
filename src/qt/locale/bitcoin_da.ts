@@ -3382,10 +3382,6 @@ Note: Siden gebyret er kalkuleret på en per-byte basis, et gebyr på "100 satos
         <translation>Fejl under læsning af %s! Alle nøgler blev læst korrekt, men transaktionsdata eller indgange i adressebogen kan mangle eller være ukorrekte.</translation>
     </message>
     <message>
-        <source>Group outputs by address, selecting all or none, instead of selecting on a per-output basis. Privacy is improved as an address is only used once (unless someone sends to it after spending from it), but may result in slightly higher fees as suboptimal coin selection may result due to the added limitation (default: %u)</source>
-        <translation>Gruppér output efter adresse og vælg alle eller ingen, i stedet for at vælge på per-output-basis. Højere sikring af privatliv, da en adresse kun bruges én gang (med mindre nogen sender til en adresse efter den er brugt), men kan resultere i en anelse højere gebyrer, da ikke-optimal valg af output-adresser kan forekomme på grund af den tilføjede begrænsning (standard: %u)</translation>
-    </message>
-    <message>
         <source>Please check that your computer's date and time are correct! If your clock is wrong, %s will not work properly.</source>
         <translation>Undersøg venligst at din computers dato og klokkeslet er korrekt indstillet! Hvis der er fejl i disse, vil %s ikke fungere korrekt.</translation>
     </message>
@@ -3687,7 +3683,11 @@ Note: Siden gebyret er kalkuleret på en per-byte basis, et gebyr på "100 satos
     </message>
     <message>
         <source>The specified config file %s does not exist
+</source>
         <translation>Den specificerede konfigurationsfil %s eksisterer ikke.
+</translation>
+    </message>
+    <message>
         <source>The transaction amount is too small to pay the fee</source>
         <translation>Transaktionsbeløbet er for lille til at betale gebyret</translation>
     </message>

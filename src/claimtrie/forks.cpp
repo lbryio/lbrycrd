@@ -203,7 +203,7 @@ bool CClaimTrieCacheNormalizationFork::getProofForName(const std::string& name, 
     return CClaimTrieCacheExpirationFork::getProofForName(normalizeClaimName(name), claim, proof);
 }
 
-bool CClaimTrieCacheNormalizationFork::getInfoForName(const std::string& name, CClaimValue& claim, int offsetHeight) const
+bool CClaimTrieCacheNormalizationFork::getInfoForName(const std::string& name, CClaimValue& claim, int offsetHeight)
 {
     return CClaimTrieCacheExpirationFork::getInfoForName(normalizeClaimName(name), claim, offsetHeight);
 }

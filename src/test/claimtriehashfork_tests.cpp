@@ -156,11 +156,11 @@ BOOST_AUTO_TEST_CASE(hash_claims_children_fuzzer_test)
     auto names = random_strings(300);
     auto lastTx = MakeTransactionRef(fixture.GetCoinbase());
     for (const auto& name : names) {
-        auto tx = fixture.MakeClaim(*lastTx, name, "one", 1);
+        auto tx = fixture.MakeClaim(CMutableTransaction(*lastTx), name, "one", 1);
         lastTx = MakeTransactionRef(std::move(tx));
         if (++i % 5 == 0)
             for (std::size_t j = 0;  j < (i / 5); ++j) {
-                auto tx = fixture.MakeClaim(*lastTx, name, "one", 1);
+                auto tx = fixture.MakeClaim(CMutableTransaction(*lastTx), name, "one", 1);
                 lastTx = MakeTransactionRef(std::move(tx));
             }
         fixture.IncrementBlocks(1);
@@ -302,31 +302,31 @@ BOOST_AUTO_TEST_CASE(value_proof_test)
     CClaimTrieProof proof;
 
     BOOST_CHECK(fixture.getProofForName(sName1, ClaimIdHash(tx1.GetHash(), 0), proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName1));
+    BOOST_CHECK(verify_proof(proof, ::ChainActive().Tip()->hashClaimTrie, sName1));
     BOOST_CHECK_EQUAL(proof.outPoint, tx1OutPoint);
 
     BOOST_CHECK(fixture.getProofForName(sName2, ClaimIdHash(tx2.GetHash(), 0), proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName2));
+    BOOST_CHECK(verify_proof(proof, ::ChainActive().Tip()->hashClaimTrie, sName2));
     BOOST_CHECK_EQUAL(proof.outPoint, tx2OutPoint);
 
     BOOST_CHECK(fixture.getProofForName(sName3, ClaimIdHash(tx3.GetHash(), 0), proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName3));
+    BOOST_CHECK(verify_proof(proof, ::ChainActive().Tip()->hashClaimTrie, sName3));
     BOOST_CHECK_EQUAL(proof.outPoint, tx3OutPoint);
 
     BOOST_CHECK(fixture.getProofForName(sName4, ClaimIdHash(tx4.GetHash(), 0), proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName4));
+    BOOST_CHECK(verify_proof(proof, ::ChainActive().Tip()->hashClaimTrie, sName4));
     BOOST_CHECK_EQUAL(proof.outPoint, tx4OutPoint);
 
     BOOST_CHECK(fixture.getProofForName(sName5, ClaimIdHash(tx1.GetHash(), 0), proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName5));
+    BOOST_CHECK(verify_proof(proof, ::ChainActive().Tip()->hashClaimTrie, sName5));
     BOOST_CHECK_EQUAL(proof.hasValue, false);
 
     BOOST_CHECK(fixture.getProofForName(sName6, ClaimIdHash({}, 0), proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName6));
+    BOOST_CHECK(verify_proof(proof, ::ChainActive().Tip()->hashClaimTrie, sName6));
     BOOST_CHECK_EQUAL(proof.hasValue, false);
 
     BOOST_CHECK(fixture.getProofForName(sName7, ClaimIdHash(uint256(fixture.getMerkleHash()), 0), proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName7));
+    BOOST_CHECK(verify_proof(proof, ::ChainActive().Tip()->hashClaimTrie, sName7));
     BOOST_CHECK_EQUAL(proof.hasValue, false);
 
     CMutableTransaction tx5 = fixture.MakeClaim(fixture.GetCoinbase(), sName7, sValue4);
@@ -338,23 +338,23 @@ BOOST_AUTO_TEST_CASE(value_proof_test)
     BOOST_CHECK_EQUAL(val.outPoint, tx5OutPoint);
 
     BOOST_CHECK(fixture.getProofForName(sName1, ClaimIdHash(tx1.GetHash(), 0), proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName1));
+    BOOST_CHECK(verify_proof(proof, ::ChainActive().Tip()->hashClaimTrie, sName1));
     BOOST_CHECK_EQUAL(proof.outPoint, tx1OutPoint);
 
     BOOST_CHECK(fixture.getProofForName(sName2, ClaimIdHash(tx2.GetHash(), 0), proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName2));
+    BOOST_CHECK(verify_proof(proof, ::ChainActive().Tip()->hashClaimTrie, sName2));
     BOOST_CHECK_EQUAL(proof.outPoint, tx2OutPoint);
 
     BOOST_CHECK(fixture.getProofForName(sName3, ClaimIdHash(tx3.GetHash(), 0), proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName3));
+    BOOST_CHECK(verify_proof(proof, ::ChainActive().Tip()->hashClaimTrie, sName3));
     BOOST_CHECK_EQUAL(proof.outPoint, tx3OutPoint);
 
     BOOST_CHECK(fixture.getProofForName(sName4, ClaimIdHash(tx4.GetHash(), 0), proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName4));
+    BOOST_CHECK(verify_proof(proof, ::ChainActive().Tip()->hashClaimTrie, sName4));
     BOOST_CHECK_EQUAL(proof.outPoint, tx4OutPoint);
 
     BOOST_CHECK(fixture.getProofForName(sName5, ClaimIdHash(tx5.GetHash(), 0), proof));
-    BOOST_CHECK(verify_proof(proof, chainActive.Tip()->hashClaimTrie, sName5));
+    BOOST_CHECK(verify_proof(proof, ::ChainActive().Tip()->hashClaimTrie, sName5));
     BOOST_CHECK_EQUAL(proof.hasValue, false);
 
     fixture.DecrementBlocks();
@@ -369,18 +369,18 @@ BOOST_AUTO_TEST_CASE(bogus_claimtrie_hash_test)
     std::string sName("test");
     std::string sValue1("test");
 
-    int orig_chain_height = chainActive.Height();
+    int orig_chain_height = ::ChainActive().Height();
 
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue1, 1);
 
     std::unique_ptr<CBlockTemplate> pblockTemp;
     BOOST_CHECK(pblockTemp = AssemblerForTest().CreateNewBlock(tx1.vout[0].scriptPubKey));
-    pblockTemp->block.hashPrevBlock = chainActive.Tip()->GetBlockHash();
+    pblockTemp->block.hashPrevBlock = ::ChainActive().Tip()->GetBlockHash();
     pblockTemp->block.nVersion = 5;
-    pblockTemp->block.nTime = chainActive.Tip()->GetBlockTime() + Params().GetConsensus().nPowTargetSpacing;
+    pblockTemp->block.nTime = ::ChainActive().Tip()->GetBlockTime() + Params().GetConsensus().nPowTargetSpacing;
     CMutableTransaction txCoinbase(*pblockTemp->block.vtx[0]);
-    txCoinbase.vin[0].scriptSig = CScript() << int(chainActive.Height() + 1) << 1;
-    txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
+    txCoinbase.vin[0].scriptSig = CScript() << int(::ChainActive().Height() + 1) << 1;
+    txCoinbase.vout[0].nValue = GetBlockSubsidy(::ChainActive().Height() + 1, Params().GetConsensus());
     pblockTemp->block.vtx[0] = MakeTransactionRef(std::move(txCoinbase));
     pblockTemp->block.hashMerkleRoot = BlockMerkleRoot(pblockTemp->block);
     //create bogus hash
@@ -398,8 +398,8 @@ BOOST_AUTO_TEST_CASE(bogus_claimtrie_hash_test)
     bool success = ProcessNewBlock(Params(), std::make_shared<const CBlock>(pblockTemp->block), true, nullptr);
     // will process , but will not be connected
     BOOST_CHECK(success);
-    BOOST_CHECK(pblockTemp->block.GetHash() != chainActive.Tip()->GetBlockHash());
-    BOOST_CHECK_EQUAL(orig_chain_height, chainActive.Height());
+    BOOST_CHECK(pblockTemp->block.GetHash() != ::ChainActive().Tip()->GetBlockHash());
+    BOOST_CHECK_EQUAL(orig_chain_height, ::ChainActive().Height());
 }
 
 #ifndef MAC_OSX // can't find a random number generator that produces the same sequence on OSX
@@ -420,7 +420,7 @@ BOOST_AUTO_TEST_CASE(bogus_claimtrie_hash_test)
         std::vector<CMutableTransaction> existingSupports;
         std::string value(1024, 'c');
 
-        std::vector<CTransaction> cb {fixture.GetCoinbase()};
+        std::vector<CMutableTransaction> cb {fixture.GetCoinbase()};
         for (int i = 0; i < blocks; ++i) {
             for (int j = 0; j < claimsPerBlock; ++j) {
                 auto name = names[i * claimsPerBlock + j];
@@ -455,7 +455,8 @@ BOOST_AUTO_TEST_CASE(bogus_claimtrie_hash_test)
                     fixture.Spend(tx);
                     existingSupports.erase(existingSupports.begin() + tidx);
                 }
-                if (cb.back().GetValueOut() < 10 || cb.size() > 40000) {
+                auto tx = CTransaction(cb.back());
+                if (tx.GetValueOut() < 10 || cb.size() > 40000) {
                     cb.clear();
                     cb.push_back(fixture.GetCoinbase());
                 }

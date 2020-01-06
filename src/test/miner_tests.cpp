@@ -223,11 +223,11 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         {
             BOOST_CHECK(!pblock->hashClaimTrie.IsNull());
             LOCK(cs_main);
-            pblock->hashPrevBlock = chainActive.Tip()->GetBlockHash();
+            pblock->hashPrevBlock = ::ChainActive().Tip()->GetBlockHash();
             pblock->nVersion = 5;
-            pblock->nTime = chainActive.Tip()->GetBlockTime() + chainparams.GetConsensus().nPowTargetSpacing;
+            pblock->nTime = ::ChainActive().Tip()->GetBlockTime() + chainparams.GetConsensus().nPowTargetSpacing;
             CMutableTransaction txCoinbase(*pblock->vtx[0]);
-            txCoinbase.vin[0].scriptSig = CScript() << int(chainActive.Height() + 1) << i;
+            txCoinbase.vin[0].scriptSig = CScript() << int(::ChainActive().Height() + 1) << i;
             txCoinbase.vout.resize(1); // Ignore the (optional) segwit commitment added by CreateNewBlock (as the hardcoded nonces don't account for this)
             txCoinbase.vout[0].scriptPubKey = CScript();
             pblock->vtx[0] = MakeTransactionRef(std::move(txCoinbase));
@@ -373,8 +373,8 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     // subsidy changing
     int nHeight = ::ChainActive().Height();
     // Create an actual 209999-long block chain (without valid blocks).
-    while (chainActive.Tip()->nHeight < 209999) {
-        CBlockIndex* prev = chainActive.Tip();
+    while (::ChainActive().Tip()->nHeight < 209999) {
+        CBlockIndex* prev = ::ChainActive().Tip();
         CBlockIndex* next = new CBlockIndex();
         next->phashBlock = new uint256(InsecureRand256());
         next->hashClaimTrie = pblocktemplate->block.hashClaimTrie;

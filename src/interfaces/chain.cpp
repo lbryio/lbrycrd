@@ -246,7 +246,7 @@ public:
         if (try_lock && result && !*result) return {};
         // std::move necessary on some compilers due to conversion from
         // LockImpl to Lock pointer
-        return std::move(result);
+        return std::unique_ptr<Chain::Lock>{std::move(result)};
     }
     bool findBlock(const uint256& hash, CBlock* block, int64_t* time, int64_t* time_max) override
     {

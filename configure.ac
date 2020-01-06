@@ -8,7 +8,7 @@ define(_CLIENT_VERSION_RC, 1)
 define(_COPYRIGHT_YEAR, 2019)
 define(_COPYRIGHT_HOLDERS,[The %s developers])
 define(_COPYRIGHT_HOLDERS_SUBSTITUTION,[[LBRYcrd Core]])
-AC_INIT([LBRYcrd Core],[_CLIENT_VERSION_MAJOR._CLIENT_VERSION_MINOR._CLIENT_VERSION_REVISION],[https://github.com/lbryio/lbrycrd/issues],[lbrycrd],[https://lbry.com/])
+AC_INIT([LBRYcrd Core],m4_join([.], _CLIENT_VERSION_MAJOR, _CLIENT_VERSION_MINOR, _CLIENT_VERSION_REVISION, m4_if(_CLIENT_VERSION_BUILD, [0], [], _CLIENT_VERSION_BUILD))m4_if(_CLIENT_VERSION_RC, [0], [], [rc]_CLIENT_VERSION_RC),[https://github.com/lbryio/lbrycrd/issues],[lbrycrd],[https://lbry.com/])
 AC_CONFIG_SRCDIR([src/validation.cpp])
 AC_CONFIG_HEADERS([src/config/bitcoin-config.h])
 AC_CONFIG_AUX_DIR([build-aux])
@@ -438,23 +438,29 @@ fi
 
 CPPFLAGS="$CPPFLAGS -DHAVE_BUILD_INFO -D__STDC_FORMAT_MACROS"
 
+AC_ARG_WITH([utils],
+  [AS_HELP_STRING([--with-utils],
+  [build lbrycrd-cli lbrycrd-tx lbrycrd-wallet (default=yes)])],
+  [build_lbrycrd_utils=$withval],
+  [build_lbrycrd_utils=yes])
+
 AC_ARG_ENABLE([util-cli],
   [AS_HELP_STRING([--enable-util-cli],
   [build lbrycrd-cli])],
   [build_lbrycrd_cli=$enableval],
-  [build_lbrycrd_cli=$build_bitcoin_utils])
+  [build_lbrycrd_cli=$build_lbrycrd_utils])
 
 AC_ARG_ENABLE([util-tx],
   [AS_HELP_STRING([--enable-util-tx],
   [build lbrycrd-tx])],
   [build_lbrycrd_tx=$enableval],
-  [build_lbrycrd_tx=$build_bitcoin_utils])
+  [build_lbrycrd_tx=$build_lbrycrd_utils])
 
 AC_ARG_ENABLE([util-wallet],
   [AS_HELP_STRING([--enable-util-wallet],
   [build lbrycrd-wallet])],
   [build_lbrycrd_wallet=$enableval],
-  [build_lbrycrd_wallet=$build_bitcoin_utils])
+  [build_lbrycrd_wallet=$build_lbrycrd_utils])
 
 AC_ARG_WITH([libs],
   [AS_HELP_STRING([--with-libs],
@@ -511,7 +517,6 @@ case $host in
      fi
 
      CPPFLAGS="$CPPFLAGS -D_MT -DWIN32 -D_WINDOWS -DBOOST_THREAD_USE_LIB -D_WIN32_WINNT=0x0601"
-     LEVELDB_TARGET_FLAGS="-DOS_WINDOWS"
      if test "x$CXXFLAGS_overridden" = "xno"; then
        CXXFLAGS="$CXXFLAGS -w"
      fi
@@ -533,7 +538,6 @@ case $host in
      ;;
   *darwin*)
      TARGET_OS=darwin
-     LEVELDB_TARGET_FLAGS="-DOS_MACOSX"
      if  test x$cross_compiling != xyes; then
        BUILD_OS=darwin
        AC_PATH_PROGS([RSVG_CONVERT], [rsvg-convert rsvg],rsvg-convert)
@@ -587,37 +591,8 @@ case $host in
      CPPFLAGS="$CPPFLAGS -DMAC_OSX -DOBJC_OLD_DISPATCH_PROTOTYPES=0"
      OBJCXXFLAGS="$CXXFLAGS"
      ;;
-   *android*)
-     dnl make sure android stays above linux for hosts like *linux-android*
-     LEVELDB_TARGET_FLAGS="-DOS_ANDROID"
-     ;;
    *linux*)
      TARGET_OS=linux
-     LEVELDB_TARGET_FLAGS="-DOS_LINUX"
-     ;;
-   *kfreebsd*)
-     LEVELDB_TARGET_FLAGS="-DOS_KFREEBSD"
-     ;;
-   *freebsd*)
-     LEVELDB_TARGET_FLAGS="-DOS_FREEBSD"
-     ;;
-   *openbsd*)
-     LEVELDB_TARGET_FLAGS="-DOS_OPENBSD"
-     ;;
-   *netbsd*)
-     LEVELDB_TARGET_FLAGS="-DOS_NETBSD"
-     ;;
-   *dragonfly*)
-     LEVELDB_TARGET_FLAGS="-DOS_DRAGONFLYBSD"
-     ;;
-   *solaris*)
-     LEVELDB_TARGET_FLAGS="-DOS_SOLARIS"
-     ;;
-   *hpux*)
-     LEVELDB_TARGET_FLAGS="-DOS_HPUX"
-     ;;
-   *)
-     AC_MSG_ERROR(Cannot build leveldb for $host. Please file a bug report.)
      ;;
 esac
 
@@ -986,18 +961,10 @@ AC_LINK_IFELSE(
 # Define to 1 if std::system or ::wsystem (Windows) is available
 AC_DEFINE([HAVE_SYSTEM], [HAVE_STD__SYSTEM || HAVE_WSYSTEM], [std::system or ::wsystem])
 
-LEVELDB_CPPFLAGS=
-LIBLEVELDB=
-LIBMEMENV=
-AM_CONDITIONAL([EMBEDDED_LEVELDB],[true])
-AC_SUBST(LEVELDB_CPPFLAGS)
-AC_SUBST(LIBLEVELDB)
-AC_SUBST(LIBMEMENV)
-
 dnl enable-fuzz should disable all other targets
 if test "x$enable_fuzz" = "xyes"; then
   AC_MSG_WARN(enable-fuzz will disable all other targets)
-  build_bitcoin_utils=no
+  build_lbrycrd_utils=no
   build_lbrycrd_cli=no
   build_lbrycrd_tx=no
   build_lbrycrd_wallet=no
@@ -1412,7 +1379,7 @@ if test x$have_protobuf != xno &&
   BITCOIN_QT_PATH_PROGS([PROTOC], [protoc],$protoc_bin_path)
 fi
 
-AC_MSG_CHECKING([whether to build bitcoind])
+AC_MSG_CHECKING([whether to build lbrycrdd])
 AM_CONDITIONAL([BUILD_BITCOIND], [test x$build_lbrycrdd = xyes])
 AC_MSG_RESULT($build_lbrycrdd)
 
@@ -1646,7 +1613,6 @@ AC_SUBST(BOOST_LIBS)
 AC_SUBST(ICU_CPPFLAGS)
 AC_SUBST(ICU_LIBS)
 AC_SUBST(TESTDEFS)
-AC_SUBST(LEVELDB_TARGET_FLAGS)
 AC_SUBST(MINIUPNPC_CPPFLAGS)
 AC_SUBST(MINIUPNPC_LIBS)
 AC_SUBST(CRYPTO_LIBS)

@@ -191,7 +191,7 @@ void ScriptPubKeyToUniv(const CScript& scriptPubKey,
     else
         out.pushKV("type", GetTxnOutputType(type));
 
-    if (extracted || type == TX_PUBLIC) {
+    if (extracted) {
         UniValue a(UniValue::VARR);
         for (const CTxDestination &addr : addresses) {
             a.push_back(EncodeDestination(addr));

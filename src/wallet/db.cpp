@@ -77,17 +77,6 @@ bool IsWalletLoaded(const fs::path& wallet_path)
     LOCK(cs_db);
     auto env = g_dbenvs.find(env_directory.string());
     if (env == g_dbenvs.end()) return false;
-    auto db = env->second.m_databases.find(database_filename);
-    return db != env->second.m_databases.end();
-}
-
-std::shared_ptr<BerkeleyEnvironment> GetWalletEnv(const fs::path& wallet_path, std::string& database_filename)
-{
-    fs::path env_directory;
-    SplitWalletPath(wallet_path, env_directory, database_filename);
-    LOCK(cs_db);
-    auto env = g_dbenvs.find(env_directory.string());
-    if (env == g_dbenvs.end()) return false;
     auto database = env->second.lock();
     return database && database->IsDatabaseLoaded(database_filename);
 }
@@ -619,7 +608,6 @@ void BerkeleyBatch::Flush()
     if (env && env->dbenv) { // env is nullptr for dummy databases (i.e. in tests). Don't actually flush if env is nullptr so we don't segfault
         env->dbenv->txn_checkpoint(nMinutes ? gArgs.GetArg("-dblogsize", DEFAULT_WALLET_DBLOGSIZE) * 1024 : 0, nMinutes, 0);
     }
-    }
 }
 
 void BerkeleyDatabase::IncrementUpdateCounter()
@@ -675,32 +663,6 @@ void BerkeleyEnvironment::ReloadDbEnv()
 
     std::vector<std::string> filenames;
     for (auto it : m_databases) {
-        filenames.push_back(it.first);
-    }
-    // Close the individual Db's
-    for (const std::string& filename : filenames) {
-        CloseDb(filename);
-    }
-    // Reset the environment
-    Flush(true); // This will flush and close the environment
-    Reset();
-    Open(true);
-}
-
-void BerkeleyEnvironment::ReloadDbEnv()
-{
-    // Make sure that no Db's are in use
-    AssertLockNotHeld(cs_db);
-    std::unique_lock<CCriticalSection> lock(cs_db);
-    m_db_in_use.wait(lock, [this](){
-        for (auto& count : mapFileUseCount) {
-            if (count.second > 0) return false;
-        }
-        return true;
-    });
-
-    std::vector<std::string> filenames;
-    for (auto it : mapDb) {
         filenames.push_back(it.first);
     }
     // Close the individual Db's

@@ -10,6 +10,7 @@
 #include <init.h>
 #include <interfaces/chain.h>
 #include <key_io.h>
+#include <nameclaim.h>
 #include <node/transaction.h>
 #include <outputtype.h>
 #include <policy/feerate.h>
@@ -20,6 +21,7 @@
 #include <rpc/util.h>
 #include <script/descriptor.h>
 #include <script/sign.h>
+#include <validation.h>
 #include <util/bip32.h>
 #include <util/fees.h>
 #include <util/moneystr.h>
@@ -385,6 +387,8 @@ thoritative as long as it remains unspent and there are no other greater unspent
     CScript claimScript = CScript() << OP_CLAIM_NAME << vchName << vchValue << OP_2DROP << OP_DROP;
 
     pwallet->BlockUntilSyncedToCurrentChain();
+    auto locked_chain = pwallet->chain().lock();
+    LOCK(pwallet->cs_wallet);
     EnsureWalletIsUnlocked(pwallet);
 
     //Get new address
@@ -398,7 +402,7 @@ thoritative as long as it remains unspent and there are no other greater unspent
 
     CCoinControl cc;
     cc.m_change_type = pwallet->m_default_change_type;
-    auto tx = SendMoney(pwallet, dest, nAmount, false, cc, {}, {}, claimScript);
+    auto tx = SendMoney(*locked_chain, pwallet, dest, nAmount, false, cc, {}, claimScript);
     return tx->GetHash().GetHex();
 }
 
@@ -434,7 +438,8 @@ UniValue updateclaim(const JSONRPCRequest& request)
     CAmount nAmount = AmountFromValue(request.params[2]);
 
     pwallet->BlockUntilSyncedToCurrentChain();
-    LOCK2(cs_main, pwallet->cs_wallet);
+    auto locked_chain = pwallet->chain().lock();
+    LOCK(pwallet->cs_wallet);
     auto it = pwallet->mapWallet.find(hash);
     if (it == pwallet->mapWallet.end()) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid or non-wallet transaction id");
@@ -480,7 +485,7 @@ UniValue updateclaim(const JSONRPCRequest& request)
                 cc.m_change_type = pwallet->m_default_change_type;
                 cc.Select(COutPoint(wtx.tx->GetHash(), i));
                 cc.fAllowOtherInputs = true; // when selecting a coin, that's the only one used without this flag (and we need to cover the fee)
-                wtxNew = SendMoney(pwallet, dest, nAmount, false, cc, {}, {}, updateScript);
+                wtxNew = SendMoney(*locked_chain, pwallet, dest, nAmount, false, cc, {}, updateScript);
                 break;
             }
         }
@@ -516,7 +521,8 @@ UniValue abandonclaim(const JSONRPCRequest& request)
     CTxDestination address = DecodeDestination(request.params[1].get_str());
 
     pwallet->BlockUntilSyncedToCurrentChain();
-    LOCK2(cs_main, pwallet->cs_wallet);
+    auto locked_chain = pwallet->chain().lock();
+    LOCK(pwallet->cs_wallet);
     auto it = pwallet->mapWallet.find(hash);
     if (it == pwallet->mapWallet.end()) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid or non-wallet transaction id");
@@ -533,7 +539,7 @@ UniValue abandonclaim(const JSONRPCRequest& request)
             CCoinControl cc;
             cc.m_change_type = pwallet->m_default_change_type;
             cc.Select(COutPoint(wtx.tx->GetHash(), i));
-            wtxNew = SendMoney(pwallet, address, wtx.tx->vout[i].nValue, true, cc, {}, {});
+            wtxNew = SendMoney(*locked_chain, pwallet, address, wtx.tx->vout[i].nValue, true, cc, {});
             break;
         }
     }
@@ -546,7 +552,7 @@ static void MaybePushAddress(UniValue& entry, const CTxDestination &dest);
 
 extern std::string escapeNonUtf8(const std::string&);
 
-void ListNameClaims(const CWalletTx& wtx, CWallet* const pwallet, const std::string& strAccount, int nMinDepth,
+void ListNameClaims(interfaces::Chain::Lock& locked_chain, const CWalletTx& wtx, CWallet* const pwallet, int nMinDepth,
                     UniValue& ret, const bool include_supports, bool list_spent)
 {
     CAmount nFee;
@@ -554,15 +560,11 @@ void ListNameClaims(const CWalletTx& wtx, CWallet* const pwallet, const std::str
     std::list<COutputEntry> listSent;
     std::list<COutputEntry> listReceived;
 
-    wtx.GetAmounts(listReceived, listSent, nFee, strSentAccount, isminetype::ISMINE_ALL);
-
-    bool fAllAccounts = (strAccount == std::string("*"));
-    if (!fAllAccounts && wtx.strFromAccount != strAccount)
-        return;
+    wtx.GetAmounts(listReceived, listSent, nFee, isminetype::ISMINE_ALL);
 
     for (const auto& s: listSent)
     {
-        if (!list_spent && pwallet->IsSpent(wtx.GetHash(), s.vout))
+        if (!list_spent && pwallet->IsSpent(locked_chain, wtx.GetHash(), s.vout))
             continue;
 
         UniValue entry(UniValue::VOBJ);
@@ -611,27 +613,20 @@ void ListNameClaims(const CWalletTx& wtx, CWallet* const pwallet, const std::str
 
         CClaimTrieCache trieCache(pclaimTrie);
 
-        auto it = mapBlockIndex.find(wtx.hashBlock);
-        if (it != mapBlockIndex.end())
+        if (auto pindex = LookupBlockIndex(wtx.m_confirm.hashBlock))
         {
-            CBlockIndex* pindex = it->second;
-            if (pindex)
-            {
-                entry.pushKV("height", pindex->nHeight);
-                entry.pushKV("expiration height", pindex->nHeight + trieCache.expirationTime());
-                if (pindex->nHeight + trieCache.expirationTime() > chainActive.Height())
-                {
-                    entry.pushKV("expired", false);
-                    entry.pushKV("blocks to expiration", pindex->nHeight + trieCache.expirationTime() - chainActive.Height());
-                }
-                else
-                {
-                    entry.pushKV("expired", true);
-                }
+            entry.pushKV("height", pindex->nHeight);
+            entry.pushKV("expiration height", pindex->nHeight + trieCache.expirationTime());
+            if (pindex->nHeight + trieCache.expirationTime() > ::ChainActive().Height()) {
+                entry.pushKV("expired", false);
+                entry.pushKV("blocks to expiration", pindex->nHeight + trieCache.expirationTime() - ::ChainActive().Height());
+            }
+            else {
+                entry.pushKV("expired", true);
             }
         }
-        entry.pushKV("confirmations", wtx.GetDepthInMainChain());
-        entry.pushKV("is spent", pwallet->IsSpent(wtx.GetHash(), s.vout));
+        entry.pushKV("confirmations", wtx.GetDepthInMainChain(locked_chain));
+        entry.pushKV("is spent", pwallet->IsSpent(locked_chain, wtx.GetHash(), s.vout));
         if (op == OP_CLAIM_NAME)
         {
             entry.pushKV("is in name trie", trieCache.haveClaim(sName, COutPoint(wtx.GetHash(), s.vout)));
@@ -686,8 +681,6 @@ UniValue listnameclaims(const JSONRPCRequest& request)
             "  }\n"
             "]\n");
 
-    std::string strAccount = "*";
-
     auto include_supports = request.params.size() < 1 || request.params[0].get_bool();
     bool fListSpent = request.params.size() > 1 && !request.params[1].get_bool();
 
@@ -698,14 +691,15 @@ UniValue listnameclaims(const JSONRPCRequest& request)
 
     UniValue ret(UniValue::VARR);
     pwallet->BlockUntilSyncedToCurrentChain();
+    auto locked_chain = pwallet->chain().lock();
     LOCK2(cs_main, pwallet->cs_wallet);
     const auto& txOrdered = pwallet->wtxOrdered;
 
     for (auto it = txOrdered.rbegin(); it != txOrdered.rend(); ++it)
     {
-        auto *const pwtx = (*it).second.first;
-        if (pwtx != nullptr && pwtx->GetDepthInMainChain() >= nMinDepth)
-            ListNameClaims(*pwtx, pwallet, strAccount, 0, ret, include_supports, fListSpent);
+        auto *const pwtx = (*it).second;
+        if (pwtx != nullptr && pwtx->GetDepthInMainChain(*locked_chain) >= nMinDepth)
+            ListNameClaims(*locked_chain, *pwtx, pwallet, 0, ret, include_supports, fListSpent);
     }
 
     auto arrTmp = ret.getValues();
@@ -759,6 +753,7 @@ UniValue supportclaim(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("claimid must be maximum of length %d", claimLength));
 
     pwallet->BlockUntilSyncedToCurrentChain();
+    auto locked_chain = pwallet->chain().lock();
     LOCK2(cs_main, pwallet->cs_wallet);
     EnsureWalletIsUnlocked(pwallet);
 
@@ -799,7 +794,7 @@ UniValue supportclaim(const JSONRPCRequest& request)
     if (isTip) {
         CTransactionRef ref;
         uint256 block;
-        if (!GetTransaction(uint256(claimNsupports.claim.outPoint.hash), ref, Params().GetConsensus(), block, true))
+        if (!GetTransaction(uint256(claimNsupports.claim.outPoint.hash), ref, Params().GetConsensus(), block))
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Unable to locate the TX with the claim's output.");
         if (!ExtractDestination(ref->vout[claimNsupports.claim.outPoint.n].scriptPubKey, dest))
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Unable to extract the destination from the chosen claim.");
@@ -816,7 +811,7 @@ UniValue supportclaim(const JSONRPCRequest& request)
 
     CCoinControl cc;
     cc.m_change_type = pwallet->m_default_change_type;
-    auto tx = SendMoney(pwallet, dest, nAmount, false, cc, {}, {}, supportScript);
+    auto tx = SendMoney(*locked_chain, pwallet, dest, nAmount, false, cc, {}, supportScript);
 
     UniValue result(UniValue::VOBJ);
     result.pushKV("txId", tx->GetHash().GetHex());
@@ -850,7 +845,8 @@ UniValue abandonsupport(const JSONRPCRequest& request)
     CTxDestination address = DecodeDestination(request.params[1].get_str());
 
     pwallet->BlockUntilSyncedToCurrentChain();
-    LOCK2(cs_main, pwallet->cs_wallet);
+    auto locked_chain = pwallet->chain().lock();
+    LOCK(pwallet->cs_wallet);
     auto it = pwallet->mapWallet.find(hash);
     if (it == pwallet->mapWallet.end()) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid or non-wallet transaction id");
@@ -867,7 +863,7 @@ UniValue abandonsupport(const JSONRPCRequest& request)
             CCoinControl cc;
             cc.m_change_type = pwallet->m_default_change_type;
             cc.Select(COutPoint(wtx.tx->GetHash(), i));
-            wtxNew = SendMoney(pwallet, address, wtx.tx->vout[i].nValue, true, cc, {}, {});
+            wtxNew = SendMoney(*locked_chain, pwallet, address, wtx.tx->vout[i].nValue, true, cc, {});
             break;
         }
     }
@@ -1574,7 +1570,7 @@ static UniValue addtimelockedaddress(const JSONRPCRequest& request)
     if (!request.params[2].isNull())
         label = LabelFromValue(request.params[2]);
 
-    LOCK2(cs_main, pwallet->cs_wallet);
+    LOCK(pwallet->cs_wallet);
 
     auto address = request.params[1].get_str();
     CTxDestination destination = DecodeDestination(address);
@@ -1880,12 +1876,6 @@ static void ListTransactions(interfaces::Chain::Lock& locked_chain, CWallet* con
     wtx.GetAmounts(listReceived, listSent, nFee, filter_ismine);
 
     bool involvesWatchonly = wtx.IsFromMe(ISMINE_WATCH_ONLY);
-
-    bool list_sent = fAllAccounts;
-
-    if (IsDeprecatedRPCEnabled("accounts")) {
-        list_sent |= strAccount == strSentAccount;
-    }
 
     // Sent
     if (!filter_label)
@@ -3059,8 +3049,8 @@ static UniValue getwalletinfo(const JSONRPCRequest& request)
     auto supports = pwallet->GetBalance(ISMINE_SUPPORT);
     obj.pushKV("balance",       ValueFromAmount(balance.m_mine_trusted));
     obj.pushKV("available_balance",       ValueFromAmount(balance.m_mine_trusted - claims.m_mine_trusted - supports.m_mine_trusted));
-    obj.pushKV("staked_claim_balance", ValueFromAmount(claims));
-    obj.pushKV("staked_support_balance",  ValueFromAmount(supports));
+    obj.pushKV("staked_claim_balance", ValueFromAmount(claims.m_mine_trusted));
+    obj.pushKV("staked_support_balance",  ValueFromAmount(supports.m_mine_trusted));
     obj.pushKV("unconfirmed_balance", ValueFromAmount(balance.m_mine_untrusted_pending));
     obj.pushKV("immature_balance",    ValueFromAmount(balance.m_mine_immature));
     obj.pushKV("txcount",       (int)pwallet->mapWallet.size());
@@ -3176,7 +3166,6 @@ static UniValue loadwallet(const JSONRPCRequest& request)
             + HelpExampleRpc("loadwallet", "\"test.dat\"")
                 },
             }.Check(request);
-    WalletLocation location(request.params[0].get_str());
 
     WalletLocation location(request.params[0].get_str());
 
@@ -4586,23 +4575,6 @@ UniValue sethdseed(const JSONRPCRequest& request)
 
     return NullUniValue;
 }
-
-            continue;
-        }
-
-        // Verify input looks sane. This will check that we have at most one uxto, witness or non-witness.
-        if (!input.IsSane()) {
-            throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "PSBT input is not sane.");
-        }
-
-        // If we have no utxo, grab it from the wallet.
-        if (!input.non_witness_utxo && input.witness_utxo.IsNull()) {
-        if (sigdata.witness) {
-            // Convert the non-witness utxo to witness
-            if (input.witness_utxo.IsNull() && input.non_witness_utxo) {
-                input.witness_utxo = input.non_witness_utxo->vout[txin.prevout.n];
-            }
-        }
 
 UniValue walletprocesspsbt(const JSONRPCRequest& request)
 {

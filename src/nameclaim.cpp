@@ -1,6 +1,6 @@
-#include "nameclaim.h"
-#include "hash.h"
-#include "util.h"
+#include <nameclaim.h>
+#include <hash.h>
+#include <logging.h>
 
 std::vector<unsigned char> uint32_t_to_vch(uint32_t n)
 {
@@ -164,7 +164,7 @@ size_t ClaimNameSize(const CScript& scriptIn)
     return vvchParams[0].size();
 }
 
-CAmount CalcMinClaimTrieFee(const CTransaction& tx, const CAmount &minFeePerNameClaimChar)
+CAmount CalcMinClaimTrieFee(const CMutableTransaction& tx, const CAmount &minFeePerNameClaimChar)
 {
     if (minFeePerNameClaimChar == 0)
         return 0;

@@ -3683,7 +3683,11 @@ Note : Les frais étant calculés par octet, des frais de « 100 satoshis par
     </message>
     <message>
         <source>The specified config file %s does not exist
+</source>
         <translation>Le fichier de configuration indiqué %s n’existe pas
+</translation>
+    </message>
+    <message>
         <source>The transaction amount is too small to pay the fee</source>
         <translation>Le montant de la transaction est trop bas pour que les frais soient payés</translation>
     </message>

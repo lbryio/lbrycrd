@@ -1015,6 +1015,7 @@ static bool MaybePunishNode(NodeId nodeid, const CValidationState& state, bool v
     // The node is providing invalid data:
     case ValidationInvalidReason::CONSENSUS:
     case ValidationInvalidReason::BLOCK_MUTATED:
+    case ValidationInvalidReason::CLAIMTRIE_HASH:
         if (!via_compact_block) {
             LOCK(cs_main);
             Misbehaving(nodeid, 100, message);

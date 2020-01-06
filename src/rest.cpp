@@ -214,13 +214,13 @@ static bool rest_block(HTTPRequest* req,
         LOCK(cs_main);
         tip = ::ChainActive().Tip();
         if (blockHeight < 0) // negative block heights take us back from current tip
-            blockHeight += chainActive.Height();
-        if (blockHeight > 0 && blockHeight <= chainActive.Height())
-            pblockindex = chainActive[blockHeight];
+            blockHeight += tip->nHeight;
+        if (blockHeight > 0 && blockHeight <= tip->nHeight)
+            pblockindex = ::ChainActive()[blockHeight];
         else if (blockHeight != 0)
             return RESTERR(req, HTTP_BAD_REQUEST, "Invalid hash or block height: " + hashStr);
         else if (hashStr == "tip")
-            pblockindex = chainActive.Tip();
+            pblockindex = tip;
         else
             pblockindex = LookupBlockIndex(hash);
         if (!pblockindex) {

@@ -3,7 +3,7 @@
 // file COPYING or http://opensource.org/licenses/mit-license.php
 
 #include <test/claimtriefixture.h>
-#include <utilstrencodings.h>
+#include <util/strencodings.h>
 #include <validation.h>
 
 using namespace std;
@@ -18,12 +18,12 @@ BOOST_AUTO_TEST_CASE(getnamesintrie_test)
     std::string sName1("test");
     std::string sValue1("test");
 
-    uint256 blockHash = chainActive.Tip()->GetBlockHash();
+    uint256 blockHash = ::ChainActive().Tip()->GetBlockHash();
 
     fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue1, 42);
     fixture.IncrementBlocks(1);
 
-    rpcfn_type getnamesintrie = tableRPC["getnamesintrie"]->actor;
+    auto getnamesintrie = tableRPC["getnamesintrie"];
     JSONRPCRequest req;
     req.params = UniValue(UniValue::VARR);
 
@@ -45,12 +45,12 @@ BOOST_AUTO_TEST_CASE(getvalueforname_test)
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue1, 2);
     fixture.IncrementBlocks(1);
 
-    uint256 blockHash = chainActive.Tip()->GetBlockHash();
+    uint256 blockHash = ::ChainActive().Tip()->GetBlockHash();
 
     fixture.MakeSupport(fixture.GetCoinbase(), tx1, sName1, 3);
     fixture.IncrementBlocks(10);
 
-    rpcfn_type getvalueforname = tableRPC["getvalueforname"]->actor;
+    auto getvalueforname = tableRPC["getvalueforname"];
     JSONRPCRequest req;
     req.params = UniValue(UniValue::VARR);
     req.params.push_back(UniValue(sName1));
@@ -74,17 +74,17 @@ BOOST_AUTO_TEST_CASE(getclaimsforname_test)
     std::string sValue1("test1");
     std::string sValue2("test2");
 
-    int height = chainActive.Height();
+    int height = ::ChainActive().Height();
 
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue1, 2);
     fixture.IncrementBlocks(1);
 
-    uint256 blockHash = chainActive.Tip()->GetBlockHash();
+    uint256 blockHash = ::ChainActive().Tip()->GetBlockHash();
 
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue2, 3);
     fixture.IncrementBlocks(1);
 
-    rpcfn_type getclaimsforname = tableRPC["getclaimsforname"]->actor;
+    auto getclaimsforname = tableRPC["getclaimsforname"];
     JSONRPCRequest req;
     req.params = UniValue(UniValue::VARR);
     req.params.push_back(UniValue(sName1));
@@ -124,20 +124,20 @@ BOOST_AUTO_TEST_CASE(claim_rpcs_rollback2_test)
     std::string sValue1("test1");
     std::string sValue2("test2");
 
-    int height = chainActive.Height();
+    int height = ::ChainActive().Height();
 
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue1, 1);
     fixture.IncrementBlocks(2);
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue2, 2);
     fixture.IncrementBlocks(3);
 
-    uint256 blockHash = chainActive.Tip()->GetBlockHash();
+    uint256 blockHash = ::ChainActive().Tip()->GetBlockHash();
 
     CMutableTransaction tx3 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, sValue1, 3);
     fixture.IncrementBlocks(1);
 
-    rpcfn_type getclaimsforname = tableRPC["getclaimsforname"]->actor;
-    rpcfn_type getvalueforname = tableRPC["getvalueforname"]->actor;
+    auto getclaimsforname = tableRPC["getclaimsforname"];
+    auto getvalueforname = tableRPC["getvalueforname"];
     JSONRPCRequest req;
     req.params = UniValue(UniValue::VARR);
     req.params.push_back(UniValue(sName1));
@@ -160,26 +160,26 @@ BOOST_AUTO_TEST_CASE(claim_rpcs_rollback3_test)
     std::string sValue1("test1");
     std::string sValue2("test2");
 
-    int height = chainActive.Height();
+    int height = ::ChainActive().Height();
 
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue1, 3);
     fixture.IncrementBlocks(1);
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), sName1, sValue2, 2);
     fixture.IncrementBlocks(2);
 
-    uint256 blockHash = chainActive.Tip()->GetBlockHash();
+    uint256 blockHash = ::ChainActive().Tip()->GetBlockHash();
 
     CMutableTransaction tx3 = fixture.Spend(tx1); // abandon the claim
     fixture.IncrementBlocks(1);
 
-    rpcfn_type getclaimsforname = tableRPC["getclaimsforname"]->actor;
-    rpcfn_type getvalueforname = tableRPC["getvalueforname"]->actor;
-    rpcfn_type getblocktemplate = tableRPC["getblocktemplate"]->actor;
+    auto getclaimsforname = tableRPC["getclaimsforname"];
+    auto getvalueforname = tableRPC["getvalueforname"];
+    auto getblocktemplate = tableRPC["getblocktemplate"];
 
     JSONRPCRequest req;
     req.params = UniValue(UniValue::VARR);
     UniValue templateResults = getblocktemplate(req);
-    BOOST_CHECK_EQUAL(templateResults["claimtrie"].get_str(), chainActive.Tip()->hashClaimTrie.GetHex());
+    BOOST_CHECK_EQUAL(templateResults["claimtrie"].get_str(), ::ChainActive().Tip()->hashClaimTrie.GetHex());
 
     req.params.push_back(UniValue(sName1));
     req.params.push_back(blockHash.GetHex());
@@ -230,7 +230,7 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
     auto tx3 = fixture.MakeClaim(fixture.GetCoinbase(), name, value4, 4);
     fixture.IncrementBlocks(1);
 
-    int height = chainActive.Height();
+    int height = ::ChainActive().Height();
 
     auto claimId1 = ClaimIdHash(tx1.GetHash(), 0);
     auto claimId2 = ClaimIdHash(tx2.GetHash(), 0);
@@ -242,7 +242,7 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
     int claim3bid = 2, claim3seq = 2;
     int claim4bid = 0, claim4seq = 3;
 
-    auto getclaimsforname = tableRPC["getclaimsforname"]->actor;
+    auto getclaimsforname = tableRPC["getclaimsforname"];
 
     JSONRPCRequest req;
     req.params = UniValue(UniValue::VARR);
@@ -269,7 +269,7 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
     BOOST_CHECK_EQUAL(claims[3][T_SEQUENCE].get_int(), claim1seq);
     BOOST_CHECK_EQUAL(claims[3][T_CLAIMID].get_str(), claimId1.GetHex());
 
-    auto getclaimbybid = tableRPC["getclaimbybid"]->actor;
+    auto getclaimbybid = tableRPC["getclaimbybid"];
     req.params = UniValue(UniValue::VARR);
     req.params.push_back(UniValue(name));
     req.params.push_back(UniValue(claim3bid));
@@ -281,7 +281,7 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
     BOOST_CHECK_EQUAL(result[T_SEQUENCE].get_int(), claim3seq);
     BOOST_CHECK_EQUAL(result[T_CLAIMID].get_str(), claimId3.GetHex());
 
-    auto getclaimbyseq = tableRPC["getclaimbyseq"]->actor;
+    auto getclaimbyseq = tableRPC["getclaimbyseq"];
     req.params = UniValue(UniValue::VARR);
     req.params.push_back(UniValue(name));
     req.params.push_back(UniValue(claim2seq));
@@ -293,7 +293,7 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
     BOOST_CHECK_EQUAL(result[T_SEQUENCE].get_int(), claim2seq);
     BOOST_CHECK_EQUAL(result[T_CLAIMID].get_str(), claimId2.GetHex());
 
-    auto getclaimbyid = tableRPC["getclaimbyid"]->actor;
+    auto getclaimbyid = tableRPC["getclaimbyid"];
     req.params = UniValue(UniValue::VARR);
     req.params.push_back(UniValue(claimId1.GetHex()));
 
@@ -315,9 +315,9 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
     BOOST_CHECK_EQUAL(result[T_SEQUENCE].get_int(), claim3seq);
     BOOST_CHECK_EQUAL(result[T_CLAIMID].get_str(), claimId3.GetHex());
 
-    auto blockhash = chainActive.Tip()->GetBlockHash();
+    auto blockhash = ::ChainActive().Tip()->GetBlockHash();
 
-    auto getnameproof = tableRPC["getnameproof"]->actor;
+    auto getnameproof = tableRPC["getnameproof"];
     req.params = UniValue(UniValue::VARR);
     req.params.push_back(UniValue(name));
     req.params.push_back(UniValue(blockhash.GetHex()));
@@ -337,7 +337,7 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
     claimHash = getValueHash(COutPoint(tx2.GetHash(), 0), result[T_LASTTAKEOVERHEIGHT].get_int());
     ValidatePairs(fixture, jsonToPairs(result[T_PAIRS]), claimHash);
 
-    auto getclaimproofbybid = tableRPC["getclaimproofbybid"]->actor;
+    auto getclaimproofbybid = tableRPC["getclaimproofbybid"];
     req.params = UniValue(UniValue::VARR);
     req.params.push_back(UniValue(name));
     req.params.push_back(UniValue(claim1bid));
@@ -346,7 +346,7 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
     claimHash = getValueHash(COutPoint(tx1.GetHash(), 0), result[T_LASTTAKEOVERHEIGHT].get_int());
     ValidatePairs(fixture, jsonToPairs(result[T_PAIRS]), claimHash);
 
-    auto getclaimproofbyseq = tableRPC["getclaimproofbyseq"]->actor;
+    auto getclaimproofbyseq = tableRPC["getclaimproofbyseq"];
     req.params = UniValue(UniValue::VARR);
     req.params.push_back(UniValue(name));
     req.params.push_back(UniValue(claim4seq));
@@ -355,7 +355,7 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
     claimHash = getValueHash(COutPoint(tx3.GetHash(), 0), result[T_LASTTAKEOVERHEIGHT].get_int());
     ValidatePairs(fixture, jsonToPairs(result[T_PAIRS]), claimHash);
 
-    auto getchangesinblock = tableRPC["getchangesinblock"]->actor;
+    auto getchangesinblock = tableRPC["getchangesinblock"];
     req.params = UniValue(UniValue::VARR);
     req.params.push_back(UniValue(blockhash.GetHex()));
 
@@ -376,7 +376,7 @@ BOOST_AUTO_TEST_CASE(claim_rpc_pending_amount_test)
     std::string sValue1("test1");
     std::string sValue2("test2");
 
-    rpcfn_type getclaimsforname = tableRPC["getclaimsforname"]->actor;
+    auto getclaimsforname = tableRPC["getclaimsforname"];
 
     JSONRPCRequest req;
     req.params = UniValue(UniValue::VARR);

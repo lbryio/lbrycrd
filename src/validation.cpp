@@ -1090,15 +1090,16 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
     return AcceptToMemoryPoolWithTime(chainparams, pool, state, tx, pfMissingInputs, GetTime(), plTxnReplaced, bypass_limits, nAbsurdFee, test_accept);
 }
 
-bool FillTx(const uint256& tx_hash, const CDiskTxPos& postx, uint256& block_hash, CTransactionRef& tx) {
-    CAutoFile file(OpenBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
+bool FillTx(const uint256& tx_hash, const FlatFilePos& pos, uint32_t offset, uint256& block_hash, CTransactionRef& tx)
+{
+    CAutoFile file(OpenBlockFile(pos, true), SER_DISK, CLIENT_VERSION);
     if (file.IsNull()) {
         return error("%s: OpenBlockFile failed", __func__);
     }
     CBlockHeader header;
     try {
         file >> header;
-        if (fseek(file.Get(), postx.nTxOffset, SEEK_CUR)) {
+        if (fseek(file.Get(), offset, SEEK_CUR)) {
             return error("%s: fseek(...) failed", __func__);
         }
         file >> tx;
@@ -1120,15 +1121,16 @@ bool GetTransaction(const uint256& hash, CTransactionRef& txOut, const Consensus
 {
     LOCK(cs_main);
 
-    if (!block_index) {
+    if (!blockIndex) {
         CTransactionRef ptx = mempool.get(hash);
         if (ptx) {
             txOut = ptx;
             return true;
         }
         if (pblocktree) {
-            CDiskTxPos pos;
-            if (pblocktree->ReadTxIndex(hash, pos) && FillTx(hash, pos, hashBlock, ptx)) {
+            uint32_t offset;
+            FlatFilePos pos;
+            if (pblocktree->ReadTxIndex(hash, pos, offset) && FillTx(hash, pos, offset, hashBlock, ptx)) {
                 txOut = ptx;
                 return true;
             }
@@ -1139,7 +1141,7 @@ bool GetTransaction(const uint256& hash, CTransactionRef& txOut, const Consensus
             for (const auto& tx : block.vtx) {
                 if (tx->GetHash() == hash) {
                     txOut = tx;
-                    hashBlock = block_index->GetBlockHash();
+                    hashBlock = blockIndex->GetBlockHash();
                     return true;
                 }
             }
@@ -1148,11 +1150,6 @@ bool GetTransaction(const uint256& hash, CTransactionRef& txOut, const Consensus
 
     return false;
 }
-
-
-
-
-
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -1750,19 +1747,20 @@ int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CC
         }
     }
 
-    // restore claim if applicable
-    if (undo.fIsClaim && !undo.txout.scriptPubKey.empty()) {
-        auto nValidHeight = undo.nClaimValidHeight;
-        CClaimScriptUndoSpendOp undoSpend(COutPoint(out.hash, out.n), undo.txout.nValue, undo.nHeight, nValidHeight);
-        ProcessClaim(undoSpend, trieCache, undo.txout.scriptPubKey);
+    if (!undo.out.scriptPubKey.empty()) {
+        auto it = txUndo.claimHeights.find(index);
+        // restore claim if applicable
+        if (it != txUndo.claimHeights.end()) {
+            CClaimScriptUndoSpendOp undoSpend(out, undo.out.nValue, undo.nHeight, it->second);
+            ProcessClaim(undoSpend, trieCache, undo.out.scriptPubKey);
+        }
     }
 
     // The potential_overwrite parameter to AddCoin is only allowed to be false if we know for
     // sure that the coin did not already exist in the cache. As we have queried for that above
     // using HaveCoin, we don't need to guess. When fClean is false, a coin already existed and
     // it is an overwrite.
-    Coin coin(undo.txout, int(undo.nHeight), undo.fCoinBase);
-    view.AddCoin(out, std::move(coin), !fClean);
+    view.AddCoin(out, std::move(undo), !fClean);
 
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
@@ -2213,9 +2211,9 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     CAmount nFees = 0;
     int nInputs = 0;
     int64_t nSigOpsCost = 0;
-    CDiskTxPos pos(pindex->GetBlockPos(), GetSizeOfCompactSize(block.vtx.size()));
-    std::vector<std::pair<uint256, CDiskTxPos> > vPos;
-    vPos.reserve(block.vtx.size());
+    std::vector<std::pair<uint256, uint32_t>> txOffsets;
+    uint32_t offset = ::GetSizeOfCompactSize(block.vtx.size());
+    txOffsets.reserve(block.vtx.size());
     blockundo.vtxundo.reserve(block.vtx.size() - 1);
     std::vector<PrecomputedTransactionData> txdata;
     txdata.reserve(block.vtx.size()); // Required so that pointers to individual PrecomputedTransactionData don't get invalidated
@@ -2303,14 +2301,10 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
             blockundo.vtxundo.push_back(CTxUndo());
         }
         UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
-        if (i > 0 && !mClaimUndoHeights.empty())
-        {
-            auto& txinUndos = blockundo.vtxundo.back().vprevout;
+        if (i > 0 && !mClaimUndoHeights.empty()) {
+            auto& claimsHeights = blockundo.vtxundo.back().claimHeights;
             for (auto itHeight = mClaimUndoHeights.begin(); itHeight != mClaimUndoHeights.end(); ++itHeight)
-            {
-                txinUndos[itHeight->first].nClaimValidHeight = itHeight->second;
-                txinUndos[itHeight->first].fIsClaim = true;
-            }
+                claimsHeights[itHeight->first] = itHeight->second;
         }
 
         // The CTxUndo vector contains the heights at which claims should be put into the trie.
@@ -2324,17 +2318,18 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
         // in. Some OP_UPDATE_CLAIM's, for example, may be invalid, and so may never have been
         // inserted into the trie in the first place.
 
-        vPos.push_back(std::make_pair(tx.GetHash(), pos));
-        pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
+        offset += ::GetSerializeSize(tx, CLIENT_VERSION);
+        txOffsets.push_back(std::make_pair(tx.GetHash(), offset));
     }
 
     // TODO: if the "just check" flag is set, we should reduce the work done here. Incrementing blocks twice per mine is not efficient.
     assert(trieCache.incrementBlock());
 
     if (trieCache.getMerkleHash() != block.hashClaimTrie) {
-        return state.DoS(100, error("ConnectBlock() : the merkle root of the claim trie does not match "
-                               "(actual=%s vs block=%s on height=%d)", trieCache.getMerkleHash().GetHex(),
-                               block.hashClaimTrie.GetHex(), pindex->nHeight), REJECT_INVALID, "bad-claim-merkle-hash");
+        return state.Invalid(ValidationInvalidReason::CLAIMTRIE_HASH,
+                error("ConnectBlock() : the merkle root of the claim trie does not match "
+                        "(actual=%s vs block=%s on height=%d)", trieCache.getMerkleHash().GetHex(),
+                        block.hashClaimTrie.GetHex(), pindex->nHeight), REJECT_INVALID, "bad-claim-merkle-hash");
     }
 
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
@@ -2355,12 +2350,10 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     if (fJustCheck)
         return true;
 
-    if (pindex->pprev != nullptr) {
-        if (!WriteUndoDataForBlock(blockundo, state, pindex, chainparams))
-            return error("Unable to write to the Undo data block");
-        if (!pblocktree->WriteTxIndex(vPos))
-            return error("Unable to write to the TX Index");
-    }
+    if (pindex->pprev && !WriteUndoDataForBlock(blockundo, state, pindex, chainparams))
+        return false;
+    if (!pblocktree->WriteTxIndex(pindex->GetBlockPos(), txOffsets))
+        return false;
 
     if (!pindex->IsValid(BLOCK_VALID_SCRIPTS)) {
         pindex->RaiseValidity(BLOCK_VALID_SCRIPTS);
@@ -2576,12 +2569,13 @@ void static UpdateTip(const CBlockIndex* pindexNew, const CChainParams& chainPar
     auto currentTime = GetAdjustedTime();
     if (!warningMessages.empty() || !isInitialBlockDownload || lastBlockPrintTime < currentTime - 15 || LogAcceptCategory(BCLog::CLAIMS)) {
         lastBlockPrintTime = currentTime;
+        auto& cache = ::ChainstateActive().CoinsTip();
         LogPrintf("%s: new best=%s height=%d version=0x%08x log2_work=%.8g txb=%lu tx=%lu date='%s' progress=%f cache=%.1fMiB(%utxo)%s",
                 __func__, pindexNew->GetBlockHash().ToString(), pindexNew->nHeight, pindexNew->nVersion,
                 std::log(pindexNew->nChainWork.getdouble()) / std::log(2.0), (unsigned long) pindexNew->nTx,
                 (unsigned long) pindexNew->nChainTx, FormatISO8601DateTime(pindexNew->GetBlockTime()),
                 GuessVerificationProgress(chainParams.TxData(), pindexNew),
-                pcoinsTip->DynamicMemoryUsage() * (1.0 / (1U << 20U)), pcoinsTip->GetCacheSize(),
+                cache.DynamicMemoryUsage() * (1.0 / (1U << 20U)), cache.GetCacheSize(),
                 isInitialBlockDownload ? " IBD" : "");
         if (!warningMessages.empty())
             LogPrintf(" warning='%s'", warningMessages); /* Continued */

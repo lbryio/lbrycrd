@@ -52,7 +52,8 @@ protected:
     const int nProportionalDelayFactor;
 
     const int nNormalizedNameForkHeight;
-    const int nMinRemovalWorkaroundHeight, nMaxRemovalWorkaroundHeight;
+    const int nMinRemovalWorkaroundHeight;
+    const int nMaxRemovalWorkaroundHeight;
     const int64_t nOriginalClaimExpirationTime;
     const int64_t nExtendedClaimExpirationTime;
     const int64_t nExtendedClaimExpirationForkHeight;
@@ -95,8 +96,8 @@ public:
 
     virtual int expirationTime() const;
 
+    virtual bool getInfoForName(const std::string& name, CClaimValue& claim, int heightOffset = 0);
     virtual bool getProofForName(const std::string& name, const uint160& claim, CClaimTrieProof& proof);
-    virtual bool getInfoForName(const std::string& name, CClaimValue& claim, int heightOffset = 0) const;
 
     virtual CClaimSupportToName getClaimsForName(const std::string& name) const;
     virtual std::string adjustNameForValidHeight(const std::string& name, int validHeight) const;
@@ -105,18 +106,17 @@ public:
     bool getLastTakeoverForName(const std::string& name, uint160& claimId, int& takeoverHeight) const;
     bool findNameForClaim(std::vector<unsigned char> claim, CClaimValue& value, std::string& name) const;
 
-    std::vector<uint160> getActivatedClaims(int height);
-    std::vector<uint160> getClaimsWithActivatedSupports(int height);
-    std::vector<uint160> getExpiredClaims(int height);
-    std::vector<uint160> getClaimsWithExpiredSupports(int height);
+    std::vector<uint160> getActivatedClaims(int height) const;
+    std::vector<uint160> getClaimsWithActivatedSupports(int height) const;
+    std::vector<uint160> getExpiredClaims(int height) const;
+    std::vector<uint160> getClaimsWithExpiredSupports(int height) const;
 
 protected:
     int nNextHeight; // Height of the block that is being worked on, which is
     CClaimTrie* base;
-    mutable sqlite::database db;
+    sqlite::database db;
     mutable std::unordered_set<std::string> removalWorkaround;
-
-    mutable sqlite::database_binder claimHashQuery, childHashQuery, claimHashQueryLimit;
+    sqlite::database_binder childHashQuery, claimHashQuery, claimHashQueryLimit;
 
     virtual uint256 computeNodeHash(const std::string& name, int takeoverHeight);
     supportEntryType getSupportsForName(const std::string& name) const;

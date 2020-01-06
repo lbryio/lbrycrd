@@ -3,7 +3,6 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <bloom.h>
-#include <nameclaim.h>
 
 #include <primitives/transaction.h>
 #include <hash.h>
@@ -156,8 +155,7 @@ bool CBloomFilter::IsRelevantAndUpdate(const CTransaction& tx)
                 else if ((nFlags & BLOOM_UPDATE_MASK) == BLOOM_UPDATE_P2PUBKEY_ONLY)
                 {
                     std::vector<std::vector<unsigned char> > vSolutions;
-                    const CScript& scriptPubKey = txout.scriptPubKey;
-                    txnouttype type = Solver(scriptPubKey, vSolutions);
+                    txnouttype type = Solver(txout.scriptPubKey, vSolutions);
                     if (type == TX_PUBKEY || type == TX_MULTISIG) {
                         insert(COutPoint(hash, i));
                     }

@@ -9,21 +9,20 @@
 #include <consensus/validation.h>
 #include <core_io.h>
 #include <key_io.h>
+#include <psbt.h>
 #include <rpc/server.h>
-#include <test/test_bitcoin.h>
+#include <test/setup_common.h>
 #include <validation.h>
 #include <wallet/coincontrol.h>
-#include <wallet/test/wallet_test_fixture.h>
+#include <wallet/test/init_test_fixture.h>
 #include <policy/policy.h>
 
 #include <boost/test/unit_test.hpp>
 #include <univalue.h>
 
-struct CatchWalletTestSetup: public TestingSetup {
-    CatchWalletTestSetup() : TestingSetup(CBaseChainParams::REGTEST) {
-        RegisterWalletRPCCommands(tableRPC);
-
-        rpcfn_type rpc_method = tableRPC["createwallet"]->actor;
+struct CatchWalletTestSetup: public InitWalletDirTestingSetup {
+    CatchWalletTestSetup() : InitWalletDirTestingSetup(CBaseChainParams::REGTEST) {
+        auto rpc_method = tableRPC["createwallet"];
         JSONRPCRequest req;
         req.params = UniValue(UniValue::VARR);
         req.params.push_back("tester_wallet");
@@ -31,7 +30,7 @@ struct CatchWalletTestSetup: public TestingSetup {
         BOOST_CHECK_EQUAL(results["name"].get_str(), "tester_wallet");
     }
     ~CatchWalletTestSetup() override {
-        rpcfn_type rpc_method = tableRPC["unloadwallet"]->actor;
+        auto rpc_method = tableRPC["unloadwallet"];
         JSONRPCRequest req;
         req.URI = "/wallet/tester_wallet";
         req.params = UniValue(UniValue::VARR);
@@ -42,7 +41,7 @@ struct CatchWalletTestSetup: public TestingSetup {
 BOOST_FIXTURE_TEST_SUITE(claim_rpc_tests, CatchWalletTestSetup)
 
 double AvailableBalance() {
-    rpcfn_type rpc_method = tableRPC["getbalance"]->actor;
+    auto rpc_method = tableRPC["getbalance"];
     JSONRPCRequest req;
     req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
@@ -52,7 +51,7 @@ double AvailableBalance() {
 
 uint256 ClaimAName(const std::string& name, const std::string& data, const std::string& price, bool isUpdate = false) {
     // pass a txid as name for update
-    rpcfn_type rpc_method = tableRPC[isUpdate ? "updateclaim" : "claimname"]->actor;
+    auto rpc_method = tableRPC[isUpdate ? "updateclaim" : "claimname"];
     JSONRPCRequest req;
     req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
@@ -73,7 +72,7 @@ uint256 ClaimAName(const std::string& name, const std::string& data, const std::
 
 uint256 SupportAName(const std::string& name, const std::string& claimId, const std::string& price) {
     // pass a txid as name for update
-    rpcfn_type rpc_method = tableRPC["supportclaim"]->actor;
+    auto rpc_method = tableRPC["supportclaim"];
     JSONRPCRequest req;
     req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
@@ -89,7 +88,7 @@ uint256 SupportAName(const std::string& name, const std::string& claimId, const 
 }
 
 UniValue LookupAllNames() {
-    rpcfn_type rpc_method = tableRPC["listnameclaims"]->actor;
+    auto rpc_method = tableRPC["listnameclaims"];
     JSONRPCRequest req;
     req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
@@ -97,7 +96,7 @@ UniValue LookupAllNames() {
 }
 
 std::vector<uint256> generateBlock(int blocks = 1) {
-    rpcfn_type rpc_method = tableRPC["generate"]->actor;
+    auto rpc_method = tableRPC["generate"];
     JSONRPCRequest req;
     req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
@@ -115,7 +114,7 @@ std::vector<uint256> generateBlock(int blocks = 1) {
 }
 
 void rollbackBlock(const std::vector<uint256>& ids) {
-    rpcfn_type rpc_method = tableRPC["invalidateblock"]->actor;
+    auto rpc_method = tableRPC["invalidateblock"];
     for (auto it = ids.rbegin(); it != ids.rend(); ++it) {
         JSONRPCRequest req;
         req.URI = "/wallet/tester_wallet";
@@ -129,7 +128,7 @@ void rollbackBlock(const std::vector<uint256>& ids) {
 }
 
 uint256 AbandonAClaim(const uint256& txid, bool isSupport = false) {
-    rpcfn_type pre_rpc_method = tableRPC["getrawchangeaddress"]->actor;
+    auto pre_rpc_method = tableRPC["getrawchangeaddress"];
     JSONRPCRequest pre_req;
     pre_req.URI = "/wallet/tester_wallet";
     pre_req.params = UniValue(UniValue::VARR);
@@ -137,7 +136,7 @@ uint256 AbandonAClaim(const uint256& txid, bool isSupport = false) {
     UniValue adr_hash = pre_rpc_method(pre_req);
 
     // pass a txid as name for update
-    rpcfn_type rpc_method = tableRPC[isSupport ? "abandonsupport" : "abandonclaim"]->actor;
+    auto rpc_method = tableRPC[isSupport ? "abandonsupport" : "abandonclaim"];
     JSONRPCRequest req;
     req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
@@ -156,7 +155,7 @@ uint256 AbandonAClaim(const uint256& txid, bool isSupport = false) {
 }
 
 void ValidateBalance(double claims, double supports) {
-    rpcfn_type rpc_method = tableRPC["getwalletinfo"]->actor;
+    auto rpc_method = tableRPC["getwalletinfo"];
     JSONRPCRequest req;
     req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
@@ -295,7 +294,7 @@ BOOST_AUTO_TEST_CASE(claim_op_runthrough_bech32)
 }
 
 std::vector<COutPoint> SpendableCoins() {
-    rpcfn_type rpc_method = tableRPC["listunspent"]->actor;
+    auto rpc_method = tableRPC["listunspent"];
     JSONRPCRequest req;
     req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
@@ -307,7 +306,7 @@ std::vector<COutPoint> SpendableCoins() {
 }
 
 CTxDestination NewAddress(OutputType t) {
-    rpcfn_type rpc_method = tableRPC["getnewaddress"]->actor;
+    auto rpc_method = tableRPC["getnewaddress"];
     JSONRPCRequest req;
     req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
@@ -318,7 +317,7 @@ CTxDestination NewAddress(OutputType t) {
 }
 
 std::string SignRawTransaction(const std::string& tx) {
-    rpcfn_type rpc_method = tableRPC["signrawtransactionwithwallet"]->actor;
+    auto rpc_method = tableRPC["signrawtransactionwithwallet"];
     JSONRPCRequest req;
     req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
@@ -332,7 +331,7 @@ std::string SignRawTransaction(const std::string& tx) {
 }
 
 std::string SendRawTransaction(const std::string& tx) {
-    rpcfn_type rpc_method = tableRPC["sendrawtransaction"]->actor;
+    auto rpc_method = tableRPC["sendrawtransaction"];
     JSONRPCRequest req;
     req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
@@ -343,7 +342,7 @@ std::string SendRawTransaction(const std::string& tx) {
 }
 
 std::string FundRawTransaction(const std::string& tx) {
-    rpcfn_type rpc_method = tableRPC["fundrawtransaction"]->actor;
+    auto rpc_method = tableRPC["fundrawtransaction"];
     JSONRPCRequest req;
     req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
@@ -354,7 +353,7 @@ std::string FundRawTransaction(const std::string& tx) {
 
 std::string ProcessPsbt(const PartiallySignedTransaction& pst) {
     BOOST_CHECK(pst.IsSane());
-    rpcfn_type rpc_method = tableRPC["walletprocesspsbt"]->actor;
+    auto rpc_method = tableRPC["walletprocesspsbt"];
     JSONRPCRequest req;
     req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
@@ -369,7 +368,7 @@ std::string ProcessPsbt(const PartiallySignedTransaction& pst) {
 }
 
 std::string FinalizePsbt(const std::string& pst) {
-    rpcfn_type rpc_method = tableRPC["finalizepsbt"]->actor;
+    auto rpc_method = tableRPC["finalizepsbt"];
     JSONRPCRequest req;
     req.URI = "/wallet/tester_wallet";
     req.params = UniValue(UniValue::VARR);
@@ -397,7 +396,7 @@ BOOST_AUTO_TEST_CASE(can_sign_all_addr)
                 + GetScriptForDestination(destination);
         CTxOut out(100000, scriptPubKey);
         claimTx.vout.push_back(out);
-        auto hex = EncodeHexTx(claimTx);
+        auto hex = EncodeHexTx(CTransaction(claimTx));
         hex = SignRawTransaction(hex);
         txids.push_back(SendRawTransaction(hex));
         CTxIn spendIn(uint256S(txids.back()), 0);
@@ -405,7 +404,7 @@ BOOST_AUTO_TEST_CASE(can_sign_all_addr)
         CTxOut spendOut(90000, GetScriptForDestination(destination2));
         spendTx.vin.push_back(spendIn);
         spendTx.vout.push_back(spendOut);
-        hex = EncodeHexTx(spendTx);
+        hex = EncodeHexTx(CTransaction(spendTx));
         spends.push_back(hex);
     }
     generateBlock(1);

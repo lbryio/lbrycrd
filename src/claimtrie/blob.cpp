@@ -112,7 +112,7 @@ void CBaseBlob<BITS>::SetHex(const char* psz)
 template<uint32_t BITS>
 uint64_t CBaseBlob<BITS>::GetUint64(int pos) const
 {
-    assert((pos + 1) * 8 <= size());
+    assert(uint32_t(pos + 1) * 8 <= size());
     const uint8_t* ptr = begin() + pos * 8;
     uint64_t res = 0;
     for (int i = 0; i < 8; ++i)

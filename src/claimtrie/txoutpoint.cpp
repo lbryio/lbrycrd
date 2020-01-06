@@ -1,7 +1,13 @@
 
 #include <txoutpoint.h>
 
+#include <limits>
 #include <sstream>
+
+COutPoint::COutPoint() noexcept
+{
+    SetNull();
+}
 
 COutPoint::COutPoint(uint256 hashIn, uint32_t nIn) : hash(std::move(hashIn)), n(nIn)
 {
@@ -10,12 +16,12 @@ COutPoint::COutPoint(uint256 hashIn, uint32_t nIn) : hash(std::move(hashIn)), n(
 void COutPoint::SetNull()
 {
     hash.SetNull();
-    n = uint32_t(-1);
+    n = std::numeric_limits<uint32_t>::max();
 }
 
 bool COutPoint::IsNull() const
 {
-    return hash.IsNull() && n == uint32_t(-1);
+    return hash.IsNull() && n == std::numeric_limits<uint32_t>::max();
 }
 
 bool COutPoint::operator<(const COutPoint& b) const

@@ -68,15 +68,12 @@ FUZZ_SUITE_LD_COMMON = \
  $(LIBBITCOIN_CONSENSUS) \
  $(LIBBITCOIN_CRYPTO) \
  $(LIBUNIVALUE) \
- $(LIBLEVELDB) \
- $(LIBLEVELDB_SSE42) \
  $(BOOST_LIBS) \
- $(LIBMEMENV) \
  $(LIBSECP256K1) \
  $(EVENT_LIBS) \
  $(CRYPTO_LIBS) \
- $(EVENT_PTHREADS_LIBS)
- $(LIBCLAIMTRIE)
+ $(EVENT_PTHREADS_LIBS) \
+ $(LIBCLAIMTRIE) \
  $(BOOST_LOCALE_LIB)
 
 # test_bitcoin binary #
@@ -96,7 +93,6 @@ BITCOIN_TESTS =\
   test/blockfilter_tests.cpp \
   test/blockfilter_index_tests.cpp \
   test/bloom_tests.cpp \
-  test/Checkpoints_tests.cpp \
   test/bswap_tests.cpp \
   test/checkqueue_tests.cpp \
   test/coins_tests.cpp \
@@ -173,7 +169,6 @@ if ENABLE_WALLET
 BITCOIN_TESTS += \
   wallet/test/db_tests.cpp \
   wallet/test/claim_rpc_tests.cpp \
-  wallet/test/db_tests.cpp \
   wallet/test/psbt_wallet_tests.cpp \
   wallet/test/wallet_tests.cpp \
   wallet/test/wallet_crypto_tests.cpp \
@@ -196,7 +191,7 @@ test_test_lbrycrd_LDADD += $(LIBBITCOIN_WALLET)
 endif
 
 test_test_lbrycrd_LDADD += $(LIBBITCOIN_SERVER) $(LIBBITCOIN_CLI) $(LIBBITCOIN_COMMON) $(LIBBITCOIN_UTIL) $(LIBBITCOIN_CONSENSUS) $(LIBBITCOIN_CRYPTO) $(LIBUNIVALUE) \
-  $(LIBMEMENV) $(BOOST_LIBS) $(LIBCLAIMTRIE) $(BOOST_LOCALE_LIB) $(BOOST_UNIT_TEST_FRAMEWORK_LIB) $(LIBSECP256K1) $(EVENT_LIBS) $(EVENT_PTHREADS_LIBS)
+  $(BOOST_LIBS) $(LIBCLAIMTRIE) $(BOOST_LOCALE_LIB) $(BOOST_UNIT_TEST_FRAMEWORK_LIB) $(LIBSECP256K1) $(EVENT_LIBS) $(EVENT_PTHREADS_LIBS)
 test_test_lbrycrd_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 
 test_test_lbrycrd_LDADD += $(BDB_LIBS) $(CRYPTO_LIBS) $(ICU_LIBS) $(MINIUPNPC_LIBS) $(RAPIDCHECK_LIBS)

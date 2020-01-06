@@ -175,9 +175,6 @@ $(BITCOIN_CLI_BIN): FORCE
 $(BITCOIN_TX_BIN): FORCE
 	$(MAKE) -C src $(@F)
 
-$(BITCOIN_TX_BIN): FORCE
-	$(MAKE) -C src $(@F)
-
 $(BITCOIN_WALLET_BIN): FORCE
 	$(MAKE) -C src $(@F)
 

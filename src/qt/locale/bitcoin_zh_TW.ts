@@ -3567,7 +3567,11 @@ Note:  Since the fee is calculated on a per-byte basis, a fee of "100 satoshis p
     </message>
     <message>
         <source>The specified config file %s does not exist
+</source>
         <translation>指定的配置文件 %s 不存在
+</translation>
+    </message>
+    <message>
         <source>The transaction amount is too small to pay the fee</source>
         <translation>交易金額太少而付不起手續費</translation>
     </message>

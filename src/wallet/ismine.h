@@ -20,9 +20,12 @@ enum isminetype : unsigned int
     ISMINE_NO         = 0,
     ISMINE_WATCH_ONLY = 1 << 0,
     ISMINE_SPENDABLE  = 1 << 1,
-    ISMINE_USED       = 1 << 2,
+    ISMINE_CLAIM      = 1 << 2,
+    ISMINE_SUPPORT    = 1 << 3,
+    ISMINE_USED       = 1 << 4,
+    ISMINE_STAKE      = ISMINE_CLAIM | ISMINE_SUPPORT,
     ISMINE_ALL        = ISMINE_WATCH_ONLY | ISMINE_SPENDABLE,
-    ISMINE_ALL_USED   = ISMINE_ALL | ISMINE_USED,
+    ISMINE_ALL_USED   = ISMINE_ALL | ISMINE_USED | ISMINE_STAKE,
     ISMINE_ENUM_ELEMENTS,
 };
 /** used for bitflags of isminetype */

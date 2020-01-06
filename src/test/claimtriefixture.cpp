@@ -7,6 +7,7 @@
 #include <primitives/transaction.h>
 #include <test/claimtriefixture.h>
 #include <validation.h>
+#include <util/system.h>
 
 using namespace std;
 
@@ -19,7 +20,7 @@ BOOST_AUTO_TEST_CASE(claimtriefixture_noop)
 
 BOOST_AUTO_TEST_SUITE_END()
 
-CMutableTransaction BuildTransaction(const CTransaction& prev, uint32_t prevout, unsigned int numOutputs, int locktime)
+CMutableTransaction BuildTransaction(const CMutableTransaction& prev, uint32_t prevout, unsigned int numOutputs, int locktime)
 {
     CMutableTransaction tx;
     tx.nVersion = CTransaction::CURRENT_VERSION;
@@ -30,7 +31,7 @@ CMutableTransaction BuildTransaction(const CTransaction& prev, uint32_t prevout,
     tx.vin[0].scriptSig = CScript();
     if (locktime != 0) {
         // Use a relative locktime for validity X blocks in the future
-        tx.nLockTime = chainActive.Height() + locktime;
+        tx.nLockTime = ::ChainActive().Height() + locktime;
         tx.vin[0].nSequence = 0xffffffff - 1;
     } else {
         tx.nLockTime = 1 << 31; // Disable BIP68
@@ -78,7 +79,7 @@ ClaimTrieChainFixture::ClaimTrieChainFixture() : CClaimTrieCache(pclaimTrie),
     minRemovalWorkaroundHeight(-1), maxRemovalWorkaroundHeight(-1)
 {
     fRequireStandard = false;
-    BOOST_CHECK_EQUAL(nNextHeight, chainActive.Height() + 1);
+    BOOST_CHECK_EQUAL(nNextHeight, ::ChainActive().Height() + 1);
     setNormalizationForkHeight(1000000);
 
     gArgs.ForceSetArg("-limitancestorcount", "1000000");
@@ -97,7 +98,7 @@ ClaimTrieChainFixture::ClaimTrieChainFixture() : CClaimTrieCache(pclaimTrie),
 ClaimTrieChainFixture::~ClaimTrieChainFixture()
 {
     added_unchecked = false;
-    DecrementBlocks(chainActive.Height());
+    DecrementBlocks(::ChainActive().Height());
     auto& consensus = const_cast<Consensus::Params&>(Params().GetConsensus());
     if (normalization_original >= 0) {
         consensus.nNormalizedNameForkHeight = normalization_original;
@@ -124,7 +125,7 @@ ClaimTrieChainFixture::~ClaimTrieChainFixture()
 }
 
 void ClaimTrieChainFixture::setRemovalWorkaroundHeight(int targetMinusCurrent, int blocks = 1000) {
-    int target = chainActive.Height() + targetMinusCurrent;
+    int target = ::ChainActive().Height() + targetMinusCurrent;
     auto& consensus = const_cast<Consensus::Params&>(Params().GetConsensus());
     if (minRemovalWorkaroundHeight < 0) {
         minRemovalWorkaroundHeight = consensus.nMinRemovalWorkaroundHeight;
@@ -138,7 +139,7 @@ void ClaimTrieChainFixture::setRemovalWorkaroundHeight(int targetMinusCurrent, i
 
 void ClaimTrieChainFixture::setExpirationForkHeight(int targetMinusCurrent, int64_t preForkExpirationTime, int64_t postForkExpirationTime)
 {
-    int target = chainActive.Height() + targetMinusCurrent;
+    int target = ::ChainActive().Height() + targetMinusCurrent;
     auto& consensus = const_cast<Consensus::Params&>(Params().GetConsensus());
     if (expirationForkHeight < 0) {
         expirationForkHeight = consensus.nExtendedClaimExpirationForkHeight;
@@ -155,7 +156,7 @@ void ClaimTrieChainFixture::setExpirationForkHeight(int targetMinusCurrent, int6
 
 void ClaimTrieChainFixture::setNormalizationForkHeight(int targetMinusCurrent)
 {
-    int target = chainActive.Height() + targetMinusCurrent;
+    int target = ::ChainActive().Height() + targetMinusCurrent;
     auto& consensus = const_cast<Consensus::Params&>(Params().GetConsensus());
     if (normalization_original < 0)
         normalization_original = consensus.nNormalizedNameForkHeight;
@@ -165,7 +166,7 @@ void ClaimTrieChainFixture::setNormalizationForkHeight(int targetMinusCurrent)
 
 void ClaimTrieChainFixture::setHashForkHeight(int targetMinusCurrent)
 {
-    int target = chainActive.Height() + targetMinusCurrent;
+    int target = ::ChainActive().Height() + targetMinusCurrent;
     auto& consensus = const_cast<Consensus::Params&>(Params().GetConsensus());
     if (forkhash_original < 0)
         forkhash_original = consensus.nAllClaimsInMerkleForkHeight;
@@ -179,11 +180,11 @@ bool ClaimTrieChainFixture::CreateBlock(const std::unique_ptr<CBlockTemplate>& p
     {
         LOCK(cs_main);
         pblock->nVersion = 5;
-        pblock->hashPrevBlock = chainActive.Tip()->GetBlockHash();
-        pblock->nTime = chainActive.Tip()->GetBlockTime() + Params().GetConsensus().nPowTargetSpacing;
+        pblock->hashPrevBlock = ::ChainActive().Tip()->GetBlockHash();
+        pblock->nTime = ::ChainActive().Tip()->GetBlockTime() + Params().GetConsensus().nPowTargetSpacing;
         CMutableTransaction txCoinbase(*pblock->vtx[0]);
-        txCoinbase.vin[0].scriptSig = CScript() << int(chainActive.Height() + 1) << int(++unique_block_counter);
-        txCoinbase.vout[0].nValue = GetBlockSubsidy(chainActive.Height() + 1, Params().GetConsensus());
+        txCoinbase.vin[0].scriptSig = CScript() << int(::ChainActive().Height() + 1) << int(++unique_block_counter);
+        txCoinbase.vout[0].nValue = GetBlockSubsidy(::ChainActive().Height() + 1, Params().GetConsensus());
         pblock->vtx[0] = MakeTransactionRef(std::move(txCoinbase));
         pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
         for (uint32_t i = 0;; ++i) {
@@ -193,7 +194,7 @@ bool ClaimTrieChainFixture::CreateBlock(const std::unique_ptr<CBlockTemplate>& p
         }
     }
     auto success = ProcessNewBlock(Params(), std::make_shared<const CBlock>(*pblock), true, nullptr);
-    return success && pblock->GetHash() == chainActive.Tip()->GetBlockHash();
+    return success && pblock->GetHash() == ::ChainActive().Tip()->GetBlockHash();
 }
 
 bool ClaimTrieChainFixture::CreateCoinbases(unsigned int num_coinbases, std::vector<CTransaction>& coinbases)
@@ -220,7 +221,7 @@ void ClaimTrieChainFixture::CommitTx(const CMutableTransaction &tx, bool has_loc
         added_unchecked = true;
         TestMemPoolEntryHelper entry;
         LOCK(mempool.cs);
-        mempool.addUnchecked(tx.GetHash(), entry.Fee(0).Time(GetTime()).SpendsCoinbase(true).FromTx(tx));
+        mempool.addUnchecked(entry.Fee(0).Time(GetTime()).SpendsCoinbase(true).FromTx(tx));
     } else {
         CValidationState state;
         CAmount txFeeRate = CAmount(0);
@@ -230,7 +231,7 @@ void ClaimTrieChainFixture::CommitTx(const CMutableTransaction &tx, bool has_loc
 }
 
 // spend a bid into some non claimtrie related unspent
-CMutableTransaction ClaimTrieChainFixture::Spend(const CTransaction &prev)
+CMutableTransaction ClaimTrieChainFixture::Spend(const CMutableTransaction &prev)
 {
     CMutableTransaction tx = BuildTransaction(prev, 0);
     tx.vout[0].scriptPubKey = CScript() << OP_TRUE;
@@ -241,7 +242,7 @@ CMutableTransaction ClaimTrieChainFixture::Spend(const CTransaction &prev)
 }
 
 // make claim at the current block
-CMutableTransaction ClaimTrieChainFixture::MakeClaim(const CTransaction& prev, const std::string& name, const std::string& value, CAmount quantity, int locktime)
+CMutableTransaction ClaimTrieChainFixture::MakeClaim(const CMutableTransaction& prev, const std::string& name, const std::string& value, CAmount quantity, int locktime)
 {
     uint32_t prevout = prev.vout.size() - 1;
     while (prevout > 0 && prev.vout[prevout].nValue < quantity)
@@ -258,13 +259,13 @@ CMutableTransaction ClaimTrieChainFixture::MakeClaim(const CTransaction& prev, c
     return tx;
 }
 
-CMutableTransaction ClaimTrieChainFixture::MakeClaim(const CTransaction& prev, const std::string& name, const std::string& value)
+CMutableTransaction ClaimTrieChainFixture::MakeClaim(const CMutableTransaction& prev, const std::string& name, const std::string& value)
 {
     return MakeClaim(prev, name, value, prev.vout[0].nValue, 0);
 }
 
 // make support at the current block
-CMutableTransaction ClaimTrieChainFixture::MakeSupport(const CTransaction &prev, const CTransaction &claimtx, const std::string& name, CAmount quantity)
+CMutableTransaction ClaimTrieChainFixture::MakeSupport(const CMutableTransaction &prev, const CMutableTransaction &claimtx, const std::string& name, CAmount quantity)
 {
     uint32_t prevout = prev.vout.size() - 1;
     while (prevout > 0 && prev.vout[prevout].nValue < quantity)
@@ -283,7 +284,7 @@ CMutableTransaction ClaimTrieChainFixture::MakeSupport(const CTransaction &prev,
 }
 
 // make update at the current block
-CMutableTransaction ClaimTrieChainFixture::MakeUpdate(const CTransaction &prev, const std::string& name, const std::string& value, const uint160& claimId, CAmount quantity)
+CMutableTransaction ClaimTrieChainFixture::MakeUpdate(const CMutableTransaction &prev, const std::string& name, const std::string& value, const uint160& claimId, CAmount quantity)
 {
     CMutableTransaction tx = BuildTransaction(prev, 0);
     if (prev.vout[0].nValue < quantity) {
@@ -298,28 +299,28 @@ CMutableTransaction ClaimTrieChainFixture::MakeUpdate(const CTransaction &prev, 
     return tx;
 }
 
-CTransaction& ClaimTrieChainFixture::GetCoinbase()
+CMutableTransaction ClaimTrieChainFixture::GetCoinbase()
 {
-    return coinbase_txs.at(coinbase_txs_used++);
+    return CMutableTransaction(coinbase_txs.at(coinbase_txs_used++));
 }
 
 // create i blocks
 void ClaimTrieChainFixture::IncrementBlocks(int num_blocks, bool mark)
 {
     if (mark)
-        marks.push_back(chainActive.Height());
+        marks.push_back(::ChainActive().Height());
 
     for (int i = 0; i < num_blocks; ++i) {
         CScript coinbase_scriptpubkey;
-        coinbase_scriptpubkey << CScriptNum(chainActive.Height());
+        coinbase_scriptpubkey << CScriptNum(::ChainActive().Height());
         std::unique_ptr<CBlockTemplate> pblocktemplate = AssemblerForTest().CreateNewBlock(coinbase_scriptpubkey);
         BOOST_REQUIRE(pblocktemplate != nullptr);
         if (!added_unchecked)
             BOOST_CHECK_EQUAL(pblocktemplate->block.vtx.size(), num_txs_for_next_block + 1);
         BOOST_REQUIRE(CreateBlock(pblocktemplate));
         num_txs_for_next_block = 0;
-        expirationHeight = chainActive.Height();
-        nNextHeight = chainActive.Height() + 1;
+        expirationHeight = ::ChainActive().Height();
+        nNextHeight = ::ChainActive().Height() + 1;
     }
 }
 
@@ -329,15 +330,15 @@ void ClaimTrieChainFixture::DecrementBlocks(int num_blocks)
     CValidationState state;
     {
         LOCK(cs_main);
-        CBlockIndex* pblockindex = chainActive[chainActive.Height() - num_blocks + 1];
+        CBlockIndex* pblockindex = ::ChainActive()[::ChainActive().Height() - num_blocks + 1];
         BOOST_CHECK_EQUAL(InvalidateBlock(state, Params(), pblockindex), true);
     }
     BOOST_CHECK_EQUAL(state.IsValid(), true);
     BOOST_CHECK_EQUAL(ActivateBestChain(state, Params()), true);
     mempool.clear();
     num_txs_for_next_block = 0;
-    expirationHeight = chainActive.Height();
-    nNextHeight = chainActive.Height() + 1;
+    expirationHeight = ::ChainActive().Height();
+    nNextHeight = ::ChainActive().Height() + 1;
 }
 
 // decrement back to last mark
@@ -345,7 +346,7 @@ void ClaimTrieChainFixture::DecrementBlocks()
 {
     int mark = marks.back();
     marks.pop_back();
-    DecrementBlocks(chainActive.Height() - mark);
+    DecrementBlocks(::ChainActive().Height() - mark);
 }
 
 bool ClaimTrieChainFixture::queueEmpty() const
@@ -396,7 +397,7 @@ boost::test_tools::predicate_result negativeResult(const std::string& message)
 }
 
 // is a claim in queue
-boost::test_tools::predicate_result ClaimTrieChainFixture::is_claim_in_queue(const std::string& name, const CTransaction &tx)
+boost::test_tools::predicate_result ClaimTrieChainFixture::is_claim_in_queue(const std::string& name, const CMutableTransaction &tx)
 {
     COutPoint outPoint(tx.GetHash(), 0);
     int validAtHeight;
@@ -406,7 +407,7 @@ boost::test_tools::predicate_result ClaimTrieChainFixture::is_claim_in_queue(con
 }
 
 // check if tx is best claim based on outpoint
-boost::test_tools::predicate_result ClaimTrieChainFixture::is_best_claim(const std::string& name, const CTransaction &tx)
+boost::test_tools::predicate_result ClaimTrieChainFixture::is_best_claim(const std::string& name, const CMutableTransaction &tx)
 {
     CClaimValue val;
     COutPoint outPoint(tx.GetHash(), 0);

@@ -1,10 +1,10 @@
 #ifndef BITCOIN_NAMECLAIM_H
 #define BITCOIN_NAMECLAIM_H
 
-#include "amount.h"
-#include "script/script.h"
-#include "primitives/transaction.h"
-#include "uint256.h"
+#include <amount.h>
+#include <script/script.h>
+#include <primitives/transaction.h>
+#include <uint256.h>
 
 #include <vector>
 
@@ -40,6 +40,6 @@ size_t ClaimScriptSize(const CScript& scriptIn);
 // get size of the name in a claim script, returns 0 if scriptin is not a claimetrie transaction
 size_t ClaimNameSize(const CScript& scriptIn);
 // calculate the minimum fee (mempool rule) required for transaction
-CAmount CalcMinClaimTrieFee(const CTransaction& tx, const CAmount &minFeePerNameClaimChar);
+CAmount CalcMinClaimTrieFee(const CMutableTransaction& tx, const CAmount &minFeePerNameClaimChar);
 
 #endif // BITCOIN_NAMECLAIM_H

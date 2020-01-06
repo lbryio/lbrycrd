@@ -5,8 +5,6 @@
 #include <test/claimtriefixture.h>
 #include <validation.h>
 
-extern ::CChainState g_chainstate;
-
 using namespace std;
 
 BOOST_FIXTURE_TEST_SUITE(claimtrienormalization_tests, RegTestingSetup)
@@ -159,7 +157,7 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_normalization)
 
     // Roll forward to fork height again and check again that we're normalized
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(chainActive.Height() == Params().GetConsensus().nNormalizedNameForkHeight);
+    BOOST_CHECK(::ChainActive().Height() == Params().GetConsensus().nNormalizedNameForkHeight);
     BOOST_CHECK(fixture.is_best_claim("normalizetest", tx1)); // collapsed tx2
     BOOST_CHECK(fixture.is_best_claim(invalidUtf8, tx10));
 
@@ -170,7 +168,7 @@ BOOST_AUTO_TEST_CASE(claimtriebranching_normalization)
 
     // Roll forward to fork height again and check again that we're normalized
     fixture.IncrementBlocks(1);
-    BOOST_CHECK(chainActive.Height() == Params().GetConsensus().nNormalizedNameForkHeight);
+    BOOST_CHECK(::ChainActive().Height() == Params().GetConsensus().nNormalizedNameForkHeight);
     BOOST_CHECK(fixture.is_best_claim("normalizetest", tx1)); // collapsed tx2
 }
 
@@ -203,7 +201,7 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
     // cache), flattening all previously existing name clashes due to
     // the normalization
     fixture.setNormalizationForkHeight(1);
-    int currentHeight = chainActive.Height();
+    int currentHeight = ::ChainActive().Height();
 
     fixture.IncrementBlocks(1);
     // Ok normalization fix the name problem
@@ -211,15 +209,16 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
     BOOST_CHECK(nval1.nHeight == currentHeight);
     BOOST_CHECK(lookupClaim == nval1);
 
-    CCoinsViewCache coins(pcoinsTip.get());
     CClaimTrieCache trieCache(pclaimTrie);
-    CBlockIndex* pindex = chainActive.Tip();
+    CBlockIndex* pindex = ::ChainActive().Tip();
+    CCoinsViewCache coins(&::ChainstateActive().CoinsTip());
+
     CBlock block;
     int amelieValidHeight;
     std::string removed;
     BOOST_CHECK(trieCache.shouldNormalize());
     BOOST_CHECK(ReadBlockFromDisk(block, pindex, Params().GetConsensus()));
-    BOOST_CHECK(g_chainstate.DisconnectBlock(block, pindex, coins, trieCache) == DisconnectResult::DISCONNECT_OK);
+    BOOST_CHECK(::ChainstateActive().DisconnectBlock(block, pindex, coins, trieCache) == DisconnectResult::DISCONNECT_OK);
     BOOST_CHECK(!trieCache.shouldNormalize());
     BOOST_CHECK(trieCache.removeClaim(ClaimIdHash(tx2.GetHash(), 0), COutPoint(tx2.GetHash(), 0), removed, amelieValidHeight));
 
@@ -301,7 +300,7 @@ BOOST_AUTO_TEST_CASE(normalization_removal_test)
     CMutableTransaction sx2 = fixture.MakeSupport(fixture.GetCoinbase(), tx2, "Ab", 1);
 
     CClaimTrieCache cache(pclaimTrie);
-    int height = chainActive.Height() + 1;
+    int height = ::ChainActive().Height() + 1;
     cache.addClaim("AB", COutPoint(tx1.GetHash(), 0), ClaimIdHash(tx1.GetHash(), 0), 1, height);
     cache.addClaim("Ab", COutPoint(tx2.GetHash(), 0), ClaimIdHash(tx2.GetHash(), 0), 2, height);
     cache.addClaim("aB", COutPoint(tx3.GetHash(), 0), ClaimIdHash(tx3.GetHash(), 0), 3, height);

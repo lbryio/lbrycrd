@@ -3684,7 +3684,11 @@ Diretório de blocos especificados "%s" não existe.</translation>
     </message>
     <message>
         <source>The specified config file %s does not exist
+</source>
         <translation>O Arquivo de configuração especificado %s não existe
+</translation>
+    </message>
+    <message>
         <source>The transaction amount is too small to pay the fee</source>
         <translation>A quantidade da transação é pequena demais para  pagar a taxa</translation>
     </message>

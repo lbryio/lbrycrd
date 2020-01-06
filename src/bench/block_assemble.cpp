@@ -3,13 +3,13 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <bench/bench.h>
+#include <chainparams.h>
 #include <consensus/validation.h>
 #include <crypto/sha256.h>
 #include <test/util.h>
 #include <txmempool.h>
-#include <util.h>
 #include <validation.h>
-
+#include <util/system.h>
 
 #include <list>
 #include <vector>

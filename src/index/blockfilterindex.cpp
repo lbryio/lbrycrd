@@ -4,8 +4,10 @@
 
 #include <map>
 
-#include <dbwrapper.h>
+#include <clientversion.h>
 #include <index/blockfilterindex.h>
+#include <streams.h>
+#include <sqlite.h>
 #include <util/system.h>
 #include <validation.h>
 
@@ -14,19 +16,7 @@
  * height, and those belonging to blocks that have been reorganized out of the active chain are
  * indexed by block hash. This ensures that filter data for any block that becomes part of the
  * active chain can always be retrieved, alleviating timing concerns.
- *
- * The filters themselves are stored in flat files and referenced by the LevelDB entries. This
- * minimizes the amount of data written to LevelDB and keeps the database values constant size. The
- * disk location of the next block filter to be written (represented as a FlatFilePos) is stored
- * under the DB_FILTER_POS key.
- *
- * Keys for the height index have the type [DB_BLOCK_HEIGHT, uint32 (BE)]. The height is represented
- * as big-endian so that sequential reads of filters by height are fast.
- * Keys for the hash index have the type [DB_BLOCK_HASH, uint256].
  */
-constexpr char DB_BLOCK_HASH = 's';
-constexpr char DB_BLOCK_HEIGHT = 't';
-constexpr char DB_FILTER_POS = 'P';
 
 constexpr unsigned int MAX_FLTR_FILE_SIZE = 0x1000000; // 16 MiB
 /** The pre-allocation chunk size for fltr?????.dat files */
@@ -49,50 +39,7 @@ struct DBVal {
     }
 };
 
-struct DBHeightKey {
-    int height;
-
-    DBHeightKey() : height(0) {}
-    explicit DBHeightKey(int height_in) : height(height_in) {}
-
-    template<typename Stream>
-    void Serialize(Stream& s) const
-    {
-        ser_writedata8(s, DB_BLOCK_HEIGHT);
-        ser_writedata32be(s, height);
-    }
-
-    template<typename Stream>
-    void Unserialize(Stream& s)
-    {
-        char prefix = ser_readdata8(s);
-        if (prefix != DB_BLOCK_HEIGHT) {
-            throw std::ios_base::failure("Invalid format for block filter index DB height key");
-        }
-        height = ser_readdata32be(s);
-    }
-};
-
-struct DBHashKey {
-    uint256 hash;
-
-    explicit DBHashKey(const uint256& hash_in) : hash(hash_in) {}
-
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
-        char prefix = DB_BLOCK_HASH;
-        READWRITE(prefix);
-        if (prefix != DB_BLOCK_HASH) {
-            throw std::ios_base::failure("Invalid format for block filter index DB hash key");
-        }
-
-        READWRITE(hash);
-    }
-};
-
-}; // namespace
+} // namespace
 
 static std::map<BlockFilterType, BlockFilterIndex> g_filter_indexes;
 
@@ -113,23 +60,11 @@ BlockFilterIndex::BlockFilterIndex(BlockFilterType filter_type,
 
 bool BlockFilterIndex::Init()
 {
-    if (!m_db->Read(DB_FILTER_POS, m_next_filter_pos)) {
-        // Check that the cause of the read failure is that the key does not exist. Any other errors
-        // indicate database corruption or a disk failure, and starting the index would cause
-        // further corruption.
-        if (m_db->Exists(DB_FILTER_POS)) {
-            return error("%s: Cannot read current %s state; index may be corrupted",
-                         __func__, GetName());
-        }
-
-        // If the DB_FILTER_POS is not set, then initialize to the first location.
-        m_next_filter_pos.nFile = 0;
-        m_next_filter_pos.nPos = 0;
-    }
+    m_db->ReadFilePos(m_next_filter_pos);
     return BaseIndex::Init();
 }
 
-bool BlockFilterIndex::CommitInternal(CDBBatch& batch)
+bool BlockFilterIndex::CommitInternal()
 {
     const FlatFilePos& pos = m_next_filter_pos;
 
@@ -142,8 +77,7 @@ bool BlockFilterIndex::CommitInternal(CDBBatch& batch)
         return error("%s: Failed to commit filter file %d", __func__, pos.nFile);
     }
 
-    batch.Write(DB_FILTER_POS, pos);
-    return BaseIndex::CommitInternal(batch);
+    return BaseIndex::CommitInternal();
 }
 
 bool BlockFilterIndex::ReadFilterFromDisk(const FlatFilePos& pos, BlockFilter& filter) const
@@ -222,18 +156,20 @@ bool BlockFilterIndex::WriteBlock(const CBlock& block, const CBlockIndex* pindex
             return false;
         }
 
-        std::pair<uint256, DBVal> read_out;
-        if (!m_db->Read(DBHeightKey(pindex->nHeight - 1), read_out)) {
+        uint256 block_hash;
+        auto query = (*m_db) << "SELECT hash, header FROM block WHERE height = ?"
+                             << pindex->nHeight - 1;
+        auto it = query.begin();
+        if (it == query.end())
             return false;
-        }
+
+        *it >> block_hash >> prev_header;
 
         uint256 expected_block_hash = pindex->pprev->GetBlockHash();
-        if (read_out.first != expected_block_hash) {
+        if (block_hash != expected_block_hash) {
             return error("%s: previous block header belongs to unexpected block %s; expected %s",
-                         __func__, read_out.first.ToString(), expected_block_hash.ToString());
+                         __func__, block_hash.ToString(), expected_block_hash.ToString());
         }
-
-        prev_header = read_out.second.header;
     }
 
     BlockFilter filter(m_filter_type, block, block_undo);
@@ -241,13 +177,15 @@ bool BlockFilterIndex::WriteBlock(const CBlock& block, const CBlockIndex* pindex
     size_t bytes_written = WriteFilterToDisk(m_next_filter_pos, filter);
     if (bytes_written == 0) return false;
 
-    std::pair<uint256, DBVal> value;
-    value.first = pindex->GetBlockHash();
-    value.second.hash = filter.GetHash();
-    value.second.header = filter.ComputeHeader(prev_header);
-    value.second.pos = m_next_filter_pos;
+    (*m_db) << "INSERT INTO block VALUES(?, ?, ?, ?, ?, ?)"
+            << pindex->nHeight
+            << pindex->GetBlockHash()
+            << filter.GetHash()
+            << filter.ComputeHeader(prev_header)
+            << m_next_filter_pos.nFile
+            << m_next_filter_pos.nPos;
 
-    if (!m_db->Write(DBHeightKey(pindex->nHeight), value)) {
+    if (!(m_db->rows_modified() > 0)) {
         return false;
     }
 
@@ -255,74 +193,49 @@ bool BlockFilterIndex::WriteBlock(const CBlock& block, const CBlockIndex* pindex
     return true;
 }
 
-static bool CopyHeightIndexToHashIndex(CDBIterator& db_it, CDBBatch& batch,
-                                       const std::string& index_name,
+static bool CopyHeightIndexToHashIndex(sqlite::database& db,
                                        int start_height, int stop_height)
 {
-    DBHeightKey key(start_height);
-    db_it.Seek(key);
-
-    for (int height = start_height; height <= stop_height; ++height) {
-        if (!db_it.GetKey(key) || key.height != height) {
-            return error("%s: unexpected key in %s: expected (%c, %d)",
-                         __func__, index_name, DB_BLOCK_HEIGHT, height);
-        }
-
-        std::pair<uint256, DBVal> value;
-        if (!db_it.GetValue(value)) {
-            return error("%s: unable to read value in %s at key (%c, %d)",
-                         __func__, index_name, DB_BLOCK_HEIGHT, height);
-        }
-
-        batch.Write(DBHashKey(value.first), std::move(value.second));
-
-        db_it.Next();
-    }
-    return true;
+    db << "UPDATE block SET height = NULL WHERE height >= ? and height <= ?"
+        << start_height << stop_height;
+    return db.rows_modified() > 0;
 }
 
 bool BlockFilterIndex::Rewind(const CBlockIndex* current_tip, const CBlockIndex* new_tip)
 {
     assert(current_tip->GetAncestor(new_tip->nHeight) == new_tip);
 
-    CDBBatch batch(*m_db);
-    std::unique_ptr<CDBIterator> db_it(m_db->NewIterator());
-
     // During a reorg, we need to copy all filters for blocks that are getting disconnected from the
     // height index to the hash index so we can still find them when the height index entries are
     // overwritten.
-    if (!CopyHeightIndexToHashIndex(*db_it, batch, m_name, new_tip->nHeight, current_tip->nHeight)) {
+    if (!CopyHeightIndexToHashIndex(*m_db, new_tip->nHeight, current_tip->nHeight)) {
         return false;
     }
 
     // The latest filter position gets written in Commit by the call to the BaseIndex::Rewind.
     // But since this creates new references to the filter, the position should get updated here
     // atomically as well in case Commit fails.
-    batch.Write(DB_FILTER_POS, m_next_filter_pos);
-    if (!m_db->WriteBatch(batch)) return false;
+    if (!m_db->WriteFilePos(m_next_filter_pos)) return false;
 
     return BaseIndex::Rewind(current_tip, new_tip);
 }
 
-static bool LookupOne(const CDBWrapper& db, const CBlockIndex* block_index, DBVal& result)
+static bool LookupOne(sqlite::database& db, const CBlockIndex* block_index, DBVal& result)
 {
     // First check if the result is stored under the height index and the value there matches the
     // block hash. This should be the case if the block is on the active chain.
-    std::pair<uint256, DBVal> read_out;
-    if (!db.Read(DBHeightKey(block_index->nHeight), read_out)) {
-        return false;
-    }
-    if (read_out.first == block_index->GetBlockHash()) {
-        result = std::move(read_out.second);
+    auto query = db << "SELECT filter_hash, header, file, pos FROM block WHERE (height = ? "
+                    << "OR height IS NULL) AND hash = ? LIMIT 1"
+                    << block_index->nHeight << block_index->GetBlockHash();
+
+    for (auto&& row : query) {
+        row >> result.hash >> result.header >> result.pos.nFile >> result.pos.nPos;
         return true;
     }
-
-    // If value at the height index corresponds to an different block, the result will be stored in
-    // the hash index.
-    return db.Read(DBHashKey(block_index->GetBlockHash()), result);
+    return false;
 }
 
-static bool LookupRange(CDBWrapper& db, const std::string& index_name, int start_height,
+static bool LookupRange(sqlite::database& db, const std::string& index_name, int start_height,
                         const CBlockIndex* stop_index, std::vector<DBVal>& results)
 {
     if (start_height < 0) {
@@ -334,25 +247,6 @@ static bool LookupRange(CDBWrapper& db, const std::string& index_name, int start
     }
 
     size_t results_size = static_cast<size_t>(stop_index->nHeight - start_height + 1);
-    std::vector<std::pair<uint256, DBVal>> values(results_size);
-
-    DBHeightKey key(start_height);
-    std::unique_ptr<CDBIterator> db_it(db.NewIterator());
-    db_it->Seek(DBHeightKey(start_height));
-    for (int height = start_height; height <= stop_index->nHeight; ++height) {
-        if (!db_it->Valid() || !db_it->GetKey(key) || key.height != height) {
-            return false;
-        }
-
-        size_t i = static_cast<size_t>(height - start_height);
-        if (!db_it->GetValue(values[i])) {
-            return error("%s: unable to read value in %s at key (%c, %d)",
-                         __func__, index_name, DB_BLOCK_HEIGHT, height);
-        }
-
-        db_it->Next();
-    }
-
     results.resize(results_size);
 
     // Iterate backwards through block indexes collecting results in order to access the block hash
@@ -360,17 +254,10 @@ static bool LookupRange(CDBWrapper& db, const std::string& index_name, int start
     for (const CBlockIndex* block_index = stop_index;
          block_index && block_index->nHeight >= start_height;
          block_index = block_index->pprev) {
-        uint256 block_hash = block_index->GetBlockHash();
-
         size_t i = static_cast<size_t>(block_index->nHeight - start_height);
-        if (block_hash == values[i].first) {
-            results[i] = std::move(values[i].second);
-            continue;
-        }
-
-        if (!db.Read(DBHashKey(block_hash), results[i])) {
-            return error("%s: unable to read value in %s at key (%c, %s)",
-                         __func__, index_name, DB_BLOCK_HASH, block_hash.ToString());
+        if (!LookupOne(db, block_index, results[i])) {
+            return error("%s: unable to read value in %s at key %s", __func__,
+                         index_name, block_index->GetBlockHash().ToString());
         }
     }
 

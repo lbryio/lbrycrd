@@ -137,6 +137,7 @@ BITCOIN_CORE_H = \
   fs.h \
   httprpc.h \
   httpserver.h \
+  index/base.h \
   index/blockfilterindex.h \
   indirectmap.h \
   init.h \
@@ -275,13 +276,13 @@ libbitcoin_server_a_SOURCES = \
   flatfile.cpp \
   httprpc.cpp \
   httpserver.cpp \
+  index/base.cpp \
   index/blockfilterindex.cpp \
   interfaces/chain.cpp \
   interfaces/node.cpp \
   init.cpp \
   lbry.cpp \
   miner.cpp \
-  nameclaim.cpp \
   net.cpp \
   net_processing.cpp \
   node/coin.cpp \
@@ -309,7 +310,6 @@ libbitcoin_server_a_SOURCES = \
   txmempool.cpp \
   ui_interface.cpp \
   uint256.cpp \
-  utilstrencodings.cpp \
   validation.cpp \
   validationinterface.cpp \
   versionbits.cpp \
@@ -362,7 +362,7 @@ libbitcoin_wallet_tool_a_SOURCES = \
   $(BITCOIN_CORE_H)
 
 # crypto primitives library
-crypto_libbitcoin_crypto_base_a_CPPFLAGS = $(AM_CPPFLAGS)
+crypto_libbitcoin_crypto_base_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 crypto_libbitcoin_crypto_base_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 crypto_libbitcoin_crypto_base_a_SOURCES = \
   crypto/aes.cpp \
@@ -573,7 +573,6 @@ lbrycrdd_LDADD = \
   $(LIBBITCOIN_ZMQ) \
   $(LIBBITCOIN_CONSENSUS) \
   $(LIBBITCOIN_CRYPTO) \
-  $(LIBMEMENV) \
   $(LIBSECP256K1)
 
 lbrycrdd_LDADD += $(BOOST_LIBS) $(LIBCLAIMTRIE) $(BOOST_LOCALE_LIB) $(BDB_LIBS) $(CRYPTO_LIBS) $(ICU_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS)
@@ -630,15 +629,14 @@ endif
 
 lbrycrd_wallet_LDADD = \
   $(LIBBITCOIN_WALLET_TOOL) \
+  $(LIBBITCOIN_SERVER) \
   $(LIBBITCOIN_WALLET) \
+  $(LIBBITCOIN_SERVER) \
   $(LIBBITCOIN_COMMON) \
   $(LIBBITCOIN_CONSENSUS) \
   $(LIBBITCOIN_UTIL) \
   $(LIBBITCOIN_CRYPTO) \
   $(LIBBITCOIN_ZMQ) \
-  $(LIBLEVELDB) \
-  $(LIBLEVELDB_SSE42) \
-  $(LIBMEMENV) \
   $(LIBSECP256K1) \
   $(LIBUNIVALUE)
 

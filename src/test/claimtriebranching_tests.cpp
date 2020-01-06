@@ -33,7 +33,7 @@ BOOST_AUTO_TEST_CASE(takeover_stability_test) {
     BOOST_CHECK(fixture.is_best_claim("@bass", tx2));
     uint160 id; int takeover;
     BOOST_REQUIRE(fixture.getLastTakeoverForName("@bass", id, takeover));
-    auto height = chainActive.Tip()->nHeight;
+    auto height = ::ChainActive().Tip()->nHeight;
     BOOST_CHECK_EQUAL(takeover, height);
     CMutableTransaction tx3 = fixture.MakeClaim(fixture.GetCoinbase(), "@bass", "three", 3);
     fixture.Spend(tx3);
@@ -462,7 +462,7 @@ BOOST_AUTO_TEST_CASE(claimtrie_update_takeover_test)
     fixture.IncrementBlocks(1);
     uint160 cid2;
     int takeover;
-    int height = chainActive.Tip()->nHeight;
+    int height = ::ChainActive().Tip()->nHeight;
     fixture.getLastTakeoverForName("test", cid2, takeover);
     BOOST_CHECK_EQUAL(height, takeover);
     CMutableTransaction u1 = fixture.MakeUpdate(tx1, "test", "a", cid, 4);
@@ -1056,7 +1056,7 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.IncrementBlocks(5);
 
     // put in bad tx10
-    CTransaction root = fixture.GetCoinbase();
+    auto root = fixture.GetCoinbase();
     CMutableTransaction tx10 = fixture.MakeUpdate(root, sName1, sValue1, tx1ClaimId, root.vout[0].nValue);
     COutPoint tx10OutPoint(tx10.GetHash(), 0);
     fixture.IncrementBlocks(1, true);
@@ -1198,7 +1198,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     std::string sValue1("testa");
     std::string sValue2("testb");
 
-    int initialHeight = chainActive.Height();
+    int initialHeight = ::ChainActive().Height();
 
     CClaimValue val;
 
@@ -1220,6 +1220,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue1, 1);
     fixture.IncrementBlocks(1); // 1
 
+    auto* pcoinsTip = &::ChainstateActive().CoinsTip();
     BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)));
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(fixture.queueEmpty());
@@ -1361,7 +1362,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
 
     // roll all the way back
     fixture.DecrementBlocks(22); // 0
-    BOOST_CHECK_EQUAL(initialHeight, chainActive.Height());
+    BOOST_CHECK_EQUAL(initialHeight, ::ChainActive().Height());
 
     // Make sure that when a support in the queue gets spent and then the spend is
     // undone, it goes back into the queue in the right spot
@@ -1462,6 +1463,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue1, 1);
     fixture.IncrementBlocks(1); // 1
 
+    auto* pcoinsTip = &::ChainstateActive().CoinsTip();
     BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)));
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(fixture.queueEmpty());
@@ -1839,6 +1841,7 @@ BOOST_AUTO_TEST_CASE(invalid_claimid_test)
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue1, 1);
     fixture.IncrementBlocks(1, true); // 1
 
+    auto* pcoinsTip = &::ChainstateActive().CoinsTip();
     BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)));
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(fixture.queueEmpty());
@@ -1947,7 +1950,7 @@ BOOST_AUTO_TEST_CASE(update_on_support2_test)
     std::string name = "test";
     std::string value = "one";
 
-    auto height = chainActive.Height();
+    auto height = ::ChainActive().Height();
 
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), name, value, 3);
     CMutableTransaction s1 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, name, 1);

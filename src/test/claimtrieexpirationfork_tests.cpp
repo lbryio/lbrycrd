@@ -194,7 +194,7 @@ BOOST_AUTO_TEST_CASE(hardfork_support_test)
     CMutableTransaction u1 = fixture.MakeUpdate(tx1, "test", "two", ClaimIdHash(tx1.GetHash(),0), 1);
     CMutableTransaction u2 = fixture.MakeUpdate(tx2, "test", "two", ClaimIdHash(tx2.GetHash(),0), 2);
     fixture.IncrementBlocks(1);
-    BOOST_CHECK_EQUAL(Params().GetConsensus().nExtendedClaimExpirationForkHeight, chainActive.Height());
+    BOOST_CHECK_EQUAL(Params().GetConsensus().nExtendedClaimExpirationForkHeight, ::ChainActive().Height());
 
     BOOST_CHECK(fixture.is_best_claim("test", u1));
     BOOST_CHECK(fixture.best_claim_effective_amount_equals("test",3));
@@ -578,6 +578,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue1, 1);
     fixture.IncrementBlocks(1); // 1, expires at 81
 
+    auto* pcoinsTip = &::ChainstateActive().CoinsTip();
     BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)));
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(fixture.queueEmpty());
@@ -696,7 +697,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     fixture.Spend(tx3);
     fixture.IncrementBlocks(1); // 64
 
-    blocks_to_invalidate.push_back(chainActive.Tip()->GetBlockHash());
+    blocks_to_invalidate.push_back(::ChainActive().Tip()->GetBlockHash());
 
     BOOST_CHECK(!pclaimTrie->empty());
     BOOST_CHECK(fixture.queueEmpty());

@@ -58,22 +58,24 @@ CDataStream getTestBlockStream()
 static void DeserializeBlockTest(benchmark::State& state)
 {
     auto stream = getTestBlockStream();
+    auto size = stream.size() - 1;
     while (state.KeepRunning()) {
         CBlock block;
         stream >> block;
-        assert(stream.Rewind(block.size()));
+        assert(stream.Rewind(size));
     }
 }
 
 static void DeserializeAndCheckBlockTest(benchmark::State& state)
 {
     auto stream = getTestBlockStream();
+    auto size = stream.size() - 1;
     const auto chainParams = CreateChainParams(CBaseChainParams::REGTEST);
 
     while (state.KeepRunning()) {
         CBlock block; // Note that CBlock caches its checked state, so we need to recreate it here
         stream >> block;
-        assert(stream.Rewind(block.size()));
+        assert(stream.Rewind(size));
 
         CValidationState validationState;
         bool checked = CheckBlock(block, validationState, chainParams->GetConsensus());

@@ -5,6 +5,7 @@
 #include <clientversion.h>
 #include <crypto/siphash.h>
 #include <hash.h>
+#include <primitives/transaction.h>
 #include <util/strencodings.h>
 #include <test/setup_common.h>
 

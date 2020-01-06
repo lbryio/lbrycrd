@@ -38,7 +38,8 @@ public:
     bool decrementBlock() override;
 
     bool getProofForName(const std::string& name, const uint160& claim, CClaimTrieProof& proof) override;
-    bool getInfoForName(const std::string& name, CClaimValue& claim, int heightOffset = 0) const override;
+    bool getInfoForName(const std::string& name, CClaimValue& claim, int heightOffset = 0) override;
+
     CClaimSupportToName getClaimsForName(const std::string& name) const override;
     std::string adjustNameForValidHeight(const std::string& name, int validHeight) const override;
 

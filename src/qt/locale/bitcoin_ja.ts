@@ -3383,10 +3383,6 @@ Note:  Since the fee is calculated on a per-byte basis, a fee of "100 satoshis p
         <translation>%s の読み込み中にエラーが発生しました！ 全ての鍵は正しく読み込めましたが、取引データやアドレス帳の項目が失われたか、正しくない可能性があります。</translation>
     </message>
     <message>
-        <source>Group outputs by address, selecting all or none, instead of selecting on a per-output basis. Privacy is improved as an address is only used once (unless someone sends to it after spending from it), but may result in slightly higher fees as suboptimal coin selection may result due to the added limitation (default: %u)</source>
-        <translation>出力ごとではなく、アドレス単位に出力をまとめて選択します。(後からまたそのアドレスに支払われない限り)アドレスが一度しか使用されないためプライバシーが向上します。ただし追加の制限により最適ではないコイン選択が発生した場合に、わずかに高い手数料となる可能性があります。(初期値: %u)</translation>
-    </message>
-    <message>
         <source>Please check that your computer's date and time are correct! If your clock is wrong, %s will not work properly.</source>
         <translation>お使いのコンピューターの日付と時刻が正しいことを確認してください！ PCの時計が正しくない場合 %s は正確に動作しません。</translation>
     </message>
@@ -3539,10 +3535,6 @@ Note:  Since the fee is calculated on a per-byte basis, a fee of "100 satoshis p
         <translation>未知のおつり用アドレス形式 '%s' です</translation>
     </message>
     <message>
-        <source>Specified blocks directory "%s" does not exist.</source>
-        <translation>指定のブロックディレクトリ"%s"は存在しません｡</translation>
-    </message>
-    <message>
         <source>Upgrading txindex database</source>
         <translation>txindex データベースの更新中</translation>
     </message>
@@ -3692,7 +3684,11 @@ Note:  Since the fee is calculated on a per-byte basis, a fee of "100 satoshis p
     </message>
     <message>
         <source>The specified config file %s does not exist
+</source>
         <translation>指定された設定ファイル %s が存在しません｡
+</translation>
+    </message>
+    <message>
         <source>The transaction amount is too small to pay the fee</source>
         <translation>取引の手数料差引後金額が小さすぎるため、送金できません。</translation>
     </message>

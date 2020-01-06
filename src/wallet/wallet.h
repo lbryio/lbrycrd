@@ -95,9 +95,6 @@ constexpr CAmount HIGH_MAX_TX_FEE{100 * HIGH_TX_FEE_PER_KB};
 //! Pre-calculated constants for input size estimation in *virtual size*
 static constexpr size_t DUMMY_NESTED_P2WPKH_INPUT_SIZE = 91;
 
-//! Pre-calculated constants for input size estimation in *virtual size*
-static constexpr size_t DUMMY_NESTED_P2WPKH_INPUT_SIZE = 91;
-
 class CCoinControl;
 class COutput;
 class CScript;
@@ -885,10 +882,10 @@ private:
      */
     uint256 m_last_block_processed GUARDED_BY(cs_wallet);
 
+public:
     //! Fetches a key from the keypool
     bool GetKeyFromPool(CPubKey &key, bool internal = false);
 
-public:
     /*
      * Main wallet lock.
      * This lock protects all the fields added by CWallet.
@@ -910,8 +907,6 @@ public:
      */
     bool SelectCoins(const std::vector<COutput>& vAvailableCoins, const CAmount& nTargetValue, std::set<CInputCoin>& setCoinsRet, CAmount& nValueRet,
                     const CCoinControl& coin_control, CoinSelectionParams& coin_selection_params, bool& bnb_used) const EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
-
-    const WalletLocation& GetLocation() const { return m_location; }
 
     const WalletLocation& GetLocation() const { return m_location; }
 

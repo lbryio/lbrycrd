@@ -21,6 +21,7 @@
 #include <primitives/transaction.h>
 #include <script/standard.h>
 #include <timedata.h>
+#include <validation.h>
 #include <util/moneystr.h>
 #include <util/system.h>
 #include <util/validation.h>
@@ -58,7 +59,7 @@ void blockToCache(const CBlock* pblock, CClaimTrieCache& trieCache, int nHeight)
 
     trieCache.initializeIncrement();
 
-    CCoinsViewCache view(pcoinsTip.get());
+    CCoinsViewCache view(&::ChainstateActive().CoinsTip());
 
     for (auto& tx : pblock->vtx)
         if (!tx->IsCoinBase())

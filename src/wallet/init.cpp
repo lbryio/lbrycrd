@@ -141,4 +141,5 @@ void WalletInit::Construct(InitInterfaces& interfaces) const
         wallets.pop_back();
         RemoveWallet(wallet);
         UnloadWallet(std::move(wallet));
+    }
 }

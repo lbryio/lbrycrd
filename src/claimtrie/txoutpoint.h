@@ -15,9 +15,9 @@ class COutPoint
 {
 public:
     uint256 hash;
-    uint32_t n = uint32_t(-1);
+    uint32_t n;
 
-    COutPoint() = default;
+    COutPoint() noexcept;
     COutPoint(COutPoint&&) = default;
     COutPoint(const COutPoint&) = default;
     COutPoint(uint256 hashIn, uint32_t nIn);

@@ -30,11 +30,6 @@
 #include <validationinterface.h>
 #include <versionbitsinfo.h>
 #include <warnings.h>
-#ifdef ENABLE_WALLET
-#include <wallet/rpcwallet.h>
-#include <wallet/wallet.h>
-#endif
-
 
 #include <memory>
 #include <stdint.h>
@@ -369,8 +364,6 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
     UniValue lpval = NullUniValue;
     std::set<std::string> setClientRules;
     int64_t nMaxVersionPreVB = -1;
-    UniValue aMutable(UniValue::VARR);
-    bool wantsCoinbaseTxn = false;
     if (!request.params[0].isNull())
     {
         const UniValue& oparam = request.params[0].get_obj();
@@ -384,17 +377,6 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
         else
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid mode");
         lpval = find_value(oparam, "longpollid");
-
-        const UniValue& capval = find_value(oparam, "capabilities");
-        if (capval.isArray()) {
-            for (std::size_t i = 0; i < capval.size(); ++i)
-                if (capval[i].get_str() == "coinbase/append") // should be coinbase/* ? we dont' care what they do to the coinbase
-                    aMutable.push_back(capval[i]);
-#ifdef ENABLE_WALLET
-                else if (capval[i].get_str() == "coinbasetxn")
-                    wantsCoinbaseTxn = true;
-#endif
-        }
 
         if (strMode == "proposal")
         {
@@ -524,20 +506,8 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
         nStart = GetTime();
 
         // Create new block
-        CScript newBlockScript = CScript() << OP_TRUE;
-#ifdef ENABLE_WALLET
-        if (wantsCoinbaseTxn) {
-            std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
-            if (!wallet)
-                throw JSONRPCError(RPC_INVALID_PARAMS, "No wallet to comply with coinbasetxn request.");
-            std::shared_ptr<CReserveScript> coinbase_script;
-            wallet->GetScriptForMining(coinbase_script); // tops up and locks inside
-            if (!coinbase_script)
-                throw JSONRPCError(RPC_INVALID_PARAMS, "Unable to acquire address for coinbasetxn request.");
-            newBlockScript = coinbase_script->reserveScript;
-        }
-#endif
-        pblocktemplate = BlockAssembler(Params()).CreateNewBlock(newBlockScript);
+        CScript scriptDummy = CScript() << OP_TRUE;
+        pblocktemplate = BlockAssembler(Params()).CreateNewBlock(scriptDummy);
         if (!pblocktemplate)
             throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
 
@@ -554,11 +524,10 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
 
     // NOTE: If at some point we support pre-segwit miners post-segwit-activation, this needs to take segwit support into consideration
     const bool fPreSegWit = (pindexPrev->nHeight + 1 < consensusParams.SegwitHeight);
-    if (!fPreSegWit && !fSupportsSegwit)
+    if (!fPreSegWit)
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Segwit support is now required. Please include \"segwit\" in the client's rules.");
 
     UniValue aCaps(UniValue::VARR); aCaps.push_back("proposal");
-    UniValue result(UniValue::VOBJ);
 
     UniValue transactions(UniValue::VARR);
     std::map<uint256, int64_t> setTxIndex;
@@ -568,8 +537,7 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
         uint256 txHash = tx.GetHash();
         setTxIndex[txHash] = i++;
 
-        auto isCoinbase = tx.IsCoinBase();
-        if (isCoinbase && !wantsCoinbaseTxn)
+        if (tx.IsCoinBase())
             continue;
 
         UniValue entry(UniValue::VOBJ);
@@ -596,10 +564,7 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
         entry.pushKV("sigops", nTxSigOps);
         entry.pushKV("weight", GetTransactionWeight(tx));
 
-        if (isCoinbase)
-            result.pushKV("coinbasetxn", entry);
-        else
-            transactions.push_back(entry);
+        transactions.push_back(entry);
     }
 
     UniValue aux(UniValue::VOBJ);
@@ -607,10 +572,12 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
 
     arith_uint256 hashTarget = arith_uint256().SetCompact(pblock->nBits);
 
+    UniValue aMutable(UniValue::VARR);
     aMutable.push_back("time");
     aMutable.push_back("transactions");
     aMutable.push_back("prevblock");
 
+    UniValue result(UniValue::VOBJ);
     result.pushKV("capabilities", aCaps);
 
     UniValue aRules(UniValue::VARR);
@@ -677,7 +644,6 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
     result.pushKV("mintime", (int64_t)pindexPrev->GetMedianTimePast()+1);
     result.pushKV("mutable", aMutable);
     result.pushKV("noncerange", "00000000ffffffff");
-
     int64_t nSigOpLimit = MAX_BLOCK_SIGOPS_COST;
     int64_t nSizeLimit = MAX_BLOCK_SERIALIZED_SIZE;
     if (fPreSegWit) {

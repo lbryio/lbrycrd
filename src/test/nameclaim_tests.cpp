@@ -2,7 +2,7 @@
 #include <core_io.h>
 #include <boost/test/unit_test.hpp>
 #include <primitives/transaction.h>
-#include <test/test_bitcoin.h>
+#include <test/setup_common.h>
 
 BOOST_FIXTURE_TEST_SUITE(nameclaim_tests, BasicTestingSetup)
 

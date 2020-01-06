@@ -355,7 +355,7 @@ int64_t CClaimTrieCacheBase::getTotalValueOfClaimsInTrie(bool fControllingOnly) 
     return ret;
 }
 
-bool CClaimTrieCacheBase::getInfoForName(const std::string& name, CClaimValue& claim, int heightOffset) const
+bool CClaimTrieCacheBase::getInfoForName(const std::string& name, CClaimValue& claim, int heightOffset)
 {
     auto ret = false;
     auto nextHeight = nNextHeight + heightOffset;
@@ -509,10 +509,11 @@ extern const std::string proofClaimQuery_s =
     "ORDER BY n.name";
 
 CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)
-    : base(base), db(base->dbFile, sharedConfig), transacting(false),
+    : base(base), db(base->dbFile, sharedConfig),
       childHashQuery(db << childHashQuery_s),
       claimHashQuery(db << claimHashQuery_s),
-      claimHashQueryLimit(db << claimHashQueryLimit_s)
+      claimHashQueryLimit(db << claimHashQueryLimit_s),
+      transacting(false)
 {
     assert(base);
     nNextHeight = base->nNextHeight;
@@ -900,7 +901,8 @@ void CClaimTrieCacheBase::getNamesInTrie(std::function<void(const std::string&)>
         };
 }
 
-std::vector<uint160> CClaimTrieCacheBase::getActivatedClaims(int height) {
+std::vector<uint160> CClaimTrieCacheBase::getActivatedClaims(int height) const
+{
     std::vector<uint160> ret;
     auto query = db << "SELECT DISTINCT claimID FROM claim WHERE activationHeight = ?1 AND blockHeight < ?1" << height;
     for (auto&& row: query) {
@@ -909,7 +911,9 @@ std::vector<uint160> CClaimTrieCacheBase::getActivatedClaims(int height) {
     }
     return ret;
 }
-std::vector<uint160> CClaimTrieCacheBase::getClaimsWithActivatedSupports(int height) {
+
+std::vector<uint160> CClaimTrieCacheBase::getClaimsWithActivatedSupports(int height) const
+{
     std::vector<uint160> ret;
     auto query = db << "SELECT DISTINCT supportedClaimID FROM support WHERE activationHeight = ?1 AND blockHeight < ?1" << height;
     for (auto&& row: query) {
@@ -918,7 +922,9 @@ std::vector<uint160> CClaimTrieCacheBase::getClaimsWithActivatedSupports(int hei
     }
     return ret;
 }
-std::vector<uint160> CClaimTrieCacheBase::getExpiredClaims(int height) {
+
+std::vector<uint160> CClaimTrieCacheBase::getExpiredClaims(int height) const
+{
     std::vector<uint160> ret;
     auto query = db << "SELECT DISTINCT claimID FROM claim WHERE expirationHeight = ?1 AND blockHeight < ?1" << height;
     for (auto&& row: query) {
@@ -927,7 +933,9 @@ std::vector<uint160> CClaimTrieCacheBase::getExpiredClaims(int height) {
     }
     return ret;
 }
-std::vector<uint160> CClaimTrieCacheBase::getClaimsWithExpiredSupports(int height) {
+
+std::vector<uint160> CClaimTrieCacheBase::getClaimsWithExpiredSupports(int height) const
+{
     std::vector<uint160> ret;
     auto query = db << "SELECT DISTINCT supportedClaimID FROM support WHERE expirationHeight = ?1 AND blockHeight < ?1" << height;
     for (auto&& row: query) {

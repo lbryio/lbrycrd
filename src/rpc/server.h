@@ -115,6 +115,19 @@ public:
     intptr_t unique_id;
 };
 
+class CRPCCaller
+{
+    const CRPCCommand::Actor& actor;
+public:
+    explicit CRPCCaller(const CRPCCommand::Actor& actor) : actor(actor) {}
+    UniValue operator()(const JSONRPCRequest& jsonRequest)
+    {
+        UniValue val;
+        assert(actor(jsonRequest, val, true));
+        return val;
+    }
+};
+
 /**
  * Bitcoin RPC command dispatcher.
  */
@@ -124,6 +137,7 @@ private:
     std::map<std::string, std::vector<const CRPCCommand*>> mapCommands;
 public:
     CRPCTable();
+    CRPCCaller operator[](const std::string& name) const;
     std::string help(const std::string& name, const JSONRPCRequest& helpreq) const;
 
     /**

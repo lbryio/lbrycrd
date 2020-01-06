@@ -6,14 +6,16 @@
 #include <logging.h>
 #include <nameclaim.h>
 #include <rpc/claimrpchelp.h>
+#include <rpc/protocol.h>
 #include <rpc/server.h>
+#include <rpc/util.h>
 #include <script/standard.h>
 #include <shutdown.h>
 #include <txdb.h>
 #include <txmempool.h>
 #include <undo.h>
 #include <univalue.h>
-#include <utilstrencodings.h>
+#include <util/strencodings.h>
 #include <validation.h>
 
 #include <boost/locale.hpp>
@@ -35,11 +37,10 @@ static CBlockIndex* BlockHashIndex(const uint256& blockHash)
 {
     AssertLockHeld(cs_main);
 
-    if (mapBlockIndex.count(blockHash) == 0)
+    CBlockIndex* pblockIndex = LookupBlockIndex(blockHash);
+    if (!pblockIndex)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
-
-    CBlockIndex* pblockIndex = mapBlockIndex[blockHash];
-    if (!chainActive.Contains(pblockIndex))
+    if (!::ChainActive().Contains(pblockIndex))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Block not in main chain");
 
     return pblockIndex;
@@ -47,17 +48,17 @@ static CBlockIndex* BlockHashIndex(const uint256& blockHash)
 
 #define MAX_RPC_BLOCK_DECREMENTS 500
 
-extern CChainState g_chainstate;
 void RollBackTo(const CBlockIndex* targetIndex, CCoinsViewCache& coinsCache, CClaimTrieCache& trieCache)
 {
     AssertLockHeld(cs_main);
 
-    const CBlockIndex* activeIndex = chainActive.Tip();
+    const CBlockIndex* activeIndex = ::ChainActive().Tip();
 
     if (activeIndex->nHeight > (targetIndex->nHeight + MAX_RPC_BLOCK_DECREMENTS))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Block is too deep");
 
-    const size_t currentMemoryUsage = pcoinsTip->DynamicMemoryUsage();
+    auto& chainstate = ::ChainstateActive();
+    const size_t currentMemoryUsage = chainstate.CoinsTip().DynamicMemoryUsage();
 
     for (; activeIndex && activeIndex != targetIndex; activeIndex = activeIndex->pprev) {
         boost::this_thread::interruption_point();
@@ -72,7 +73,7 @@ void RollBackTo(const CBlockIndex* targetIndex, CCoinsViewCache& coinsCache, CCl
         if (ShutdownRequested())
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Shutdown requested");
 
-        if (g_chainstate.DisconnectBlock(block, activeIndex, coinsCache, trieCache) != DisconnectResult::DISCONNECT_OK)
+        if (chainstate.DisconnectBlock(block, activeIndex, coinsCache, trieCache) != DisconnectResult::DISCONNECT_OK)
             throw JSONRPCError(RPC_INTERNAL_ERROR, strprintf("Failed to disconnect %s", block.ToString()));
     }
     trieCache.getMerkleHash(); // update the hash tree
@@ -246,8 +247,8 @@ static UniValue getnamesintrie(const JSONRPCRequest& request)
     validateRequest(request, GETNAMESINTRIE, 0, 1);
 
     LOCK(cs_main);
-    CCoinsViewCache coinsCache(pcoinsTip.get());
     CClaimTrieCache trieCache(pclaimTrie);
+    CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     if (!request.params.empty()) {
         CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(request.params[0], T_BLOCKHASH " (optional parameter 1)"));
@@ -271,8 +272,8 @@ static UniValue getvalueforname(const JSONRPCRequest& request)
     validateRequest(request, GETVALUEFORNAME, 1, 2);
 
     LOCK(cs_main);
-    CCoinsViewCache coinsCache(pcoinsTip.get());
     CClaimTrieCache trieCache(pclaimTrie);
+    CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     if (request.params.size() > 1) {
         CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(request.params[1], T_BLOCKHASH " (optional parameter 2)"));
@@ -319,8 +320,8 @@ UniValue getclaimsforname(const JSONRPCRequest& request)
     validateRequest(request, GETCLAIMSFORNAME, 1, 1);
 
     LOCK(cs_main);
-    CCoinsViewCache coinsCache(pcoinsTip.get());
     CClaimTrieCache trieCache(pclaimTrie);
+    CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     if (request.params.size() > 1) {
         CBlockIndex* blockIndex = BlockHashIndex(ParseHashV(request.params[1], T_BLOCKHASH " (optional parameter 2)"));
@@ -359,8 +360,8 @@ UniValue getclaimbybid(const JSONRPCRequest& request)
     validateRequest(request, GETCLAIMBYBID, 1, 2);
 
     LOCK(cs_main);
-    CCoinsViewCache coinsCache(pcoinsTip.get());
     CClaimTrieCache trieCache(pclaimTrie);
+    CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     int bid = 0;
     if (request.params.size() > 1)
@@ -402,8 +403,8 @@ UniValue getclaimbyseq(const JSONRPCRequest& request)
     validateRequest(request, GETCLAIMBYSEQ, 1, 2);
 
     LOCK(cs_main);
-    CCoinsViewCache coinsCache(pcoinsTip.get());
     CClaimTrieCache trieCache(pclaimTrie);
+    CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     int seq = 0;
     if (request.params.size() > 1)
@@ -448,7 +449,7 @@ UniValue getclaimbyid(const JSONRPCRequest& request)
 
     LOCK(cs_main);
     CClaimTrieCache trieCache(pclaimTrie);
-    CCoinsViewCache coinsCache(pcoinsTip.get());
+    CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     std::string claimId;
     ParseClaimtrieId(request.params[0], claimId, T_CLAIMID " (parameter 1)");
@@ -524,7 +525,8 @@ UniValue getclaimsfortx(const JSONRPCRequest& request)
     std::vector<std::vector<unsigned char> > vvchParams;
 
     CClaimTrieCache trieCache(pclaimTrie);
-    CCoinsViewCache view(pcoinsTip.get());
+    CCoinsViewCache view(&::ChainstateActive().CoinsTip());
+
     const Coin& coin = AccessByTxid(view, hash);
     std::vector<CTxOut> txouts{ coin.out };
     int nHeight = coin.nHeight;
@@ -551,7 +553,7 @@ UniValue getclaimsfortx(const JSONRPCRequest& request)
                 o.pushKV(T_VALUE, HexStr(vvchParams[2].begin(), vvchParams[2].end()));
         }
         if (nHeight > 0) {
-            o.pushKV(T_DEPTH, chainActive.Height() - nHeight);
+            o.pushKV(T_DEPTH, ::ChainActive().Height() - nHeight);
             if (op == OP_CLAIM_NAME || op == OP_UPDATE_CLAIM) {
                 bool inClaimTrie = trieCache.haveClaim(sName, COutPoint(hash, i));
                 o.pushKV(T_INCLAIMTRIE, inClaimTrie);
@@ -564,7 +566,7 @@ UniValue getclaimsfortx(const JSONRPCRequest& request)
                     int nValidAtHeight;
                     if (trieCache.haveClaimInQueue(sName, COutPoint(hash, i), nValidAtHeight)) {
                         o.pushKV(T_INQUEUE, true);
-                        o.pushKV(T_BLOCKSTOVALID, nValidAtHeight - chainActive.Height());
+                        o.pushKV(T_BLOCKSTOVALID, nValidAtHeight - ::ChainActive().Height());
                     } else
                         o.pushKV(T_INQUEUE, false);
                     }
@@ -575,7 +577,7 @@ UniValue getclaimsfortx(const JSONRPCRequest& request)
                     int nValidAtHeight;
                     if (trieCache.haveSupportInQueue(sName, COutPoint(hash, i), nValidAtHeight)) {
                         o.pushKV(T_INQUEUE, true);
-                        o.pushKV(T_BLOCKSTOVALID, nValidAtHeight - chainActive.Height());
+                        o.pushKV(T_BLOCKSTOVALID, nValidAtHeight - ::ChainActive().Height());
                     } else
                         o.pushKV(T_INQUEUE, false);
                 }
@@ -617,19 +619,19 @@ UniValue proofToJSON(const CClaimTrieProof& proof)
     }
 
     if (!nodes.empty())
-        result.push_back(Pair(T_NODES, nodes));
+        result.pushKV(T_NODES, nodes);
 
     UniValue pairs(UniValue::VARR);
 
     for (const auto& itPair : proof.pairs) {
         UniValue child(UniValue::VOBJ);
-        child.push_back(Pair(T_ODD, itPair.first));
-        child.push_back(Pair(T_HASH, itPair.second.GetHex()));
+        child.pushKV(T_ODD, itPair.first);
+        child.pushKV(T_HASH, itPair.second.GetHex());
         pairs.push_back(child);
     }
 
     if (!pairs.empty())
-        result.push_back(Pair(T_PAIRS, pairs));
+        result.pushKV(T_PAIRS, pairs);
 
     if (proof.hasValue) {
         result.pushKV(T_TXID, proof.outPoint.hash.GetHex());
@@ -644,10 +646,10 @@ UniValue getnameproof(const JSONRPCRequest& request)
     validateRequest(request, GETNAMEPROOF, 1, 2);
 
     LOCK(cs_main);
-    CCoinsViewCache coinsCache(pcoinsTip.get());
     CClaimTrieCache trieCache(pclaimTrie);
+    CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
-    int validHeight = chainActive.Tip()->nHeight;
+    int validHeight = ::ChainActive().Tip()->nHeight;
     if (request.params.size() > 1) {
         CBlockIndex* pblockIndex = BlockHashIndex(ParseHashV(request.params[1], T_BLOCKHASH " (optional parameter 2)"));
         RollBackTo(pblockIndex, coinsCache, trieCache);
@@ -681,8 +683,8 @@ UniValue getclaimproofbybid(const JSONRPCRequest& request)
     validateRequest(request, GETCLAIMPROOFBYBID, 1, 2);
 
     LOCK(cs_main);
-    CCoinsViewCache coinsCache(pcoinsTip.get());
     CClaimTrieCache trieCache(pclaimTrie);
+    CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     int bid = 0;
     if (request.params.size() > 1)
@@ -715,8 +717,8 @@ UniValue getclaimproofbyseq(const JSONRPCRequest& request)
     validateRequest(request, GETCLAIMPROOFBYSEQ, 1, 2);
 
     LOCK(cs_main);
-    CCoinsViewCache coinsCache(pcoinsTip.get());
     CClaimTrieCache trieCache(pclaimTrie);
+    CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     int seq = 0;
     if (request.params.size() > 1)
@@ -752,7 +754,7 @@ UniValue getchangesinblock(const JSONRPCRequest& request)
     CBlock block;
     LOCK(cs_main);
     bool allowSupportMetadata;
-    CCoinsViewCache coinsCache(pcoinsTip.get());
+    CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     UniValue claimsAddUp(UniValue::VARR),
             claimsRm(UniValue::VARR),
@@ -760,7 +762,7 @@ UniValue getchangesinblock(const JSONRPCRequest& request)
             supportsRm(UniValue::VARR);
 
     {
-        auto index = chainActive.Tip();
+        auto index = ::ChainActive().Tip();
         if (request.params.size() > 0)
             index = BlockHashIndex(ParseHashV(request.params[0], T_BLOCKHASH " (optional parameter)"));
 

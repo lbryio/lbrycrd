@@ -33,7 +33,7 @@ private:
 protected:
     bool Init() override;
 
-    bool CommitInternal(CDBBatch& batch) override;
+    bool CommitInternal() override;
 
     bool WriteBlock(const CBlock& block, const CBlockIndex* pindex) override;
 

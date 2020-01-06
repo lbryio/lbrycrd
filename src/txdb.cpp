@@ -23,8 +23,8 @@ static const sqlite::sqlite_config sharedConfig {
         nullptr, sqlite::Encoding::UTF8
 };
 
-CCoinsViewDB::CCoinsViewDB(size_t nCacheSize, bool fMemory, bool fWipe)
-    : db(fMemory ? ":memory:" : (GetDataDir() / "coins.sqlite").string(), sharedConfig)
+CCoinsViewDB::CCoinsViewDB(fs::path ldb_path, size_t nCacheSize, bool fMemory, bool fWipe)
+    : db(fMemory ? ":memory:" : (ldb_path / "coins.sqlite").string(), sharedConfig)
 {
     db << "PRAGMA cache_size=-" + std::to_string(nCacheSize >> 10); // in -KB
     db << "PRAGMA synchronous=OFF"; // don't disk sync after transaction commit
@@ -62,9 +62,7 @@ bool CCoinsViewDB::GetCoin(const COutPoint &outpoint, Coin &coin) const {
 bool CCoinsViewDB::HaveCoin(const COutPoint &outpoint) const {
     auto query = db << "SELECT 1 FROM coin "
                        "WHERE txID = ? and txN = ?" << outpoint.hash << outpoint.n;
-    for (auto&& row: query)
-        return true;
-    return false;
+    return query.begin() != query.end();
 }
 
 uint256 CCoinsViewDB::GetBestBlock() const {
@@ -380,12 +378,13 @@ bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, 
     return true;
 }
 
-bool CBlockTreeDB::WriteTxIndex(const std::vector<std::pair<uint256, CDiskTxPos>> &list) {
-    if (list.empty()) return true;
+bool CBlockTreeDB::WriteTxIndex(const FlatFilePos& file, const std::vector<std::pair<uint256, uint32_t>>& txOffsets)
+{
+    if (txOffsets.empty()) return true;
     db << "begin";
     auto query = db << "INSERT OR REPLACE INTO tx_to_block VALUES(?,?,?,?)";
-    for (auto& kvp: list) {
-        query << kvp.first << kvp.second.nFile << kvp.second.nPos << kvp.second.nTxOffset;
+    for (auto& kvp: txOffsets) {
+        query << kvp.first << file.nFile << file.nPos << kvp.second;
         query++;
     }
     query.used(true);
@@ -397,10 +396,11 @@ bool CBlockTreeDB::WriteTxIndex(const std::vector<std::pair<uint256, CDiskTxPos>
     return true;
 }
 
-bool CBlockTreeDB::ReadTxIndex(const uint256 &txid, CDiskTxPos &pos) {
+bool CBlockTreeDB::ReadTxIndex(const uint256 &txid, FlatFilePos &file, uint32_t& offset)
+{
     auto query = db << "SELECT file, blockPos, txPos FROM tx_to_block WHERE txID = ?" << txid;
     for (auto&& row: query) {
-        row >> pos.nFile >> pos.nPos >> pos.nTxOffset;
+        row >> file.nFile >> file.nPos >> offset;
         return true;
     }
     return false;

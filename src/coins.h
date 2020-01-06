@@ -40,8 +40,8 @@ public:
     uint32_t nHeight : 31;
 
     //! construct a Coin from a CTxOut and height/coinbase information.
-  Coin(CTxOut&& outIn, int nHeightIn, bool fCoinBaseIn) : out(std::move(outIn)), fCoinBase(fCoinBaseIn), nHeight(nHeightIn) {}
-  Coin(const CTxOut& outIn, int nHeightIn, bool fCoinBaseIn) : out(outIn), fCoinBase(fCoinBaseIn), nHeight(nHeightIn) {}
+    Coin(CTxOut&& outIn, int nHeightIn, bool fCoinBaseIn) : out(std::move(outIn)), fCoinBase(fCoinBaseIn), nHeight(nHeightIn) {}
+    Coin(const CTxOut& outIn, int nHeightIn, bool fCoinBaseIn) : out(outIn), fCoinBase(fCoinBaseIn),nHeight(nHeightIn) {}
 
     void Clear() {
         out.SetNull();
@@ -133,7 +133,6 @@ typedef std::unordered_map<COutPoint, CCoinsCacheEntry, SaltedOutpointHasher> CC
 /** Cursor for iterating over CoinsView state */
 class CCoinsViewCursor
 {
-    uint256 hashBlock;
 public:
     CCoinsViewCursor(const uint256 &hashBlockIn): hashBlock(hashBlockIn) {}
     virtual ~CCoinsViewCursor() noexcept {}
@@ -146,6 +145,8 @@ public:
 
     //! Get best block at the time this cursor was created
     const uint256 &GetBestBlock() const { return hashBlock; }
+private:
+    uint256 hashBlock;
 };
 
 /** Abstract view on the open txout dataset. */

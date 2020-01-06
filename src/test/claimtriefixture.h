@@ -17,18 +17,16 @@
 #include <rpc/claimrpchelp.h>
 #include <rpc/server.h>
 #include <streams.h>
-#include <test/test_bitcoin.h>
-#include <util.h>
+#include <test/setup_common.h>
 
 #include <boost/test/unit_test.hpp>
 #include <iostream>
 
-extern ::ArgsManager gArgs;
 extern std::vector<std::string> random_strings(std::size_t count);
 
-class CTransaction;
+class CMutableTransaction;
 CMutableTransaction BuildTransaction(const uint256& prevhash);
-CMutableTransaction BuildTransaction(const CTransaction& prev, uint32_t prevout=0, unsigned int numOutputs=1, int locktime=0);
+CMutableTransaction BuildTransaction(const CMutableTransaction& prev, uint32_t prevout=0, unsigned int numOutputs=1, int locktime=0);
 
 class BlockAssembler;
 BlockAssembler AssemblerForTest();
@@ -72,20 +70,20 @@ struct ClaimTrieChainFixture: public CClaimTrieCache
     void CommitTx(const CMutableTransaction &tx, bool has_locktime=false);
 
     // spend a bid into some non claimtrie related unspent
-    CMutableTransaction Spend(const CTransaction &prev);
+    CMutableTransaction Spend(const CMutableTransaction &prev);
 
     // make claim at the current block
-    CMutableTransaction MakeClaim(const CTransaction& prev, const std::string& name, const std::string& value, CAmount quantity, int locktime=0);
+    CMutableTransaction MakeClaim(const CMutableTransaction& prev, const std::string& name, const std::string& value, CAmount quantity, int locktime=0);
 
-    CMutableTransaction MakeClaim(const CTransaction& prev, const std::string& name, const std::string& value);
+    CMutableTransaction MakeClaim(const CMutableTransaction& prev, const std::string& name, const std::string& value);
 
     // make support at the current block
-    CMutableTransaction MakeSupport(const CTransaction &prev, const CTransaction &claimtx, const std::string& name, CAmount quantity);
+    CMutableTransaction MakeSupport(const CMutableTransaction &prev, const CMutableTransaction &claimtx, const std::string& name, CAmount quantity);
 
     // make update at the current block
-    CMutableTransaction MakeUpdate(const CTransaction &prev, const std::string& name, const std::string& value, const uint160& claimId, CAmount quantity);
+    CMutableTransaction MakeUpdate(const CMutableTransaction &prev, const std::string& name, const std::string& value, const uint160& claimId, CAmount quantity);
 
-    CTransaction& GetCoinbase();
+    CMutableTransaction GetCoinbase();
 
     // create i blocks
     void IncrementBlocks(int num_blocks, bool mark = false);
@@ -111,10 +109,10 @@ struct ClaimTrieChainFixture: public CClaimTrieCache
     int64_t nodeCount() const;
 
     // is a claim in queue
-    boost::test_tools::predicate_result is_claim_in_queue(const std::string& name, const CTransaction &tx);
+    boost::test_tools::predicate_result is_claim_in_queue(const std::string& name, const CMutableTransaction &tx);
 
     // check if tx is best claim based on outpoint
-    boost::test_tools::predicate_result is_best_claim(const std::string& name, const CTransaction &tx);
+    boost::test_tools::predicate_result is_best_claim(const std::string& name, const CMutableTransaction &tx);
 
     // check effective quantity of best claim
     boost::test_tools::predicate_result best_claim_effective_amount_equals(const std::string& name, CAmount amount);

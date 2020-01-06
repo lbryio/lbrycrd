@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <arith_uint256.h>
 #include <chainparams.h>
-
 #include <chainparamsseeds.h>
 #include <consensus/merkle.h>
 #include <tinyformat.h>
@@ -125,9 +125,9 @@ public:
         consensus.BIP66Height = 200000;
         consensus.powLimit = uint256S("0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 150; //retarget every block
-        consensus.CSVHeight = 419328; // 000000000000000004a1b34462cb8aeebd5799177f7a29cf28f2d1961716b5b5
-        consensus.SegwitHeight = 481824; // 0000000000000000001c8018d9cb3b742ef25114f27563e3fc4a1902167f9893
-        consensus.MinBIP9WarningHeight = 483840; // segwit activation height + miner confirmation window
+        consensus.CSVHeight = 200000;
+        consensus.SegwitHeight = 680770;
+        consensus.MinBIP9WarningHeight = 682786; // segwit activation height + miner confirmation window
         consensus.nPowTargetSpacing = 150;
         consensus.nOriginalClaimExpirationTime = 262974;
         consensus.nExtendedClaimExpirationTime = 2102400;
@@ -137,7 +137,6 @@ public:
         consensus.nNormalizedNameForkHeight = 539940; // targeting 21 March 2019
         consensus.nMinRemovalWorkaroundHeight = 297706;
         consensus.nMaxRemovalWorkaroundHeight = 100000000;
-        consensus.nWitnessForkHeight = 680770; // targeting 11 Dec 2019
         consensus.nAllClaimsInMerkleForkHeight = 658310; // targeting 30 Oct 2019
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
@@ -236,9 +235,9 @@ public:
         consensus.BIP66Height = 1200000;
         consensus.powLimit = uint256S("0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 150;
-        consensus.CSVHeight = 770112; // 00000000025e930139bac5c6c31a403776da130831ab85be56578f3fa75369bb
-        consensus.SegwitHeight = 834624; // 00000000002b980fcd729daaa248fd9316a5200e9b367f4ff2c42453e84201ca
-        consensus.MinBIP9WarningHeight = 836640; // segwit activation height + miner confirmation window
+        consensus.CSVHeight = 1200000;
+        consensus.SegwitHeight = 1198600;
+        consensus.MinBIP9WarningHeight = 1200616; // segwit activation height + miner confirmation window
         consensus.nPowTargetSpacing = 150;
         consensus.nOriginalClaimExpirationTime = 262974;
         consensus.nExtendedClaimExpirationTime = 2102400;
@@ -248,7 +247,6 @@ public:
         consensus.nNormalizedNameForkHeight = 993380;   // targeting, 21 Feb 2019
         consensus.nMinRemovalWorkaroundHeight = 99;
         consensus.nMaxRemovalWorkaroundHeight = 100000000;
-        consensus.nWitnessForkHeight = 1198600;
         consensus.nAllClaimsInMerkleForkHeight = 1198560; // targeting 30 Sep 2019
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = false;
@@ -334,8 +332,8 @@ public:
         consensus.BIP65Height = 1351; // BIP65 activated on regtest (Used in rpc activation tests)
         consensus.BIP66Height = 1251; // BIP66 activated on regtest (Used in rpc activation tests)
         consensus.CSVHeight = 432; // CSV activated on regtest (Used in rpc activation tests)
-        consensus.SegwitHeight = 0; // SEGWIT is always activated on regtest unless overridden
-        consensus.MinBIP9WarningHeight = 0;
+        consensus.SegwitHeight = 150; // SEGWIT is always activated on regtest unless overridden
+        consensus.MinBIP9WarningHeight = 294;
         consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 1;//14 * 24 * 60 * 60; // two weeks
         consensus.nPowTargetSpacing = 1;
@@ -347,7 +345,6 @@ public:
         consensus.nNormalizedNameForkHeight = 250; // SDK depends upon this number
         consensus.nMinRemovalWorkaroundHeight = -1;
         consensus.nMaxRemovalWorkaroundHeight = -1;
-        consensus.nWitnessForkHeight = 150;
         consensus.nAllClaimsInMerkleForkHeight = 350;
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;

@@ -4,6 +4,7 @@
 
 #include <coins.h>
 #include <claimscriptop.h>
+#include <logging.h>
 #include <nameclaim.h>
 
 CClaimScriptAddOp::CClaimScriptAddOp(const COutPoint& point, CAmount nValue, int nHeight)

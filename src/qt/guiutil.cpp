@@ -384,9 +384,6 @@ void bringToFront(QWidget* w)
     }
 }
 
-    }
-}
-
 void openDebugLogfile()
 {
     fs::path pathDebug = GetDataDir() / "debug.log";

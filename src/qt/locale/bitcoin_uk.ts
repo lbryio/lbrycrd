@@ -3605,7 +3605,10 @@ Note:  Since the fee is calculated on a per-byte basis, a fee of "100 satoshis p
     </message>
     <message>
         <source>The specified config file %s does not exist
+</source>
         <translation>Зазначений файл конфігурації %s не існує</translation>
+    </message>
+    <message>
         <source>The transaction amount is too small to pay the fee</source>
         <translation>Неможливо сплатити комісію із-за малої суми транзакції</translation>
     </message>

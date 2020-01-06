@@ -3684,7 +3684,11 @@ Poznámka: Keďže poplatok je počítaný za bajt, poplatok o hodnote "100 sato
     </message>
     <message>
         <source>The specified config file %s does not exist
+</source>
         <translation>Zadaný konfiguračný súbor %s neexistuje
+</translation>
+    </message>
+    <message>
         <source>The transaction amount is too small to pay the fee</source>
         <translation>Suma transakcie je príliš malá na zaplatenie poplatku</translation>
     </message>

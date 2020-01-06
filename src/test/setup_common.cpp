@@ -16,6 +16,7 @@
 #include <miner.h>
 #include <net.h>
 #include <noui.h>
+#include <policy/policy.h>
 #include <pow.h>
 #include <rpc/register.h>
 #include <rpc/server.h>
@@ -31,9 +32,6 @@
 #include <validationinterface.h>
 
 #include <functional>
-#include <boost/test/unit_test.hpp>
-#include <boost/test/unit_test_parameters.hpp>
-
 
 const std::function<std::string(const char*)> G_TRANSLATION_FUN = nullptr;
 
