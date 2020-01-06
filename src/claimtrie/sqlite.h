@@ -62,7 +62,7 @@ namespace sqlite
         int code = SQLITE_OK;
         for (auto i = 0u; i < attempts; ++i) {
             try {
-                db << "commit";
+                db << "COMMIT";
             } catch (const sqlite_exception& e) {
                 code = e.get_code();
                 if (code == SQLITE_LOCKED || code == SQLITE_BUSY) {
