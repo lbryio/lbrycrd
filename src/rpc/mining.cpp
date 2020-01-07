@@ -431,11 +431,12 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
             throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
 
         if (g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0)
-        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, PACKAGE_NAME " is not connected!");
+            throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, PACKAGE_NAME " is not connected!");
 
-    if (::ChainstateActive().IsInitialBlockDownload())
-        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, PACKAGE_NAME " is in initial sync and waiting for blocks...");
+        if (::ChainstateActive().IsInitialBlockDownload())
+            throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, PACKAGE_NAME " is in initial sync and waiting for blocks...");
     }
+
     static unsigned int nTransactionsUpdatedLast;
 
     if (!lpval.isNull())
@@ -485,11 +486,6 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
         // TODO: Maybe recheck connections/IBD and (if something wrong) send an expires-immediately template to stop miners?
     }
 
-    // GBT must be called with 'segwit' set in the rules
-    if (setClientRules.count("segwit") != 1) {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "getblocktemplate must be called with the segwit rule set (call with {\"rules\": [\"segwit\"]})");
-    }
-
     // Update block
     static CBlockIndex* pindexPrev;
     static int64_t nStart;
@@ -524,7 +520,7 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
 
     // NOTE: If at some point we support pre-segwit miners post-segwit-activation, this needs to take segwit support into consideration
     const bool fPreSegWit = (pindexPrev->nHeight + 1 < consensusParams.SegwitHeight);
-    if (!fPreSegWit)
+    if (!fPreSegWit && setClientRules.count("segwit") != 1)
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Segwit support is now required. Please include \"segwit\" in the client's rules.");
 
     UniValue aCaps(UniValue::VARR); aCaps.push_back("proposal");

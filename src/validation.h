@@ -769,9 +769,6 @@ BlockMap& BlockIndex();
 // directly, e.g. init.cpp.
 extern std::unique_ptr<CChainState> g_chainstate;
 
-/** Global variable that points to the active CClaimTrie (protected by cs_main) */
-extern CClaimTrie *pclaimTrie;
-
 /** Global variable that points to the active block tree (protected by cs_main) */
 extern std::unique_ptr<CBlockTreeDB> pblocktree;
 
