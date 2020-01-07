@@ -76,10 +76,11 @@ static CBlock CreateBlock(const CBlockIndex* prev,
     std::unique_ptr<CBlockTemplate> pblocktemplate = BlockAssembler(chainparams).CreateNewBlock(scriptPubKey);
     CBlock& block = pblocktemplate->block;
     block.hashPrevBlock = prev->GetBlockHash();
+    block.hashClaimTrie = uint256S("0x0000000000000000000000000000000000000000000000000000000000000001");
     block.nTime = prev->nTime + 1;
 
     // Replace mempool-selected txns with just coinbase plus passed-in txns:
-    block.vtx.resize(1);
+    block.vtx.resize(1); // coinbase TXN
     for (const CMutableTransaction& tx : txns) {
         block.vtx.push_back(MakeTransactionRef(tx));
     }
@@ -87,7 +88,7 @@ static CBlock CreateBlock(const CBlockIndex* prev,
     unsigned int extraNonce = 0;
     IncrementExtraNonce(&block, prev, extraNonce);
 
-    while (!CheckProofOfWork(block.GetHash(), block.nBits, chainparams.GetConsensus())) ++block.nNonce;
+    while (!CheckProofOfWork(block.GetPoWHash(), block.nBits, chainparams.GetConsensus())) ++block.nNonce;
 
     return block;
 }

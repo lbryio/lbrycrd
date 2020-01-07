@@ -60,7 +60,10 @@ BlockFilterIndex::BlockFilterIndex(BlockFilterType filter_type,
 
 bool BlockFilterIndex::Init()
 {
-    m_db->ReadFilePos(m_next_filter_pos);
+    if (!m_db->ReadFilePos(m_next_filter_pos)) {
+        m_next_filter_pos.nFile = 0;
+        m_next_filter_pos.nPos = 0;
+    }
     return BaseIndex::Init();
 }
 
@@ -175,7 +178,8 @@ bool BlockFilterIndex::WriteBlock(const CBlock& block, const CBlockIndex* pindex
     BlockFilter filter(m_filter_type, block, block_undo);
 
     size_t bytes_written = WriteFilterToDisk(m_next_filter_pos, filter);
-    if (bytes_written == 0) return false;
+    if (bytes_written == 0)
+        return false;
 
     (*m_db) << "INSERT INTO block VALUES(?, ?, ?, ?, ?, ?)"
             << pindex->nHeight
@@ -185,7 +189,7 @@ bool BlockFilterIndex::WriteBlock(const CBlock& block, const CBlockIndex* pindex
             << m_next_filter_pos.nFile
             << m_next_filter_pos.nPos;
 
-    if (!(m_db->rows_modified() > 0)) {
+    if (m_db->rows_modified() <= 0) {
         return false;
     }
 
@@ -193,10 +197,11 @@ bool BlockFilterIndex::WriteBlock(const CBlock& block, const CBlockIndex* pindex
     return true;
 }
 
-static bool CopyHeightIndexToHashIndex(sqlite::database& db,
-                                       int start_height, int stop_height)
+static bool CopyHeightIndexToHashIndex(sqlite::database& db, int start_height, int stop_height)
 {
-    db << "UPDATE block SET height = NULL WHERE height >= ? and height <= ?"
+    if (start_height > stop_height)
+        return true;
+    db << "UPDATE block SET height = NULL WHERE height BETWEEN ? AND ?"
         << start_height << stop_height;
     return db.rows_modified() > 0;
 }
