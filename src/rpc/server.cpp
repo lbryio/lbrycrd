@@ -439,6 +439,11 @@ UniValue CRPCTable::execute(const JSONRPCRequest &request) const
     throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Method not found");
 }
 
+void CRPCTable::clear()
+{
+    mapCommands.clear();
+}
+
 CRPCCaller CRPCTable::operator[](const std::string &name) const
 {
     auto it = mapCommands.find(name);

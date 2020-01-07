@@ -611,7 +611,7 @@ void ListNameClaims(interfaces::Chain::Lock& locked_chain, const CWalletTx& wtx,
         entry.pushKV("vout", s.vout);
         entry.pushKV("fee", ValueFromAmount(nFee));
 
-        CClaimTrieCache trieCache(pclaimTrie);
+        auto trieCache = ::ClaimtrieCache();
 
         if (auto pindex = LookupBlockIndex(wtx.m_confirm.hashBlock))
         {
@@ -757,7 +757,7 @@ UniValue supportclaim(const JSONRPCRequest& request)
     LOCK2(cs_main, pwallet->cs_wallet);
     EnsureWalletIsUnlocked(pwallet);
 
-    CClaimTrieCache trieCache(pclaimTrie);
+    auto trieCache = ::ClaimtrieCache();
     auto csToName = trieCache.getClaimsForName(sName);
     if (csToName.claimsNsupports.empty())
         throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Unable to find a claim named %s", sName));

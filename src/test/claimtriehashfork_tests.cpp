@@ -288,7 +288,7 @@ BOOST_AUTO_TEST_CASE(value_proof_test)
     // create a claim. verify the expiration event has been scheduled.
     fixture.IncrementBlocks(5, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.getInfoForName(sName1, val));
     BOOST_CHECK_EQUAL(val.outPoint, tx1OutPoint);
@@ -358,7 +358,7 @@ BOOST_AUTO_TEST_CASE(value_proof_test)
     BOOST_CHECK_EQUAL(proof.hasValue, false);
 
     fixture.DecrementBlocks();
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 }
 

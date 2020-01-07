@@ -190,7 +190,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     pblocktemplate->vTxSigOpsCost[0] = WITNESS_SCALE_FACTOR * GetLegacySigOpCount(*pblock->vtx[0]);
 
     {
-        CClaimTrieCache trieCache(pclaimTrie);
+        auto trieCache = ::ClaimtrieCache();
         blockToCache(pblock, trieCache, nHeight);
         pblock->hashClaimTrie = trieCache.getMerkleHash();
     }

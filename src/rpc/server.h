@@ -117,9 +117,9 @@ public:
 
 class CRPCCaller
 {
-    const CRPCCommand::Actor& actor;
+    const CRPCCommand::Actor actor;
 public:
-    explicit CRPCCaller(const CRPCCommand::Actor& actor) : actor(actor) {}
+    explicit CRPCCaller(CRPCCommand::Actor actor) : actor(std::move(actor)) {}
     UniValue operator()(const JSONRPCRequest& jsonRequest)
     {
         UniValue val;
@@ -154,6 +154,11 @@ public:
     */
     std::vector<std::string> listCommands() const;
 
+    /**
+     * Clear all mapped command
+     * used in tests
+     */
+    void clear();
 
     /**
      * Appends a CRPCCommand to the dispatch table.

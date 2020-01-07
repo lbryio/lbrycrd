@@ -347,7 +347,7 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     COutPoint tx1OutPoint(tx1.GetHash(), 0);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.expirationQueueEmpty());
 
@@ -355,47 +355,47 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
 
     fixture.IncrementBlocks(79); // 80
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.expirationQueueEmpty());
 
     fixture.IncrementBlocks(1); // 81
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.expirationQueueEmpty());
 
     // roll forward a bit and then roll back to before the expiration event. verify the claim is reinserted. verify the expiration event is scheduled again.
     fixture.IncrementBlocks(20); // 101
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.expirationQueueEmpty());
 
     fixture.DecrementBlocks(21); // 80
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.expirationQueueEmpty());
 
     // advance until the expiration event occurs. verify the expiration event occurs on time.
     fixture.IncrementBlocks(1); // 81
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.expirationQueueEmpty());
 
     // roll back to before the expiration event. verify the claim is reinserted. verify the expiration event is scheduled again.
     fixture.DecrementBlocks(2); // 79
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.expirationQueueEmpty());
 
     // roll back some more.
     fixture.DecrementBlocks(39); // 40
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.expirationQueueEmpty());
 
@@ -403,27 +403,27 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     CMutableTransaction tx2 = fixture.Spend(tx1);
     fixture.IncrementBlocks(1); // 41
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.expirationQueueEmpty());
 
     // roll back the spend. verify the expiration event is returned.
     fixture.DecrementBlocks(1); // 40
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.expirationQueueEmpty());
 
     // advance until the expiration event occurs. verify the event occurs on time.
     fixture.IncrementBlocks(40); // 80
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.expirationQueueEmpty());
 
     fixture.IncrementBlocks(1); // 81
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.expirationQueueEmpty());
 
@@ -431,42 +431,42 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     fixture.CommitTx(tx2);
     fixture.IncrementBlocks(1); // 82
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.expirationQueueEmpty());
 
     // undo the spend. verify everything remains empty.
     fixture.DecrementBlocks(1); // 81
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.expirationQueueEmpty());
 
     // roll back to before the expiration event. verify the claim is reinserted. verify the expiration event is scheduled again.
     fixture.DecrementBlocks(1); // 80
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.expirationQueueEmpty());
 
     // verify the expiration event happens at the right time again
     fixture.IncrementBlocks(1); // 81
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.expirationQueueEmpty());
 
     // roll back to before the expiration event. verify it gets reinserted and expiration gets scheduled.
     fixture.DecrementBlocks(1); // 80
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.expirationQueueEmpty());
 
     // roll all the way back. verify the claim is removed and the expiration event is removed.
     fixture.DecrementBlocks(); // 0
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.expirationQueueEmpty());
 
@@ -478,7 +478,7 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1, true); // 1
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.expirationQueueEmpty());
 
@@ -488,7 +488,7 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     COutPoint tx3OutPoint(tx3.GetHash(), 0);
     fixture.IncrementBlocks(1); // 6
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
     BOOST_CHECK(!fixture.expirationQueueEmpty());
 
@@ -500,7 +500,7 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
 
     fixture.IncrementBlocks(1); // 11
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.expirationQueueEmpty());
     BOOST_CHECK(fixture.getInfoForName(sName, val));
@@ -513,7 +513,7 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     // advance again until tx is valid
     fixture.IncrementBlocks(1); // 11
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.expirationQueueEmpty());
     BOOST_CHECK(fixture.getInfoForName(sName, val));
@@ -523,13 +523,13 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     // advance until the expiration event occurs. verify the expiration event occurs on time.
     fixture.IncrementBlocks(69, true); // 80
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.expirationQueueEmpty());
 
     fixture.IncrementBlocks(1); // 81
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.expirationQueueEmpty());
     BOOST_CHECK(fixture.getInfoForName(sName, val));
@@ -543,7 +543,7 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
     // roll back to when tx1 and tx3 are in the trie and tx1 is winning
     fixture.DecrementBlocks(); // 11
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.expirationQueueEmpty());
     BOOST_CHECK(fixture.getInfoForName(sName, val));
@@ -552,7 +552,7 @@ BOOST_AUTO_TEST_CASE(claim_expiration_test)
 
     // roll all the way back
     fixture.DecrementBlocks();
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.expirationQueueEmpty());
 }
@@ -580,7 +580,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
 
     auto* pcoinsTip = &::ChainstateActive().CoinsTip();
     BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -589,7 +589,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     CMutableTransaction tx3 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, sName, 5);
     fixture.IncrementBlocks(1); // 2, expires at 82
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -600,7 +600,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), sName, sValue2, 5);
     fixture.IncrementBlocks(1); // 22, activating in (22 - 2) / 1 = 20block (but not then active because support still holds tx1 up)
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -609,7 +609,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     // Advance until tx2 is valid
     fixture.IncrementBlocks(20); // 42
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -617,7 +617,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
 
     fixture.IncrementBlocks(1); // 43
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -631,7 +631,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
 
     fixture.IncrementBlocks(1); // 104
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -642,7 +642,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     // Advance until the support expires
     fixture.IncrementBlocks(37); // 81
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -650,7 +650,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
 
     fixture.IncrementBlocks(1); // 82
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -662,7 +662,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     // undo the block, make sure control goes back
     fixture.DecrementBlocks(1); // 81
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -673,7 +673,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     // redo the block, make sure it expires again
     fixture.IncrementBlocks(1); // 82
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -686,7 +686,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
 
     fixture.DecrementBlocks(19); // 63
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -699,7 +699,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
 
     blocks_to_invalidate.push_back(::ChainActive().Tip()->GetBlockHash());
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -708,7 +708,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
 
     fixture.IncrementBlocks(20); // 84
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -719,7 +719,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
 
     fixture.DecrementBlocks(21); // 63
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -728,7 +728,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
 
     fixture.IncrementBlocks(18); // 81
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -737,7 +737,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
 
     fixture.IncrementBlocks(1); // 82
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -747,7 +747,7 @@ BOOST_AUTO_TEST_CASE(expiring_supports_test)
     // roll all the way back
     fixture.DecrementBlocks(82);
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());

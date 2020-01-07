@@ -88,6 +88,7 @@ BlockManager g_blockman;
 } // anon namespace
 
 std::unique_ptr<CChainState> g_chainstate;
+std::unique_ptr<CClaimTrie> g_claimtrie;
 
 CChainState& ChainstateActive() {
     assert(g_chainstate);
@@ -97,6 +98,32 @@ CChain& ChainActive() {
     assert(g_chainstate);
     return g_chainstate->m_chain;
 }
+
+CClaimTrie& Claimtrie() {
+    if (!g_claimtrie) {
+        int64_t nTotalCache = gArgs.GetArg("-dbcache", nDefaultDbCache) << 20;
+        auto fReindexChainState = gArgs.GetBoolArg("-reindex-chainstate", false);
+        auto fReindex = gArgs.GetBoolArg("-reindex", false);
+        auto& consensus = Params().GetConsensus();
+        g_claimtrie = std::make_unique<CClaimTrie>(nTotalCache / 4,
+                                fReindex || fReindexChainState, 0,
+                                GetDataDir().string(),
+                                consensus.nNormalizedNameForkHeight,
+                                consensus.nMinRemovalWorkaroundHeight,
+                                consensus.nMaxRemovalWorkaroundHeight,
+                                consensus.nOriginalClaimExpirationTime,
+                                consensus.nExtendedClaimExpirationTime,
+                                consensus.nExtendedClaimExpirationForkHeight,
+                                consensus.nAllClaimsInMerkleForkHeight,
+                                Params().NetworkIDString() == CBaseChainParams::MAIN ? 32 : 1);
+    };
+    return *g_claimtrie;
+}
+
+CClaimTrieCache ClaimtrieCache() {
+    return CClaimTrieCache(&::Claimtrie());
+}
+
 
 /**
  * Mutex to guard access to validation specific variables, such as reading
@@ -186,8 +213,6 @@ CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& loc
 }
 
 std::unique_ptr<CBlockTreeDB> pblocktree;
-// FIXME: make unique_ptr
-CClaimTrie *pclaimTrie = nullptr;
 
 // See definition for documentation
 static void FindFilesToPruneManual(std::set<int>& setFilesToPrune, int nManualPruneHeight);
@@ -2467,7 +2492,7 @@ bool CChainState::FlushStateToDisk(
             if (!CheckDiskSpace(GetDataDir(), 48 * 2 * 2 * CoinsTip().GetCacheSize())) {
                 return AbortNode(state, "Disk space is too low!", _("Error: Disk space is too low!").translated, CClientUIInterface::MSG_NOPREFIX);
             }
-            if (mode == FlushStateMode::ALWAYS && !pclaimTrie->SyncToDisk())
+            if (mode == FlushStateMode::ALWAYS && !::Claimtrie().SyncToDisk())
                 return state.Error("Failed to write to claim trie database");
             // Flush the chainstate (which may refer to block index entries).
             if (!CoinsTip().Flush(mode == FlushStateMode::ALWAYS))
@@ -2605,7 +2630,7 @@ bool CChainState::DisconnectTip(CValidationState& state, const CChainParams& cha
     int64_t nStart = GetTimeMicros();
     {
         CCoinsViewCache view(&CoinsTip());
-        CClaimTrieCache trieCache(pclaimTrie);
+        auto trieCache = ::ClaimtrieCache();
         assert(view.GetBestBlock() == pindexDelete->GetBlockHash());
         if (DisconnectBlock(block, pindexDelete, view, trieCache) != DISCONNECT_OK)
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
@@ -2736,7 +2761,7 @@ bool CChainState::ConnectTip(CValidationState& state, const CChainParams& chainp
     LogPrint(BCLog::BENCH, "  - Load block from disk: %.2fms [%.2fs]\n", (nTime2 - nTime1) * MILLI, nTimeReadFromDisk * MICRO);
     {
         CCoinsViewCache view(&CoinsTip());
-        CClaimTrieCache trieCache(pclaimTrie);
+        auto trieCache = ::ClaimtrieCache();
         bool rv = ConnectBlock(blockConnecting, state, pindexNew, view, trieCache, chainparams);
         GetMainSignals().BlockChecked(blockConnecting, state);
         if (!rv) {
@@ -3973,7 +3998,7 @@ bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams,
     AssertLockHeld(cs_main);
     assert(pindexPrev && pindexPrev == ::ChainActive().Tip());
     CCoinsViewCache viewNew(&::ChainstateActive().CoinsTip());
-    CClaimTrieCache trieCache(pclaimTrie);
+    auto trieCache = ::ClaimtrieCache();
     uint256 block_hash(block.GetHash());
     CBlockIndex indexDummy(block);
     indexDummy.pprev = pindexPrev;
@@ -4373,7 +4398,7 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
     nCheckLevel = std::max(0, std::min(4, nCheckLevel));
     LogPrintf("Verifying last %i blocks at level %i\n", nCheckDepth, nCheckLevel);
     CCoinsViewCache coins(coinsview);
-    CClaimTrieCache trieCache(pclaimTrie);
+    auto trieCache = ::ClaimtrieCache();
     CBlockIndex* pindex;
     CBlockIndex* pindexFailure = nullptr;
     int nGoodTransactions = 0;
@@ -4489,7 +4514,7 @@ bool CChainState::ReplayBlocks(const CChainParams& params)
 
     CCoinsView& db = this->CoinsDB();
     CCoinsViewCache cache(&db);
-    CClaimTrieCache trieCache(pclaimTrie);
+    auto trieCache = ::ClaimtrieCache();
 
     std::vector<uint256> hashHeads = db.GetHeadBlocks();
     if (hashHeads.empty()) return true; // We're already in a consistent state.

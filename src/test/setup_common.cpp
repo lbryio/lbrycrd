@@ -120,15 +120,6 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
         g_chainstate = MakeUnique<CChainState>();
         ::ChainstateActive().InitCoinsDB(
             /* cache_size_bytes */ 1 << 23, /* in_memory */ true, /* should_wipe */ false);
-        auto &consensus = chainparams.GetConsensus();
-        pclaimTrie = new CClaimTrie(20000000U, true, 0, GetDataDir().string(),
-                                    consensus.nNormalizedNameForkHeight,
-                                    consensus.nMinRemovalWorkaroundHeight,
-                                    consensus.nMaxRemovalWorkaroundHeight,
-                                    consensus.nOriginalClaimExpirationTime,
-                                    consensus.nExtendedClaimExpirationTime,
-                                    consensus.nExtendedClaimExpirationForkHeight,
-                                    consensus.nAllClaimsInMerkleForkHeight, 1);
         assert(!::ChainstateActive().CanFlushToDisk());
         ::ChainstateActive().InitCoinsCache();
         assert(::ChainstateActive().CanFlushToDisk());
@@ -154,8 +145,11 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
     }
 }
 
+extern std::unique_ptr<CClaimTrie> g_claimtrie;
+
 TestingSetup::~TestingSetup()
 {
+    tableRPC.clear();
     threadGroup.interrupt_all();
     threadGroup.join_all();
     GetMainSignals().FlushBackgroundCallbacks();
@@ -164,8 +158,8 @@ TestingSetup::~TestingSetup()
     g_banman.reset();
     UnloadBlockIndex();
     g_chainstate.reset();
+    g_claimtrie.reset();
     pblocktree.reset();
-        delete pclaimTrie;
 }
 
 TestChain100Setup::TestChain100Setup() : TestingSetup(CBaseChainParams::REGTEST)

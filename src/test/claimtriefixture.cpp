@@ -74,7 +74,7 @@ BlockAssembler AssemblerForTest()
     return BlockAssembler(Params(), options);
 }
 
-ClaimTrieChainFixture::ClaimTrieChainFixture() : CClaimTrieCache(pclaimTrie),
+ClaimTrieChainFixture::ClaimTrieChainFixture() : CClaimTrieCache(&::Claimtrie()),
     unique_block_counter(0), normalization_original(-1), expirationForkHeight(-1), forkhash_original(-1),
     minRemovalWorkaroundHeight(-1), maxRemovalWorkaroundHeight(-1)
 {

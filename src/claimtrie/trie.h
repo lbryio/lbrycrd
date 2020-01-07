@@ -43,10 +43,11 @@ public:
 
     bool empty();
     bool SyncToDisk();
+    std::size_t cache();
 
 protected:
     int nNextHeight;
-    std::size_t dbCacheBytes;
+    const std::size_t dbCacheBytes;
     const std::string dbFile;
     sqlite::database db;
     const int nProportionalDelayFactor;
@@ -63,7 +64,9 @@ protected:
 class CClaimTrieCacheBase
 {
 public:
+    CClaimTrieCacheBase(CClaimTrieCacheBase&& o);
     explicit CClaimTrieCacheBase(CClaimTrie* base);
+
     virtual ~CClaimTrieCacheBase();
 
     bool flush();

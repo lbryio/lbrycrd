@@ -247,7 +247,7 @@ static UniValue getnamesintrie(const JSONRPCRequest& request)
     validateRequest(request, GETNAMESINTRIE, 0, 1);
 
     LOCK(cs_main);
-    CClaimTrieCache trieCache(pclaimTrie);
+    auto trieCache = ::ClaimtrieCache();
     CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     if (!request.params.empty()) {
@@ -272,7 +272,7 @@ static UniValue getvalueforname(const JSONRPCRequest& request)
     validateRequest(request, GETVALUEFORNAME, 1, 2);
 
     LOCK(cs_main);
-    CClaimTrieCache trieCache(pclaimTrie);
+    auto trieCache = ::ClaimtrieCache();
     CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     if (request.params.size() > 1) {
@@ -320,7 +320,7 @@ UniValue getclaimsforname(const JSONRPCRequest& request)
     validateRequest(request, GETCLAIMSFORNAME, 1, 1);
 
     LOCK(cs_main);
-    CClaimTrieCache trieCache(pclaimTrie);
+    auto trieCache = ::ClaimtrieCache();
     CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     if (request.params.size() > 1) {
@@ -360,7 +360,7 @@ UniValue getclaimbybid(const JSONRPCRequest& request)
     validateRequest(request, GETCLAIMBYBID, 1, 2);
 
     LOCK(cs_main);
-    CClaimTrieCache trieCache(pclaimTrie);
+    auto trieCache = ::ClaimtrieCache();
     CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     int bid = 0;
@@ -403,7 +403,7 @@ UniValue getclaimbyseq(const JSONRPCRequest& request)
     validateRequest(request, GETCLAIMBYSEQ, 1, 2);
 
     LOCK(cs_main);
-    CClaimTrieCache trieCache(pclaimTrie);
+    auto trieCache = ::ClaimtrieCache();
     CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     int seq = 0;
@@ -448,7 +448,7 @@ UniValue getclaimbyid(const JSONRPCRequest& request)
     validateRequest(request, GETCLAIMBYID, 1, 0);
 
     LOCK(cs_main);
-    CClaimTrieCache trieCache(pclaimTrie);
+    auto trieCache = ::ClaimtrieCache();
     CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     std::string claimId;
@@ -485,7 +485,7 @@ UniValue gettotalclaimednames(const JSONRPCRequest& request)
     validateRequest(request, GETTOTALCLAIMEDNAMES, 0, 0);
 
     LOCK(cs_main);
-    CClaimTrieCache trieCache(pclaimTrie); // TODO: add rollback support here
+    auto trieCache = ::ClaimtrieCache(); // TODO: add rollback support here
     auto num_names = trieCache.getTotalNamesInTrie();
     return int(num_names);
 }
@@ -495,7 +495,7 @@ UniValue gettotalclaims(const JSONRPCRequest& request)
     validateRequest(request, GETTOTALCLAIMS, 0, 0);
 
     LOCK(cs_main);
-    CClaimTrieCache trieCache(pclaimTrie); // TODO: add rollback support here
+    auto trieCache = ::ClaimtrieCache(); // TODO: add rollback support here
     auto num_claims = trieCache.getTotalClaimsInTrie();
     return int(num_claims);
 }
@@ -508,7 +508,7 @@ UniValue gettotalvalueofclaims(const JSONRPCRequest& request)
     bool controlling_only = false;
     if (request.params.size() == 1)
         controlling_only = request.params[0].get_bool();
-    CClaimTrieCache trieCache(pclaimTrie); // TODO: add rollback support here
+    auto trieCache = ::ClaimtrieCache(); // TODO: add rollback support here
     auto total_amount = trieCache.getTotalValueOfClaimsInTrie(controlling_only);
     return ValueFromAmount(total_amount);
 }
@@ -524,7 +524,7 @@ UniValue getclaimsfortx(const JSONRPCRequest& request)
     int op;
     std::vector<std::vector<unsigned char> > vvchParams;
 
-    CClaimTrieCache trieCache(pclaimTrie);
+    auto trieCache = ::ClaimtrieCache();
     CCoinsViewCache view(&::ChainstateActive().CoinsTip());
 
     const Coin& coin = AccessByTxid(view, hash);
@@ -646,7 +646,7 @@ UniValue getnameproof(const JSONRPCRequest& request)
     validateRequest(request, GETNAMEPROOF, 1, 2);
 
     LOCK(cs_main);
-    CClaimTrieCache trieCache(pclaimTrie);
+    auto trieCache = ::ClaimtrieCache();
     CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     int validHeight = ::ChainActive().Tip()->nHeight;
@@ -683,7 +683,7 @@ UniValue getclaimproofbybid(const JSONRPCRequest& request)
     validateRequest(request, GETCLAIMPROOFBYBID, 1, 2);
 
     LOCK(cs_main);
-    CClaimTrieCache trieCache(pclaimTrie);
+    auto trieCache = ::ClaimtrieCache();
     CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     int bid = 0;
@@ -717,7 +717,7 @@ UniValue getclaimproofbyseq(const JSONRPCRequest& request)
     validateRequest(request, GETCLAIMPROOFBYSEQ, 1, 2);
 
     LOCK(cs_main);
-    CClaimTrieCache trieCache(pclaimTrie);
+    auto trieCache = ::ClaimtrieCache();
     CCoinsViewCache coinsCache(&::ChainstateActive().CoinsTip());
 
     int seq = 0;
@@ -766,7 +766,7 @@ UniValue getchangesinblock(const JSONRPCRequest& request)
         if (request.params.size() > 0)
             index = BlockHashIndex(ParseHashV(request.params[0], T_BLOCKHASH " (optional parameter)"));
 
-        CClaimTrieCache trieCache(pclaimTrie);
+        auto trieCache = ::ClaimtrieCache();
         RollBackTo(index, coinsCache, trieCache);
         if (!ReadBlockFromDisk(block, index, Params().GetConsensus()))
             throw JSONRPCError(RPC_INTERNAL_ERROR,
@@ -859,8 +859,8 @@ UniValue checknormalization(const JSONRPCRequest& request)
     const bool force = true;
     const std::string name = request.params[0].get_str();
 
-    CClaimTrieCache triecache(pclaimTrie);
-    return triecache.normalizeClaimName(name, force);
+    auto trieCache = ::ClaimtrieCache();
+    return trieCache.normalizeClaimName(name, force);
 }
 
 static const CRPCCommand commands[] =

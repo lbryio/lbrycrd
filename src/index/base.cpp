@@ -207,7 +207,8 @@ void BaseIndex::ThreadSync()
 bool BaseIndex::Commit()
 {
     if (!CommitInternal() || sqlite::commit(GetDB()) != SQLITE_OK) {
-        GetDB() << "rollback; begin";
+        GetDB() << "rollback";
+        GetDB() << "begin";
         return error("%s: Failed to commit latest %s state", __func__, GetName());
     }
     GetDB() << "begin";

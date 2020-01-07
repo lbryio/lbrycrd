@@ -225,7 +225,7 @@ static bool LookupOne(sqlite::database& db, const CBlockIndex* block_index, DBVa
     // First check if the result is stored under the height index and the value there matches the
     // block hash. This should be the case if the block is on the active chain.
     auto query = db << "SELECT filter_hash, header, file, pos FROM block WHERE (height = ? "
-                    << "OR height IS NULL) AND hash = ? LIMIT 1"
+                        "OR height IS NULL) AND hash = ? LIMIT 1"
                     << block_index->nHeight << block_index->GetBlockHash();
 
     for (auto&& row : query) {

@@ -411,8 +411,8 @@ BOOST_AUTO_TEST_CASE(updatecoins_simulation_test)
             BOOST_CHECK(stack.back()->SpendCoin(utxod->first));
             // restore inputs
             if (!tx.IsCoinBase()) {
-                const COutPoint &out = tx.vin[0].prevout;
-                CClaimTrieCache trieCache(pclaimTrie);
+                const auto &out = tx.vin[0].prevout;
+                auto trieCache = ::ClaimtrieCache();
                 ApplyTxInUndo(0, undo, *(stack.back()), trieCache, out);
             }
             // Store as a candidate for reconnection

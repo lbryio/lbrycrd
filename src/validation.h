@@ -51,6 +51,12 @@ struct DisconnectedBlockTransactions;
 struct PrecomputedTransactionData;
 struct LockPoints;
 
+/** access claimtrie singleton */
+CClaimTrie& Claimtrie();
+
+/** create claimtrie cache instance */
+CClaimTrieCache ClaimtrieCache();
+
 /** Default for -minrelaytxfee, minimum relay fee for transactions */
 static const unsigned int DEFAULT_MIN_RELAY_TX_FEE = 1000;
 /** Default for -limitancestorcount, max number of in-mempool ancestors */

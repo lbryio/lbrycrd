@@ -265,8 +265,6 @@ void Shutdown(InitInterfaces& interfaces)
             g_chainstate->ResetCoinsViews();
         }
         pblocktree.reset();
-        delete pclaimTrie;
-        pclaimTrie = nullptr;
     }
     for (const auto& client : interfaces.chain_clients) {
         client->stop();
@@ -1256,6 +1254,9 @@ bool AppInitMain(InitInterfaces& interfaces)
             }
     );
 
+    if (LogInstance().Enabled() && LogAcceptCategory(BCLog::CLAIMS))
+        CLogPrint::global().setLogger(&LogInstance());
+
     InitSignatureCache();
     InitScriptExecutionCache();
 
@@ -1439,7 +1440,7 @@ bool AppInitMain(InitInterfaces& interfaces)
 
     int64_t nBlockTreeDBCache = std::min(nTotalCache / 4, nMaxBlockDBCache << 20);
     int64_t nCoinDBCache = std::min(nTotalCache / 8, nMaxCoinsDBCache << 20);
-    int64_t nClaimtrieCache = nTotalCache / 4;
+    int64_t nClaimtrieCache = ::Claimtrie().cache();
     nTotalCache -= nBlockTreeDBCache;
     int64_t filter_index_cache = 0;
     if (!g_enabled_filter_types.empty()) {
@@ -1546,22 +1547,6 @@ bool AppInitMain(InitInterfaces& interfaces)
                         "", CClientUIInterface::MSG_ERROR);
                 });
 
-                if (LogInstance().Enabled() && LogAcceptCategory(BCLog::CLAIMS))
-                    CLogPrint::global().setLogger(&LogInstance());
-
-                delete pclaimTrie;
-                auto& consensus = chainparams.GetConsensus();
-                pclaimTrie = new CClaimTrie(nClaimtrieCache, fReindex || fReindexChainState, 0,
-                                            GetDataDir().string(),
-                                            consensus.nNormalizedNameForkHeight,
-                                            consensus.nMinRemovalWorkaroundHeight,
-                                            consensus.nMaxRemovalWorkaroundHeight,
-                                            consensus.nOriginalClaimExpirationTime,
-                                            consensus.nExtendedClaimExpirationTime,
-                                            consensus.nExtendedClaimExpirationForkHeight,
-                                            consensus.nAllClaimsInMerkleForkHeight,
-                                            32);
-
                 // ReplayBlocks is a no-op if we cleared the coinsviewdb with -reindex or -reindex-chainstate
                 if (!::ChainstateActive().ReplayBlocks(chainparams)) {
                     strLoadError = _("Unable to replay blocks. You will need to rebuild the database using -reindex-chainstate.").translated;
@@ -1589,7 +1574,7 @@ bool AppInitMain(InitInterfaces& interfaces)
             }
 
                 auto tip = ::ChainActive().Tip();
-                if (tip && !CClaimTrieCache(pclaimTrie).validateDb(tip->nHeight, tip->hashClaimTrie)) {
+                if (tip && !::ClaimtrieCache().validateDb(tip->nHeight, tip->hashClaimTrie)) {
                     strLoadError = _("Error validating the claim trie from disk").translated;
                     break;
                 }

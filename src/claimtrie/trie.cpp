@@ -127,6 +127,11 @@ CClaimTrieCacheBase::~CClaimTrieCacheBase()
     claimHashQueryLimit.used(true);
 }
 
+std::size_t CClaimTrie::cache()
+{
+    return dbCacheBytes;
+}
+
 bool CClaimTrie::SyncToDisk()
 {
     // alternatively, switch to full sync after we are caught up on the chain
@@ -519,6 +524,18 @@ CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)
     nNextHeight = base->nNextHeight;
 
     applyPragmas(db, base->dbCacheBytes >> 10U); // in KB
+}
+
+CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrieCacheBase&& o)
+    : nNextHeight(o.nNextHeight),
+      base(o.base), db(std::move(o.db)),
+      removalWorkaround(std::move(o.removalWorkaround)),
+      childHashQuery(std::move(o.childHashQuery)),
+      claimHashQuery(std::move(o.claimHashQuery)),
+      claimHashQueryLimit(std::move(o.claimHashQueryLimit)),
+      transacting(o.transacting)
+{
+    o.transacting = false;
 }
 
 void CClaimTrieCacheBase::ensureTransacting()

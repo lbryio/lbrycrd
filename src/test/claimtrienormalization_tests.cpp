@@ -16,7 +16,7 @@ BOOST_FIXTURE_TEST_SUITE(claimtrienormalization_tests, RegTestingSetup)
 
 BOOST_AUTO_TEST_CASE(normalization_only)
 {
-    CClaimTrieCache ccache(pclaimTrie);
+    auto ccache = ::ClaimtrieCache();
 
     // basic ASCII casing tests
     BOOST_CHECK_EQUAL("test", ccache.normalizeClaimName("TESt", true));
@@ -209,7 +209,7 @@ BOOST_AUTO_TEST_CASE(claimtriecache_normalization)
     BOOST_CHECK(nval1.nHeight == currentHeight);
     BOOST_CHECK(lookupClaim == nval1);
 
-    CClaimTrieCache trieCache(pclaimTrie);
+    auto trieCache = ::ClaimtrieCache();
     CBlockIndex* pindex = ::ChainActive().Tip();
     CCoinsViewCache coins(&::ChainstateActive().CoinsTip());
 
@@ -299,7 +299,7 @@ BOOST_AUTO_TEST_CASE(normalization_removal_test)
     CMutableTransaction sx1 = fixture.MakeSupport(fixture.GetCoinbase(), tx1, "AB", 1);
     CMutableTransaction sx2 = fixture.MakeSupport(fixture.GetCoinbase(), tx2, "Ab", 1);
 
-    CClaimTrieCache cache(pclaimTrie);
+    auto cache = ::ClaimtrieCache();
     int height = ::ChainActive().Height() + 1;
     cache.addClaim("AB", COutPoint(tx1.GetHash(), 0), ClaimIdHash(tx1.GetHash(), 0), 1, height);
     cache.addClaim("Ab", COutPoint(tx2.GetHash(), 0), ClaimIdHash(tx2.GetHash(), 0), 2, height);

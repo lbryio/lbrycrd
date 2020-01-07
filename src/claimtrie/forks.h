@@ -8,6 +8,7 @@ class CClaimTrieCacheExpirationFork : public CClaimTrieCacheBase
 {
 public:
     explicit CClaimTrieCacheExpirationFork(CClaimTrie* base);
+    CClaimTrieCacheExpirationFork(CClaimTrieCacheExpirationFork&&) = default;
 
     int expirationTime() const override;
 
@@ -27,6 +28,7 @@ class CClaimTrieCacheNormalizationFork : public CClaimTrieCacheExpirationFork
 {
 public:
     explicit CClaimTrieCacheNormalizationFork(CClaimTrie* base);
+    CClaimTrieCacheNormalizationFork(CClaimTrieCacheNormalizationFork&&) = default;
 
     bool shouldNormalize() const;
 
@@ -55,6 +57,7 @@ class CClaimTrieCacheHashFork : public CClaimTrieCacheNormalizationFork
 {
 public:
     explicit CClaimTrieCacheHashFork(CClaimTrie* base);
+    CClaimTrieCacheHashFork(CClaimTrieCacheHashFork&&) = default;
 
     bool getProofForName(const std::string& name, const uint160& claim, CClaimTrieProof& proof) override;
     void initializeIncrement() override;

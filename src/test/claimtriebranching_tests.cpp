@@ -254,7 +254,7 @@ BOOST_AUTO_TEST_CASE(spend_claim_test)
     fixture.Spend(tx5);
     fixture.IncrementBlocks(1);
     BOOST_CHECK(!fixture.is_best_claim("test",tx5));
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
 
     fixture.DecrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("test",tx5));
@@ -752,13 +752,13 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     BOOST_CHECK_EQUAL(val.outPoint, tx1OutPoint);
     BOOST_CHECK(fixture.haveClaim(sName1, tx7OutPoint));
     BOOST_CHECK(fixture.queueEmpty());
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
 
     // Roll all the way back, make sure all txs are out of the trie
     fixture.DecrementBlocks();
 
     BOOST_CHECK(!fixture.getInfoForName(sName1, val));
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK_EQUAL(fixture.getMerkleHash(), hash0);
     BOOST_CHECK(fixture.queueEmpty());
 
@@ -768,7 +768,7 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     fixture.IncrementBlocks(10); // 11
@@ -777,20 +777,20 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx7);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
 
     // Undo that block and make sure it's not in the queue
     fixture.DecrementBlocks();
 
     // Make sure it's not in the queue
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     // Go back to the beginning
     fixture.DecrementBlocks();
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     // Test spend a claim which was just inserted into the trie
@@ -801,11 +801,11 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     CMutableTransaction tx4 = fixture.Spend(tx2);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     fixture.DecrementBlocks(1);
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     // Verify that if a claim in the queue is spent, it does not get into the trie
@@ -821,12 +821,12 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.IncrementBlocks(1);
 
     BOOST_CHECK(fixture.haveClaimInQueue(sName2, tx2OutPoint, nThrowaway));
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
 
     fixture.IncrementBlocks(3);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
 
     // Spend tx2 with tx4, and then advance to where tx2 would be inserted into the trie and verify it hasn't happened
@@ -834,12 +834,12 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx4);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     fixture.IncrementBlocks(5);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.haveClaim(sName2, tx2OutPoint));
 
@@ -848,14 +848,14 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.DecrementBlocks();
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
     BOOST_CHECK(fixture.haveClaimInQueue(sName2, tx2OutPoint, nThrowaway));
 
     fixture.IncrementBlocks(2);
 
     BOOST_CHECK(fixture.haveClaim(sName2, tx2OutPoint));
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.getInfoForName(sName2, val));
     BOOST_CHECK_EQUAL(val.outPoint, tx5OutPoint);
@@ -867,14 +867,14 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx4);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.haveClaim(sName2, tx2OutPoint));
 
     // undo spending tx2 with tx4, and verify tx2 is back in the trie
     fixture.DecrementBlocks();
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.getInfoForName(sName2, val));
     BOOST_CHECK_EQUAL(val.outPoint, tx5OutPoint);
@@ -883,7 +883,7 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     // roll back to the beginning
     fixture.DecrementBlocks();
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     // Test undoing a spent update which updated a claim still in the queue
@@ -898,7 +898,7 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
     BOOST_CHECK(fixture.haveClaimInQueue(sName1, tx1OutPoint, nThrowaway));
 
@@ -909,7 +909,7 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx3);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
     BOOST_CHECK(!fixture.haveClaimInQueue(sName1, tx1OutPoint, nThrowaway));
     BOOST_CHECK(!fixture.haveClaim(sName1, tx1OutPoint));
@@ -920,34 +920,34 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     CMutableTransaction tx6 = fixture.Spend(tx3);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.haveClaim(sName1, tx3OutPoint));
 
     // undo spending the update (undo tx6 spending tx3)
     fixture.DecrementBlocks();
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
 
     // make sure the update (tx3) still goes into effect when it's supposed to
     fixture.IncrementBlocks(9);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.getInfoForName(sName1, val));
     BOOST_CHECK_EQUAL(val.outPoint, tx3OutPoint);
 
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.haveClaim(sName1, tx3OutPoint));
 
     // roll all the way back
     fixture.DecrementBlocks();
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     // Test undoing an spent update which updated the best claim to a name
@@ -957,12 +957,12 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     fixture.IncrementBlocks(5);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.getInfoForName(sName1, val));
     BOOST_CHECK_EQUAL(val.outPoint, tx1OutPoint);
@@ -971,7 +971,7 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx3);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.getInfoForName(sName1, val));
     BOOST_CHECK_EQUAL(val.outPoint, tx3OutPoint);
@@ -980,13 +980,13 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx6);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     // undo spending the update (undo tx6 spending tx3)
     fixture.DecrementBlocks();
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.getInfoForName(sName1, val));
     BOOST_CHECK_EQUAL(val.outPoint, tx3OutPoint);
@@ -1011,7 +1011,7 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
 
     // ensure txout 0 made it into the trie and txout 1 did not
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
 
     BOOST_CHECK(fixture.getInfoForName(sName1, val));
@@ -1020,14 +1020,14 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     // roll forward until tx8 output 1 gets into the trie
     fixture.IncrementBlocks(6);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
 
     fixture.IncrementBlocks(1);
 
     // ensure txout 1 made it into the trie and is now in control
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     BOOST_CHECK(fixture.getInfoForName(sName1, val));
@@ -1039,7 +1039,7 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     // roll all the way back
     fixture.DecrementBlocks();
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     // make sure invalid updates don't wreak any havoc
@@ -1130,14 +1130,14 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     fixture.CommitTx(tx10);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     // update with tx11
     fixture.CommitTx(tx11);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     // roll back to before tx11
@@ -1148,7 +1148,7 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
 
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     // roll all the way back
@@ -1160,13 +1160,13 @@ BOOST_AUTO_TEST_CASE(insert_update_claim_test)
     CMutableTransaction tx13 = fixture.MakeClaim(fixture.GetCoinbase(), sName3, sValue3, 1);
     fixture.IncrementBlocks(1, true);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1);
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     // roll back
@@ -1222,7 +1222,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
 
     auto* pcoinsTip = &::ChainstateActive().CoinsTip();
     BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1246,18 +1246,18 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     fixture.IncrementBlocks(1); // 11
 
     BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx2.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
 
     // advance until tx2 is valid
     fixture.IncrementBlocks(9); // 20
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
 
     fixture.IncrementBlocks(1); // 21
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1276,7 +1276,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     fixture.IncrementBlocks(1); // 22
 
     // verify tx2 gains control
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1287,7 +1287,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     // unspend tx3, verify tx1 regains control
     fixture.DecrementBlocks(1); // 21
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1301,7 +1301,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     fixture.IncrementBlocks(1); // 22
 
     BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx7.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1324,7 +1324,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     fixture.IncrementBlocks(1); // 21
 
     // Verify tx2 gains control
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1343,18 +1343,18 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     fixture.IncrementBlocks(1); // 11
 
     BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx2.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
 
     // advance until tx2 is valid
     fixture.IncrementBlocks(9); // 20
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
 
     fixture.IncrementBlocks(2); // 22
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.getInfoForName(sName, val));
     BOOST_CHECK_EQUAL(val.outPoint.hash, tx2.GetHash());
@@ -1373,7 +1373,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
     fixture.CommitTx(tx2);
     fixture.IncrementBlocks(1); // 1
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1409,7 +1409,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
 
     fixture.IncrementBlocks(4); // 13
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1439,7 +1439,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims_test)
 
     // roll all the way back
     fixture.DecrementBlocks(13);
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1465,7 +1465,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
 
     auto* pcoinsTip = &::ChainstateActive().CoinsTip();
     BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1478,7 +1478,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.IncrementBlocks(1); // 6
 
     BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx2.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1504,7 +1504,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.IncrementBlocks(1); // 16
 
     BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx3.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(!fixture.supportQueueEmpty());
@@ -1516,7 +1516,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
 
     fixture.IncrementBlocks(1); // 21
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1531,7 +1531,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx6);
     fixture.IncrementBlocks(1); // 22
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1541,7 +1541,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     // undo spend
     fixture.DecrementBlocks(1); // 21
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1551,7 +1551,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     // roll back to before tx3 is valid
     fixture.DecrementBlocks(1); // 20
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(!fixture.supportQueueEmpty());
@@ -1561,7 +1561,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     // roll all the way back
     fixture.DecrementBlocks(20); // 0
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1575,7 +1575,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.IncrementBlocks(1); // 1
 
     BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1591,7 +1591,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
 
     auto rootMerkleHash = fixture.getMerkleHash();
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1604,7 +1604,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx3);
     fixture.IncrementBlocks(1); // 10
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1615,7 +1615,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     // advance until tx2 is valid, verify tx1 retains control
     fixture.IncrementBlocks(3); // 13
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1627,7 +1627,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     // roll all the way back
     fixture.DecrementBlocks(13); // 0
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1639,7 +1639,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx2);
     fixture.IncrementBlocks(1); // 1
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1654,7 +1654,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1); // 11
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1669,7 +1669,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx3);
     fixture.IncrementBlocks(1); // 17
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(!fixture.supportQueueEmpty());
@@ -1680,7 +1680,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     // advance until tx1 is valid
     fixture.IncrementBlocks(5); // 22
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(!fixture.supportQueueEmpty());
@@ -1692,7 +1692,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     // advance until tx3 is valid
     fixture.IncrementBlocks(11); // 33
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1702,7 +1702,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     // roll all the way back
     fixture.DecrementBlocks(33); // 0
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1713,7 +1713,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1); // 1
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1727,7 +1727,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx2);
     fixture.IncrementBlocks(1); // 7
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1739,7 +1739,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx3);
     fixture.IncrementBlocks(1); // 10
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1749,7 +1749,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     // advance until tx2 is valid
     fixture.IncrementBlocks(3); // 13
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1760,7 +1760,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx4);
     fixture.IncrementBlocks(1); // 14
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1770,7 +1770,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     // undo spend of tx1
     fixture.DecrementBlocks(1); // 13
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1780,7 +1780,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     // roll all the way back
     fixture.DecrementBlocks(13); // 0
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1792,7 +1792,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx1);
     fixture.IncrementBlocks(1); // 1
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1801,7 +1801,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx3);
     fixture.IncrementBlocks(1); // 2
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1810,7 +1810,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     fixture.CommitTx(tx4);
     fixture.IncrementBlocks(1); // 3
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1818,7 +1818,7 @@ BOOST_AUTO_TEST_CASE(supporting_claims2_test)
     // roll all the way back
     fixture.DecrementBlocks(3);
 
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1843,7 +1843,7 @@ BOOST_AUTO_TEST_CASE(invalid_claimid_test)
 
     auto* pcoinsTip = &::ChainstateActive().CoinsTip();
     BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx1.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(fixture.supportEmpty());
     BOOST_CHECK(fixture.supportQueueEmpty());
@@ -1856,7 +1856,7 @@ BOOST_AUTO_TEST_CASE(invalid_claimid_test)
     fixture.IncrementBlocks(1); // 102
 
     BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx2.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(!fixture.queueEmpty());
 
     // Create a tx with a bogus claimId
@@ -1868,7 +1868,7 @@ BOOST_AUTO_TEST_CASE(invalid_claimid_test)
     fixture.IncrementBlocks(1); // 103
 
     BOOST_CHECK(pcoinsTip->HaveCoin(COutPoint(tx3.GetHash(), 0)));
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     // Verify it's not in the claim trie
@@ -1882,7 +1882,7 @@ BOOST_AUTO_TEST_CASE(invalid_claimid_test)
     fixture.IncrementBlocks(1); // 104
 
     BOOST_CHECK(pcoinsTip->HaveCoin(tx4OutPoint));
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
 
     // Verify it's not in the claim trie
@@ -1896,13 +1896,13 @@ BOOST_AUTO_TEST_CASE(invalid_claimid_test)
 
     fixture.IncrementBlocks(101); // 205
 
-    BOOST_CHECK(!pclaimTrie->empty());
+    BOOST_CHECK(!::Claimtrie().empty());
     BOOST_CHECK(fixture.queueEmpty());
     BOOST_CHECK(!fixture.haveClaim(sName, tx4OutPoint));
 
     // go all the way back
     fixture.DecrementBlocks();
-    BOOST_CHECK(pclaimTrie->empty());
+    BOOST_CHECK(::Claimtrie().empty());
 }
 
 /*
