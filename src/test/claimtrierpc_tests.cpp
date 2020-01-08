@@ -238,8 +238,8 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
     auto claimId4 = ClaimIdHash(tx3.GetHash(), 0);
 
     int claim1bid = 3, claim1seq = 0;
-    int claim2bid = 1, claim2seq = 1;
-    int claim3bid = 2, claim3seq = 2;
+    int claim2bid = 1, claim2seq = 2;
+    int claim3bid = 2, claim3seq = 1;
     int claim4bid = 0, claim4seq = 3;
 
     auto getclaimsforname = tableRPC["getclaimsforname"];

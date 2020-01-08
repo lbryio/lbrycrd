@@ -125,9 +125,7 @@ std::vector<CClaimNsupports> seqSort(const std::vector<CClaimNsupports>& source)
     auto claimsNsupports = source;
 
     std::sort(claimsNsupports.begin(), claimsNsupports.end(), [](const CClaimNsupports& lhs, const CClaimNsupports& rhs) {
-        auto& lc = lhs.claim;
-        auto& rc = rhs.claim;
-        return lc.nHeight < rc.nHeight || (lc.nHeight == rc.nHeight && lc.outPoint.n < rc.outPoint.n);
+        return lhs.originalHeight < rhs.originalHeight || (lhs.originalHeight == rhs.originalHeight && lhs.claim < rhs.claim);
     });
 
     return claimsNsupports;
