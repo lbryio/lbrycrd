@@ -38,7 +38,7 @@ public:
     bool IsNull() const;
     void SetNull();
 
-    std::string GetHex() const;
+    std::string GetHex(bool reverse=true) const;
     void SetHex(const char* psz);
     void SetHex(const std::string& str);
 

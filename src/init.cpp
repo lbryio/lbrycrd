@@ -1543,8 +1543,9 @@ bool AppInitMain()
                 }
 
                 auto tip = chainActive.Tip();
+                LogPrintf("Checking existing claim trie consistency...\n");
                 if (tip && !CClaimTrieCache(pclaimTrie).validateDb(tip->nHeight, tip->hashClaimTrie)) {
-                    strLoadError = _("Error validating the claim trie from disk");
+                    strLoadError = _("Error validating the stored claim trie");
                     break;
                 }
 
