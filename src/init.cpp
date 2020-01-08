@@ -1575,7 +1575,7 @@ bool AppInitMain(InitInterfaces& interfaces)
 
                 auto tip = ::ChainActive().Tip();
                 if (tip && !::ClaimtrieCache().validateDb(tip->nHeight, tip->hashClaimTrie)) {
-                    strLoadError = _("Error validating the claim trie from disk").translated;
+                    strLoadError = _("Error validating the stored claim trie").translated;
                     break;
                 }
 

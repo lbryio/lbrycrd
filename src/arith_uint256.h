@@ -57,8 +57,8 @@ public:
     {
         static_assert(BITS/32 > 0 && BITS%32 == 0, "Template parameter BITS must be a positive multiple of 32.");
 
-        pn[0] = (unsigned int)b;
-        pn[1] = (unsigned int)(b >> 32);
+        pn[0] = uint32_t(b);
+        pn[1] = uint32_t(b >> 32U);
         for (int i = 2; i < WIDTH; i++)
             pn[i] = 0;
     }

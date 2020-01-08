@@ -277,4 +277,20 @@ BOOST_AUTO_TEST_CASE( operator_with_self )
     BOOST_CHECK(v == UintToArith256(uint256S("0")));
 }
 
+BOOST_AUTO_TEST_CASE( bit64_all_ways )
+{
+    std::vector<int64_t> tests = { 0, 1, -1, 42, 1LL << 33U, std::numeric_limits<int64_t>::max(),
+                                   std::numeric_limits<int64_t>::lowest() };
+
+    for (auto test: tests) {
+        auto a = uint256(test);
+        auto b = arith_uint256(uint64_t(test));
+        auto c = ArithToUint256(b);
+        auto d = UintToArith256(a);
+        BOOST_CHECK(a == c);
+        BOOST_CHECK(b == d);
+        BOOST_CHECK_EQUAL(a.GetHex(false), c.GetHex(false));
+    }
+}
+
 BOOST_AUTO_TEST_SUITE_END()

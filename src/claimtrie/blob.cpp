@@ -72,12 +72,18 @@ void CBaseBlob<BITS>::SetNull()
 }
 
 template<uint32_t BITS>
-std::string CBaseBlob<BITS>::GetHex() const
+std::string CBaseBlob<BITS>::GetHex(bool reverse) const
 {
     std::stringstream ss;
     ss << std::hex;
-    for (auto it = data.rbegin(); it != data.rend(); ++it)
-        ss << std::setw(2) << std::setfill('0') << uint32_t(*it);
+    if (reverse) {
+        for (auto it = data.rbegin(); it != data.rend(); ++it)
+            ss << std::setw(2) << std::setfill('0') << uint32_t(*it);
+    }
+    else {
+        for (auto it = data.begin(); it != data.end(); ++it)
+            ss << std::setw(2) << std::setfill('0') << uint32_t(*it);
+    }
     return ss.str();
 }
 

@@ -49,10 +49,22 @@ namespace sqlite
 
     inline uint256 get_col_from_db(sqlite3_stmt* stmt, int inx, result_type<uint256>) {
         uint256 ret;
+
+// I think we need this, but I lost my specific test case:
+//        auto type = sqlite3_column_type(stmt, inx);
+//        if (type == SQLITE_NULL)
+//            return ret;
+//
+//        if (type == SQLITE_INTEGER) {
+//            auto integer = sqlite3_column_int64(stmt, inx);
+//            return uint256(integer);
+//        }
+//        assert(type == SQLITE_BLOB);
+
         auto ptr = sqlite3_column_blob(stmt, inx);
         if (!ptr) return ret;
         int bytes = sqlite3_column_bytes(stmt, inx);
-        assert(bytes > 0 && bytes <= int(ret.size()));
+        assert(bytes <= ret.size());
         std::memcpy(ret.begin(), ptr, bytes);
         return ret;
     }

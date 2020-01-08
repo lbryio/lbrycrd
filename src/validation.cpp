@@ -2778,6 +2778,12 @@ bool CChainState::ConnectTip(CValidationState& state, const CChainParams& chainp
         assert(flushed);
         flushed = trieCache.flush();
         assert(flushed);
+
+//      for verifying that rollback code works:
+//        auto result = DisconnectBlock(blockConnecting, pindexNew, view, trieCache);
+//        assert(result == DisconnectResult::DISCONNECT_OK);
+//        assert(trieCache.getMerkleHash() == pindexNew->pprev->hashClaimTrie);
+//        LogPrintf("Verified %d!\n", pindexNew->nHeight);
     }
     int64_t nTime4 = GetTimeMicros(); nTimeFlush += nTime4 - nTime3;
     LogPrint(BCLog::BENCH, "  - Flush: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime4 - nTime3) * MILLI, nTimeFlush * MICRO, nTimeFlush * MILLI / nBlocksTotal);

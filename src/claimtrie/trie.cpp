@@ -77,34 +77,19 @@ CClaimTrie::CClaimTrie(std::size_t cacheBytes, bool fWipe, int height,
           "parent BLOB REFERENCES node(name) DEFERRABLE INITIALLY DEFERRED, "
           "hash BLOB)";
 
-    db << "CREATE INDEX IF NOT EXISTS node_hash_len_name ON node (hash, LENGTH(name) DESC)";
-    // db << "CREATE UNIQUE INDEX IF NOT EXISTS node_parent_name ON node (parent, name)"; // no apparent gain
-    db << "CREATE INDEX IF NOT EXISTS node_parent ON node (parent)";
-
-    db << "CREATE TABLE IF NOT EXISTS takeover (name BLOB NOT NULL, height INTEGER NOT NULL, "
-           "claimID BLOB, PRIMARY KEY(name, height DESC));";
-
-    db << "CREATE INDEX IF NOT EXISTS takeover_height ON takeover (height)";
-
     db << "CREATE TABLE IF NOT EXISTS claim (claimID BLOB NOT NULL PRIMARY KEY, name BLOB NOT NULL, "
            "nodeName BLOB NOT NULL REFERENCES node(name) DEFERRABLE INITIALLY DEFERRED, "
            "txID BLOB NOT NULL, txN INTEGER NOT NULL, originalHeight INTEGER NOT NULL, updateHeight INTEGER NOT NULL, "
            "validHeight INTEGER NOT NULL, activationHeight INTEGER NOT NULL, "
            "expirationHeight INTEGER NOT NULL, amount INTEGER NOT NULL);";
 
-    db << "CREATE INDEX IF NOT EXISTS claim_activationHeight ON claim (activationHeight)";
-    db << "CREATE INDEX IF NOT EXISTS claim_expirationHeight ON claim (expirationHeight)";
-    db << "CREATE INDEX IF NOT EXISTS claim_nodeName ON claim (nodeName)";
-
     db << "CREATE TABLE IF NOT EXISTS support (txID BLOB NOT NULL, txN INTEGER NOT NULL, "
            "supportedClaimID BLOB NOT NULL, name BLOB NOT NULL, nodeName BLOB NOT NULL, "
            "blockHeight INTEGER NOT NULL, validHeight INTEGER NOT NULL, activationHeight INTEGER NOT NULL, "
            "expirationHeight INTEGER NOT NULL, amount INTEGER NOT NULL, PRIMARY KEY(txID, txN));";
 
-    db << "CREATE INDEX IF NOT EXISTS support_supportedClaimID ON support (supportedClaimID)";
-    db << "CREATE INDEX IF NOT EXISTS support_activationHeight ON support (activationHeight)";
-    db << "CREATE INDEX IF NOT EXISTS support_expirationHeight ON support (expirationHeight)";
-    db << "CREATE INDEX IF NOT EXISTS support_nodeName ON support (nodeName)";
+    db << "CREATE TABLE IF NOT EXISTS takeover (name BLOB NOT NULL, height INTEGER NOT NULL, "
+          "claimID BLOB, PRIMARY KEY(name, height DESC));";
 
     if (fWipe) {
         db << "DELETE FROM node";
@@ -112,6 +97,21 @@ CClaimTrie::CClaimTrie(std::size_t cacheBytes, bool fWipe, int height,
         db << "DELETE FROM support";
         db << "DELETE FROM takeover";
     }
+
+    db << "CREATE INDEX IF NOT EXISTS node_hash_len_name ON node (hash, LENGTH(name) DESC)";
+    // db << "CREATE UNIQUE INDEX IF NOT EXISTS node_parent_name ON node (parent, name)"; // no apparent gain
+    db << "CREATE INDEX IF NOT EXISTS node_parent ON node (parent)";
+
+    db << "CREATE INDEX IF NOT EXISTS takeover_height ON takeover (height)";
+
+    db << "CREATE INDEX IF NOT EXISTS claim_activationHeight ON claim (activationHeight)";
+    db << "CREATE INDEX IF NOT EXISTS claim_expirationHeight ON claim (expirationHeight)";
+    db << "CREATE INDEX IF NOT EXISTS claim_nodeName ON claim (nodeName)";
+
+    db << "CREATE INDEX IF NOT EXISTS support_supportedClaimID ON support (supportedClaimID)";
+    db << "CREATE INDEX IF NOT EXISTS support_activationHeight ON support (activationHeight)";
+    db << "CREATE INDEX IF NOT EXISTS support_expirationHeight ON support (expirationHeight)";
+    db << "CREATE INDEX IF NOT EXISTS support_nodeName ON support (nodeName)";
 
     db << "INSERT OR IGNORE INTO node(name, hash) VALUES(x'', ?)" << one; // ensure that we always have our root node
 }
@@ -462,9 +462,7 @@ bool CClaimTrieCacheBase::validateDb(int height, const uint256& rootHash)
 {
     base->nNextHeight = nNextHeight = height + 1;
 
-    logPrint << "Checking claim trie consistency... " << Clog::flush;
     if (checkConsistency()) {
-        logPrint << "consistent" << Clog::endl;
         if (rootHash != getMerkleHash()) {
             logPrint << "CClaimTrieCacheBase::" << __func__ << "(): the block's root claim hash doesn't match the persisted claim root hash." << Clog::endl;
             return false;
@@ -475,7 +473,6 @@ bool CClaimTrieCacheBase::validateDb(int height, const uint256& rootHash)
 
         return true;
     }
-    logPrint << "inconsistent!" << Clog::endl;
     return false;
 }
 
@@ -696,13 +693,18 @@ bool CClaimTrieCacheBase::removeClaim(const uint160& claimId, const COutPoint& o
 
 bool CClaimTrieCacheBase::removeSupport(const COutPoint& outPoint, std::string& nodeName, int& validHeight)
 {
+    {
+        auto query = db << "SELECT nodeName, activationHeight FROM support "
+                           "WHERE txID = ? AND txN = ? AND expirationHeight >= ?"
+                           << outPoint.hash << outPoint.n << nNextHeight;
+        auto it = query.begin();
+        if (it == query.end())
+            return false;
+
+        *it >> nodeName >> validHeight;
+    }
     ensureTransacting();
 
-    auto query = db << "SELECT nodeName, activationHeight FROM support WHERE txID = ? AND txN = ? AND expirationHeight >= ?"
-                    << outPoint.hash << outPoint.n << nNextHeight;
-    auto it = query.begin();
-    if (it == query.end()) return false;
-    *it >> nodeName >> validHeight;
     db << "DELETE FROM support WHERE txID = ? AND txN = ?" << outPoint.hash << outPoint.n;
     if (!db.rows_modified())
         return false;
@@ -941,7 +943,7 @@ std::vector<uint160> CClaimTrieCacheBase::getActivatedClaims(int height) const
 std::vector<uint160> CClaimTrieCacheBase::getClaimsWithActivatedSupports(int height) const
 {
     std::vector<uint160> ret;
-    auto query = db << "SELECT DISTINCT supportedClaimID FROM support WHERE activationHeight = ?1 AND updateHeight < ?1" << height;
+    auto query = db << "SELECT DISTINCT supportedClaimID FROM support WHERE activationHeight = ?1 AND blockHeight < ?1" << height;
     for (auto&& row: query) {
         ret.emplace_back();
         row >> ret.back();
@@ -963,7 +965,7 @@ std::vector<uint160> CClaimTrieCacheBase::getExpiredClaims(int height) const
 std::vector<uint160> CClaimTrieCacheBase::getClaimsWithExpiredSupports(int height) const
 {
     std::vector<uint160> ret;
-    auto query = db << "SELECT DISTINCT supportedClaimID FROM support WHERE expirationHeight = ?1 AND updateHeight < ?1" << height;
+    auto query = db << "SELECT DISTINCT supportedClaimID FROM support WHERE expirationHeight = ?1 AND blockHeight < ?1" << height;
     for (auto&& row: query) {
         ret.emplace_back();
         row >> ret.back();

@@ -52,7 +52,7 @@ CCoinsViewDB::CCoinsViewDB(fs::path ldb_path, size_t nCacheSize, bool fMemory, b
 
 bool CCoinsViewDB::GetCoin(const COutPoint &outpoint, Coin &coin) const {
     auto query = db << "SELECT isCoinbase, blockHeight, amount, script FROM unspent "
-          "WHERE txID = ? and txN = ?" << outpoint.hash << outpoint.n;
+          "WHERE txID = ? AND txN = ?" << outpoint.hash << outpoint.n;
     for (auto&& row: query) {
         uint32_t coinbase = 0, height = 0;
         row >> coinbase >> height >> coin.out.nValue >> coin.out.scriptPubKey;
@@ -65,7 +65,7 @@ bool CCoinsViewDB::GetCoin(const COutPoint &outpoint, Coin &coin) const {
 
 bool CCoinsViewDB::HaveCoin(const COutPoint &outpoint) const {
     auto query = db << "SELECT 1 FROM unspent "
-                       "WHERE txID = ? and txN = ?" << outpoint.hash << outpoint.n;
+                       "WHERE txID = ? AND txN = ?" << outpoint.hash << outpoint.n;
     return query.begin() != query.end();
 }
 
@@ -110,20 +110,26 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock, boo
 
     db << "begin";
     db << "INSERT OR REPLACE INTO marker VALUES('head_block', ?)" << hashBlock;
+
+    auto dbd = db << "DELETE FROM unspent WHERE txID = ? AND txN = ?";
+    auto dbi = db << "INSERT OR REPLACE INTO unspent VALUES(?,?,?,?,?,?,?)";
     for (auto it = mapCoins.begin(); it != mapCoins.end();) {
         if (it->second.flags & CCoinsCacheEntry::DIRTY) {
             if (it->second.coin.IsSpent()) {
                 // at present the "IsSpent" flag is used for both "spent" and "block going backwards"
-                db << "DELETE FROM unspent WHERE txID = ? AND txN = ?" << it->first.hash << it->first.n;
+                dbd << it->first.hash << it->first.n;
+                dbd++;
             }
             else {
                 CTxDestination address;
                 std::string destination;
                 if (ExtractDestination(it->second.coin.out.scriptPubKey, address))
                     destination = EncodeDestination(address);
-                db << "INSERT OR REPLACE INTO unspent VALUES(?,?,?,?,?,?,?)" << it->first.hash << it->first.n
-                   << it->second.coin.fCoinBase << it->second.coin.nHeight
-                   << it->second.coin.out.nValue << it->second.coin.out.scriptPubKey << destination;
+                uint32_t isCoinBase = it->second.coin.fCoinBase; // bit-field
+                uint32_t coinHeight = it->second.coin.nHeight; // bit-field
+                dbi << it->first.hash << it->first.n << isCoinBase << coinHeight
+                    << it->second.coin.out.nValue << it->second.coin.out.scriptPubKey << destination;
+                dbi++;
             }
             changed++;
         }
@@ -138,6 +144,8 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock, boo
             }
         }
     }
+    dbd.used(true);
+    dbi.used(true);
     db << "INSERT OR REPLACE INTO marker VALUES('best_block', ?)" << hashBlock;
     db << "DELETE FROM marker WHERE name = 'head_block'";
 
@@ -198,9 +206,6 @@ CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe)
           "nonce INTEGER NOT NULL "
           ")";
 
-    db << "CREATE UNIQUE INDEX IF NOT EXISTS block_info_height ON block_info (height)";
-    db << "CREATE UNIQUE INDEX IF NOT EXISTS block_file_data_pos ON block_info (file, dataPos)";
-
     db << "CREATE TABLE IF NOT EXISTS tx_to_block ("
           "txID BLOB NOT NULL PRIMARY KEY, "
           "file INTEGER NOT NULL, "
@@ -217,6 +222,9 @@ CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe)
         db << "DELETE FROM tx_to_block";
         db << "DELETE FROM flag";
     }
+
+    // not unique because we actually want to store forks:
+    db << "CREATE INDEX IF NOT EXISTS block_info_height ON block_info (height)";
 }
 
 bool CBlockTreeDB::ReadBlockFileInfo(int nFile, CBlockFileInfo &info) {

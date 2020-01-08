@@ -435,7 +435,7 @@ boost::test_tools::predicate_result ClaimTrieChainFixture::best_claim_effective_
 
 bool ClaimTrieChainFixture::getClaimById(const uint160 &claimId, std::string &name, CClaimValue &value)
 {
-    auto query = db << "SELECT nodeName, claimID, txID, txN, amount, validHeight, blockHeight "
+    auto query = db << "SELECT nodeName, claimID, txID, txN, amount, validHeight, updateHeight "
                        "FROM claim WHERE claimID = ?" << claimId;
     auto hit = false;
     for (auto&& row: query) {
