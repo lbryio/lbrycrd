@@ -1,5 +1,6 @@
 
 #include <uints.h>
+#include <cstring>
 
 uint160::uint160(const std::vector<uint8_t>& vec) : CBaseBlob<160>(vec)
 {
@@ -7,6 +8,10 @@ uint160::uint160(const std::vector<uint8_t>& vec) : CBaseBlob<160>(vec)
 
 uint256::uint256(const std::vector<uint8_t>& vec) : CBaseBlob<256>(vec)
 {
+}
+
+uint256::uint256(int64_t value) : CBaseBlob<256>() {
+    std::memcpy(this->begin(), &value, sizeof(value)); // TODO: fix the endianness here
 }
 
 uint160 uint160S(const char* str)

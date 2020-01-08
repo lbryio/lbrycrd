@@ -25,6 +25,7 @@ public:
     uint256() = default;
 
     explicit uint256(const std::vector<uint8_t>& vec);
+    explicit uint256(int64_t value);
 
     uint256(uint256&&) = default;
     uint256& operator=(uint256&&) = default;
