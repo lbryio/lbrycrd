@@ -453,6 +453,17 @@ CRPCCaller CRPCTable::operator[](const std::string &name) const
     return CRPCCaller(cmds[0]->actor);
 }
 
+CRPCCaller::CRPCCaller(CRPCCommand::Actor actor) : actor(std::move(actor))
+{
+}
+
+UniValue CRPCCaller::operator()(const JSONRPCRequest& jsonRequest)
+{
+    UniValue val;
+    assert(actor(jsonRequest, val, true));
+    return val;
+}
+
 static bool ExecuteCommand(const CRPCCommand& command, const JSONRPCRequest& request, UniValue& result, bool last_handler)
 {
     try

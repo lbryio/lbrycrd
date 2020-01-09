@@ -817,7 +817,7 @@ BOOST_FIXTURE_TEST_CASE(util_ArgsMerge, ArgsMergeTestingSetup)
     // Results file is formatted like:
     //
     //   <input> || <IsArgSet/IsArgNegated/GetArg output> | <GetArgs output> | <GetUnsuitable output>
-    BOOST_CHECK_EQUAL(out_sha_hex, "b835eef5977d69114eb039a976201f8c7121f34fe2b7ea2b73cafb516e5c9dc8");
+    BOOST_CHECK_EQUAL(out_sha_hex, "c348d80e1856cfd9a4c45e829731d860f39c7afc528e4990ab8f184ccc5b589b");
 }
 
 // Similar test as above, but for ArgsManager::GetChainName function.
@@ -919,7 +919,7 @@ BOOST_FIXTURE_TEST_CASE(util_ChainMerge, ChainMergeTestingSetup)
     // Results file is formatted like:
     //
     //   <input> || <output>
-    BOOST_CHECK_EQUAL(out_sha_hex, "94b4ad55c8ac639a56b93e36f7e32e4c611fd7d7dd7b2be6a71707b1eadcaec7");
+    BOOST_CHECK_EQUAL(out_sha_hex, "7f7bf0065ac092988ebd4da92977d104ea33895475be561e35aeb4cb8ee3bfe7");
 }
 
 BOOST_AUTO_TEST_CASE(util_FormatMoney)

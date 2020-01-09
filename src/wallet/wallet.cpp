@@ -1526,7 +1526,7 @@ CAmount CWallet::GetCredit(const CTxOut& txout, const isminefilter& filter) cons
 {
     if (!MoneyRange(txout.nValue))
         throw std::runtime_error(std::string(__func__) + ": value out of range");
-    return ((IsMine(txout) & filter) ? txout.nValue : 0);
+    return ((IsMine(txout) & filter) == filter ? txout.nValue : 0);
 }
 
 bool CWallet::IsChange(const CTxOut& txout) const
@@ -2431,10 +2431,12 @@ void MaybeResendWalletTxs()
  */
 
 
-CWallet::Balance CWallet::GetBalance(const int min_depth, bool avoid_reuse) const
+CWallet::Balance CWallet::GetBalance(isminefilter filter, const int min_depth, bool avoid_reuse) const
 {
     Balance ret;
-    isminefilter reuse_filter = avoid_reuse ? ISMINE_NO : ISMINE_USED;
+    if (!avoid_reuse)
+        filter |= ISMINE_USED;
+
     {
         auto locked_chain = chain().lock();
         LOCK(cs_wallet);
@@ -2443,8 +2445,8 @@ CWallet::Balance CWallet::GetBalance(const int min_depth, bool avoid_reuse) cons
             const CWalletTx& wtx = entry.second;
             const bool is_trusted{wtx.IsTrusted(*locked_chain)};
             const int tx_depth{wtx.GetDepthInMainChain(*locked_chain)};
-            const CAmount tx_credit_mine{wtx.GetAvailableCredit(*locked_chain, /* fUseCache */ true, ISMINE_SPENDABLE | reuse_filter)};
-            const CAmount tx_credit_watchonly{wtx.GetAvailableCredit(*locked_chain, /* fUseCache */ true, ISMINE_WATCH_ONLY | reuse_filter)};
+            const CAmount tx_credit_mine{wtx.GetAvailableCredit(*locked_chain, /* fUseCache */ true, ISMINE_SPENDABLE | filter)};
+            const CAmount tx_credit_watchonly{wtx.GetAvailableCredit(*locked_chain, /* fUseCache */ true, ISMINE_WATCH_ONLY | filter)};
             if (is_trusted && tx_depth >= min_depth) {
                 ret.m_mine_trusted += tx_credit_mine;
                 ret.m_watchonly_trusted += tx_credit_watchonly;

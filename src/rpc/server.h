@@ -119,13 +119,8 @@ class CRPCCaller
 {
     const CRPCCommand::Actor actor;
 public:
-    explicit CRPCCaller(CRPCCommand::Actor actor) : actor(std::move(actor)) {}
-    UniValue operator()(const JSONRPCRequest& jsonRequest)
-    {
-        UniValue val;
-        assert(actor(jsonRequest, val, true));
-        return val;
-    }
+    explicit CRPCCaller(CRPCCommand::Actor actor);
+    UniValue operator()(const JSONRPCRequest& jsonRequest);
 };
 
 /**

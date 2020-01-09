@@ -320,7 +320,7 @@ static UniValue setlabel(const JSONRPCRequest& request)
 
 static CTransactionRef SendMoney(interfaces::Chain::Lock& locked_chain, CWallet * const pwallet, const CTxDestination &address, CAmount nValue, bool fSubtractFeeFromAmount, const CCoinControl& coin_control, mapValue_t mapValue, const CScript& prefix = CScript())
 {
-    CAmount curBalance = pwallet->GetBalance(0, coin_control.m_avoid_address_reuse).m_mine_trusted;
+    CAmount curBalance = pwallet->GetBalance(ISMINE_NO, 0, coin_control.m_avoid_address_reuse).m_mine_trusted;
 
     // Check amount
     if (nValue <= 0)
@@ -1286,7 +1286,7 @@ static UniValue getbalance(const JSONRPCRequest& request)
 
     bool avoid_reuse = GetAvoidReuseFlag(pwallet, request.params[3]);
 
-    const auto bal = pwallet->GetBalance(min_depth, avoid_reuse);
+    const auto bal = pwallet->GetBalance(ISMINE_NO, min_depth, avoid_reuse);
 
     return ValueFromAmount(bal.m_mine_trusted + (include_watchonly ? bal.m_watchonly_trusted : 0));
 }
@@ -2973,7 +2973,7 @@ static UniValue getbalances(const JSONRPCRequest& request)
         if (wallet.IsWalletFlagSet(WALLET_FLAG_AVOID_REUSE)) {
             // If the AVOID_REUSE flag is set, bal has been set to just the un-reused address balance. Get
             // the total balance, and then subtract bal to get the reused address balance.
-            const auto full_bal = wallet.GetBalance(0, false);
+            const auto full_bal = wallet.GetBalance(ISMINE_NO, 0, false);
             balances_mine.pushKV("used", ValueFromAmount(full_bal.m_mine_trusted + full_bal.m_mine_untrusted_pending - bal.m_mine_trusted - bal.m_mine_untrusted_pending));
         }
         balances.pushKV("mine", balances_mine);
