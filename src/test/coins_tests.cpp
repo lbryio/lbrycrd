@@ -394,7 +394,7 @@ BOOST_AUTO_TEST_CASE(updatecoins_simulation_test)
             auto utxod = FindRandomFrom(utxoset);
 
             CTransaction &tx = std::get<0>(utxod->second);
-            CTxUndo &undo = std::get<1>(utxod->second);
+            CTxUndo undo = std::get<1>(utxod->second);
             Coin &orig_coin = std::get<2>(utxod->second);
 
             // Update the expected result
