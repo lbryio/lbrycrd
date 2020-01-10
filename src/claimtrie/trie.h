@@ -22,6 +22,7 @@ class CClaimTrie
     friend class CClaimTrieCacheHashFork;
     friend class CClaimTrieCacheExpirationFork;
     friend class CClaimTrieCacheNormalizationFork;
+    friend class ValidationBlockTests;
 
 public:
     CClaimTrie() = delete;

@@ -18,13 +18,28 @@
 
 #include <thread>
 
-struct RegtestingSetup : public TestingSetup {
-    RegtestingSetup() : TestingSetup(CBaseChainParams::REGTEST) {}
+struct ValidationBlockTests : public TestingSetup {
+    int m_SegwitHeight;
+    int64_t m_nAllClaimsInMerkleForkHeight;
+    ValidationBlockTests() : TestingSetup(CBaseChainParams::REGTEST) {
+        auto& consensus = const_cast<Consensus::Params&>(Params().GetConsensus());
+        m_SegwitHeight = consensus.SegwitHeight;
+        consensus.SegwitHeight = 0;
+        consensus.MinBIP9WarningHeight = 0;
+        m_nAllClaimsInMerkleForkHeight = consensus.nAllClaimsInMerkleForkHeight;
+        const_cast<int64_t&>(::Claimtrie().nAllClaimsInMerkleForkHeight) = 100000;
+    }
+    ~ValidationBlockTests() noexcept {
+        auto& consensus = const_cast<Consensus::Params&>(Params().GetConsensus());
+        consensus.SegwitHeight = m_SegwitHeight;
+        consensus.MinBIP9WarningHeight = m_SegwitHeight + consensus.nMinerConfirmationWindow;
+        const_cast<int64_t&>(::Claimtrie().nAllClaimsInMerkleForkHeight) = m_nAllClaimsInMerkleForkHeight;
+    }
 };
 
 static const std::vector<unsigned char> V_OP_TRUE{OP_TRUE};
 
-BOOST_FIXTURE_TEST_SUITE(validation_block_tests, RegtestingSetup)
+BOOST_FIXTURE_TEST_SUITE(validation_block_tests, ValidationBlockTests)
 
 struct TestSubscriber : public CValidationInterface {
     uint256 m_expected_tip;
@@ -63,6 +78,7 @@ std::shared_ptr<CBlock> Block(const uint256& prev_hash)
     auto ptemplate = BlockAssembler(Params()).CreateNewBlock(pubKey);
     auto pblock = std::make_shared<CBlock>(ptemplate->block);
     pblock->hashPrevBlock = prev_hash;
+    pblock->hashClaimTrie = uint256S("0x0000000000000000000000000000000000000000000000000000000000000001");
     pblock->nTime = ++time;
 
     pubKey.clear();
