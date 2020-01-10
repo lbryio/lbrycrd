@@ -38,7 +38,7 @@ static int secp256k1_scalar_add(secp256k1_scalar *r, const secp256k1_scalar *a, 
 
 static void secp256k1_scalar_cadd_bit(secp256k1_scalar *r, unsigned int bit, int flag) {
     if (flag && bit < 32)
-        *r += (1 << bit);
+        *r += (1U << bit);
 #ifdef VERIFY
     VERIFY_CHECK(secp256k1_scalar_check_overflow(r) == 0);
 #endif
