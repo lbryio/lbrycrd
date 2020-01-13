@@ -15,24 +15,24 @@ $(package)_config_opts+=boost.locale.iconv=off boost.locale.posix=off boost.loca
 # To work around this we're using the ldflags below but we need ICU_LINK to be non-blank so that we don't get an auto-generated conflict with ldflags.
 $(package)_config_opts+=-sICU_LINK="-time"
 $(package)_config_opts_linux=threadapi=pthread runtime-link=shared
-$(package)_config_opts_darwin=--toolset=darwin-4.2.1 runtime-link=shared
+$(package)_config_opts_darwin=toolset=clang-darwin runtime-link=shared target-os=darwin
 $(package)_config_opts_mingw32=binary-format=pe target-os=windows threadapi=win32 runtime-link=static
 $(package)_config_opts_x86_64_mingw32=address-model=64
 $(package)_config_opts_i686_mingw32=address-model=32
 $(package)_config_opts_i686_linux=address-model=32 architecture=x86
 $(package)_toolset_$(host_os)=gcc
 $(package)_archiver_$(host_os)=$($(package)_ar)
-$(package)_toolset_darwin=darwin
+$(package)_toolset_darwin=clang-darwin
 $(package)_archiver_darwin=$($(package)_libtool)
-$(package)_config_libraries=chrono,filesystem,program_options,system,locale,regex,thread,test
+$(package)_config_libraries=chrono,filesystem,system,locale,thread,test
 $(package)_cxxflags=-std=c++11 -fvisibility=hidden -Wno-deprecated
 $(package)_cxxflags_linux=-fPIC
 # The ideal doesn't work because vars are evaluated before any dependency is processed:
 # $(package)_ldflags=$$(shell PKG_CONFIG_SYSROOT_DIR=/ PKG_CONFIG_LIBDIR=$(host_prefix)/lib/pkgconfig PKG_CONFIG_PATH=$(host_prefix)/share/pkgconfig pkg-config icu-io icu-uc icu-i18n --libs)
 # So we substitute poorly (as these may not actually match all scenarios):
-$(package)_ldflags_mingw32=-L$(host_prefix)/lib -lsicuio -lsicuuc -lsicudt
-$(package)_ldflags_linux=-L$(host_prefix)/lib -licuio -licuuc -licudata -licui18n
-$(package)_ldflags_darwin=-L$(host_prefix)/lib -licuio -licuuc -licudata -licui18n
+$(package)_ldflags_mingw32=-lsicuio -lsicuuc -lsicudt
+$(package)_ldflags_linux=-licuio -licuuc -licudata -licui18n
+$(package)_ldflags_darwin=-licuio -licuuc -licudata -licui18n
 endef
 
 define $(package)_preprocess_cmds

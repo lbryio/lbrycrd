@@ -4,7 +4,7 @@ ENV LANG C.UTF-8
 RUN set -xe; \
     apt-get update; \
     apt-get install --no-install-recommends -y build-essential libtool autotools-dev automake pkg-config git wget apt-utils \
-        librsvg2-bin libtiff-tools cmake imagemagick libcap-dev libz-dev libbz2-dev python-setuptools xz-utils ccache g++-multilib \
+        librsvg2-bin libtiff-tools cmake imagemagick libcap-dev libz-dev libbz2-dev python-setuptools python3-setuptools xz-utils ccache g++-multilib \
         g++-mingw-w64-i686 mingw-w64-i686-dev bsdmainutils curl ca-certificates g++-mingw-w64-x86-64 mingw-w64-x86-64-dev; \
     rm -rf /var/lib/apt/lists/*;
 
