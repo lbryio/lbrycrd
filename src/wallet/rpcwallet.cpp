@@ -613,13 +613,15 @@ void ListNameClaims(interfaces::Chain::Lock& locked_chain, const CWalletTx& wtx,
 
         auto trieCache = ::ClaimtrieCache();
 
-        if (auto pindex = LookupBlockIndex(wtx.m_confirm.hashBlock))
+        if (auto blockHeight = locked_chain.getBlockHeight(wtx.m_confirm.hashBlock))
         {
-            entry.pushKV("height", pindex->nHeight);
-            entry.pushKV("expiration height", pindex->nHeight + trieCache.expirationTime());
-            if (pindex->nHeight + trieCache.expirationTime() > ::ChainActive().Height()) {
+            entry.pushKV("height", *blockHeight);
+            auto chainHeight = locked_chain.getHeight();
+            auto expirationHeight = *blockHeight + trieCache.expirationTime();
+            entry.pushKV("expiration height", expirationHeight);
+            if (chainHeight && expirationHeight > *chainHeight) {
                 entry.pushKV("expired", false);
-                entry.pushKV("blocks to expiration", pindex->nHeight + trieCache.expirationTime() - ::ChainActive().Height());
+                entry.pushKV("blocks to expiration", expirationHeight - *chainHeight);
             }
             else {
                 entry.pushKV("expired", true);
@@ -692,7 +694,7 @@ UniValue listnameclaims(const JSONRPCRequest& request)
     UniValue ret(UniValue::VARR);
     pwallet->BlockUntilSyncedToCurrentChain();
     auto locked_chain = pwallet->chain().lock();
-    LOCK2(cs_main, pwallet->cs_wallet);
+    LOCK(pwallet->cs_wallet);
     const auto& txOrdered = pwallet->wtxOrdered;
 
     for (auto it = txOrdered.rbegin(); it != txOrdered.rend(); ++it)
@@ -754,7 +756,7 @@ UniValue supportclaim(const JSONRPCRequest& request)
 
     pwallet->BlockUntilSyncedToCurrentChain();
     auto locked_chain = pwallet->chain().lock();
-    LOCK2(cs_main, pwallet->cs_wallet);
+    LOCK(pwallet->cs_wallet);
     EnsureWalletIsUnlocked(pwallet);
 
     auto trieCache = ::ClaimtrieCache();

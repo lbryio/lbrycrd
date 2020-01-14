@@ -197,6 +197,7 @@ void AddClaimSupportThenRemove() {
     auto txid = ClaimAName("tester", "deadbeef", "1.0");
     auto g1 = generateBlock();
     auto looked = LookupAllNames().get_array();
+    BOOST_CHECK_EQUAL(looked.size(), 1);
     BOOST_CHECK_EQUAL(looked[0]["value"].get_str(), "deadbeef");
     BOOST_CHECK_EQUAL(looked[0]["txid"].get_str(), txid.GetHex());
 
@@ -211,6 +212,7 @@ void AddClaimSupportThenRemove() {
     auto spid = SupportAName("tester", clid, "0.5");
     auto g3 = generateBlock();
     looked = LookupAllNames().get_array();
+    BOOST_CHECK_EQUAL(looked.size(), 2);
     BOOST_CHECK_EQUAL(looked[0]["value"].get_str(), "deadbeef02");
     BOOST_CHECK_EQUAL(looked[0]["amount"].get_real(), 1.0);
     BOOST_CHECK_EQUAL(looked[1]["claimtype"].get_str(), "SUPPORT");
