@@ -439,8 +439,11 @@ bool CClaimTrieCacheBase::checkConsistency()
     // verify that all claims hash to the values on the nodes
 
     auto query = db << "SELECT n.name, n.hash, "
-                        "IFNULL((SELECT CASE WHEN t.claimID IS NULL THEN 0 ELSE t.height END "
-                        "FROM takeover t WHERE t.name = n.name ORDER BY t.height DESC LIMIT 1), 0) FROM node n";
+                       "COALESCE((SELECT CASE WHEN t.claimID IS NULL THEN 0 ELSE t.height END "
+                       "FROM takeover t WHERE t.name = n.name ORDER BY t.height DESC LIMIT 1), "
+                       "(SELECT ONE(c.activationHeight) FROM claim c WHERE c.nodeName = n.name "
+                       "AND c.activationHeight < ?1 AND c.expirationHeight >= ?1), "
+                       "0) FROM node n" << nNextHeight;
     for (auto&& row: query) {
         std::string name;
         uint256 hash;
@@ -500,9 +503,12 @@ const std::string claimHashQuery_s =
 const std::string claimHashQueryLimit_s = claimHashQuery_s + " LIMIT 1";
 
 extern const std::string proofClaimQuery_s =
-    "SELECT n.name, IFNULL((SELECT CASE WHEN t.claimID IS NULL THEN 0 ELSE t.height END "
-    "FROM takeover t WHERE t.name = n.name ORDER BY t.height DESC LIMIT 1), 0) FROM node n "
-    "WHERE n.name IN (WITH RECURSIVE prefix(p) AS (VALUES(?) UNION ALL "
+    "SELECT n.name, COALESCE((SELECT CASE WHEN t.claimID IS NULL THEN 0 ELSE t.height END "
+    "FROM takeover t WHERE t.name = n.name ORDER BY t.height DESC LIMIT 1), "
+    "(SELECT ONE(c.activationHeight) FROM claim c WHERE c.nodeName = n.name "
+    "AND c.activationHeight < ?2 AND c.expirationHeight >= ?2), "
+    "0) FROM node n "
+    "WHERE n.name IN (WITH RECURSIVE prefix(p) AS (VALUES(?1) UNION ALL "
     "SELECT POPS(p) FROM prefix WHERE p != x'') SELECT p FROM prefix) "
     "ORDER BY n.name";
 
@@ -516,6 +522,17 @@ CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)
     nNextHeight = base->nNextHeight;
 
     applyPragmas(db, base->dbCacheBytes >> 10U); // in KB
+    db.define("POPS", [](std::string s) -> std::string { if (!s.empty()) s.pop_back(); return s; });
+
+    // db.define("MERKLE_ROOT", [](std::vector<uint256>& hashes, const std::vector<unsigned char>& blob) { hashes.emplace_back(uint256(blob)); },
+    //    [](const std::vector<uint256>& hashes) { return ComputeMerkleRoot(hashes); });
+
+    db.define("ONE",
+            [](std::vector<sqlite_int64>& accumulator, const sqlite_int64& value) { accumulator.push_back(value); },
+            [](const std::vector<sqlite_int64>& accumulator) -> sqlite_int64 {
+                if (accumulator.size() != 1) return 0;
+                return accumulator[0];
+            });
 }
 
 void CClaimTrieCacheBase::ensureTransacting()
@@ -544,8 +561,11 @@ uint256 CClaimTrieCacheBase::getMerkleHash()
         return hash;
     assert(transacting); // no data changed but we didn't have the root hash there already?
     auto updateQuery = db << "UPDATE node SET hash = ? WHERE name = ?";
-    db << "SELECT n.name, IFNULL((SELECT CASE WHEN t.claimID IS NULL THEN 0 ELSE t.height END FROM takeover t WHERE t.name = n.name "
-            "ORDER BY t.height DESC LIMIT 1), 0) FROM node n WHERE n.hash IS NULL ORDER BY LENGTH(n.name) DESC" // assumes n.name is blob
+    db << "SELECT n.name, COALESCE((SELECT CASE WHEN t.claimID IS NULL THEN 0 ELSE t.height END "
+          "FROM takeover t WHERE t.name = n.name ORDER BY t.height DESC LIMIT 1), "
+          "(SELECT ONE(c.activationHeight) FROM claim c WHERE c.nodeName = n.name "
+          "AND c.activationHeight < ?1 AND c.expirationHeight >= ?1), "
+          "0) FROM node n WHERE n.hash IS NULL ORDER BY LENGTH(n.name) DESC" << nNextHeight
         >> [this, &hash, &updateQuery](const std::string& name, int takeoverHeight) {
             hash = computeNodeHash(name, takeoverHeight);
             updateQuery << hash << name;
@@ -568,6 +588,16 @@ bool CClaimTrieCacheBase::getLastTakeoverForName(const std::string& name, uint16
             return true;
         }
     }
+    auto query2 = db << "SELECT ONE(c.activationHeight), c.claimID FROM claim c WHERE c.nodeName = ?1 "
+                        "AND c.activationHeight < ?2 AND c.expirationHeight >= ?2" << name << nNextHeight;
+    it = query2.begin();
+    if (it != query2.end()) {
+        *it >> takeoverHeight >> claimId;
+        if (takeoverHeight > 0)
+            return true;
+    }
+
+    takeoverHeight = 0;
     return false;
 }
 
@@ -721,10 +751,13 @@ bool CClaimTrieCacheBase::incrementBlock()
           << nNextHeight;
 
     auto insertTakeoverQuery = db << "INSERT INTO takeover(name, height, claimID) VALUES(?, ?, ?)";
+    auto checkExistingCountQuery = db << "SELECT COUNT(*) FROM (SELECT nodeName FROM claim WHERE nodeName = ?1 "
+                                         "AND activationHeight <= ?2 AND expirationHeight > ?2 UNION ALL "
+                                         "SELECT name FROM takeover WHERE name = ?1 LIMIT 2)";
 
     // takeover handling:
     db  << "SELECT name FROM node WHERE hash IS NULL"
-        >> [this, &insertTakeoverQuery](const std::string& nameWithTakeover) {
+        >> [this, &insertTakeoverQuery, &checkExistingCountQuery](const std::string& nameWithTakeover) {
         // if somebody activates on this block and they are the new best, then everybody activates on this block
         CClaimValue candidateValue;
         auto hasCandidate = getInfoForName(nameWithTakeover, candidateValue, 1);
@@ -749,8 +782,13 @@ bool CClaimTrieCacheBase::incrementBlock()
         logPrint << "Takeover on " << nameWithTakeover << " at " << nNextHeight << ", happening: " << takeoverHappening << ", set before: " << hasCurrentWinner << Clog::endl;
 
         if (takeoverHappening) {
-            if (hasCandidate)
-                insertTakeoverQuery << nameWithTakeover << nNextHeight << candidateValue.claimId;
+            if (hasCandidate) {
+                int64_t existing = 0;
+                checkExistingCountQuery << nameWithTakeover << nNextHeight >> existing;
+                checkExistingCountQuery++;
+                if (existing != 1)
+                    insertTakeoverQuery << nameWithTakeover << nNextHeight << candidateValue.claimId;
+            }
             else
                 insertTakeoverQuery << nameWithTakeover << nNextHeight << nullptr;
             insertTakeoverQuery++;
@@ -758,6 +796,7 @@ bool CClaimTrieCacheBase::incrementBlock()
     };
 
     insertTakeoverQuery.used(true);
+    checkExistingCountQuery.used(true);
 
     nNextHeight++;
     return true;
@@ -843,7 +882,7 @@ bool CClaimTrieCacheBase::getProofForName(const std::string& name, const uint160
     // cache the parent nodes
     getMerkleHash();
     proof = CClaimTrieProof();
-    for (auto&& row: db << proofClaimQuery_s << name) {
+    for (auto&& row: db << proofClaimQuery_s << name << nNextHeight) {
         CClaimValue claim;
         std::string key;
         int takeoverHeight;
