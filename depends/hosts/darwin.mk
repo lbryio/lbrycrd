@@ -9,10 +9,10 @@ darwin_CXX=clang++ -target $(host) -mmacosx-version-min=$(OSX_MIN_VERSION) -isys
 darwin_CFLAGS=-pipe
 darwin_CXXFLAGS=$(darwin_CFLAGS) -std=c++11
 
-darwin_release_CFLAGS=-O2
+darwin_release_CFLAGS=-O2 -g
 darwin_release_CXXFLAGS=$(darwin_release_CFLAGS)
 
-darwin_debug_CFLAGS=-Og
-darwin_debug_CXXFLAGS=$(darwin_debug_CFLAGS)
+darwin_debug_CFLAGS=-Og -g
+darwin_debug_CXXFLAGS=-O0 -g
 
 darwin_native_toolchain=native_cctools
