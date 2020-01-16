@@ -12,7 +12,7 @@ function HELP {
     echo "-q: compile the QT GUI (not working at present)"
     echo "-d: force a rebuild of dependencies"
     echo "-u: run the unit tests when done"
-    echo "-g: include debug symbols"
+    echo "-g: compile in debug mode"
     echo "-h: show help"
     exit 1
 }
@@ -56,16 +56,18 @@ done
 
 echo "Compiling with ${PARALLEL_JOBS} jobs in parallel."
 
-BUILD_FLAGS=(CXXFLAGS="-O3 -march=native")
+BUILD_FLAGS=(CXXFLAGS="-O3 -march=native -g")
+DEBUG_DEPENDS=""
 if test "$COMPILE_WITH_DEBUG" = true; then
-    BUILD_FLAGS=(--with-debug CXXFLAGS="-Og -g")
+    BUILD_FLAGS=(--with-debug CXXFLAGS="-O0 -g")
+    DEBUG_DEPENDS="DEBUG=1"
 fi
 
 cd depends
 if test "$REBUILD_DEPENDENCIES" = true; then
     make clean
 fi
-make -j${PARALLEL_JOBS} ${DO_NOT_COMPILE_THE_GUI} V=1
+make -j${PARALLEL_JOBS} ${DO_NOT_COMPILE_THE_GUI} ${DEBUG_DEPENDS} V=1
 cd ..
 
 LC_ALL=C autoreconf --install

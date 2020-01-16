@@ -1,11 +1,11 @@
 linux_CFLAGS=-pipe
 linux_CXXFLAGS=$(linux_CFLAGS) -std=c++11
 
-linux_release_CFLAGS=-O2
+linux_release_CFLAGS=-O2 -g
 linux_release_CXXFLAGS=$(linux_release_CFLAGS)
 
-linux_debug_CFLAGS=-Og
-linux_debug_CXXFLAGS=$(linux_debug_CFLAGS)
+linux_debug_CFLAGS=-O1 -g
+linux_debug_CXXFLAGS=-O0 -g
 
 linux_debug_CPPFLAGS=-D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC
 
