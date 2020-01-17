@@ -1499,6 +1499,15 @@ isminetype CWallet::IsMine(const CTxIn &txin) const
     return ISMINE_NO;
 }
 
+
+static bool excludeStake(isminefilter ismine, isminefilter filter)
+{
+    assert((ismine & ISMINE_STAKE) != ISMINE_STAKE);
+    assert((filter & ISMINE_STAKE) != ISMINE_STAKE);
+    return (ismine & filter) && (!(filter & ISMINE_STAKE)
+        || ((ismine & ISMINE_STAKE) == (filter & ISMINE_STAKE)));
+}
+
 // Note that this function doesn't distinguish between a 0-valued input,
 // and a not-"is mine" (according to the filter) input.
 CAmount CWallet::GetDebit(const CTxIn &txin, const isminefilter& filter) const
@@ -1510,7 +1519,7 @@ CAmount CWallet::GetDebit(const CTxIn &txin, const isminefilter& filter) const
         {
             const CWalletTx& prev = (*mi).second;
             if (txin.prevout.n < prev.tx->vout.size())
-                if (IsMine(prev.tx->vout[txin.prevout.n]) & filter)
+                if (excludeStake(IsMine(prev.tx->vout[txin.prevout.n]), filter))
                     return prev.tx->vout[txin.prevout.n].nValue;
         }
     }
@@ -1526,7 +1535,7 @@ CAmount CWallet::GetCredit(const CTxOut& txout, const isminefilter& filter) cons
 {
     if (!MoneyRange(txout.nValue))
         throw std::runtime_error(std::string(__func__) + ": value out of range");
-    return ((IsMine(txout) & filter) == filter ? txout.nValue : 0);
+    return excludeStake(IsMine(txout), filter) ? txout.nValue : 0;
 }
 
 bool CWallet::IsChange(const CTxOut& txout) const
@@ -2232,10 +2241,10 @@ CAmount CWalletTx::GetDebit(const isminefilter& filter) const
 
     CAmount debit = 0;
     if (filter & ISMINE_SPENDABLE) {
-        debit += GetCachableAmount(DEBIT, ISMINE_SPENDABLE);
+        debit += GetCachableAmount(DEBIT, filter & ~ISMINE_WATCH_ONLY);
     }
     if (filter & ISMINE_WATCH_ONLY) {
-        debit += GetCachableAmount(DEBIT, ISMINE_WATCH_ONLY);
+        debit += GetCachableAmount(DEBIT, filter & ~ISMINE_SPENDABLE);
     }
     return debit;
 }
@@ -2249,10 +2258,10 @@ CAmount CWalletTx::GetCredit(interfaces::Chain::Lock& locked_chain, const ismine
     CAmount credit = 0;
     if (filter & ISMINE_SPENDABLE) {
         // GetBalance can assume transactions in mapWallet won't change
-        credit += GetCachableAmount(CREDIT, ISMINE_SPENDABLE);
+        credit += GetCachableAmount(CREDIT, filter & ~ISMINE_WATCH_ONLY);
     }
     if (filter & ISMINE_WATCH_ONLY) {
-        credit += GetCachableAmount(CREDIT, ISMINE_WATCH_ONLY);
+        credit += GetCachableAmount(CREDIT, filter & ~ISMINE_SPENDABLE);
     }
     return credit;
 }
