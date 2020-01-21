@@ -425,14 +425,12 @@ public:
 void CRegTestParams::UpdateActivationParametersFromArgs(const ArgsManager& args)
 {
     if (gArgs.IsArgSet("-segwitheight")) {
-        int64_t height = gArgs.GetArg("-segwitheight", consensus.SegwitHeight);
-        if (height < -1 || height >= std::numeric_limits<int>::max()) {
-            throw std::runtime_error(strprintf("Activation height %ld for segwit is out of valid range. Use -1 to disable segwit.", height));
-        } else if (height == -1) {
+        int height = gArgs.GetArg("-segwitheight", consensus.SegwitHeight);
+        if (height <= 0) {
             LogPrintf("Segwit disabled for testing\n");
             height = std::numeric_limits<int>::max();
         }
-        consensus.SegwitHeight = static_cast<int>(height);
+        consensus.SegwitHeight = height;
     }
 
     if (!args.IsArgSet("-vbparams")) return;
