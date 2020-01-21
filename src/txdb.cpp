@@ -5,7 +5,7 @@
 
 #include <txdb.h>
 
-#include <claimtrie/sqlite.h>
+#include <claimtrie/trie.h>
 #include <key_io.h>
 #include <pow.h>
 #include <random.h>
@@ -28,11 +28,7 @@ static const sqlite::sqlite_config sharedConfig {
 CCoinsViewDB::CCoinsViewDB(fs::path ldb_path, size_t nCacheSize, bool fMemory, bool fWipe)
     : db(fMemory ? ":memory:" : (ldb_path / "coins.sqlite").string(), sharedConfig)
 {
-    db << "PRAGMA cache_size=-" + std::to_string(nCacheSize >> 10); // in -KB
-    db << "PRAGMA synchronous=OFF"; // don't disk sync after transaction commit
-    db << "PRAGMA journal_mode=WAL";
-    db << "PRAGMA temp_store=MEMORY";
-    db << "PRAGMA case_sensitive_like=true";
+    applyPragmas(db, nCacheSize >> 10); // in -KB
 
     db << "CREATE TABLE IF NOT EXISTS unspent (txID BLOB NOT NULL COLLATE BINARY, txN INTEGER NOT NULL, "
           "isCoinbase INTEGER NOT NULL, blockHeight INTEGER NOT NULL, amount INTEGER NOT NULL, "
@@ -52,7 +48,7 @@ CCoinsViewDB::CCoinsViewDB(fs::path ldb_path, size_t nCacheSize, bool fMemory, b
 
 bool CCoinsViewDB::GetCoin(const COutPoint &outpoint, Coin &coin) const {
     auto query = db << "SELECT isCoinbase, blockHeight, amount, script FROM unspent "
-          "WHERE txID = ? AND txN = ?" << outpoint.hash << outpoint.n;
+                        "WHERE txID = ? AND txN = ?" << outpoint.hash << outpoint.n;
     for (auto&& row: query) {
         uint32_t coinbase = 0, height = 0;
         row >> coinbase >> height >> coin.out.nValue >> coin.out.scriptPubKey;
@@ -65,7 +61,7 @@ bool CCoinsViewDB::GetCoin(const COutPoint &outpoint, Coin &coin) const {
 
 bool CCoinsViewDB::HaveCoin(const COutPoint &outpoint) const {
     auto query = db << "SELECT 1 FROM unspent "
-                       "WHERE txID = ? AND txN = ?" << outpoint.hash << outpoint.n;
+                        "WHERE txID = ? AND txN = ?" << outpoint.hash << outpoint.n;
     return query.begin() != query.end();
 }
 
@@ -170,13 +166,9 @@ size_t CCoinsViewDB::EstimateSize() const
 }
 
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe)
-    : db(fMemory ? ":memory:" : (GetDataDir() / "block_index.sqlite").string(), sharedConfig)
+    : db(fMemory ? ":memory:" : (GetBlocksDir() / "index.sqlite").string(), sharedConfig)
 {
-    db << "PRAGMA cache_size=-" + std::to_string(nCacheSize >> 10); // in -KB
-    db << "PRAGMA synchronous=OFF"; // don't disk sync after transaction commit
-    db << "PRAGMA journal_mode=WAL";
-    db << "PRAGMA temp_store=MEMORY";
-    db << "PRAGMA case_sensitive_like=true";
+    applyPragmas(db, nCacheSize >> 10); // in -KB
 
     db << "CREATE TABLE IF NOT EXISTS block_file ("
           "file INTEGER NOT NULL PRIMARY KEY, "

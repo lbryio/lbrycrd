@@ -3,6 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <chainparams.h>
+#include <claimtrie/trie.h>
 #include <index/base.h>
 #include <shutdown.h>
 #include <tinyformat.h>
@@ -32,13 +33,9 @@ static const sqlite::sqlite_config sharedConfig {
 };
 
 BaseIndex::DB::DB(const fs::path& path, size_t n_cache_size, bool fMemory, bool fWipe)
-    : sqlite::database(fMemory ? ":memory:" : (path / "index.sqlite").string(), sharedConfig)
+    : sqlite::database(fMemory ? ":memory:" : (path / "db.sqlite").string(), sharedConfig)
 {
-    (*this) << "PRAGMA cache_size=-" + std::to_string(n_cache_size >> 10); // in -KB
-    (*this) << "PRAGMA synchronous=OFF"; // don't disk sync after transaction commit
-    (*this) << "PRAGMA journal_mode=MEMORY";
-    (*this) << "PRAGMA temp_store=MEMORY";
-    (*this) << "PRAGMA case_sensitive_like=true";
+    applyPragmas(*this, n_cache_size >> 10); // in -KB
 
     (*this) << "CREATE TABLE IF NOT EXISTS locator (branch BLOB NOT NULL COLLATE BINARY);";
     (*this) << "CREATE TABLE IF NOT EXISTS file_pos (file INTEGER NOT NULL, pos INTEGER NOT NULL);";
@@ -53,7 +50,7 @@ BaseIndex::DB::DB(const fs::path& path, size_t n_cache_size, bool fMemory, bool 
         (*this) << "DELETE FROM file_pos";
         (*this) << "DELETE FROM block";
     }
-    (*this) << "begin";
+    (*this) << "BEGIN";
 }
 
 bool BaseIndex::DB::ReadBestBlock(CBlockLocator& locator) const
@@ -207,11 +204,11 @@ void BaseIndex::ThreadSync()
 bool BaseIndex::Commit()
 {
     if (!CommitInternal() || sqlite::commit(GetDB()) != SQLITE_OK) {
-        GetDB() << "rollback";
-        GetDB() << "begin";
+        GetDB() << "ROLLBACK";
+        GetDB() << "BEGIN";
         return error("%s: Failed to commit latest %s state", __func__, GetName());
     }
-    GetDB() << "begin";
+    GetDB() << "BEGIN";
     return true;
 }
 

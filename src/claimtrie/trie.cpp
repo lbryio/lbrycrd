@@ -44,9 +44,6 @@ void applyPragmas(sqlite::database& db, std::size_t cache)
     db << "PRAGMA journal_mode=WAL";
     db << "PRAGMA temp_store=MEMORY";
     db << "PRAGMA case_sensitive_like=true";
-
-    db.define("POPS", [](std::string s) -> std::string { if (!s.empty()) s.pop_back(); return s; });
-    db.define("REVERSE", [](std::vector<uint8_t> s) -> std::vector<uint8_t> { std::reverse(s.begin(), s.end()); return s; });
 }
 
 CClaimTrie::CClaimTrie(std::size_t cacheBytes, bool fWipe, int height,
@@ -522,6 +519,9 @@ CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)
     nNextHeight = base->nNextHeight;
 
     applyPragmas(db, base->dbCacheBytes >> 10U); // in KB
+
+    db.define("POPS", [](std::string s) -> std::string { if (!s.empty()) s.pop_back(); return s; });
+    db.define("REVERSE", [](std::vector<uint8_t> s) -> std::vector<uint8_t> { std::reverse(s.begin(), s.end()); return s; });
 }
 
 CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrieCacheBase&& o)

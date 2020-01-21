@@ -13,6 +13,7 @@
 #include <unordered_set>
 #include <utility>
 
+void applyPragmas(sqlite::database& db, std::size_t cache);
 uint256 getValueHash(const COutPoint& outPoint, int nHeightOfLastTakeover);
 
 class CClaimTrie

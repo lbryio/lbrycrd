@@ -54,7 +54,6 @@ namespace BCLog {
         LIBEVENT    = (1 << 17),
         COINDB      = (1 << 18),
         QT          = (1 << 19),
-        LEVELDB     = (1 << 20),
         CLAIMS      = (1 << 30),
         ALL         = ~(uint32_t)0,
     };

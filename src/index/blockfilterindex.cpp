@@ -50,11 +50,11 @@ BlockFilterIndex::BlockFilterIndex(BlockFilterType filter_type,
     const std::string& filter_name = BlockFilterTypeName(filter_type);
     if (filter_name.empty()) throw std::invalid_argument("unknown filter_type");
 
-    fs::path path = GetDataDir() / "indexes" / "blockfilter" / filter_name;
+    fs::path path = GetBlocksDir() / "filter" / filter_name;
     fs::create_directories(path);
 
     m_name = filter_name + " block filter index";
-    m_db = MakeUnique<BaseIndex::DB>(path / "db", n_cache_size, f_memory, f_wipe);
+    m_db = MakeUnique<BaseIndex::DB>(path, n_cache_size, f_memory, f_wipe);
     m_filter_fileseq = MakeUnique<FlatFileSeq>(std::move(path), "fltr", FLTR_FILE_CHUNK_SIZE);
 }
 

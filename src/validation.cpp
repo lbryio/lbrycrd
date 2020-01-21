@@ -1339,11 +1339,10 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 }
 
 CoinsViews::CoinsViews(
-    std::string ldb_name,
     size_t cache_size_bytes,
     bool in_memory,
     bool should_wipe) : m_dbview(
-                            GetDataDir() / ldb_name, cache_size_bytes, in_memory, should_wipe),
+                            GetDataDir(), cache_size_bytes, in_memory, should_wipe),
                         m_catcherview(&m_dbview) {}
 
 void CoinsViews::InitCache()
@@ -1359,11 +1358,9 @@ CChainState::CChainState() : m_blockman(g_blockman) {}
 void CChainState::InitCoinsDB(
     size_t cache_size_bytes,
     bool in_memory,
-    bool should_wipe,
-    std::string leveldb_name)
+    bool should_wipe)
 {
-    m_coins_views = MakeUnique<CoinsViews>(
-        leveldb_name, cache_size_bytes, in_memory, should_wipe);
+    m_coins_views = MakeUnique<CoinsViews>(cache_size_bytes, in_memory, should_wipe);
 }
 
 void CChainState::InitCoinsCache()
