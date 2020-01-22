@@ -14,7 +14,7 @@
 #include <policy/policy.h>
 #include <pow.h>
 #include <random.h>
-#include <rpc/claimrpchelp.h>
+#include <rpc/claimrpcdefs.h>
 #include <rpc/server.h>
 #include <streams.h>
 #include <test/setup_common.h>

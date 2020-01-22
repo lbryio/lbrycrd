@@ -361,19 +361,27 @@ UniValue claimname(const JSONRPCRequest& request)
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
         return NullUniValue;
     }
+            RPCHelpMan{"claimname",
+                "\nCreate a transaction which issues a claim assigning a value to a name.\n"
+                "The claim will be authoritative if the transaction amount is greater than\n"
+                "the transaction amount of all other unspent transactions which issue a claim\n"
+                "over the same name, and it will remain authoritative as long as it remains unspent\n"
+                "and there are no other greater unspent transactions issuing a claim over the same name.\n"
+                "The amount is a real and is rounded to the nearest 0.00000001\n",
+                {
+                    {"name", RPCArg::Type::STR, RPCArg::Optional::NO, "The name to be assigned the value"},
+                    {"value", RPCArg::Type::STR, RPCArg::Optional::NO, "The value to assign to the name encoded in hexadecimal"},
+                    {"amount", RPCArg::Type::AMOUNT, RPCArg::Optional::NO, "The amount to be send. eg 0.1"},
+                },
+                RPCResult{
+            "\"txid\"                  (string) The transaction id.\n"
+                },
+                RPCExamples{
+                    HelpExampleCli("claimname", "\"test\" \"0x111\" 0.1")
+                    + HelpExampleRpc("claimname", "\"test\" \"0x111\" 0.1")
+                },
+            }.Check(request);
 
-    if (request.fHelp || (request.params.size() != 3 && request.params.size() != 4))
-        throw std::runtime_error(
-            "claimname \"name\" \"value\" amount\n"
-            "\nCreate a transaction which issues a claim assigning a value to a name. The claim will be authoritative if the transaction amount is greater than the transaction amount of all other unspent transactions which issue a claim over the same name, and it will remain au\
-thoritative as long as it remains unspent and there are no other greater unspent transactions issuing a claim over the same name. The amount is a real and is rounded to the nearest 0.00000001\n"
-            + HelpRequiringPassphrase(pwallet) +
-            "\nArguments:\n"
-            "1. \"name\"         (string, required) The name to be assigned the value.\n"
-            "2. \"value\"        (string, required) The value to assign to the name encoded in hexadecimal.\n"
-            "3. \"amount\"       (numeric, required) The amount in LBRYcrd to send. eg 0.1\n"
-            "\nResult:\n"
-            "\"transactionid\"  (string) The transaction id.\n");
     auto sName = request.params[0].get_str();
     auto sValue = request.params[1].get_str();
 
@@ -414,18 +422,26 @@ UniValue updateclaim(const JSONRPCRequest& request)
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
         return NullUniValue;
     }
-
-    if (request.fHelp || (request.params.size() != 3 && request.params.size() != 4))
-        throw std::runtime_error(
-            "updateclaim \"txid\" \"value\" amount\n"
-            "Create a transaction which issues a claim assigning a value to a name, spending the previous txout which issued a claim over the same name and therefore superseding that claim. The claim will be authoritative if the transaction amount is greater than the transaction amount of all other unspent transactions which issue a claim over the same name, and it will remain authoritative as long as it remains unspent and there are no greater unspent transactions issuing a claim over the same name.\n"
-            + HelpRequiringPassphrase(pwallet) + "\n"
-            "Arguments:\n"
-            "1. \"txid\"         (string, required) The transaction containing the unspent txout which should be spent.\n"
-            "2. \"value\"        (string, required) The value to assign to the name encoded in hexadecimal.\n"
-            "3. \"amount\"       (numeric, required) The amount in LBRYcrd to use to bid for the name. eg 0.1\n"
-            "\nResult:\n"
-            "\"transactionid\"  (string) The new transaction id.\n");
+            RPCHelpMan{"updateclaim",
+                "\nCreate a transaction which issues a claim assigning a value to a name,\n"
+                "spending the previous txout which issued a claim over the same name and therefore superseding that claim.\n"
+                "The claim will be authoritative if the transaction amount is greater than\n"
+                "the transaction amount of all other unspent transactions which issue a claim\n"
+                "over the same name, and it will remain authoritative as long as it remains unspent\n"
+                "and there are no other greater unspent transactions issuing a claim over the same name.\n",
+                {
+                    {"txid", RPCArg::Type::STR, RPCArg::Optional::NO, "The transaction containing the unspent txout which should be spent"},
+                    {"value", RPCArg::Type::STR, RPCArg::Optional::NO, "The value to assign to the name encoded in hexadecimal"},
+                    {"amount", RPCArg::Type::AMOUNT, RPCArg::Optional::NO, "The amount to be send. eg 0.1"},
+                },
+                RPCResult{
+            "\"txid\"                  (string) The transaction id.\n"
+                },
+                RPCExamples{
+                    HelpExampleCli("updateclaim", "\"1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d\" \"0x111\" 0.1")
+                    + HelpExampleRpc("updateclaim", "\"1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d\" \"0x111\" 0.1")
+                },
+            }.Check(request);
 
     uint256 hash;
     hash.SetHex(request.params[0].get_str());
@@ -503,17 +519,20 @@ UniValue abandonclaim(const JSONRPCRequest& request)
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
         return NullUniValue;
     }
-
-    if (request.fHelp || request.params.size() != 2)
-        throw std::runtime_error(
-            "abandonclaim \"txid\" \"address\"\n"
-            "Create a transaction which spends a txout which assigned a value to a name, effectively abandoning that claim.\n"
-            + HelpRequiringPassphrase(pwallet) +
-            "\nArguments:\n"
-            "1. \"txid\"  (string, required) The transaction containing the unspent txout which should be spent.\n"
-            "2. \"address\"  (string, required) The lbrycrd address to send to.\n"
-            "\nResult:\n"
-            "\"transactionid\"  (string) The new transaction id.\n");
+            RPCHelpMan{"abandonclaim",
+                "\nCreate a transaction which spends a txout which assigned a value to a name, effectively abandoning that claim.\n",
+                {
+                    {"txid", RPCArg::Type::STR, RPCArg::Optional::NO, "The transaction containing the unspent txout which should be spent"},
+                    {"address", RPCArg::Type::STR, RPCArg::Optional::NO, "The lbrycrd address to send to"},
+                },
+                RPCResult{
+            "\"txid\"                  (string) The transaction id.\n"
+                },
+                RPCExamples{
+                    HelpExampleCli("abandonclaim", "\"1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d\" \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
+                    + HelpExampleRpc("abandonclaim", "\"1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d\" \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
+                },
+            }.Check(request);
 
     uint256 hash;
     hash.SetHex(request.params[0].get_str());
@@ -649,16 +668,14 @@ UniValue listnameclaims(const JSONRPCRequest& request)
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
         return NullUniValue;
     }
-
-    if (request.fHelp || request.params.size() > 3)
-        throw std::runtime_error(
-            "listnameclaims ( includesuppports activeonly minconf )\n"
-            "Return a list of all transactions claiming names.\n"
-            "\nArguments\n"
-            "1. includesupports  (bool, optional) Whether to also include claim supports. Default is true.\n"
-            "2. activeonly       (bool, optional) Whether to only include transactions which are still active, i.e. have not been spent. Default is true.\n"
-            "3. minconf          (numeric, optional, default=1) Only include transactions confirmed at least this many times.\n"
-            "\nResult:\n"
+            RPCHelpMan{"listnameclaims",
+                "\nCreate a transaction which spends a txout which assigned a value to a name, effectively abandoning that claim.\n",
+                {
+                    {"includesupports", RPCArg::Type::BOOL, /* default */ "true", "The transaction containing the unspent txout which should be spent"},
+                    {"activeonly", RPCArg::Type::BOOL, /* default */ "true", "The lbrycrd address to send to"},
+                    {"minconf", RPCArg::Type::NUM, /* default */ "1", "The lbrycrd address to send to"},
+                },
+                RPCResult{
             "[\n"
             "  {\n"
             "    \"name\":\"claimedname\",        (string) The name that is claimed.\n"
@@ -681,7 +698,13 @@ UniValue listnameclaims(const JSONRPCRequest& request)
             "    \"timereceived\": xxx,           (numeric) The time received in seconds since epoch (midnight Jan 1 1970 GMT).\n"
             "    \"comment\": \"...\",            (string) If a comment is associated with the transaction.\n"
             "  }\n"
-            "]\n");
+            "]\n"
+                },
+                RPCExamples{
+                    HelpExampleCli("listnameclaims", "")
+                    + HelpExampleRpc("listnameclaims", "")
+                },
+            }.Check(request);
 
     auto include_supports = request.params.size() < 1 || request.params[0].get_bool();
     bool fListSpent = request.params.size() > 1 && !request.params[1].get_bool();
@@ -722,24 +745,35 @@ UniValue supportclaim(const JSONRPCRequest& request)
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
         return NullUniValue;
     }
-
-    if (request.fHelp || request.params.size() < 1 || request.params.size() > 5)
-        throw std::runtime_error(
-            "supportclaim \"name\" ( \"claimid\" amount \"value\" isTip ) \n"
-            "Increase the value of a claim. Whichever claim has the greatest value, including all support values, will be the authoritative claim, according to the rest of the rules. The name is the name which is claimed by the claim that will be supported, the txid is the txid\
- of the claim that will be supported, nout is the transaction output which contains the claim to be supported, and amount is the amount which will be added to the value of the claim. If the claim is currently the authoritative claim, this support will go into effect immediately \
-. Otherwise, it will go into effect after 100 blocks. The support will be in effect until it is spent, and will lose its effect when the claim is spent or expires. The amount is a real and is rounded to the nearest .00000001\n"
-            + HelpRequiringPassphrase(pwallet) +
-            "\nArguments:\n"
-            "1. \"name\"         (string, required) The name claimed by the claim to support.\n"
-            "2. \"claimid\"      (string, optional) The claimid or partialid of the claim to support.\n"
-            "3. \"amount\"       (numeric, optional) The amount in LBC to use to support the claim.\n"
-            "4. \"value\"        (string, optional) The metadata of the support encoded in hexadecimal.\n"
-            "5. \"isTip\"        (boolean, optional, defaults to false) spendable by owning claim's address when true.\n"
-            "\nResult: [\n"
-                "\"txId\"        (string) The transaction id of the support.\n"
-                "\"address\"     (string) The destination address of the claim.\n"
-            "\n]");
+            RPCHelpMan{"supportclaim",
+                "\nIncrease the value of a claim. Whichever claim has the greatest value,\n"
+                "including all support values, will be the authoritative claim, according to the rest of the rules.\n"
+                "The name is the name which is claimed by the claim that will be supported, the txid is the txid\n"
+                "of the claim that will be supported, nout is the transaction output which contains the claim to be supported,\n"
+                "and amount is the amount which will be added to the value of the claim. If the claim is currently the authoritative claim,\n"
+                "this support will go into effect immediately. Otherwise, it will go into effect after 100 blocks.\n"
+                "The support will be in effect until it is spent, and will lose its effect when the claim is spent or expires.\n"
+                "The amount is a real and is rounded to the nearest .00000001\n",
+                {
+                    {"name", RPCArg::Type::STR, RPCArg::Optional::NO, "The transaction containing the unspent txout which should be spent"},
+                    {"claimid", RPCArg::Type::STR, RPCArg::Optional::OMITTED, "The claimid or partialid of the claim to support"},
+                    {"amount", RPCArg::Type::AMOUNT, RPCArg::Optional::OMITTED, "The amount in LBC to use to support the claim"},
+                    {"value", RPCArg::Type::STR, RPCArg::Optional::OMITTED, "The metadata of the support encoded in hexadecimal"},
+                    {"isTip", RPCArg::Type::BOOL, /* default */ "false", "Spendable by owning claim's address when true"},
+                },
+                RPCResult{
+            "[\n"
+            "  {\n"
+            "    \"txid\"              (string) The transaction id.\n"
+            "    \"address\"           (string) The destination address of the claim.\n"
+            "  }\n"
+            "]\n"
+                },
+                RPCExamples{
+                    HelpExampleCli("supportclaim", "test")
+                    + HelpExampleRpc("supportclaim", "test")
+                },
+            }.Check(request);
 
     auto sName = request.params[0].get_str();
     std::string sClaimId;
@@ -829,17 +863,20 @@ UniValue abandonsupport(const JSONRPCRequest& request)
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
         return NullUniValue;
     }
-
-    if (request.fHelp || request.params.size() != 2)
-        throw std::runtime_error(
-            "abandonsupport \"txid\" \"address\"\n"
-            "Create a transaction which spends a txout which supported a name claim, effectively abandoning that support.\n"
-            + HelpRequiringPassphrase(pwallet) +
-            "\nArguments:\n"
-            "1. \"txid\"  (string, required) The transaction containing the unspent txout which should be spent.\n"
-            "2. \"address\"  (string, required) The lbrycrd address to send to.\n"
-            "\nResult:\n"
-            "\"transactionid\"  (string) The new transaction id.\n");
+            RPCHelpMan{"abandonsupport",
+                "\nCreate a transaction which spends a txout which assigned a value to a name, effectively abandoning that support.\n",
+                {
+                    {"txid", RPCArg::Type::STR, RPCArg::Optional::NO, "The transaction containing the unspent txout which should be spent"},
+                    {"address", RPCArg::Type::STR, RPCArg::Optional::NO, "The lbrycrd address to send to"},
+                },
+                RPCResult{
+            "\"txid\"                  (string) The transaction id.\n"
+                },
+                RPCExamples{
+                    HelpExampleCli("abandonsupport", "\"1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d\" \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
+                    + HelpExampleRpc("abandonsupport", "\"1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d\" \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
+                },
+            }.Check(request);
 
     uint256 hash;
     hash.SetHex(request.params[0].get_str());
@@ -1545,27 +1582,27 @@ static UniValue addtimelockedaddress(const JSONRPCRequest& request)
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
         return NullUniValue;
     }
-
-    if (request.fHelp || request.params.size() < 2 || request.params.size() > 4) {
-        std::string msg = "addtimelockedaddress timelock address ( \"label\" \"address_type\" )\n"
-                          "\nAdd an address that can't be redeemed until timelock. Requires a new wallet backup.\n"
-                          "See `importaddress` for watchonly p2sh address support.\n"
-                          "If 'label' is specified, assign address to that label.\n"
-
-                          "\nArguments:\n"
-                          "1. timelock                      (numeric, required) Block height if < 500 million or unix timestamp if greater.\n"
-                          "1. \"address\"                   (string, required) The destination wallet address.\n"
-                          "2. \"label\"                     (string, optional) A label to assign the addresses to.\n"
-                          "3. \"address_type\"              (string, optional) The address type to use. Options are \"legacy\", \"p2sh-segwit\", and \"bech32\". Default is set by -addresstype.\n"
-
-                          "\nResult:\n"
-                          "{\n"
-                          "  \"address\":\"address\",       (string) The value of the new P2SH address.\n"
-                          "  \"redeemScript\":\"script\"    (string) The string value of the hex-encoded redemption script.\n"
-                          "}\n"
-        ;
-        throw std::runtime_error(msg);
-    }
+            RPCHelpMan{"addtimelockedaddress",
+                "\nAdd an address that can't be redeemed until timelock. Requires a new wallet backup.\n"
+                "See `importaddress` for watchonly p2sh address support.\n"
+                "If 'label' is specified, assign address to that label.\n",
+                {
+                    {"timelock", RPCArg::Type::NUM, RPCArg::Optional::NO, "Block height if < 500 million or unix timestamp if greater"},
+                    {"address", RPCArg::Type::STR, RPCArg::Optional::NO, "The destination wallet address"},
+                    {"label", RPCArg::Type::STR, RPCArg::Optional::OMITTED, "A label to assign the addresses to"},
+                    {"address_type", RPCArg::Type::STR, /* deafult */ gArgs.GetArg("-addresstype", "legacy"), "The address type to use. Options are \"legacy\", \"p2sh-segwit\", and \"bech32\""},
+                },
+                RPCResult{
+            "[\n"
+            "    \"address\"           (string) The value of the new P2SH address.\n"
+            "    \"redeemScript\"      (string) The string value of the hex-encoded redemption script.\n"
+            "]\n"
+                },
+                RPCExamples{
+                    HelpExampleCli("addtimelockedaddress", "350000 \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
+                    + HelpExampleRpc("addtimelockedaddress", "350000 \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
+                },
+            }.Check(request);
 
     auto timelock = request.params[0].get_int();
     std::string label;

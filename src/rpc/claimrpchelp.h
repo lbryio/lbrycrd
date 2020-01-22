@@ -2,51 +2,8 @@
 #ifndef CLAIMRPCHELP_H
 #define CLAIMRPCHELP_H
 
-// always keep defines T_ + value in upper case
-#define T_NORMALIZEDNAME                "normalizedName"
-#define T_BLOCKHASH                     "blockhash"
-#define T_CLAIMS                        "claims"
-#define T_CLAIMID                       "claimId"
-#define T_TXID                          "txId"
-#define T_N                             "n"
-#define T_AMOUNT                        "amount"
-#define T_HEIGHT                        "height"
-#define T_VALUE                         "value"
-#define T_NAME                          "name"
-#define T_VALIDATHEIGHT                 "validAtHeight"
-#define T_NAMES                         "names"
-#define T_EFFECTIVEAMOUNT               "effectiveAmount"
-#define T_LASTTAKEOVERHEIGHT            "lastTakeoverHeight"
-#define T_ORIGINALHEIGHT                "originalHeight"
-#define T_SUPPORTS                      "supports"
-#define T_SUPPORTSWITHOUTCLAIM          "supportsWithoutClaim"
-#define T_TOTALNAMES                    "totalNames"
-#define T_TOTALCLAIMS                   "totalClaims"
-#define T_TOTALVALUE                    "totalValue"
-#define T_CONTROLLINGONLY               "controllingOnly"
-#define T_CLAIMTYPE                     "claimType"
-#define T_DEPTH                         "depth"
-#define T_INCLAIMTRIE                   "inClaimTrie"
-#define T_ISCONTROLLING                 "isControlling"
-#define T_INSUPPORTMAP                  "inSupportMap"
-#define T_INQUEUE                       "inQueue"
-#define T_BLOCKSTOVALID                 "blocksToValid"
-#define T_NODES                         "nodes"
-#define T_CHILDREN                      "children"
-#define T_CHARACTER                     "character"
-#define T_NODEHASH                      "nodeHash"
-#define T_VALUEHASH                     "valueHash"
-#define T_PAIRS                         "pairs"
-#define T_ODD                           "odd"
-#define T_HASH                          "hash"
-#define T_BID                           "bid"
-#define T_SEQUENCE                      "sequence"
-#define T_CLAIMSADDEDORUPDATED          "claimsAddedOrUpdated"
-#define T_SUPPORTSADDEDORUPDATED        "supportsAddedOrUpdated"
-#define T_CLAIMSREMOVED                 "claimsRemoved"
-#define T_SUPPORTSREMOVED               "supportsRemoved"
-#define T_ADDRESS                       "address"
-#define T_PENDINGAMOUNT                 "pendingAmount"
+#include <rpc/claimrpcdefs.h>
+#include <rpc/util.h>
 
 enum {
     GETNAMESINTRIE = 0,
@@ -70,12 +27,10 @@ enum {
 #define S3(pre, name, def) S3_(pre, name, def)
 #define S1(str)  str "\n"
 
-#define NAME_TEXT      "                    (string) the name to look up"
-#define BLOCKHASH_TEXT "               (string, optional) get claims in the trie\n" \
-"                                                  at the block specified\n" \
-"                                                  by this block hash.\n" \
-"                                                  If none is given,\n" \
-"                                                  the latest active\n" \
+#define NAME_TEXT      RPCArg::Type::STR, RPCArg::Optional::NO, "The name to look up"
+#define BLOCKHASH_TEXT RPCArg::Type::STR, RPCArg::Optional::OMITTED, "Get claims in the trie\n" \
+"                                                  at the block specified by this block hash.\n" \
+"                                                  If none is given, the latest active\n" \
 "                                                  block will be used."
 
 #define CLAIM_OUTPUT    \
@@ -126,201 +81,310 @@ S3("    ", T_TXID, "                   (string, if exists) the txid of the claim
 S3("    ", T_N, "                      (numeric) the index of the claim in the transaction's list of outputs") \
 S3("    ", T_LASTTAKEOVERHEIGHT, "     (numeric) the last height at which ownership of the name changed")
 
-static const char* const rpc_help[] = {
+static const RPCHelpMan rpc_help[] = {
 
 // GETNAMESINTRIE
-S1("getnamesintrie ( \"" T_BLOCKHASH R"(" )
-Return all claim names in the trie.
-Arguments:)")
-S3("1. ", T_BLOCKHASH, BLOCKHASH_TEXT)
-S1("Result: [")
-S3("    ", T_NAMES, "                  all names in the trie that have claims")
-"]",
+RPCHelpMan{"getnamesintrie",
+    S1("\nReturn all claim names in the trie."),
+    {
+        { T_BLOCKHASH, BLOCKHASH_TEXT },
+    },
+    RPCResult{
+        S1("[")
+        S3("    ", T_NAMES, "                  all names in the trie that have claims")
+        "]"
+    },
+    RPCExamples{
+        HelpExampleCli("getnamesintrie", "")
+        + HelpExampleRpc("getnamesintrie", "")
+    },
+},
 
 // GETVALUEFORNAME
-S1("getvalueforname \"" T_NAME "\" ( \"" T_BLOCKHASH "\" \"" T_CLAIMID R"(" )
-Return the winning or specified by claimId value associated with a name
-Arguments:)")
-S3("1. ", T_NAME, NAME_TEXT)
-S3("2. ", T_BLOCKHASH, BLOCKHASH_TEXT)
-S3("3. ", T_CLAIMID, "                 (string, optional) can be partial one")
-S1("Result: [")
-CLAIM_OUTPUT
-"]",
+RPCHelpMan{"getvalueforname",
+    S1("\nReturn the winning or specified by claimId value associated with a name."),
+    {
+        { T_NAME, NAME_TEXT },
+        { T_BLOCKHASH, BLOCKHASH_TEXT },
+        { T_CLAIMID, RPCArg::Type::STR, RPCArg::Optional::OMITTED, "Full or partial claim id" },
+    },
+    RPCResult{
+        S1("[")
+        CLAIM_OUTPUT
+        "]",
+    },
+    RPCExamples{
+        HelpExampleCli("getvalueforname", "\"test\"")
+        + HelpExampleRpc("getvalueforname", "\"test\"")
+    },
+},
 
 // GETCLAIMSFORNAME
-S1("getclaimsforname \"" T_NAME "\" ( \"" T_BLOCKHASH R"(" )
-Return all claims and supports for a name
-Arguments:)")
-S3("1. ", T_NAME, NAME_TEXT)
-S3("2. ", T_BLOCKHASH, BLOCKHASH_TEXT)
-S1("Result: [")
-S3("    ", T_NORMALIZEDNAME, "         (string) the name of the claim(s) (after normalization)")
-S3("    ", T_CLAIMS, ": [              (array of object) the claims for this name")
-S3("        ", T_NAME, "               (string) the original name of this claim (before normalization)")
-S3("        ", T_VALUE, "              (string) the value of this claim")
-S3("        ", T_ADDRESS, "            (string) the destination address of this claim")
-S3("        ", T_CLAIMID, "            (string) the claimId of the claim")
-S3("        ", T_TXID, "               (string) the txid of the claim or its most recent update")
-S3("        ", T_N, "                  (numeric) the index of the claim in the transaction's list of outputs")
-S3("        ", T_HEIGHT, "             (numeric) the height of the block in which this transaction is located")
-S3("        ", T_VALIDATHEIGHT, "      (numeric) the height at which the claim became/becomes valid")
-S3("        ", T_AMOUNT, "             (numeric) the amount of the claim or its most recent update")
-S3("        ", T_EFFECTIVEAMOUNT, "    (numeric) the amount plus amount from all supports associated with the claim")
-S3("        ", T_ORIGINALHEIGHT, "     (numeric) the block height where the claim was first created") \
-S3("        ", T_PENDINGAMOUNT, "      (numeric) expected amount when claim and its support got valid")
-S3("        ", T_SUPPORTS, ": [        (array of object) supports for this claim")
-S3("            ", T_VALUE, "          (string) the metadata of the support if any")
-S3("            ", T_ADDRESS, "        (string) the destination address of the support")
-S3("            ", T_TXID, "           (string) the txid of the support")
-S3("            ", T_N, "              (numeric) the index of the support in the transaction's list of outputs")
-S3("            ", T_HEIGHT, "         (numeric) the height of the block in which this transaction is located")
-S3("            ", T_VALIDATHEIGHT, "  (numeric) the height at which the support became/becomes valid")
-S3("            ", T_AMOUNT, "         (numeric) the amount of the support")
-S1("        ]")
-S3("        ", T_BID, "                (numeric) lower value means a higher bid rate, ordered by effective amount")
-S3("        ", T_SEQUENCE, "           (numeric) lower value means an older one in sequence, ordered by height of insertion")
-S1("    ]")
-S3("    ", T_LASTTAKEOVERHEIGHT, "     (numeric) the last height at which ownership of the name changed")
-S3("    ", T_SUPPORTSWITHOUTCLAIM, ": [")
-S3("        ", T_TXID, "               (string) the txid of the support")
-S3("        ", T_N, "                  (numeric) the index of the support in the transaction's list of outputs")
-S3("        ", T_HEIGHT, "             (numeric) the height of the block in which this transaction is located")
-S3("        ", T_VALIDATHEIGHT, "      (numeric) the height at which the support became/becomes valid")
-S3("        ", T_AMOUNT, "             (numeric) the amount of the support")
-S1("    ]")
-"]",
+RPCHelpMan{"getclaimsforname",
+    S1("\nReturn all claims and supports for a name."),
+    {
+        { T_NAME, NAME_TEXT },
+        { T_BLOCKHASH, BLOCKHASH_TEXT },
+    },
+    RPCResult{
+        S1("[")
+        S3("    ", T_NORMALIZEDNAME, "         (string) the name of the claim(s) (after normalization)")
+        S3("    ", T_CLAIMS, ": [              (array of object) the claims for this name")
+        S3("        ", T_NAME, "               (string) the original name of this claim (before normalization)")
+        S3("        ", T_VALUE, "              (string) the value of this claim")
+        S3("        ", T_ADDRESS, "            (string) the destination address of this claim")
+        S3("        ", T_CLAIMID, "            (string) the claimId of the claim")
+        S3("        ", T_TXID, "               (string) the txid of the claim or its most recent update")
+        S3("        ", T_N, "                  (numeric) the index of the claim in the transaction's list of outputs")
+        S3("        ", T_HEIGHT, "             (numeric) the height of the block in which this transaction is located")
+        S3("        ", T_VALIDATHEIGHT, "      (numeric) the height at which the claim became/becomes valid")
+        S3("        ", T_AMOUNT, "             (numeric) the amount of the claim or its most recent update")
+        S3("        ", T_EFFECTIVEAMOUNT, "    (numeric) the amount plus amount from all supports associated with the claim")
+        S3("        ", T_ORIGINALHEIGHT, "     (numeric) the block height where the claim was first created") \
+        S3("        ", T_PENDINGAMOUNT, "      (numeric) expected amount when claim and its support got valid")
+        S3("        ", T_SUPPORTS, ": [        (array of object) supports for this claim")
+        S3("            ", T_VALUE, "          (string) the metadata of the support if any")
+        S3("            ", T_ADDRESS, "        (string) the destination address of the support")
+        S3("            ", T_TXID, "           (string) the txid of the support")
+        S3("            ", T_N, "              (numeric) the index of the support in the transaction's list of outputs")
+        S3("            ", T_HEIGHT, "         (numeric) the height of the block in which this transaction is located")
+        S3("            ", T_VALIDATHEIGHT, "  (numeric) the height at which the support became/becomes valid")
+        S3("            ", T_AMOUNT, "         (numeric) the amount of the support")
+        S1("        ]")
+        S3("        ", T_BID, "                (numeric) lower value means a higher bid rate, ordered by effective amount")
+        S3("        ", T_SEQUENCE, "           (numeric) lower value means an older one in sequence, ordered by height of insertion")
+        S1("    ]")
+        S3("    ", T_LASTTAKEOVERHEIGHT, "     (numeric) the last height at which ownership of the name changed")
+        S3("    ", T_SUPPORTSWITHOUTCLAIM, ": [")
+        S3("        ", T_TXID, "               (string) the txid of the support")
+        S3("        ", T_N, "                  (numeric) the index of the support in the transaction's list of outputs")
+        S3("        ", T_HEIGHT, "             (numeric) the height of the block in which this transaction is located")
+        S3("        ", T_VALIDATHEIGHT, "      (numeric) the height at which the support became/becomes valid")
+        S3("        ", T_AMOUNT, "             (numeric) the amount of the support")
+        S1("    ]")
+        "]",
+    },
+    RPCExamples{
+        HelpExampleCli("getclaimsforname", "\"test\"")
+        + HelpExampleRpc("getclaimsforname", "\"test\"")
+    },
+},
 
 // GETCLAIMBYID
-S1("getclaimbyid \"" T_CLAIMID R"("
-Get a claim by claim id
-Arguments:)")
-S3("1. ", T_CLAIMID, "                 (string) the claimId of this claim or patial id (at least 6 chars)")
-S1("Result: [")
-CLAIM_OUTPUT
-"]",
+RPCHelpMan{"getclaimbyid",
+    S1("\nGet a claim by claim id."),
+    {
+        { T_CLAIMID, RPCArg::Type::STR, RPCArg::Optional::NO, "The claimId of this claim or patial id (at least 6 chars)" },
+    },
+    RPCResult{
+        S1("[")
+        CLAIM_OUTPUT
+        "]",
+    },
+    RPCExamples{
+        HelpExampleCli("getclaimbyid", "\"012345\"")
+        + HelpExampleRpc("getclaimbyid", "\"012345\"")
+    },
+},
 
 // GETTOTALCLAIMEDNAMES
-S1(R"(gettotalclaimednames
-Return the total number of names that have been
-Arguments:)")
-S1("Result:")
-S3("    ", T_TOTALNAMES, "             (numeric) the total number of names in the trie")
-,
+RPCHelpMan{"gettotalclaimednames",
+    S1("\nReturn the total number of names that have been."),
+    {},
+    RPCResult{
+        S3("    ", T_TOTALNAMES, "             (numeric) the total number of names in the trie")
+    },
+    RPCExamples{
+        HelpExampleCli("gettotalclaimednames", "")
+        + HelpExampleRpc("gettotalclaimednames", "")
+    },
+},
 
 // GETTOTALCLAIMS
-S1(R"(gettotalclaims
-Return the total number of active claims in the trie
-Arguments:)")
-S1("Result:")
-S3("    ", T_TOTALCLAIMS, "            (numeric) the total number of active claims")
-,
+RPCHelpMan{"gettotalclaims",
+    S1("\nReturn the total number of active claims in the trie."),
+    {},
+    RPCResult{
+        S3("    ", T_TOTALCLAIMS, "            (numeric) the total number of active claims")
+    },
+    RPCExamples{
+        HelpExampleCli("gettotalclaims", "")
+        + HelpExampleRpc("gettotalclaims", "")
+    },
+},
 
 // GETTOTALVALUEOFCLAIMS
-S1("gettotalvalueofclaims ( " T_CONTROLLINGONLY R"( )
-Return the total value of the claims in the trie
-Arguments:)")
-S3("1. ", T_CONTROLLINGONLY, "         (boolean) only include the value of controlling claims")
-S1("Result:")
-S3("    ", T_TOTALVALUE, "             (numeric) the total value of the claims in the trie")
-,
+RPCHelpMan{"gettotalvalueofclaims",
+    S1("\nReturn the total value of the claims in the trie."),
+    {
+        { T_CONTROLLINGONLY, RPCArg::Type::BOOL, /* default */ "false", "Only include the value of controlling claims" },
+    },
+    RPCResult{
+        S3("    ", T_TOTALVALUE, "             (numeric) the total value of the claims in the trie")
+    },
+    RPCExamples{
+        HelpExampleCli("gettotalvalueofclaims", "")
+        + HelpExampleRpc("gettotalvalueofclaims", "")
+    },
+},
 
 // GETCLAIMSFORTX
-S1("getclaimsfortx \"" T_TXID R"("
-Return any claims or supports found in a transaction
-Arguments:)")
-S3("1.  ", T_TXID, "                   (string) the txid of the transaction to check for unspent claims")
-S1("Result: [")
-S3("    ", T_N, "                      (numeric) the index of the claim in the transaction's list of outputs")
-S3("    ", T_CLAIMTYPE, "              (string) claim or support")
-S3("    ", T_NAME, "                   (string) the name claimed or supported")
-S3("    ", T_CLAIMID, "                (string) if a claim, its ID")
-S3("    ", T_VALUE, "                  (string) if a claim, its value")
-S3("    ", T_DEPTH, "                  (numeric) the depth of the transaction in the main chain")
-S3("    ", T_INCLAIMTRIE, "            (boolean) if a name claim, whether the claim is active, i.e. has made it into the trie")
-S3("    ", T_ISCONTROLLING, "          (boolean) if a name claim, whether the claim is the current controlling claim for the name")
-S3("    ", T_INSUPPORTMAP, "           (boolean) if a support, whether the support is active, i.e. has made it into the support map")
-S3("    ", T_INQUEUE, "                (boolean) whether the claim is in a queue waiting to be inserted into the trie or support map")
-S3("    ", T_BLOCKSTOVALID, "          (numeric) if in a queue, the number of blocks until it's inserted into the trie or support map")
-"]",
+RPCHelpMan{"getclaimsfortx",
+    S1("\nReturn any claims or supports found in a transaction."),
+    {
+        { T_TXID, RPCArg::Type::STR, RPCArg::Optional::NO, "The txid of the transaction to check for unspent claims" },
+    },
+    RPCResult{
+        S1("[")
+        S3("    ", T_N, "                      (numeric) the index of the claim in the transaction's list of outputs")
+        S3("    ", T_CLAIMTYPE, "              (string) claim or support")
+        S3("    ", T_NAME, "                   (string) the name claimed or supported")
+        S3("    ", T_CLAIMID, "                (string) if a claim, its ID")
+        S3("    ", T_VALUE, "                  (string) if a claim, its value")
+        S3("    ", T_DEPTH, "                  (numeric) the depth of the transaction in the main chain")
+        S3("    ", T_INCLAIMTRIE, "            (boolean) if a name claim, whether the claim is active, i.e. has made it into the trie")
+        S3("    ", T_ISCONTROLLING, "          (boolean) if a name claim, whether the claim is the current controlling claim for the name")
+        S3("    ", T_INSUPPORTMAP, "           (boolean) if a support, whether the support is active, i.e. has made it into the support map")
+        S3("    ", T_INQUEUE, "                (boolean) whether the claim is in a queue waiting to be inserted into the trie or support map")
+        S3("    ", T_BLOCKSTOVALID, "          (numeric) if in a queue, the number of blocks until it's inserted into the trie or support map")
+        "]",
+    },
+    RPCExamples{
+        HelpExampleCli("getclaimsfortx", "\"1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d\"")
+        + HelpExampleRpc("getclaimsfortx", "\"1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d\"")
+    },
+},
 
 // GETNAMEPROOF
-S1("getnameproof \"" T_NAME "\" ( \"" T_BLOCKHASH "\" \"" T_CLAIMID R"(" )
-Return the cryptographic proof that a name maps to a value or doesn't.
-Arguments:)")
-S3("1. ", T_NAME, NAME_TEXT)
-S3("2. ", T_BLOCKHASH, BLOCKHASH_TEXT)
-S3("3. ", T_CLAIMID, R"(                 (string, optional, post-fork) for validating a specific claim
-                                                can be partial one)")
-S1("Result: [")
-PROOF_OUTPUT
-"]",
+RPCHelpMan{"getnameproof",
+    S1("\nReturn the cryptographic proof that a name maps to a value or doesn't."),
+    {
+        { T_NAME, NAME_TEXT },
+        { T_BLOCKHASH, BLOCKHASH_TEXT },
+        { T_TXID, RPCArg::Type::STR, RPCArg::Optional::OMITTED, "(post-fork) for validating a specific claim (partial)" },
+    },
+    RPCResult{
+        S1("[")
+        PROOF_OUTPUT
+        "]",
+    },
+    RPCExamples{
+        HelpExampleCli("getnameproof", "\"test\"")
+        + HelpExampleRpc("getnameproof", "\"test\"")
+    },
+},
 
 // CHECKNORMALIZATION
-S1("checknormalization \"" T_NAME R"("
-Given an unnormalized name of a claim, return normalized version of it
-Arguments:)")
-S3("1. ", T_NAME, "                    (string) the name to normalize")
-S1("Result:")
-S3("    ", T_NORMALIZEDNAME,  "        (string) normalized name")
-,
+RPCHelpMan{"checknormalization",
+    S1("\nGiven an unnormalized name of a claim, return normalized version of it."),
+    {
+        { T_NAME, RPCArg::Type::STR, RPCArg::Optional::NO, "The name to normalize" },
+    },
+    RPCResult{
+        S3("    ", T_NORMALIZEDNAME,  "        (string) normalized name")
+    },
+    RPCExamples{
+        HelpExampleCli("checknormalization", "\"test\"")
+        + HelpExampleRpc("checknormalization", "\"test\"")
+    },
+},
 
 // GETCLAIMBYBID
-S1("getclaimbybid \"" T_NAME "\" ( " T_BID " \"" T_BLOCKHASH R"(" )
-Get a claim by bid
-Arguments:)")
-S3("1. ", T_NAME, NAME_TEXT)
-S3("2. ", T_BID, "                     (numeric, optional) bid number")
-S3("3. ", T_BLOCKHASH, BLOCKHASH_TEXT)
-S1("Result: [")
-CLAIM_OUTPUT
-"]",
+RPCHelpMan{"getclaimbybid",
+    S1("\nGet a claim by bid."),
+    {
+        { T_NAME, NAME_TEXT },
+        { T_BID, RPCArg::Type::NUM, RPCArg::Optional::OMITTED, "The bid number" },
+        { T_BLOCKHASH, BLOCKHASH_TEXT },
+    },
+    RPCResult{
+        S1("[")
+        CLAIM_OUTPUT
+        "]",
+    },
+    RPCExamples{
+        HelpExampleCli("getclaimbybid", "\"test\" 1")
+        + HelpExampleRpc("getclaimbybid", "\"test\" 1")
+    },
+},
 
 // GETCLAIMBYSEQ
-S1("getclaimbyseq \"" T_NAME "\" ( " T_SEQUENCE " \"" T_BLOCKHASH R"(" )
-Get a claim by sequence
-Arguments:)")
-S3("1. ", T_NAME, NAME_TEXT)
-S3("2. ", T_SEQUENCE, "                (numeric, optional) sequence number")
-S3("3. ", T_BLOCKHASH, BLOCKHASH_TEXT)
-S1("Result: [")
-CLAIM_OUTPUT
-"]",
+RPCHelpMan{"getclaimbyseq",
+    S1("\nGet a claim by sequence."),
+    {
+        { T_NAME, NAME_TEXT },
+        { T_SEQUENCE, RPCArg::Type::NUM, RPCArg::Optional::OMITTED, "The sequence number" },
+        { T_BLOCKHASH, BLOCKHASH_TEXT },
+    },
+    RPCResult{
+        S1("[")
+        CLAIM_OUTPUT
+        "]",
+    },
+    RPCExamples{
+        HelpExampleCli("getclaimbyseq", "\"test\" 1")
+        + HelpExampleRpc("getclaimbyseq", "\"test\" 1")
+    },
+},
 
 // GETCLAIMPROOFBYBID
-S1("getclaimproofbyid \"" T_NAME "\" ( " T_BID " \"" T_BLOCKHASH R"(" )
-Return the cryptographic proof that a name maps to a value or doesn't by a bid.
-Arguments:)")
-S3("1. ", T_NAME, NAME_TEXT)
-S3("2. ", T_BID, "                     (numeric, optional) bid number")
-S3("3. ", T_BLOCKHASH, BLOCKHASH_TEXT)
-S1("Result: [")
-PROOF_OUTPUT
-"]",
+RPCHelpMan{"getclaimproofbybid",
+    S1("\nReturn the cryptographic proof that a name maps to a value or doesn't by a bid."),
+    {
+        { T_NAME, NAME_TEXT },
+        { T_BID, RPCArg::Type::NUM, RPCArg::Optional::OMITTED, "The bid number" },
+        { T_BLOCKHASH, BLOCKHASH_TEXT },
+    },
+    RPCResult{
+        S1("[")
+        PROOF_OUTPUT
+        "]",
+    },
+    RPCExamples{
+        HelpExampleCli("getclaimproofbybid", "\"test\" 1")
+        + HelpExampleRpc("getclaimproofbybid", "\"test\" 1")
+    },
+},
 
 // GETCLAIMPROOFBYSEQ
-S1("getclaimproofbyseq \"" T_NAME "\" ( " T_SEQUENCE " \"" T_BLOCKHASH R"(" )
-Return the cryptographic proof that a name maps to a value or doesn't by a sequence.
-Arguments:)")
-S3("1. ", T_NAME, NAME_TEXT)
-S3("2. ", T_SEQUENCE, "                (numeric, optional) sequence number")
-S3("3. ", T_BLOCKHASH, BLOCKHASH_TEXT)
-S1("Result: [")
-PROOF_OUTPUT
-"]",
+RPCHelpMan{"getclaimproofbyseq",
+    S1("\nReturn the cryptographic proof that a name maps to a value or doesn't by a sequence."),
+    {
+        { T_NAME, NAME_TEXT },
+        { T_SEQUENCE, RPCArg::Type::NUM, RPCArg::Optional::OMITTED, "The sequence number" },
+        { T_BLOCKHASH, BLOCKHASH_TEXT },
+    },
+    RPCResult{
+        S1("[")
+        PROOF_OUTPUT
+        "]",
+    },
+    RPCExamples{
+        HelpExampleCli("getclaimproofbyseq", "\"test\" 1")
+        + HelpExampleRpc("getclaimproofbyseq", "\"test\" 1")
+    },
+},
 
 // GETCHANGESINBLOCK
-S1("getchangesinblock ( \"" T_BLOCKHASH R"(" )
-Return the list of claims added, updated, and removed as pulled from the queued work for that block."
-Use this method to determine which claims or supports went live on a given block."
-Arguments:)")
-S3("1. ", T_BLOCKHASH, BLOCKHASH_TEXT)
-S1("Result: [")
-S3("    ", T_CLAIMSADDEDORUPDATED, "   (array of string) claimIDs added or updated in the trie")
-S3("    ", T_CLAIMSREMOVED, "          (array of string) claimIDs that were removed from the trie")
-S3("    ", T_SUPPORTSADDEDORUPDATED, " (array of string) IDs of supports added or updated")
-S3("    ", T_SUPPORTSREMOVED, "        (array of string) IDs that were removed from the trie")
-"]",
+RPCHelpMan{"getchangesinblock",
+    S1("\nReturn the list of claims added, updated, and removed as pulled from the queued work for that block.")
+    S1("Use this method to determine which claims or supports went live on a given block."),
+    {
+        { T_BLOCKHASH, BLOCKHASH_TEXT },
+    },
+    RPCResult{
+        S1("[")
+        S3("    ", T_CLAIMSADDEDORUPDATED, "   (array of string) claimIDs added or updated in the trie")
+        S3("    ", T_CLAIMSREMOVED, "          (array of string) claimIDs that were removed from the trie")
+        S3("    ", T_SUPPORTSADDEDORUPDATED, " (array of string) IDs of supports added or updated")
+        S3("    ", T_SUPPORTSREMOVED, "        (array of string) IDs that were removed from the trie")
+        "]",
+    },
+    RPCExamples{
+        HelpExampleCli("getchangesinblock", "")
+        + HelpExampleRpc("getchangesinblock", "")
+    },
+},
 
 };
 

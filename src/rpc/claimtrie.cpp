@@ -224,18 +224,6 @@ UniValue claimAndSupportsToJSON(const CCoinsViewCache& coinsCache, const CClaimN
     return result;
 }
 
-bool validParams(const UniValue& params, uint8_t required, uint8_t optional)
-{
-    auto count = params.size();
-    return count >= required && count <= required + optional;
-}
-
-void validateRequest(const JSONRPCRequest& request, int findex, uint8_t required, uint8_t optional)
-{
-    if (request.fHelp || !validParams(request.params, required, optional))
-        throw std::runtime_error(rpc_help[findex]);
-}
-
 static UniValue getclaimtrie(const JSONRPCRequest& request)
 {
     throw JSONRPCError(RPC_METHOD_DEPRECATED, "getclaimtrie was removed in v0.17.\n"
@@ -244,7 +232,7 @@ static UniValue getclaimtrie(const JSONRPCRequest& request)
 
 static UniValue getnamesintrie(const JSONRPCRequest& request)
 {
-    validateRequest(request, GETNAMESINTRIE, 0, 1);
+    rpc_help[GETNAMESINTRIE].Check(request);
 
     LOCK(cs_main);
     auto trieCache = ::ClaimtrieCache();
@@ -269,7 +257,7 @@ static UniValue getnamesintrie(const JSONRPCRequest& request)
 
 static UniValue getvalueforname(const JSONRPCRequest& request)
 {
-    validateRequest(request, GETVALUEFORNAME, 1, 2);
+    rpc_help[GETVALUEFORNAME].Check(request);
 
     LOCK(cs_main);
     auto trieCache = ::ClaimtrieCache();
@@ -317,7 +305,7 @@ static UniValue getvalueforname(const JSONRPCRequest& request)
 
 UniValue getclaimsforname(const JSONRPCRequest& request)
 {
-    validateRequest(request, GETCLAIMSFORNAME, 1, 1);
+    rpc_help[GETCLAIMSFORNAME].Check(request);
 
     LOCK(cs_main);
     auto trieCache = ::ClaimtrieCache();
@@ -357,7 +345,7 @@ UniValue getclaimsforname(const JSONRPCRequest& request)
 
 UniValue getclaimbybid(const JSONRPCRequest& request)
 {
-    validateRequest(request, GETCLAIMBYBID, 1, 2);
+    rpc_help[GETCLAIMBYBID].Check(request);
 
     LOCK(cs_main);
     auto trieCache = ::ClaimtrieCache();
@@ -400,7 +388,7 @@ UniValue getclaimbybid(const JSONRPCRequest& request)
 
 UniValue getclaimbyseq(const JSONRPCRequest& request)
 {
-    validateRequest(request, GETCLAIMBYSEQ, 1, 2);
+    rpc_help[GETCLAIMBYSEQ].Check(request);
 
     LOCK(cs_main);
     auto trieCache = ::ClaimtrieCache();
@@ -445,7 +433,7 @@ UniValue getclaimbyseq(const JSONRPCRequest& request)
 
 UniValue getclaimbyid(const JSONRPCRequest& request)
 {
-    validateRequest(request, GETCLAIMBYID, 1, 0);
+    rpc_help[GETCLAIMBYID].Check(request);
 
     LOCK(cs_main);
     auto trieCache = ::ClaimtrieCache();
@@ -482,7 +470,7 @@ UniValue getclaimbyid(const JSONRPCRequest& request)
 
 UniValue gettotalclaimednames(const JSONRPCRequest& request)
 {
-    validateRequest(request, GETTOTALCLAIMEDNAMES, 0, 0);
+    rpc_help[GETTOTALCLAIMEDNAMES].Check(request);
 
     LOCK(cs_main);
     auto trieCache = ::ClaimtrieCache(); // TODO: add rollback support here
@@ -492,7 +480,7 @@ UniValue gettotalclaimednames(const JSONRPCRequest& request)
 
 UniValue gettotalclaims(const JSONRPCRequest& request)
 {
-    validateRequest(request, GETTOTALCLAIMS, 0, 0);
+    rpc_help[GETTOTALCLAIMS].Check(request);
 
     LOCK(cs_main);
     auto trieCache = ::ClaimtrieCache(); // TODO: add rollback support here
@@ -502,7 +490,7 @@ UniValue gettotalclaims(const JSONRPCRequest& request)
 
 UniValue gettotalvalueofclaims(const JSONRPCRequest& request)
 {
-    validateRequest(request, GETTOTALVALUEOFCLAIMS, 0, 1);
+    rpc_help[GETTOTALVALUEOFCLAIMS].Check(request);
 
     LOCK(cs_main);
     bool controlling_only = false;
@@ -515,7 +503,7 @@ UniValue gettotalvalueofclaims(const JSONRPCRequest& request)
 
 UniValue getclaimsfortx(const JSONRPCRequest& request)
 {
-    validateRequest(request, GETCLAIMSFORTX, 1, 0);
+    rpc_help[GETCLAIMSFORTX].Check(request);
 
     LOCK(cs_main);
     uint256 hash = ParseHashV(request.params[0], T_TXID " (parameter 1)");
@@ -643,7 +631,7 @@ UniValue proofToJSON(const CClaimTrieProof& proof)
 
 UniValue getnameproof(const JSONRPCRequest& request)
 {
-    validateRequest(request, GETNAMEPROOF, 1, 2);
+    rpc_help[GETNAMEPROOF].Check(request);
 
     LOCK(cs_main);
     auto trieCache = ::ClaimtrieCache();
@@ -680,7 +668,7 @@ UniValue getnameproof(const JSONRPCRequest& request)
 
 UniValue getclaimproofbybid(const JSONRPCRequest& request)
 {
-    validateRequest(request, GETCLAIMPROOFBYBID, 1, 2);
+    rpc_help[GETCLAIMPROOFBYBID].Check(request);
 
     LOCK(cs_main);
     auto trieCache = ::ClaimtrieCache();
@@ -714,7 +702,7 @@ UniValue getclaimproofbybid(const JSONRPCRequest& request)
 
 UniValue getclaimproofbyseq(const JSONRPCRequest& request)
 {
-    validateRequest(request, GETCLAIMPROOFBYSEQ, 1, 2);
+    rpc_help[GETCLAIMPROOFBYSEQ].Check(request);
 
     LOCK(cs_main);
     auto trieCache = ::ClaimtrieCache();
@@ -749,7 +737,7 @@ UniValue getclaimproofbyseq(const JSONRPCRequest& request)
 
 UniValue getchangesinblock(const JSONRPCRequest& request)
 {
-    validateRequest(request, GETCHANGESINBLOCK, 0, 1);
+    rpc_help[GETCHANGESINBLOCK].Check(request);
 
     CBlock block;
     LOCK(cs_main);
@@ -854,7 +842,7 @@ UniValue getchangesinblock(const JSONRPCRequest& request)
 
 UniValue checknormalization(const JSONRPCRequest& request)
 {
-    validateRequest(request, CHECKNORMALIZATION, 1, 0);
+    rpc_help[CHECKNORMALIZATION].Check(request);
 
     const bool force = true;
     const std::string name = request.params[0].get_str();
