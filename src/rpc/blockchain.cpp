@@ -375,7 +375,7 @@ static UniValue getdifficulty(const JSONRPCRequest& request)
 static std::string EntryDescriptionString()
 {
     return "    \"vsize\" : n,            (numeric) virtual transaction size as defined in BIP 141. This is different from actual serialized size for witness transactions as witness data is discounted.\n"
-           "    \"size\" : n,             (numeric) (DEPRECATED) same as vsize. Only returned if bitcoind is started with -deprecatedrpc=size\n"
+           "    \"size\" : n,             (numeric) (DEPRECATED) same as vsize. Only returned if lbrycrdd is started with -deprecatedrpc=size\n"
            "                              size will be completely removed in v0.20.\n"
            "    \"weight\" : n,           (numeric) transaction weight as defined in BIP 141.\n"
            "    \"fee\" : n,              (numeric) transaction fee in " + CURRENCY_UNIT + " (DEPRECATED)\n"

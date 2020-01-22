@@ -62,9 +62,9 @@ QString BitcoinUnits::description(int unit)
 {
     switch(unit)
     {
-    case LBC: return QString("Bitcoins");
-    case mLBC: return QString("Milli-Bitcoins (1 / 1" THIN_SP_UTF8 "000)");
-    case uLBC: return QString("Micro-Bitcoins (bits) (1 / 1" THIN_SP_UTF8 "000" THIN_SP_UTF8 "000)");
+    case LBC: return QString("LBC");
+    case mLBC: return QString("Milli-LBC (1 / 1" THIN_SP_UTF8 "000)");
+    case uLBC: return QString("Micro-LBC (bits) (1 / 1" THIN_SP_UTF8 "000" THIN_SP_UTF8 "000)");
     case SAT: return QString("Satoshi (sat) (1 / 100" THIN_SP_UTF8 "000" THIN_SP_UTF8 "000)");
     default: return QString("???");
     }
