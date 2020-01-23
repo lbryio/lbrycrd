@@ -506,10 +506,10 @@ bool BerkeleyEnvironment::Salvage(const std::string& strFile, bool fAggressive, 
 }
 
 
-void BerkeleyEnvironment::CheckpointLSN(const std::string& strFile)
+void BerkeleyEnvironment::CheckpointLSN(const std::string& strFile, bool lsnReset)
 {
     dbenv->txn_checkpoint(0, 0, 0);
-    if (fMockDb)
+    if (fMockDb || !lsnReset)
         return;
     dbenv->lsn_reset(strFile.c_str(), 0);
 }
@@ -836,9 +836,10 @@ bool BerkeleyBatch::PeriodicFlush(BerkeleyDatabase& database)
 
                 // Flush wallet file so it's self contained
                 env->CloseDb(strFile);
-                env->CheckpointLSN(strFile);
+                // don't call lsn_reset at periodic time
+                // it causes performace issues on big wallets
+                env->CheckpointLSN(strFile, /* lsnReset */ false);
 
-                env->mapFileUseCount.erase(mi++);
                 LogPrint(BCLog::DB, "Flushed %s %dms\n", strFile, GetTimeMillis() - nStart);
                 ret = true;
             }
