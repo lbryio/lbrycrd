@@ -26,6 +26,10 @@
 #include <fcntl.h>
 #endif
 
+#ifdef USE_POLL
+#include <poll.h>
+#endif
+
 #ifdef USE_UPNP
 #include <miniupnpc/miniupnpc.h>
 #include <miniupnpc/miniwget.h>
@@ -35,6 +39,7 @@
 
 
 #include <math.h>
+#include <unordered_map>
 
 // Dump addresses to peers.dat and banlist.dat every 15 minutes (900s)
 #define DUMP_ADDRESSES_INTERVAL 900
@@ -70,6 +75,10 @@ enum BindFlags {
     BF_REPORT_ERROR = (1U << 1),
     BF_WHITELIST    = (1U << 2),
 };
+
+// The set of sockets cannot be modified while waiting
+// The sleep time needs to be small to avoid new sockets stalling
+static const uint64_t SELECT_TIMEOUT_MILLISECONDS = 50;
 
 const static std::string NET_MESSAGE_COMMAND_OTHER = "*other*";
 
@@ -1232,23 +1241,33 @@ void CConnman::ThreadSocketHandler()
         //
         // Find which sockets have data to receive
         //
-        struct timeval timeout;
-        timeout.tv_sec  = 0;
-        timeout.tv_usec = 50000; // frequency to poll pnode->vSend
-
         fd_set fdsetRecv;
         fd_set fdsetSend;
         fd_set fdsetError;
         FD_ZERO(&fdsetRecv);
         FD_ZERO(&fdsetSend);
         FD_ZERO(&fdsetError);
+
+#ifdef USE_POLL
+        std::unordered_map<SOCKET, struct pollfd> pollfds;
+#else
+        struct timeval timeout;
+        timeout.tv_sec  = 0;
+        timeout.tv_usec = SELECT_TIMEOUT_MILLISECONDS * 1000; // frequency to poll pnode->vSend
+
         SOCKET hSocketMax = 0;
         bool have_fds = false;
+#endif
 
         for (const ListenSocket& hListenSocket : vhListenSocket) {
+#ifdef USE_POLL
+            pollfds[hListenSocket.socket].fd = hListenSocket.socket;
+            pollfds[hListenSocket.socket].events |= POLLIN;
+#else
             FD_SET(hListenSocket.socket, &fdsetRecv);
             hSocketMax = std::max(hSocketMax, hListenSocket.socket);
             have_fds = true;
+#endif
         }
 
         {
@@ -1277,24 +1296,52 @@ void CConnman::ThreadSocketHandler()
                 if (pnode->hSocket == INVALID_SOCKET)
                     continue;
 
+#ifdef USE_POLL
+                pollfds[pnode->hSocket].fd = pnode->hSocket;
+                pollfds[pnode->hSocket].events |= POLLERR|POLLHUP;
+#else
                 FD_SET(pnode->hSocket, &fdsetError);
                 hSocketMax = std::max(hSocketMax, pnode->hSocket);
                 have_fds = true;
+#endif
 
                 if (select_send) {
+#ifdef USE_POLL
+                    pollfds[pnode->hSocket].fd = pnode->hSocket;
+                    pollfds[pnode->hSocket].events |= POLLOUT;
+#else
                     FD_SET(pnode->hSocket, &fdsetSend);
+#endif
                     continue;
                 }
                 if (select_recv) {
+#ifdef USE_POLL
+                    pollfds[pnode->hSocket].fd = pnode->hSocket;
+                    pollfds[pnode->hSocket].events |= POLLIN;
+#else
                     FD_SET(pnode->hSocket, &fdsetRecv);
+#endif
                 }
             }
         }
 
+#ifdef USE_POLL
+        std::vector<struct pollfd> vpollfds;
+        vpollfds.reserve(pollfds.size());
+        for (auto it : pollfds)
+            vpollfds.push_back(std::move(it.second));
+
+        if (poll(vpollfds.data(), vpollfds.size(), SELECT_TIMEOUT_MILLISECONDS) < 0)
+            return;
+
+        for (struct pollfd pollfd_entry : vpollfds) {
+            if (pollfd_entry.revents & POLLIN)            FD_SET(pollfd_entry.fd, &fdsetRecv);
+            if (pollfd_entry.revents & POLLOUT)           FD_SET(pollfd_entry.fd, &fdsetSend);
+            if (pollfd_entry.revents & (POLLERR|POLLHUP)) FD_SET(pollfd_entry.fd, &fdsetError);
+        }
+#else
         int nSelect = select(have_fds ? hSocketMax + 1 : 0,
                              &fdsetRecv, &fdsetSend, &fdsetError, &timeout);
-        if (interruptNet)
-            return;
 
         if (nSelect == SOCKET_ERROR)
         {
@@ -1310,7 +1357,10 @@ void CConnman::ThreadSocketHandler()
             if (!interruptNet.sleep_for(std::chrono::milliseconds(timeout.tv_usec/1000)))
                 return;
         }
+#endif
 
+        if (interruptNet)
+            return;
         //
         // Accept new connections
         //
