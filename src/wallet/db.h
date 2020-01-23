@@ -83,7 +83,7 @@ public:
     bool Open(bool retry);
     void Close();
     void Flush(bool fShutdown);
-    void CheckpointLSN(const std::string& strFile);
+    void CheckpointLSN(const std::string& strFile, bool lsnReset = true);
 
     void CloseDb(const std::string& strFile);
     void ReloadDbEnv();
