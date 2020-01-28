@@ -14,6 +14,8 @@ AC_CONFIG_HEADERS([src/config/bitcoin-config.h])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([build-aux/m4])
 
+AC_DISABLE_STATIC(yes)
+
 BITCOIN_DAEMON_NAME=lbrycrdd
 BITCOIN_GUI_NAME=lbrycrd-qt
 BITCOIN_CLI_NAME=lbrycrd-cli
@@ -554,6 +556,7 @@ case $host in
    *linux*)
      TARGET_OS=linux
      LEVELDB_TARGET_FLAGS="-DOS_LINUX"
+     AS_IF([test "x${enable_static}" = "xyes"], [LIBTOOL_APP_LDFLAGS="$LIBTOOL_APP_LDFLAGS -all-static"])
      ;;
    *kfreebsd*)
      LEVELDB_TARGET_FLAGS="-DOS_KFREEBSD"
@@ -589,6 +592,7 @@ if test x$use_pkgconfig = xyes; then
     AC_MSG_ERROR(pkg-config not found.)
   fi
   ])
+  AS_IF([test "x${enable_static}" = "xyes"], [PKG_CONFIG="$PKG_CONFIG --static"])
 fi
 
 if test x$use_extended_functional_tests != xno; then
@@ -646,7 +650,7 @@ if test x$ac_cv_sys_large_files != x &&
   CPPFLAGS="$CPPFLAGS -D_LARGE_FILES=$ac_cv_sys_large_files"
 fi
 
-AS_IF([test x$enable_static != x && test x$LDFLAGS != xdarwin], [
+AS_IF([test x$enable_static = xyes && test x$LDFLAGS != xdarwin], [
    # darwin should be using -stdlib=libc++ (and may need a -static instead)
    AX_CHECK_LINK_FLAG([[-static-libstdc++]], [LDFLAGS="$LDFLAGS -static-libstdc++"])
 ])
@@ -1084,8 +1088,8 @@ AS_IF([test "x${prefix}" != "xNONE" && test "x$ICU_PREFIX" == "xauto"], [
 ])
 
 AS_IF([test "x$ICU_PREFIX" != "xauto"], [
-  ICU_CPPFLAGS="$(PKG_CONFIG_SYSROOT_DIR=/ PKG_CONFIG_LIBDIR=$ICU_PREFIX/lib/pkgconfig PKG_CONFIG_PATH=$ICU_PREFIX/share/pkgconfig pkg-config icu-io icu-uc icu-i18n --cflags)"
-  ICU_LIBS="$(PKG_CONFIG_SYSROOT_DIR=/ PKG_CONFIG_LIBDIR=$ICU_PREFIX/lib/pkgconfig PKG_CONFIG_PATH=$ICU_PREFIX/share/pkgconfig pkg-config icu-io icu-uc icu-i18n --libs)"
+  ICU_CPPFLAGS="$(PKG_CONFIG_SYSROOT_DIR=/ PKG_CONFIG_LIBDIR=$ICU_PREFIX/lib/pkgconfig PKG_CONFIG_PATH=$ICU_PREFIX/share/pkgconfig ${PKG_CONFIG} icu-io icu-uc icu-i18n --cflags)"
+  ICU_LIBS="$(PKG_CONFIG_SYSROOT_DIR=/ PKG_CONFIG_LIBDIR=$ICU_PREFIX/lib/pkgconfig PKG_CONFIG_PATH=$ICU_PREFIX/share/pkgconfig ${PKG_CONFIG} icu-io icu-uc icu-i18n --libs)"
 ])
 
 if test x$use_pkgconfig = xyes; then
@@ -1505,6 +1509,7 @@ esac
 
 echo
 echo "Options used to compile and link:"
+echo "  static link   = $enable_static"
 echo "  with wallet   = $enable_wallet"
 echo "  with gui / qt = $bitcoin_enable_qt"
 if test x$bitcoin_enable_qt != xno; then
