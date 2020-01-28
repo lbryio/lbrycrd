@@ -288,7 +288,7 @@ CLAIM_OUTPUT
 "]",
 
 // GETCLAIMPROOFBYBID
-S1("getclaimproofbyid \"" T_NAME "\" ( " T_BID " \"" T_BLOCKHASH R"(" )
+S1("getclaimproofbybid \"" T_NAME "\" ( " T_BID " \"" T_BLOCKHASH R"(" )
 Return the cryptographic proof that a name maps to a value or doesn't by a bid.
 Arguments:)")
 S3("1. ", T_NAME, NAME_TEXT)
