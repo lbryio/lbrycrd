@@ -1262,7 +1262,8 @@ void CConnman::ThreadSocketHandler()
         for (const ListenSocket& hListenSocket : vhListenSocket) {
 #ifdef USE_POLL
             pollfds[hListenSocket.socket].fd = hListenSocket.socket;
-            pollfds[hListenSocket.socket].events |= POLLIN;
+            pollfds[hListenSocket.socket].events = POLLIN;
+            pollfds[hListenSocket.socket].revents = 0;
 #else
             FD_SET(hListenSocket.socket, &fdsetRecv);
             hSocketMax = std::max(hSocketMax, hListenSocket.socket);
@@ -1298,7 +1299,8 @@ void CConnman::ThreadSocketHandler()
 
 #ifdef USE_POLL
                 pollfds[pnode->hSocket].fd = pnode->hSocket;
-                pollfds[pnode->hSocket].events |= POLLERR|POLLHUP;
+                pollfds[pnode->hSocket].events = POLLERR|POLLHUP;
+                pollfds[pnode->hSocket].revents = 0;
 #else
                 FD_SET(pnode->hSocket, &fdsetError);
                 hSocketMax = std::max(hSocketMax, pnode->hSocket);
@@ -1307,7 +1309,6 @@ void CConnman::ThreadSocketHandler()
 
                 if (select_send) {
 #ifdef USE_POLL
-                    pollfds[pnode->hSocket].fd = pnode->hSocket;
                     pollfds[pnode->hSocket].events |= POLLOUT;
 #else
                     FD_SET(pnode->hSocket, &fdsetSend);
@@ -1316,7 +1317,6 @@ void CConnman::ThreadSocketHandler()
                 }
                 if (select_recv) {
 #ifdef USE_POLL
-                    pollfds[pnode->hSocket].fd = pnode->hSocket;
                     pollfds[pnode->hSocket].events |= POLLIN;
 #else
                     FD_SET(pnode->hSocket, &fdsetRecv);

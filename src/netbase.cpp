@@ -272,9 +272,10 @@ static IntrRecvError InterruptibleRecv(uint8_t* data, size_t len, int timeout, c
                 // we're approaching the end of the specified total timeout
                 int timeout_ms = std::min(endTime - curTime, maxWait);
 #ifdef USE_POLL
-                struct pollfd pollfd = {};
+                struct pollfd pollfd;
                 pollfd.fd = hSocket;
                 pollfd.events = POLLIN;
+                pollfd.revents = 0;
                 int nRet = poll(&pollfd, 1, timeout_ms);
 #else
                 struct timeval tval = MillisToTimeval(timeout_ms);
@@ -514,9 +515,10 @@ bool ConnectSocketDirectly(const CService &addrConnect, const SOCKET& hSocket, i
         if (nErr == WSAEINPROGRESS || nErr == WSAEWOULDBLOCK || nErr == WSAEINVAL)
         {
 #ifdef USE_POLL
-            struct pollfd pollfd = {};
+            struct pollfd pollfd;
             pollfd.fd = hSocket;
             pollfd.events = POLLIN | POLLOUT;
+            pollfd.revents = 0;
             int nRet = poll(&pollfd, 1, nTimeout);
 #else
             struct timeval timeout = MillisToTimeval(nTimeout);
