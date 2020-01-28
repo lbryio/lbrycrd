@@ -765,23 +765,19 @@ void ListNameClaims(const CWalletTx& wtx, CWallet* const pwallet, const std::str
 
         CClaimTrieCache trieCache(pclaimTrie);
 
-        auto it = mapBlockIndex.find(wtx.hashBlock);
-        if (it != mapBlockIndex.end())
+        auto pindex = LookupBlockIndex(wtx.hashBlock);
+        if (pindex)
         {
-            CBlockIndex* pindex = it->second;
-            if (pindex)
+            entry.pushKV("height", pindex->nHeight);
+            entry.pushKV("expiration height", pindex->nHeight + trieCache.expirationTime());
+            if (pindex->nHeight + trieCache.expirationTime() > chainActive.Height())
             {
-                entry.pushKV("height", pindex->nHeight);
-                entry.pushKV("expiration height", pindex->nHeight + trieCache.expirationTime());
-                if (pindex->nHeight + trieCache.expirationTime() > chainActive.Height())
-                {
-                    entry.pushKV("expired", false);
-                    entry.pushKV("blocks to expiration", pindex->nHeight + trieCache.expirationTime() - chainActive.Height());
-                }
-                else
-                {
-                    entry.pushKV("expired", true);
-                }
+                entry.pushKV("expired", false);
+                entry.pushKV("blocks to expiration", pindex->nHeight + trieCache.expirationTime() - chainActive.Height());
+            }
+            else
+            {
+                entry.pushKV("expired", true);
             }
         }
         entry.pushKV("confirmations", wtx.GetDepthInMainChain());

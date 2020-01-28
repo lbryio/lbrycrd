@@ -245,7 +245,7 @@ void WalletInit::Start(CScheduler& scheduler) const
     }
 
     // Run a thread to flush wallet periodically
-    scheduler.scheduleEvery(MaybeCompactWalletDB, 500);
+    scheduler.scheduleEvery(MaybeCompactWalletDB, 1000);
 }
 
 void WalletInit::Flush() const

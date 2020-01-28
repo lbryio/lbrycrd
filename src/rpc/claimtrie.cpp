@@ -33,16 +33,15 @@ void ParseClaimtrieId(const UniValue& v, std::string& claimId, const std::string
 
 static CBlockIndex* BlockHashIndex(const uint256& blockHash)
 {
-    AssertLockHeld(cs_main);
+    auto index = LookupBlockIndex(blockHash);
 
-    if (mapBlockIndex.count(blockHash) == 0)
+    if (index == nullptr)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
 
-    CBlockIndex* pblockIndex = mapBlockIndex[blockHash];
-    if (!chainActive.Contains(pblockIndex))
+    if (!chainActive.Contains(index))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Block not in main chain");
 
-    return pblockIndex;
+    return index;
 }
 
 #define MAX_RPC_BLOCK_DECREMENTS 500

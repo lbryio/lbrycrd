@@ -1,5 +1,3 @@
-#include <memory>
-#include <set>
 #include <utility>
 #include <vector>
 
@@ -13,7 +11,6 @@
 #include <test/test_bitcoin.h>
 #include <validation.h>
 #include <wallet/coincontrol.h>
-#include <wallet/test/wallet_test_fixture.h>
 #include <policy/policy.h>
 
 #include <boost/test/unit_test.hpp>
@@ -125,7 +122,7 @@ void rollbackBlock(const std::vector<uint256>& ids) {
     }
     // totally weird that invalidateblock is async
     while (GetMainSignals().CallbacksPending())
-        usleep(5000);
+        MilliSleep(5);
 }
 
 uint256 AbandonAClaim(const uint256& txid, bool isSupport = false) {

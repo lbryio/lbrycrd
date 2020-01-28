@@ -62,7 +62,6 @@
 CChainState g_chainstate;
 CCriticalSection cs_main;
 
-BlockMap& mapBlockIndex = g_chainstate.mapBlockIndex;
 CChain& chainActive = g_chainstate.chainActive;
 CBlockIndex *pindexBestHeader = nullptr;
 CWaitableCriticalSection g_best_block_mutex;
@@ -3662,7 +3661,7 @@ void PruneOneBlockFile(const int fileNumber)
 {
     LOCK(cs_LastBlockFile);
 
-    for (const auto& entry : mapBlockIndex) {
+    for (const auto& entry : g_chainstate.mapBlockIndex) {
         CBlockIndex* pindex = entry.second;
         if (pindex->nFile == fileNumber) {
             pindex->nStatus &= ~BLOCK_HAVE_DATA;
@@ -3857,18 +3856,18 @@ CBlockIndex * CChainState::InsertBlockIndex(const uint256& hash)
 {
     AssertLockHeld(cs_main);
 
+    // Return existing
+    auto mi = mapBlockIndex.find(hash);
+    if (mi != mapBlockIndex.end())
+        return mi->second;
+
     if (hash.IsNull())
         return nullptr;
-
-    // Return existing
-    BlockMap::iterator mi = mapBlockIndex.find(hash);
-    if (mi != mapBlockIndex.end())
-        return (*mi).second;
 
     // Create new
     CBlockIndex* pindexNew = new CBlockIndex();
     mi = mapBlockIndex.insert(std::make_pair(hash, pindexNew)).first;
-    pindexNew->phashBlock = &((*mi).first);
+    pindexNew->phashBlock = &(mi->first);
 
     return pindexNew;
 }
@@ -3950,14 +3949,14 @@ bool static LoadBlockIndexDB(const CChainParams& chainparams) EXCLUSIVE_LOCKS_RE
     // Check presence of blk files
     LogPrintf("Checking all blk files are present...\n");
     std::set<int> setBlkDataFiles;
-    for (const std::pair<const uint256, CBlockIndex*>& item : mapBlockIndex)
+    for (const std::pair<const uint256, CBlockIndex*>& item : g_chainstate.mapBlockIndex)
     {
         CBlockIndex* pindex = item.second;
         if (pindex->nStatus & BLOCK_HAVE_DATA) {
             setBlkDataFiles.insert(pindex->nFile);
         }
     }
-    for (std::set<int>::iterator it = setBlkDataFiles.begin(); it != setBlkDataFiles.end(); it++)
+    for (auto it = setBlkDataFiles.begin(); it != setBlkDataFiles.end(); ++it)
     {
         CDiskBlockPos pos(*it, 0);
         if (CAutoFile(OpenBlockFile(pos, true), SER_DISK, CLIENT_VERSION).IsNull()) {
@@ -3984,7 +3983,7 @@ bool LoadChainTip(const CChainParams& chainparams)
 
     if (chainActive.Tip() && chainActive.Tip()->GetBlockHash() == pcoinsTip->GetBestBlock()) return true;
 
-    if (pcoinsTip->GetBestBlock().IsNull() && mapBlockIndex.size() == 1) {
+    if (pcoinsTip->GetBestBlock().IsNull() && g_chainstate.mapBlockIndex.size() == 1) {
         // In case we just added the genesis block, connect it now, so
         // that we always have a chainActive.Tip() when we return.
         LogPrintf("%s: Connecting genesis block...\n", __func__);
@@ -4344,10 +4343,10 @@ void UnloadBlockIndex()
         warningcache[b].clear();
     }
 
-    for (BlockMap::value_type& entry : mapBlockIndex) {
+    for (BlockMap::value_type& entry : g_chainstate.mapBlockIndex) {
         delete entry.second;
     }
-    mapBlockIndex.clear();
+    g_chainstate.mapBlockIndex.clear();
     fHavePruned = false;
 
     g_chainstate.UnloadBlockIndex();
@@ -4360,7 +4359,7 @@ bool LoadBlockIndex(const CChainParams& chainparams)
     if (!fReindex) {
         bool ret = LoadBlockIndexDB(chainparams);
         if (!ret) return false;
-        needs_init = mapBlockIndex.empty();
+        needs_init = g_chainstate.mapBlockIndex.empty();
 
         if (needs_init) {
             auto blockDir = GetDataDir() / "blocks";
@@ -4899,15 +4898,21 @@ double GuessVerificationProgress(const ChainTxData& data, const CBlockIndex *pin
     return pindex->nChainTx / fTxTotal;
 }
 
+CBlockIndex *LookupBlockIndex(const uint256 &hash) {
+    AssertLockHeld(cs_main);
+    auto it = g_chainstate.mapBlockIndex.find(hash);
+    return it == g_chainstate.mapBlockIndex.end() ? nullptr : it->second;
+}
+
 class CMainCleanup
 {
 public:
     CMainCleanup() {}
     ~CMainCleanup() {
         // block headers
-        BlockMap::iterator it1 = mapBlockIndex.begin();
-        for (; it1 != mapBlockIndex.end(); it1++)
+        auto it1 = g_chainstate.mapBlockIndex.begin();
+        for (; it1 != g_chainstate.mapBlockIndex.end(); ++it1)
             delete (*it1).second;
-        mapBlockIndex.clear();
+        g_chainstate.mapBlockIndex.clear();
     }
 } instance_of_cmaincleanup;
