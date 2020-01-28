@@ -438,11 +438,21 @@ uint256 CClaimTrieCacheBase::computeNodeHash(const std::string& name, int takeov
 
 bool CClaimTrieCacheBase::checkConsistency()
 {
-    // verify that all claims hash to the values on the nodes
+    auto checkQuery = db << "PRAGMA quick_check";
+    for (auto&& row: checkQuery) {
+        std::string message;
+        row >> message;
+        if (message != "ok") {
+            logPrint << message << Clog::endl;
+            return false;
+        }
+    }
 
+    // not checking everything as it takes too long
     auto query = db << "SELECT n.name, n.hash, "
                         "IFNULL((SELECT CASE WHEN t.claimID IS NULL THEN 0 ELSE t.height END "
-                        "FROM takeover t WHERE t.name = n.name ORDER BY t.height DESC LIMIT 1), 0) FROM node n";
+                        "FROM takeover t WHERE t.name = n.name ORDER BY t.height DESC LIMIT 1), 0) FROM node n "
+                        "WHERE n.name IN (SELECT r.name FROM node r ORDER BY RANDOM() LIMIT 56789) OR LENGTH(n.parent) < 2";
     for (auto&& row: query) {
         std::string name;
         uint256 hash;
