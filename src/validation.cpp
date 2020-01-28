@@ -4218,18 +4218,18 @@ CBlockIndex * BlockManager::InsertBlockIndex(const uint256& hash)
 {
     AssertLockHeld(cs_main);
 
+    // Return existing
+    auto mi = m_block_index.find(hash);
+    if (mi != m_block_index.end())
+        return mi->second;
+
     if (hash.IsNull())
         return nullptr;
-
-    // Return existing
-    BlockMap::iterator mi = m_block_index.find(hash);
-    if (mi != m_block_index.end())
-        return (*mi).second;
 
     // Create new
     CBlockIndex* pindexNew = new CBlockIndex();
     mi = m_block_index.insert(std::make_pair(hash, pindexNew)).first;
-    pindexNew->phashBlock = &((*mi).first);
+    pindexNew->phashBlock = &(mi->first);
 
     return pindexNew;
 }
@@ -4333,7 +4333,7 @@ bool static LoadBlockIndexDB(const CChainParams& chainparams) EXCLUSIVE_LOCKS_RE
             setBlkDataFiles.insert(pindex->nFile);
         }
     }
-    for (std::set<int>::iterator it = setBlkDataFiles.begin(); it != setBlkDataFiles.end(); it++)
+    for (auto it = setBlkDataFiles.begin(); it != setBlkDataFiles.end(); ++it)
     {
         FlatFilePos pos(*it, 0);
         if (CAutoFile(OpenBlockFile(pos, true), SER_DISK, CLIENT_VERSION).IsNull()) {
@@ -5316,7 +5316,7 @@ public:
     CMainCleanup() {}
     ~CMainCleanup() {
         // block headers
-        BlockMap::iterator it1 = g_blockman.m_block_index.begin();
+        auto it1 = g_blockman.m_block_index.begin();
         for (; it1 != g_blockman.m_block_index.end(); it1++)
             delete (*it1).second;
         g_blockman.m_block_index.clear();

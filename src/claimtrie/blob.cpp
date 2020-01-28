@@ -141,25 +141,25 @@ std::string CBaseBlob<BITS>::ToString() const
 template<uint32_t BITS>
 uint8_t* CBaseBlob<BITS>::begin() noexcept
 {
-    return data.begin();
+    return data.data();
 }
 
 template<uint32_t BITS>
 const uint8_t* CBaseBlob<BITS>::begin() const noexcept
 {
-    return data.begin();
+    return data.data();
 }
 
 template<uint32_t BITS>
 uint8_t* CBaseBlob<BITS>::end() noexcept
 {
-    return data.end();
+    return data.data() + data.size();
 }
 
 template<uint32_t BITS>
 const uint8_t* CBaseBlob<BITS>::end() const noexcept
 {
-    return data.end();
+    return data.data() + data.size();
 }
 
 template<uint32_t BITS>

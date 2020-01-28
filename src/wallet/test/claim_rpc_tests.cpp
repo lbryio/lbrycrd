@@ -1,5 +1,3 @@
-#include <memory>
-#include <set>
 #include <utility>
 #include <vector>
 
@@ -139,7 +137,7 @@ void rollbackBlock(const std::vector<uint256>& ids) {
     }
     // totally weird that invalidateblock is async
     while (GetMainSignals().CallbacksPending())
-        usleep(5000);
+        MilliSleep(5);
 }
 
 uint256 AbandonAClaim(const uint256& txid, bool isSupport = false) {

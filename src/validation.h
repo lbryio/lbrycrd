@@ -138,16 +138,11 @@ static const int MAX_UNCONNECTING_HEADERS = 10;
 /** Default for -stopatheight */
 static const int DEFAULT_STOPATHEIGHT = 0;
 
-struct BlockHasher
-{
-    size_t operator()(const uint256& hash) const { return GetCheapHash(hash); }
-};
-
 extern CScript COINBASE_FLAGS;
 extern CCriticalSection cs_main;
 extern CBlockPolicyEstimator feeEstimator;
 extern CTxMemPool mempool;
-typedef std::unordered_map<uint256, CBlockIndex*, BlockHasher> BlockMap;
+typedef std::map<uint256, CBlockIndex*> BlockMap;
 extern Mutex g_best_block_mutex;
 extern std::condition_variable g_best_block_cv;
 extern uint256 g_best_block;

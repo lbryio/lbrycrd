@@ -352,11 +352,9 @@ bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, 
 {
     auto query = db << "SELECT hash, prevHash, height, file, dataPos, undoPos, txCount, "
                        "version, rootTxHash, rootTrieHash, time, bits, nonce, status "
-                       "FROM block_info"; // insertBlockIndex puts them in order
+                       "FROM block_info ORDER BY height";
 
-    // Load m_block_index
     for (auto&& row: query) {
-        boost::this_thread::interruption_point();
         if (ShutdownRequested()) return false;
         // Construct block index object
         uint256 hash, prevHash;
@@ -364,18 +362,24 @@ bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, 
         CBlockIndex* pindexNew    = insertBlockIndex(hash);
         pindexNew->pprev          = insertBlockIndex(prevHash);
 
-        row >> pindexNew->nHeight;
-        row >> pindexNew->nFile;
-        row >> pindexNew->nDataPos;
-        row >> pindexNew->nUndoPos;
-        row >> pindexNew->nTx;
-        row >> pindexNew->nVersion;
-        row >> pindexNew->hashMerkleRoot;
-        row >> pindexNew->hashClaimTrie;
-        row >> pindexNew->nTime;
-        row >> pindexNew->nBits;
-        row >> pindexNew->nNonce;
-        row >> pindexNew->nStatus;
+        row >> pindexNew->nHeight
+            >> pindexNew->nFile
+            >> pindexNew->nDataPos
+            >> pindexNew->nUndoPos
+            >> pindexNew->nTx
+            >> pindexNew->nVersion
+            >> pindexNew->hashMerkleRoot
+            >> pindexNew->hashClaimTrie
+            >> pindexNew->nTime
+            >> pindexNew->nBits
+            >> pindexNew->nNonce
+            >> pindexNew->nStatus;
+
+        if ((pindexNew->nHeight & 0x3ff) == 0x3ff) { // don't check for shutdown on every single block
+            boost::this_thread::interruption_point();
+            if (ShutdownRequested())
+                return false;
+        }
 
         pindexNew->nChainTx = pindexNew->pprev ? pindexNew->pprev->nChainTx + pindexNew->nTx : pindexNew->nTx;
 
