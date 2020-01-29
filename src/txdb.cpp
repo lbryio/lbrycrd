@@ -30,10 +30,11 @@ CCoinsViewDB::CCoinsViewDB(size_t nCacheSize, bool fMemory, bool fWipe)
     : db(fMemory ? ":memory:" : (GetDataDir() / "coins.sqlite").string(), sharedConfig)
 {
     db << "PRAGMA cache_size=-" + std::to_string(nCacheSize >> 10); // in -KB
-    db << "PRAGMA synchronous=OFF"; // don't disk sync after transaction commit
-    db << "PRAGMA journal_mode=WAL";
     db << "PRAGMA temp_store=MEMORY";
     db << "PRAGMA case_sensitive_like=true";
+    db << "PRAGMA journal_mode=WAL";
+    db << "PRAGMA synchronous=OFF"; // don't disk sync after transaction commit; we handle that elsewhere
+    db << "PRAGMA wal_autocheckpoint=4000"; // 4k page size * 4000 = 16MB
 
     db << "CREATE TABLE IF NOT EXISTS unspent (txID BLOB NOT NULL COLLATE BINARY, txN INTEGER NOT NULL, "
           "isCoinbase INTEGER NOT NULL, blockHeight INTEGER NOT NULL, amount INTEGER NOT NULL, "
@@ -174,10 +175,11 @@ CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe)
     : db(fMemory ? ":memory:" : (GetDataDir() / "block_index.sqlite").string(), sharedConfig)
 {
     db << "PRAGMA cache_size=-" + std::to_string(nCacheSize >> 10); // in -KB
-    db << "PRAGMA synchronous=OFF"; // don't disk sync after transaction commit
-    db << "PRAGMA journal_mode=WAL";
     db << "PRAGMA temp_store=MEMORY";
     db << "PRAGMA case_sensitive_like=true";
+    db << "PRAGMA journal_mode=WAL";
+    db << "PRAGMA synchronous=OFF"; // don't disk sync after transaction commit; we handle that elsewhere
+    db << "PRAGMA wal_autocheckpoint=4000"; // 4k page size * 4000 = 16MB
 
     db << "CREATE TABLE IF NOT EXISTS block_file ("
           "file INTEGER NOT NULL PRIMARY KEY, "
@@ -383,19 +385,19 @@ bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, 
             >> pindexNew->nNonce
             >> pindexNew->nStatus;
 
-        if ((pindexNew->nHeight & 0x3ff) == 0x3ff) { // don't check for shutdown on every single block
-            boost::this_thread::interruption_point();
-            if (ShutdownRequested())
-                return false;
-        }
-
-        pindexNew->nChainTx = pindexNew->pprev ? pindexNew->pprev->nChainTx + pindexNew->nTx : pindexNew->nTx;
+        // nChainTx gets set later; don't set it here or you'll mess up the Unlinked list
 
         if (!CheckProofOfWork(pindexNew->GetBlockPoWHash(), pindexNew->nBits, consensusParams))
         {
             LogPrintf("%s: CheckProofOfWorkFailed: %s\n", __func__, pindexNew->ToString());
             LogPrintf("%s: CheckProofOfWorkFailed: %s (hash %s, nBits=%x, nTime=%d)\n", __func__, pindexNew->GetBlockPoWHash().GetHex(), pindexNew->GetBlockHash().GetHex(), pindexNew->nBits, pindexNew->nTime);
             return error("%s: CheckProofOfWork failed: %s", __func__, pindexNew->ToString());
+        }
+
+        if ((pindexNew->nHeight & 0x3ff) == 0x3ff) { // don't check for shutdown on every single block
+            boost::this_thread::interruption_point();
+            if (ShutdownRequested())
+                return false;
         }
     }
 

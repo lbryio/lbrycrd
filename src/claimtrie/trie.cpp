@@ -40,10 +40,11 @@ static const sqlite::sqlite_config sharedConfig {
 void applyPragmas(sqlite::database& db, std::size_t cache)
 {
     db << "PRAGMA cache_size=-" + std::to_string(cache); // in -KB
-    db << "PRAGMA synchronous=OFF"; // don't disk sync after transaction commit
-    db << "PRAGMA journal_mode=WAL";
     db << "PRAGMA temp_store=MEMORY";
     db << "PRAGMA case_sensitive_like=true";
+    db << "PRAGMA journal_mode=WAL";
+    db << "PRAGMA synchronous=OFF"; // don't disk sync after transaction commit; we handle that elsewhere
+    db << "PRAGMA wal_autocheckpoint=4000"; // 4k page size * 4000 = 16MB
 
     db.define("POPS", [](std::string s) -> std::string { if (!s.empty()) s.pop_back(); return s; });
     db.define("REVERSE", [](std::vector<uint8_t> s) -> std::vector<uint8_t> { std::reverse(s.begin(), s.end()); return s; });
@@ -71,7 +72,7 @@ CClaimTrie::CClaimTrie(std::size_t cacheBytes, bool fWipe, int height,
                        nExtendedClaimExpirationForkHeight(nExtendedClaimExpirationForkHeight),
                        nAllClaimsInMerkleForkHeight(nAllClaimsInMerkleForkHeight)
 {
-    applyPragmas(db, 5U * 1024U); // in KB
+    applyPragmas(db, cacheBytes >> 10U); // in KB
 
     db << "CREATE TABLE IF NOT EXISTS node (name BLOB NOT NULL PRIMARY KEY, "
           "parent BLOB REFERENCES node(name) DEFERRABLE INITIALLY DEFERRED, "
@@ -134,10 +135,12 @@ bool CClaimTrie::SyncToDisk()
     return rc == SQLITE_OK;
 }
 
-bool CClaimTrie::empty()
+bool CClaimTrie::empty() // only used for testing
 {
+    sqlite::database local(dbFile, sharedConfig);
+    applyPragmas(local, 100);
     int64_t count;
-    db << "SELECT COUNT(*) FROM (SELECT 1 FROM claim WHERE activationHeight < ?1 AND expirationHeight >= ?1 LIMIT 1)" << nNextHeight >> count;
+    local << "SELECT COUNT(*) FROM (SELECT 1 FROM claim WHERE activationHeight < ?1 AND expirationHeight >= ?1 LIMIT 1)" << nNextHeight >> count;
     return count == 0;
 }
 
@@ -425,10 +428,12 @@ uint256 CClaimTrieCacheBase::computeNodeHash(const std::string& name, int takeov
     };
     childHashQuery++;
 
-    CClaimValue claim;
-    if (getInfoForName(name, claim)) {
-        auto valueHash = getValueHash(claim.outPoint, takeoverHeight);
-        vchToHash.insert(vchToHash.end(), valueHash.begin(), valueHash.end());
+    if (takeoverHeight > 0) {
+        CClaimValue claim;
+        if (getInfoForName(name, claim)) {
+            auto valueHash = getValueHash(claim.outPoint, takeoverHeight);
+            vchToHash.insert(vchToHash.end(), valueHash.begin(), valueHash.end());
+        }
     }
 
     return vchToHash.empty() ? one : Hash(vchToHash.begin(), vchToHash.end());
@@ -450,7 +455,7 @@ bool CClaimTrieCacheBase::checkConsistency()
     auto query = db << "SELECT n.name, n.hash, "
                         "IFNULL((SELECT CASE WHEN t.claimID IS NULL THEN 0 ELSE t.height END "
                         "FROM takeover t WHERE t.name = n.name ORDER BY t.height DESC LIMIT 1), 0) FROM node n "
-                        "WHERE n.name IN (SELECT r.name FROM node r ORDER BY RANDOM() LIMIT 56789) OR LENGTH(n.parent) < 2";
+                        "WHERE n.name IN (SELECT r.name FROM node r ORDER BY RANDOM() LIMIT 100000) OR LENGTH(n.parent) < 2";
     for (auto&& row: query) {
         std::string name;
         uint256 hash;
@@ -517,21 +522,21 @@ extern const std::string proofClaimQuery_s =
     "ORDER BY n.name";
 
 CClaimTrieCacheBase::CClaimTrieCacheBase(CClaimTrie* base)
-    : base(base), db(base->dbFile, sharedConfig), transacting(false),
+    : base(base), db(base->db.connection()), transacting(false),
       childHashQuery(db << childHashQuery_s),
       claimHashQuery(db << claimHashQuery_s),
       claimHashQueryLimit(db << claimHashQueryLimit_s)
 {
     assert(base);
     nNextHeight = base->nNextHeight;
-
-    applyPragmas(db, base->dbCacheBytes >> 10U); // in KB
 }
 
 void CClaimTrieCacheBase::ensureTransacting()
 {
     if (!transacting) {
         transacting = true;
+        int isNotInTransaction = sqlite3_get_autocommit(db.connection().get());
+        assert(isNotInTransaction);
         db << "BEGIN";
     }
 }
@@ -730,11 +735,20 @@ bool CClaimTrieCacheBase::incrementBlock()
           "UNION SELECT nodeName FROM support WHERE expirationHeight = ?1 OR activationHeight = ?1)"
           << nNextHeight;
 
-    auto insertTakeoverQuery = db << "INSERT INTO takeover(name, height, claimID) VALUES(?, ?, ?)";
+    insertTakeovers();
+
+    nNextHeight++;
+    return true;
+}
+
+void CClaimTrieCacheBase::insertTakeovers(bool allowReplace) {
+    auto insertTakeoverQuery = allowReplace ?
+            db << "INSERT OR REPLACE INTO takeover(name, height, claimID) VALUES(?, ?, ?)" :
+            db << "INSERT INTO takeover(name, height, claimID) VALUES(?, ?, ?)";
 
     // takeover handling:
-    db  << "SELECT name FROM node WHERE hash IS NULL"
-        >> [this, &insertTakeoverQuery](const std::string& nameWithTakeover) {
+    db << "SELECT name FROM node WHERE hash IS NULL"
+       >> [this, &insertTakeoverQuery](const std::string& nameWithTakeover) {
         // if somebody activates on this block and they are the new best, then everybody activates on this block
         CClaimValue candidateValue;
         auto hasCandidate = getInfoForName(nameWithTakeover, candidateValue, 1);
@@ -768,9 +782,6 @@ bool CClaimTrieCacheBase::incrementBlock()
     };
 
     insertTakeoverQuery.used(true);
-
-    nNextHeight++;
-    return true;
 }
 
 bool CClaimTrieCacheBase::activateAllFor(const std::string& name)
