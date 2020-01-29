@@ -132,6 +132,7 @@ protected:
     bool deleteNodeIfPossible(const std::string& name, std::string& parent, int64_t& claims);
     void ensureTreeStructureIsUpToDate();
     void ensureTransacting();
+    void insertTakeovers(bool allowReplace=false);
 
 private:
     bool transacting;

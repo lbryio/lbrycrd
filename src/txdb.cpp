@@ -375,19 +375,19 @@ bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, 
             >> pindexNew->nNonce
             >> pindexNew->nStatus;
 
-        if ((pindexNew->nHeight & 0x3ff) == 0x3ff) { // don't check for shutdown on every single block
-            boost::this_thread::interruption_point();
-            if (ShutdownRequested())
-                return false;
-        }
-
-        pindexNew->nChainTx = pindexNew->pprev ? pindexNew->pprev->nChainTx + pindexNew->nTx : pindexNew->nTx;
+        // nChainTx gets set later; don't set it here or you'll mess up the Unlinked list
 
         if (!CheckProofOfWork(pindexNew->GetBlockPoWHash(), pindexNew->nBits, consensusParams))
         {
             LogPrintf("%s: CheckProofOfWorkFailed: %s\n", __func__, pindexNew->ToString());
             LogPrintf("%s: CheckProofOfWorkFailed: %s (hash %s, nBits=%x, nTime=%d)\n", __func__, pindexNew->GetBlockPoWHash().GetHex(), pindexNew->GetBlockHash().GetHex(), pindexNew->nBits, pindexNew->nTime);
             return error("%s: CheckProofOfWork failed: %s", __func__, pindexNew->ToString());
+        }
+
+        if ((pindexNew->nHeight & 0x3ff) == 0x3ff) { // don't check for shutdown on every single block
+            boost::this_thread::interruption_point();
+            if (ShutdownRequested())
+                return false;
         }
     }
 

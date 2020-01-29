@@ -254,14 +254,14 @@ uint256 CClaimTrieCacheHashFork::computeNodeHash(const std::string& name, int ta
     childHashQuery++;
 
     std::vector<uint256> claimHashes;
-    //if (takeoverHeight > 0) {
+    if (takeoverHeight > 0) {
         COutPoint p;
         for (auto &&row: claimHashQuery << nNextHeight << name) {
             row >> p.hash >> p.n;
             claimHashes.push_back(getValueHash(p, takeoverHeight));
         }
         claimHashQuery++;
-    //}
+    }
 
     auto left = childHashes.empty() ? leafHash : ComputeMerkleRoot(std::move(childHashes));
     auto right = claimHashes.empty() ? emptyHash : ComputeMerkleRoot(std::move(claimHashes));
