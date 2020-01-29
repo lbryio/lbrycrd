@@ -78,6 +78,8 @@ static const bool DEFAULT_STOPAFTERBLOCKIMPORT = false;
 std::unique_ptr<CConnman> g_connman;
 std::unique_ptr<PeerLogicValidation> peerLogic;
 
+extern bool appIsFinance();
+
 #if !(ENABLE_WALLET)
 class DummyWalletInit : public WalletInitInterface {
 public:
@@ -392,6 +394,7 @@ void SetupServerArgs()
 #else
     hidden_args.emplace_back("-sysperms");
 #endif
+    gArgs.AddArg("-finance", "Run daemon without claimtrie db", false, OptionsCategory::OPTIONS);
     gArgs.AddArg("-txindex", "Deprecated", false, OptionsCategory::HIDDEN);
     gArgs.AddArg("-addnode=<ip>", "Add a node to connect to and attempt to keep the connection open (see the `addnode` RPC command help for more info). This option can be specified multiple times to add multiple nodes.", false, OptionsCategory::CONNECTION);
     gArgs.AddArg("-banscore=<n>", strprintf("Threshold for disconnecting misbehaving peers (default: %u)", DEFAULT_BANSCORE_THRESHOLD), false, OptionsCategory::CONNECTION);
@@ -1551,7 +1554,7 @@ bool AppInitMain()
 
                 auto tip = chainActive.Tip();
                 LogPrintf("Checking existing claim trie consistency...\n");
-                if (tip && !CClaimTrieCache(pclaimTrie).validateDb(tip->nHeight, tip->hashClaimTrie)) {
+                if (tip && !appIsFinance() && !CClaimTrieCache(pclaimTrie).validateDb(tip->nHeight, tip->hashClaimTrie)) {
                     strLoadError = _("Error validating the stored claim trie");
                     break;
                 }

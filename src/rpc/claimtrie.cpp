@@ -881,8 +881,11 @@ static const CRPCCommand commands[] =
     { "Claimtrie",          "checknormalization",           &checknormalization,        { T_NAME } },
 };
 
+extern bool appIsFinance();
+
 void RegisterClaimTrieRPCCommands(CRPCTable &tableRPC)
 {
-    for (unsigned int vcidx = 0; vcidx < ARRAYLEN(commands); vcidx++)
-        tableRPC.appendCommand(commands[vcidx].name, &commands[vcidx]);
+    if (!appIsFinance())
+        for (unsigned int vcidx = 0; vcidx < ARRAYLEN(commands); vcidx++)
+            tableRPC.appendCommand(commands[vcidx].name, &commands[vcidx]);
 }

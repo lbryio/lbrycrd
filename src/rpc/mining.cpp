@@ -990,8 +990,12 @@ static const CRPCCommand commands[] =
     { "hidden",             "estimaterawfee",         &estimaterawfee,         {"conf_target", "threshold"} },
 };
 
+extern bool appIsFinance();
+
 void RegisterMiningRPCCommands(CRPCTable &t)
 {
     for (unsigned int vcidx = 0; vcidx < ARRAYLEN(commands); vcidx++)
-        t.appendCommand(commands[vcidx].name, &commands[vcidx]);
+        if (!appIsFinance() || (commands[vcidx].name != "getblocktemplate"
+                             && commands[vcidx].name != "generatetoaddress"))
+            t.appendCommand(commands[vcidx].name, &commands[vcidx]);
 }

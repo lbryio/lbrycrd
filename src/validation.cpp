@@ -46,6 +46,7 @@
 #include <warnings.h>
 
 #include <cmath>
+#include <functional>
 #include <future>
 #include <sstream>
 
@@ -96,6 +97,22 @@ std::atomic_bool g_is_mempool_loaded{false};
 CScript COINBASE_FLAGS;
 
 const std::string strMessageMagic = "LBRYcrd Signed Message:\n";
+
+bool appIsFinance()
+{
+    static const auto finance = []() -> bool {
+        auto finance = gArgs.GetBoolArg("-finance", false);
+        if (finance)
+            LogPrintf("NOTE: daemon is running without claimtrie functionality\n");
+        return finance;
+    }();
+    return finance;
+}
+
+const std::function<bool(const uint256&, const uint256&)> hashComp =
+    [](const uint256& lhs, const uint256& rhs) {
+        return appIsFinance() || lhs == rhs;
+    };
 
 // Internal stuff
 namespace {
@@ -1510,7 +1527,7 @@ int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CC
 DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view, CClaimTrieCache& trieCache)
 {
     assert(pindex->GetBlockHash() == view.GetBestBlock());
-    if (pindex->hashClaimTrie != trieCache.getMerkleHash()) {
+    if (!hashComp(pindex->hashClaimTrie, trieCache.getMerkleHash())) {
         LogPrintf("%s: Indexed claim hash doesn't match current: %s vs %s\n",
                 __func__, pindex->hashClaimTrie.ToString(), trieCache.getMerkleHash().ToString());
         assert(false);
@@ -1584,7 +1601,7 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
     assert(trieCache.finalizeDecrement());
-    if (trieCache.getMerkleHash() != pindex->pprev->hashClaimTrie) {
+    if (!hashComp(trieCache.getMerkleHash(), pindex->pprev->hashClaimTrie)) {
         LogPrintf("Hash comparison failure at block %d\n", pindex->nHeight);
         assert(false);
     }
@@ -1797,7 +1814,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     assert(hashPrevBlock == view.GetBestBlock());
 
     // also verify that the trie cache's current state corresponds to the previous block
-    if (pindex->pprev != nullptr && pindex->pprev->hashClaimTrie != trieCache.getMerkleHash()) {
+    if (pindex->pprev != nullptr && !hashComp(pindex->pprev->hashClaimTrie, trieCache.getMerkleHash())) {
         LogPrintf("%s: Previous block claim hash doesn't match current: %s vs %s\n",
                 __func__, pindex->pprev->hashClaimTrie.ToString(), trieCache.getMerkleHash().ToString());
         assert(false);
@@ -2059,7 +2076,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     // TODO: if the "just check" flag is set, we should reduce the work done here. Incrementing blocks twice per mine is not efficient.
     assert(trieCache.incrementBlock());
 
-    if (trieCache.getMerkleHash() != block.hashClaimTrie) {
+    if (!hashComp(trieCache.getMerkleHash(), block.hashClaimTrie)) {
         return state.DoS(100, error("ConnectBlock() : the merkle root of the claim trie does not match "
                                "(actual=%s vs block=%s on height=%d)", trieCache.getMerkleHash().GetHex(),
                                block.hashClaimTrie.GetHex(), pindex->nHeight), REJECT_INVALID, "bad-claim-merkle-hash");
@@ -2350,8 +2367,10 @@ bool CChainState::DisconnectTip(CValidationState& state, const CChainParams& cha
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
         bool flushed = view.Flush();
         assert(flushed);
-        assert(trieCache.flush());
-        assert(pindexDelete->pprev->hashClaimTrie == trieCache.getMerkleHash());
+        if (!appIsFinance()) {
+            assert(trieCache.flush());
+            assert(pindexDelete->pprev->hashClaimTrie == trieCache.getMerkleHash());
+        }
     }
     LogPrint(BCLog::BENCH, "- Disconnect block: %.2fms\n", (GetTimeMicros() - nStart) * MILLI);
     // Write the chain state to disk, if necessary.
@@ -2490,8 +2509,10 @@ bool CChainState::ConnectTip(CValidationState& state, const CChainParams& chainp
         LogPrint(BCLog::BENCH, "  - Connect total: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime3 - nTime2) * MILLI, nTimeConnectTotal * MICRO, nTimeConnectTotal * MILLI / nBlocksTotal);
         bool flushed = view.Flush();
         assert(flushed);
-        flushed = trieCache.flush();
-        assert(flushed);
+        if (!appIsFinance()) {
+            flushed = trieCache.flush();
+            assert(flushed);
+        }
 
 //      for verifying that rollback code works:
 //        auto result = DisconnectBlock(blockConnecting, pindexNew, view, trieCache);
@@ -4198,7 +4219,8 @@ bool CChainState::ReplayBlocks(const CChainParams& params, CCoinsView* view)
 
     cache.SetBestBlock(pindexNew->GetBlockHash());
     cache.Flush();
-    trieCache.flush();
+    if (!appIsFinance())
+        trieCache.flush();
     uiInterface.ShowProgress("", 100, false);
     return true;
 }
