@@ -152,8 +152,11 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock, boo
     }
     LogPrint(BCLog::COINDB, "Committed %u changed transaction outputs (out of %u) to coin database...\n", (unsigned int)changed, (unsigned int)count);
     if (sync) {
-        auto rc = sqlite3_wal_checkpoint_v2(db.connection().get(), nullptr, SQLITE_CHECKPOINT_FULL, nullptr, nullptr);
-        return rc == SQLITE_OK;
+        auto code = sqlite::sync(db);
+        if (code != SQLITE_OK) {
+            LogPrint(BCLog::COINDB, "Error syncing coin database. SQLite error: %d\n", code);
+            return false;
+        }
     }
     return true;
 }
@@ -326,8 +329,11 @@ bool CBlockTreeDB::BatchWrite(const std::vector<std::pair<int, const CBlockFileI
     }
     // by Sync they mean disk sync:
     if (sync) {
-        auto rc = sqlite3_wal_checkpoint_v2(db.connection().get(), nullptr, SQLITE_CHECKPOINT_FULL, nullptr, nullptr);
-        return rc == SQLITE_OK;
+        auto code = sqlite::sync(db);
+        if (code != SQLITE_OK) {
+            LogPrintf("%s: Error syncing block database. SQLite error: %d\n", __func__, code);
+            return false;
+        }
     }
     return true;
 }

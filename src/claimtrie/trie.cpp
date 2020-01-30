@@ -133,8 +133,7 @@ std::size_t CClaimTrie::cache()
 bool CClaimTrie::SyncToDisk()
 {
     // alternatively, switch to full sync after we are caught up on the chain
-    auto rc = sqlite3_wal_checkpoint_v2(db.connection().get(), nullptr, SQLITE_CHECKPOINT_FULL, nullptr, nullptr);
-    return rc == SQLITE_OK;
+    return sqlite::sync(db) == SQLITE_OK;
 }
 
 bool CClaimTrie::empty() // only used for testing
