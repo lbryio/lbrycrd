@@ -172,7 +172,7 @@ CAddress GetLocalAddress(const CNetAddr *paddrPeer, ServiceFlags nLocalServices)
 static int GetnScore(const CService& addr)
 {
     LOCK(cs_mapLocalHost);
-    if (mapLocalHost.count(addr) == LOCAL_NONE)
+    if (mapLocalHost.count(addr) == 0)
         return 0;
     return mapLocalHost[addr].nScore;
 }
@@ -926,7 +926,8 @@ size_t CConnman::SocketSendData(CNode *pnode) const
                 int nErr = WSAGetLastError();
                 if (nErr != WSAEWOULDBLOCK && nErr != WSAEMSGSIZE && nErr != WSAEINTR && nErr != WSAEINPROGRESS)
                 {
-                    LogPrintf("socket send error %s\n", NetworkErrorString(nErr));
+                    LogPrintf("socket send error: %s%s\n", NetworkErrorString(nErr),
+                            fLogIPs ? (", peeraddr=" + pnode->addrName) : std::string());
                     pnode->CloseSocketDisconnect();
                 }
             }
@@ -1325,6 +1326,9 @@ void CConnman::ThreadSocketHandler()
             }
         }
 
+        if (interruptNet)
+            return;
+
 #ifdef USE_POLL
         std::vector<struct pollfd> vpollfds;
         vpollfds.reserve(pollfds.size());
@@ -1359,8 +1363,6 @@ void CConnman::ThreadSocketHandler()
         }
 #endif
 
-        if (interruptNet)
-            return;
         //
         // Accept new connections
         //
@@ -1385,7 +1387,7 @@ void CConnman::ThreadSocketHandler()
         for (CNode* pnode : vNodesCopy)
         {
             if (interruptNet)
-                return;
+                break;
 
             //
             // Receive
@@ -1450,7 +1452,8 @@ void CConnman::ThreadSocketHandler()
                     if (nErr != WSAEWOULDBLOCK && nErr != WSAEMSGSIZE && nErr != WSAEINTR && nErr != WSAEINPROGRESS)
                     {
                         if (!pnode->fDisconnect)
-                            LogPrintf("socket recv error %s\n", NetworkErrorString(nErr));
+                            LogPrintf("socket recv error: %s%s\n", NetworkErrorString(nErr),
+                                      fLogIPs ? (", peeraddr=" + pnode->addrName) : std::string());
                         pnode->CloseSocketDisconnect();
                     }
                 }
