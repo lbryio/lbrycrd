@@ -456,7 +456,7 @@ bool CClaimTrieCacheBase::checkConsistency()
     auto query = db << "SELECT n.name, n.hash, "
                         "IFNULL((SELECT CASE WHEN t.claimID IS NULL THEN 0 ELSE t.height END "
                         "FROM takeover t WHERE t.name = n.name ORDER BY t.height DESC LIMIT 1), 0) FROM node n "
-                        "WHERE n.name IN (SELECT r.name FROM node r ORDER BY RANDOM() LIMIT 100000) OR LENGTH(n.parent) < 2";
+                        "WHERE n.name IN (SELECT r.name FROM node r ORDER BY RANDOM() LIMIT 100000) OR n.parent = x''";
     for (auto&& row: query) {
         std::string name;
         uint256 hash;
