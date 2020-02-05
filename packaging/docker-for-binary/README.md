@@ -1,5 +1,36 @@
 # lbrycrd Docker image
-`
+
+## Scripts
+
+There are two scripts `deploy.sh` and `auto_deploy.sh` These are used to create 
+docker images to push to lbry's Docker Hub.
+
+### `auto_deploy.sh`
+
+This script is used by the LBRYcrd's CI. When a branch or tag is built 
+it will create a docker image for it and push it to DockerHub. This should
+not be used outside of the CI environment. In addition to this, the 
+`Dockerfile.Auto` is associated with this script. This will only run on the
+Linux build job. 
+
+#### Requirements
+
+- You would need to build lbrycrd with the Docker image for reproducible 
+builds. https://hub.docker.com/repository/docker/lbry/build_lbrycrd
+- You will need DockerHub credentials to run this locally. 
+- When the script is executed you will need the parameter as
+ `./auto_deploy.sh ${tag_name}`
+
+### `deploy.sh`
+
+This can be used locally to manually create a docker image based on a 
+release. `release_url` is requested as a parameter to the script when 
+run locally. This will grab the binary from github releases inside the
+image build. 
+
+#### Requirements
+
+- You will need DockerHub credentials to run this locally. 
 
 ## Configuration
 
