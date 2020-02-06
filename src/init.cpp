@@ -1621,7 +1621,7 @@ bool AppInitMain()
         if (fReindex) {
             // remove old LevelDB indexes
             boost::system::error_code ec;
-            fs::remove_all(GetDataDir() / "blocks" / "index", ec);
+            fs::remove_all(GetBlocksDir() / "index", ec);
             fs::remove_all(GetDataDir() / "chainstate", ec);
             fs::remove_all(GetDataDir() / "claimtrie", ec);
         }
