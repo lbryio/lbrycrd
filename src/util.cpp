@@ -703,19 +703,22 @@ const fs::path &GetBlocksDir(bool fNetSpecific)
 
     if (gArgs.IsArgSet("-blocksdir")) {
         path = fs::system_complete(gArgs.GetArg("-blocksdir", ""));
-        if (!fs::is_directory(path)) {
-            LogPrintf("%s: %s is not a directory, fallback to GetDataDir\n", __func__, path);
+        if (fs::exists(path) && !fs::is_directory(path)) {
+            LogPrintf("%s: %s is not a directory, falling back to GetDataDir\n", __func__, path);
             path.clear();
         }
     }
 
-    if (path.empty())
+    bool usingDataDir = path.empty();
+    if (usingDataDir)
         path = GetDataDir(false);
 
     if (fNetSpecific)
         path /= BaseParams().DataDir();
 
-    path /= "blocks";
+    if (usingDataDir)
+        path /= "blocks";
+
     fs::create_directories(path);
     return path;
 }
@@ -734,8 +737,8 @@ const fs::path &GetDataDir(bool fNetSpecific)
 
     if (gArgs.IsArgSet("-datadir")) {
         path = fs::system_complete(gArgs.GetArg("-datadir", ""));
-        if (!fs::is_directory(path)) {
-            LogPrintf("%s: %s is not a directory, fallback to GetDefaultDataDir\n", __func__, path);
+        if (fs::exists(path) && !fs::is_directory(path)) {
+            LogPrintf("%s: %s is not a directory, falling back to GetDefaultDataDir\n", __func__, path);
             path.clear();
         }
     }

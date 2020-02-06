@@ -461,8 +461,10 @@ bool CClaimTrieCacheBase::checkConsistency()
         int takeoverHeight;
         row >> name >> hash >> takeoverHeight;
         auto computedHash = computeNodeHash(name, takeoverHeight);
-        if (computedHash != hash)
+        if (computedHash != hash) {
+            logPrint << "Invalid hash at " << name << Clog::endl;
             return false;
+        }
     }
     return true;
 }
