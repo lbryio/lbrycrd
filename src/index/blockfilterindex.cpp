@@ -213,7 +213,7 @@ bool BlockFilterIndex::Rewind(const CBlockIndex* current_tip, const CBlockIndex*
     // During a reorg, we need to copy all filters for blocks that are getting disconnected from the
     // height index to the hash index so we can still find them when the height index entries are
     // overwritten.
-    if (!CopyHeightIndexToHashIndex(*m_db, new_tip->nHeight, current_tip->nHeight)) {
+    if (!CopyHeightIndexToHashIndex(*m_db, new_tip->nHeight + 1, current_tip->nHeight)) {
         return false;
     }
 
