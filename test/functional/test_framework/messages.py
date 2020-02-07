@@ -60,6 +60,9 @@ def sha256(s):
 def hash256(s):
     return sha256(sha256(s))
 
+def ripemd160(s):
+    return hashlib.new('ripemd160', s).digest()
+
 def hash160(s):
     return hashlib.new('ripemd160', sha256(s)).digest()
 
@@ -531,7 +534,7 @@ class CTransaction:
 
 class CBlockHeader:
     __slots__ = ("hash", "hashMerkleRoot", "hashPrevBlock", "nBits", "nNonce",
-                 "nTime", "nVersion", "sha256")
+                 "nTime", "nVersion", "sha256", "hashClaimTrie")
 
     def __init__(self, header=None):
         if header is None:

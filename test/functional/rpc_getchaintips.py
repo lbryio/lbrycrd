@@ -60,6 +60,8 @@ class GetChainTipsTest (BitcoinTestFramework):
         assert_equal (tips[1]['status'], 'valid-fork')
         tips[1]['branchlen'] = 0
         tips[1]['status'] = 'active'
+        tips[1].pop('branchhash')
+        tips[1].pop('branchhashNext')
         assert_equal (tips[1], shortTip)
 
 if __name__ == '__main__':

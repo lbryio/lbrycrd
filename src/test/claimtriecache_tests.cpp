@@ -27,7 +27,8 @@ public:
         if (c.IsNull())
             c = ClaimIdHash(uint256(p.hash), p.n);
 
-        return addClaim(key, p, c, value.nAmount, value.nHeight);
+        int height = value.nHeight > 0 ? value.nHeight : nNextHeight;
+        return addClaim(key, p, c, value.nAmount, height);
     }
 
     bool removeClaimFromTrie(const std::string& key, const COutPoint& outPoint) {
@@ -234,8 +235,8 @@ BOOST_AUTO_TEST_CASE(basic_insertion_info_test)
     uint160 claimId = ClaimIdHash(tx1.GetHash(), 0);
     COutPoint claimOutPoint(tx1.GetHash(), 0);
     CAmount amount(10);
-    int height = 0;
-    int validHeight = 0;
+    int height = 1;
+    int validHeight = 1;
     CClaimValue claimVal(claimOutPoint, claimId, amount, height, validHeight);
     ctc.insertClaimIntoTrie("test", claimVal);
 
@@ -319,7 +320,8 @@ BOOST_AUTO_TEST_CASE(trie_stays_consistent_test)
         "goodness", "goodnight", "goodnatured", "goods", "go", "goody", "goo"
     };
 
-    CClaimTrieCacheTest cache(&::Claimtrie());
+    auto& trie = ::Claimtrie();
+    CClaimTrieCacheTest cache(&trie);
     CClaimValue value;
 
     for (auto& name: names) {
@@ -338,7 +340,7 @@ BOOST_AUTO_TEST_CASE(trie_stays_consistent_test)
         cache.flush();
         BOOST_CHECK(cache.checkConsistency());
     }
-    BOOST_CHECK(::Claimtrie().empty());
+    BOOST_CHECK(trie.empty());
 }
 
 BOOST_AUTO_TEST_CASE(verify_basic_serialization)

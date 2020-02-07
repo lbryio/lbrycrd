@@ -43,7 +43,7 @@ TEST_EXIT_PASSED = 0
 TEST_EXIT_FAILED = 1
 TEST_EXIT_SKIPPED = 77
 
-TMPDIR_PREFIX = "bitcoin_func_test_"
+TMPDIR_PREFIX = "lbrycrd_func_test_"
 
 
 class SkipTest(Exception):
@@ -364,7 +364,7 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
                 rpchost=rpchost,
                 timewait=self.rpc_timeout,
                 lbrycrdd=binary[i],
-                lbrycrd_cli=self.options.bitcoincli,
+                lbrycrd_cli=self.options.lbrycrdcli,
                 coverage_dir=self.options.coveragedir,
                 cwd=self.options.tmpdir,
                 extra_conf=extra_confs[i],
@@ -506,8 +506,8 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
                     extra_args=['-disablewallet'],
                     rpchost=None,
                     timewait=self.rpc_timeout,
-                    lbrycrdd=self.options.bitcoind,
-                    lbrycrd_cli=self.options.bitcoincli,
+                    lbrycrdd=self.options.lbrycrdd,
+                    lbrycrd_cli=self.options.lbrycrdcli,
                     coverage_dir=None,
                     cwd=self.options.tmpdir,
                 ))
@@ -527,7 +527,7 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
                     nblocks=25 if i != 7 else 24,
                     address=TestNode.PRIV_KEYS[i % 4].address,
                 )
-
+            self.sync_blocks()
             assert_equal(self.nodes[CACHE_NODE_ID].getblockchaininfo()["blocks"], 199)
 
             # Shut it down, and clean up cache directories:
@@ -539,7 +539,7 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
 
             os.rmdir(cache_path('wallets'))  # Remove empty wallets dir
             for entry in os.listdir(cache_path()):
-                if entry not in ['chainstate', 'blocks', 'claimtrie']:  # Only keep chainstate and blocks folder
+                if entry not in ['blocks']:  # Only keep blocks folder
                     os.remove(cache_path(entry))
 
         for i in range(self.num_nodes):

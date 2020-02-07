@@ -67,8 +67,8 @@ class InvalidBlockRequestTest(BitcoinTestFramework):
         block_time += 1
 
         # b'0x51' is OP_TRUE
-        tx1 = create_tx_with_script(block1.vtx[0], 0, script_sig=b'\x51', amount=50 * COIN)
-        tx2 = create_tx_with_script(tx1, 0, script_sig=b'\x51', amount=50 * COIN)
+        tx1 = create_tx_with_script(block1.vtx[0], 0, script_sig=b'\x51', amount=1 * COIN)
+        tx2 = create_tx_with_script(tx1, 0, script_sig=b'\x51', amount=1 * COIN)
 
         block2.vtx.extend([tx1, tx2])
         block2.hashMerkleRoot = block2.calc_merkle_root()
@@ -95,16 +95,6 @@ class InvalidBlockRequestTest(BitcoinTestFramework):
         block2_dup.rehash()
         block2_dup.solve()
         node.p2p.send_blocks_and_test([block2_dup], node, success=False, reject_reason='bad-txns-inputs-duplicate')
-
-        # Check transactions for duplicate inputs
-        self.log.info("Test duplicate input block.")
-
-        block2_orig.vtx[2].vin.append(block2_orig.vtx[2].vin[0])
-        block2_orig.vtx[2].rehash()
-        block2_orig.hashMerkleRoot = block2_orig.calc_merkle_root()
-        block2_orig.rehash()
-        block2_orig.solve()
-        node.p2p.send_blocks_and_test([block2_orig], node, success=False, reject_reason=b'bad-txns-inputs-duplicate')
 
         self.log.info("Test very broken block.")
 

@@ -93,7 +93,7 @@ class TestP2PConn(P2PInterface):
 
 class CompactBlocksTest(BitcoinTestFramework):
     def set_test_params(self):
-        self.setup_clean_chain = True
+        self.setup_clean_chain = False
         self.num_nodes = 1
         self.extra_args = [[
             "-acceptnonstdtxn=1",
@@ -261,7 +261,7 @@ class CompactBlocksTest(BitcoinTestFramework):
         version = test_node.cmpct_version
         node = self.nodes[0]
         # Generate a bunch of transactions.
-        node.generate(101)
+        node.generate(200)
         num_transactions = 25
         address = node.getnewaddress()
 

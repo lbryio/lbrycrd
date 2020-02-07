@@ -22,6 +22,7 @@ from test_framework.messages import (
     CTransaction,
     CTxIn,
     CTxOut,
+    lbryPOW,
     MAX_BLOCK_BASE_SIZE,
     uint256_from_compact,
     uint256_from_str,
@@ -635,7 +636,7 @@ class FullBlockTest(BitcoinTestFramework):
         self.move_tip(44)
         b47 = self.next_block(47, solve=False)
         target = uint256_from_compact(b47.nBits)
-        while b47.sha256 < target:
+        while lbryPOW(b47.sha256) < target:
             b47.nNonce += 1
             b47.rehash()
         self.send_blocks([b47], False, force_send=True, reject_reason='high-hash', reconnect=True)

@@ -89,7 +89,7 @@ VB_TOP_BITS = 0x20000000
 
 MAX_SIGOP_COST = 80000
 
-SEGWIT_HEIGHT = 120
+SEGWIT_HEIGHT = 150
 
 class UTXO():
     """Used to keep track of anyone-can-spend outputs that we can use in the tests."""

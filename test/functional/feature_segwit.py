@@ -61,8 +61,8 @@ class SegWitTest(BitcoinTestFramework):
             [
                 "-acceptnonstdtxn=1",
                 "-blockversion=4",
-                "-rpcserialversion=1",
                 "-segwitheight=432",
+                "-rpcserialversion=1",
                 "-addresstype=legacy",
             ],
             [
@@ -90,7 +90,7 @@ class SegWitTest(BitcoinTestFramework):
     def skip_mine(self, node, txid, sign, redeem_script=""):
         send_to_witness(1, node, getutxo(txid), self.pubkey[0], False, Decimal("0.99996"), sign, redeem_script)
         block = node.generate(1)
-        assert_equal(len(node.getblock(block[0])["tx"]), 2)
+        assert_equal(len(node.getblock(block[0])["tx"]), 1)
         self.sync_blocks()
 
     def fail_accept(self, node, error_msg, txid, sign, redeem_script=""):
@@ -100,19 +100,19 @@ class SegWitTest(BitcoinTestFramework):
         self.nodes[0].generate(161)  # block 161
 
         self.log.info("Verify sigops are counted in GBT with pre-BIP141 rules before the fork")
-        txid = self.nodes[0].sendtoaddress(self.nodes[0].getnewaddress(), 0.02)
+        txid = self.nodes[0].sendtoaddress(self.nodes[0].getnewaddress(), 1)
         tmpl = self.nodes[0].getblocktemplate({'rules': ['segwit']})
-        assert tmpl['sizelimit'] == 8000000
+        assert tmpl['sizelimit'] == 2000000
         assert 'weightlimit' not in tmpl
-        assert tmpl['sigoplimit'] == 80000
+        assert tmpl['sigoplimit'] == 20000
         assert tmpl['transactions'][0]['hash'] == txid
-        assert tmpl['transactions'][0]['sigops'] == 8
+        assert tmpl['transactions'][0]['sigops'] == 2
         tmpl = self.nodes[0].getblocktemplate({'rules': ['segwit']})
-        assert tmpl['sizelimit'] == 8000000
+        assert tmpl['sizelimit'] == 2000000
         assert 'weightlimit' not in tmpl
-        assert tmpl['sigoplimit'] == 80000
+        assert tmpl['sigoplimit'] == 20000
         assert tmpl['transactions'][0]['hash'] == txid
-        assert tmpl['transactions'][0]['sigops'] == 8
+        assert tmpl['transactions'][0]['sigops'] == 2
         self.nodes[0].generate(1)  # block 162
 
         balance_presetup = self.nodes[0].getbalance()
@@ -160,7 +160,7 @@ class SegWitTest(BitcoinTestFramework):
         self.fail_accept(self.nodes[2], "mandatory-script-verify-flag", p2sh_ids[NODE_2][WIT_V0][1], False)
         self.fail_accept(self.nodes[2], "mandatory-script-verify-flag", p2sh_ids[NODE_2][WIT_V1][1], False)
 
-        self.nodes[2].generate(4)  # blocks 428-431
+        self.nodes[2].generate(5)  # blocks 428-431
 
         self.log.info("Verify previous witness txs skipped for mining can now be mined")
         assert_equal(len(self.nodes[2].getrawmempool()), 0)
@@ -211,7 +211,7 @@ class SegWitTest(BitcoinTestFramework):
         assert tmpl['weightlimit'] == 8000000
         assert tmpl['sigoplimit'] == 80000
         assert tmpl['transactions'][0]['txid'] == txid
-        assert tmpl['transactions'][0]['sigops'] == 4
+        assert tmpl['transactions'][0]['sigops'] == 8
 
         self.nodes[0].generate(1)  # Mine a block to clear the gbt cache
 

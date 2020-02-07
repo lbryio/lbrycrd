@@ -75,7 +75,7 @@ class BIP66Test(BitcoinTestFramework):
         self.log.info("Test that a transaction with non-DER signature can still appear in a block")
 
         spendtx = create_transaction(self.nodes[0], self.coinbase_txids[0],
-                self.nodeaddress, amount=1.0)
+                self.nodeaddress, amount=0.1)
         unDERify(spendtx)
         spendtx.rehash()
 

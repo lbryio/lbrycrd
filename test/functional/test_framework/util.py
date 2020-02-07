@@ -301,7 +301,7 @@ def initialize_datadir(dirname, n, chain):
         chain_name_conf_section = 'test'
     else:
         chain_name_conf_arg = chain
-        chain_name_conf_section = chain
+        chain_name_conf_section = 'lbrycrdreg'
     with open(os.path.join(datadir, "lbrycrd.conf"), 'w', encoding='utf8') as f:
         f.write("{}=1\n".format(chain_name_conf_arg))
         f.write("[{}]\n".format(chain_name_conf_section))
