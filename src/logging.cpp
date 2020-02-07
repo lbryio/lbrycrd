@@ -48,7 +48,7 @@ bool BCLog::Logger::StartLogging()
 
     if (m_print_to_file) {
         assert(!m_file_path.empty());
-        if (fs::exists(m_file_path)) {
+        if (fs::is_regular_file(m_file_path)) {
             fs::path old_file_path(m_file_path);
             old_file_path += ".old";
             fs::rename(m_file_path, old_file_path);
