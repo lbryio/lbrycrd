@@ -227,6 +227,7 @@ CClaimTrieCacheHashFork::CClaimTrieCacheHashFork(CClaimTrie* base) : CClaimTrieC
 {
 }
 
+extern uint256 verifyEmptyTrie(const std::string&);
 static const auto leafHash = uint256S("0000000000000000000000000000000000000000000000000000000000000002");
 static const auto emptyHash = uint256S("0000000000000000000000000000000000000000000000000000000000000003");
 
@@ -262,6 +263,9 @@ uint256 CClaimTrieCacheHashFork::computeNodeHash(const std::string& name, int ta
         }
         claimHashQuery++;
     }
+
+    if (childHashes.empty() && claimHashes.empty())
+        return verifyEmptyTrie(name);
 
     auto left = childHashes.empty() ? leafHash : ComputeMerkleRoot(std::move(childHashes));
     auto right = claimHashes.empty() ? emptyHash : ComputeMerkleRoot(std::move(claimHashes));

@@ -10,7 +10,7 @@
 
 #define logPrint CLogPrint::global()
 
-static const auto one = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
+static const auto emptyTrieHash = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
 
 std::vector<unsigned char> heightToVch(int n)
 {
@@ -111,7 +111,7 @@ CClaimTrie::CClaimTrie(std::size_t cacheBytes, bool fWipe, int height,
     db << "CREATE INDEX IF NOT EXISTS support_expirationHeight ON support (expirationHeight)";
     db << "CREATE INDEX IF NOT EXISTS support_nodeName ON support (nodeName)";
 
-    db << "INSERT OR IGNORE INTO node(name, hash) VALUES(x'', ?)" << one; // ensure that we always have our root node
+    db << "INSERT OR IGNORE INTO node(name, hash) VALUES(x'', ?)" << emptyTrieHash; // ensure that we always have our root node
 }
 
 CClaimTrieCacheBase::~CClaimTrieCacheBase()
@@ -417,6 +417,14 @@ void completeHash(uint256& partialHash, const std::string& key, int to)
         partialHash = Hash(it, it + 1, partialHash.begin(), partialHash.end());
 }
 
+uint256 verifyEmptyTrie(const std::string& name)
+{
+    if (!name.empty())
+        logPrint << "Corrupt trie near: " << name << Clog::endl;
+    assert(name.empty());
+    return emptyTrieHash;
+}
+
 uint256 CClaimTrieCacheBase::computeNodeHash(const std::string& name, int takeoverHeight)
 {
     const auto pos = name.size();
@@ -437,7 +445,7 @@ uint256 CClaimTrieCacheBase::computeNodeHash(const std::string& name, int takeov
         }
     }
 
-    return vchToHash.empty() ? one : Hash(vchToHash.begin(), vchToHash.end());
+    return vchToHash.empty() ? verifyEmptyTrie(name) : Hash(vchToHash.begin(), vchToHash.end());
 }
 
 bool CClaimTrieCacheBase::checkConsistency()
