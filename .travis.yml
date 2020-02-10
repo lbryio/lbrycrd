@@ -29,6 +29,7 @@ jobs:
         - mkdir -p dist
         - sudo zip -Xj dist/lbrycrd-${NAME}.zip src/lbrycrdd${EXT} src/lbrycrd-cli${EXT} src/lbrycrd-tx${EXT}
         - sudo zip -Xj dist/lbrycrd-${NAME}-test.zip src/test/test_lbrycrd${EXT} src/test/test_lbrycrd_fuzzy${EXT}
+        - sudo cp dist/lbrycrd-${NAME}.zip packaging/docker-for-binary/lbrycrd-${NAME}.zip
         - sha256sum dist/lbrycrd-${NAME}.zip
         - sha256sum dist/lbrycrd-${NAME}-test.zip
       deploy:
@@ -44,6 +45,13 @@ jobs:
           on:
             repo: lbryio/lbrycrd
             all_branches: true
+        - provider: script
+          script: bash packaging/docker-for-binary/auto_deploy.sh ${TRAVIS_BRANCH}
+          skip_cleanup: true
+          on:
+            repo: lbryio/lbrycrd
+            all_branches: true
+            condition: $NAME = linux
 
     - <<: *build-template
       name: windows

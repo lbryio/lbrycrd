@@ -1,0 +1,26 @@
+version: '3.4'
+
+networks:
+  lbry-network:
+    external: true
+
+services:
+#############
+## Lbrycrd ##
+#############
+  lbrycrd:
+    build: .
+    restart: always
+    networks:
+      lbry-network:
+        ipv4_address: 10.6.1.2
+    environment:
+      RUN_MODE: default
+    env_file:
+     - env
+    expose:
+      - 9245
+      - 9246
+    ## host volumes for persistent data such as wallet private keys.
+    volumes:
+      - "../persist/data:/data"
