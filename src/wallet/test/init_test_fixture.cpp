@@ -36,6 +36,7 @@ InitWalletDirTestingSetup::InitWalletDirTestingSetup(const std::string& chainNam
 
 InitWalletDirTestingSetup::~InitWalletDirTestingSetup()
 {
+    gArgs.ForceClearArg("-walletdir");
     fs::current_path(m_cwd);
 }
 

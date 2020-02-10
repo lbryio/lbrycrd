@@ -263,6 +263,7 @@ public:
     // Forces an arg setting. Called by SoftSetArg() if the arg hasn't already
     // been set. Also called directly in testing.
     void ForceSetArg(const std::string& strArg, const std::string& strValue);
+    void ForceClearArg(const std::string& strArg);
 
     /**
      * Looks for -regtest, -testnet and returns the appropriate BIP70 chain name.

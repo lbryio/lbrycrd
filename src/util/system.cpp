@@ -549,6 +549,12 @@ void ArgsManager::ForceSetArg(const std::string& strArg, const std::string& strV
     m_override_args[strArg] = {strValue};
 }
 
+void ArgsManager::ForceClearArg(const std::string& strArg)
+{
+    LOCK(cs_args);
+    m_override_args.erase(strArg);
+}
+
 void ArgsManager::AddArg(const std::string& name, const std::string& help, unsigned int flags, const OptionsCategory& cat)
 {
     // Split arg name from its help param
@@ -735,16 +741,21 @@ const fs::path &GetBlocksDir()
 
     if (gArgs.IsArgSet("-blocksdir")) {
         path = fs::system_complete(gArgs.GetArg("-blocksdir", ""));
-        if (!fs::is_directory(path)) {
-            path = "";
-            return path;
+        if (fs::exists(path) && !fs::is_directory(path)) {
+            LogPrintf("%s: %s is not a directory, falling back to GetDataDir\n", __func__, path);
+            path.clear();
         }
-    } else {
-        path = GetDataDir(false);
     }
 
+    bool usingDataDir = path.empty();
+    if (usingDataDir)
+        path = GetDataDir(false);
+
     path /= BaseParams().DataDir();
-    path /= "blocks";
+
+    if (usingDataDir)
+        path /= "blocks";
+
     fs::create_directories(path);
     return path;
 }
@@ -761,13 +772,15 @@ const fs::path &GetDataDir(bool fNetSpecific)
     std::string datadir = gArgs.GetArg("-datadir", "");
     if (!datadir.empty()) {
         path = fs::system_complete(datadir);
-        if (!fs::is_directory(path)) {
-            path = "";
-            return path;
+        if (fs::exists(path) && !fs::is_directory(path)) {
+            LogPrintf("%s: %s is not a directory, falling back to GetDefaultDataDir\n", __func__, path);
+            path.clear();
         }
-    } else {
-        path = GetDefaultDataDir();
     }
+
+    if (path.empty())
+        path = GetDefaultDataDir();
+
     if (fNetSpecific)
         path /= BaseParams().DataDir();
 

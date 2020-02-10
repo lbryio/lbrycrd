@@ -4771,7 +4771,7 @@ bool LoadBlockIndex(const CChainParams& chainparams)
         needs_init = g_blockman.m_block_index.empty();
 
         if (needs_init) {
-            auto blockDir = GetDataDir() / "blocks";
+            auto& blockDir = GetBlocksDir();
             for (auto it: fs::directory_iterator(blockDir)) {
                 boost::system::error_code ec;
                 if (fs::file_size(it, ec) > 100000000) {
