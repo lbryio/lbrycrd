@@ -70,7 +70,6 @@ std::ostream& operator<<(std::ostream& os, const CSupportValue& support)
 BasicTestingSetup::BasicTestingSetup(const std::string& chainName)
     : m_path_root(fs::temp_directory_path() / "test_common_" PACKAGE_TARNAME / strprintf("%lu_%i", (unsigned long)GetTime(), (int)(InsecureRandRange(1 << 30))))
 {
-    fs::create_directories(m_path_root);
     gArgs.ForceSetArg("-datadir", m_path_root.string());
     ClearDatadirCache();
     SelectParams(chainName);

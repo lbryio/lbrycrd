@@ -70,7 +70,7 @@ jobs:
       dist: xenial
       language: minimal
       git:
-        depth: 3
+        clone: false
       install:
         - mkdir -p testrun && cd testrun
         - curl http://build.lbry.io/lbrycrd/${TRAVIS_BRANCH}/lbrycrd-${NAME}-test.zip -o temp.zip
