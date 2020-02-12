@@ -291,7 +291,7 @@ void PruneOneBlockFile(const int fileNumber);
 void UnlinkPrunedFiles(const std::set<int>& setFilesToPrune);
 
 /** Flush all state, indexes and buffers to disk. */
-void FlushStateToDisk();
+void FlushStateToDisk(bool diskSync = false);
 /** Prune block files and flush state to disk. */
 void PruneAndFlush();
 /** Prune block files up to a given height */

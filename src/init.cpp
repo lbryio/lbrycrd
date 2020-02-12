@@ -241,7 +241,7 @@ void Shutdown()
 
     // FlushStateToDisk generates a ChainStateFlushed callback, which we should avoid missing
     if (pcoinsTip != nullptr) {
-        FlushStateToDisk();
+        FlushStateToDisk(true);
     }
 
     // After there are no more peers/RPC left to give us new data which may generate
@@ -257,7 +257,7 @@ void Shutdown()
     {
         LOCK(cs_main);
         if (pcoinsTip != nullptr) {
-            FlushStateToDisk();
+            FlushStateToDisk(true);
         }
         pcoinsTip.reset();
         pcoinscatcher.reset();

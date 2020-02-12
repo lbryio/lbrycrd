@@ -115,7 +115,7 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock, boo
 
     auto dbd = db << "DELETE FROM unspent WHERE txID = ? AND txN = ?";
     auto dbi = db << "INSERT OR REPLACE INTO unspent VALUES(?,?,?,?,?,?,?)";
-    for (auto it = mapCoins.begin(); it != mapCoins.end();) {
+    for (auto it = mapCoins.begin(); it != mapCoins.end(); it = mapCoins.erase(it)) {
         if (it->second.flags & CCoinsCacheEntry::DIRTY) {
             if (it->second.coin.IsSpent()) {
                 // at present the "IsSpent" flag is used for both "spent" and "block going backwards"
@@ -135,10 +135,7 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock, boo
             }
             changed++;
         }
-        count++;
-        auto itOld = it++;
-        mapCoins.erase(itOld);
-        if (crash_simulate && count % 200000 == 0) {
+        if (crash_simulate && ++count % 200000 == 0) {
             static FastRandomContext rng;
             if (rng.randrange(crash_simulate) == 0) {
                 LogPrintf("Simulating a crash. Goodbye.\n");
@@ -153,14 +150,14 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock, boo
 
     auto code = sqlite::commit(db);
     if (code != SQLITE_OK) {
-        LogPrint(BCLog::COINDB, "Error committing transaction outputs changes to coin database. SQLite error: %d\n", code);
+        LogPrintf("%s: Error committing coins info to database. SQLite error: %d\n", __func__, code);
         return false;
     }
-    LogPrint(BCLog::COINDB, "Committed %u changed transaction outputs (out of %u) to coin database...\n", (unsigned int)changed, (unsigned int)count);
+    LogPrint(BCLog::COINDB, "Committed %zu changed transaction outputs (out of %zu) to coin database...\n", changed, count);
     if (sync) {
-        auto code = sqlite::sync(db);
+        code = sqlite::sync(db);
         if (code != SQLITE_OK) {
-            LogPrint(BCLog::COINDB, "Error syncing coin database. SQLite error: %d\n", code);
+            LogPrintf("%s: Error syncing coin database. SQLite error: %d\n", __func__, code);
             return false;
         }
     }
@@ -340,7 +337,7 @@ bool CBlockTreeDB::BatchWrite(const std::vector<std::pair<int, const CBlockFileI
     }
     // by Sync they mean disk sync:
     if (sync) {
-        auto code = sqlite::sync(db);
+        code = sqlite::sync(db);
         if (code != SQLITE_OK) {
             LogPrintf("%s: Error syncing block database. SQLite error: %d\n", __func__, code);
             return false;
