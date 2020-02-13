@@ -85,7 +85,7 @@ class MaxUploadTest(BitcoinTestFramework):
         getdata_request = msg_getdata()
         getdata_request.inv.append(CInv(2, big_old_block))
 
-        max_bytes_per_day = 800*1024*1024
+        max_bytes_per_day = 800*1024#*1024
         daily_buffer = 144 * 4000000
         max_bytes_available = max_bytes_per_day - daily_buffer
         success_count = max_bytes_available // old_block_size
@@ -129,8 +129,9 @@ class MaxUploadTest(BitcoinTestFramework):
 
         # If we advance the time by 24 hours, then the counters should reset,
         # and p2p_conns[2] should be able to retrieve the old block.
-        self.nodes[0].setmocktime(int(time.time()))
+        self.nodes[0].setmocktime(int(time.time()) - 60*60*24)
         p2p_conns[2].sync_with_ping()
+        self.nodes[0].setmocktime(int(time.time()))
         p2p_conns[2].send_message(getdata_request)
         p2p_conns[2].sync_with_ping()
         assert_equal(p2p_conns[2].block_receive_map[big_old_block], 1)

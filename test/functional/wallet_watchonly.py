@@ -11,6 +11,7 @@ from test_framework.util import (
     assert_raises_rpc_error
 )
 
+from decimal import Decimal
 
 class CreateWalletWatchonlyTest(BitcoinTestFramework):
     def set_test_params(self):
@@ -41,13 +42,13 @@ class CreateWalletWatchonlyTest(BitcoinTestFramework):
         node.generatetoaddress(101, a1)
 
         # send 1 btc to our watch-only address
-        txid = def_wallet.sendtoaddress(wo_addr, 1)
+        txid = def_wallet.sendtoaddress(wo_addr, 0.1)
         self.nodes[0].generate(1)
 
         # getbalance
         self.log.info('include_watchonly should default to true for watch-only wallets')
         self.log.info('Testing getbalance watch-only defaults')
-        assert_equal(wo_wallet.getbalance(), 1)
+        assert_equal(wo_wallet.getbalance(), Decimal('0.1'))
         assert_equal(len(wo_wallet.listtransactions()), 1)
         assert_equal(wo_wallet.getbalance(include_watchonly=False), 0)
 
@@ -87,7 +88,7 @@ class CreateWalletWatchonlyTest(BitcoinTestFramework):
 
         self.log.info('Testing walletcreatefundedpsbt watch-only defaults')
         inputs = []
-        outputs = [{a1: 0.5}]
+        outputs = [{a1: 0.05}]
         options = {'changeAddress': wo_change}
         no_wo_options = {'changeAddress': wo_change, 'includeWatching': False}
 

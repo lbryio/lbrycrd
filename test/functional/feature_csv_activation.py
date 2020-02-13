@@ -184,7 +184,8 @@ class BIP68_112_113Test(BitcoinTestFramework):
         # Activation height is hardcoded
         test_blocks = self.generate_blocks(345)
         self.send_blocks(test_blocks)
-        assert not softfork_active(self.nodes[0], 'csv')
+        # NOTE csv is always activated
+        # assert not softfork_active(self.nodes[0], 'csv')
 
         # Inputs at height = 431
         #
@@ -231,7 +232,8 @@ class BIP68_112_113Test(BitcoinTestFramework):
 
         assert_equal(self.tipheight, CSV_ACTIVATION_HEIGHT - 2)
         self.log.info("Height = {}, CSV not yet active (will activate for block {}, not {})".format(self.tipheight, CSV_ACTIVATION_HEIGHT, CSV_ACTIVATION_HEIGHT - 1))
-        assert not softfork_active(self.nodes[0], 'csv')
+        # NOTE csv is always activated
+        # assert not softfork_active(self.nodes[0], 'csv')
 
         # Test both version 1 and version 2 transactions for all tests
         # BIP113 test transaction will be modified before each use to put in appropriate block time
@@ -265,6 +267,7 @@ class BIP68_112_113Test(BitcoinTestFramework):
 
         self.log.info("TESTING")
 
+        return # we have csv enabled by default
         self.log.info("Pre-Soft Fork Tests. All txs should pass.")
         self.log.info("Test version 1 txs")
 

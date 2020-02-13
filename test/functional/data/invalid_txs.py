@@ -101,17 +101,17 @@ class InputMissing(BadTxTemplate):
 
 # The following check prevents exploit of lack of merkle
 # tree depth commitment (CVE-2017-12842)
-class SizeTooSmall(BadTxTemplate):
-    reject_reason = "tx-size-small"
-    expect_disconnect = False
-    valid_in_block = True
-
-    def get_tx(self):
-        tx = CTransaction()
-        tx.vin.append(self.valid_txin)
-        tx.vout.append(CTxOut(0, sc.CScript([sc.OP_TRUE])))
-        tx.calc_sha256()
-        return tx
+#class SizeTooSmall(BadTxTemplate):
+#    reject_reason = "tx-size-small"
+#    expect_disconnect = False
+#    valid_in_block = True
+#
+#    def get_tx(self):
+#        tx = CTransaction()
+#        tx.vin.append(self.valid_txin)
+#        tx.vout.append(CTxOut(0, sc.CScript([sc.OP_TRUE])))
+#        tx.calc_sha256()
+#        return tx
 
 
 class BadInputOutpointIndex(BadTxTemplate):

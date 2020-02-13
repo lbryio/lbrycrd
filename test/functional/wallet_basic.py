@@ -321,16 +321,16 @@ class WalletTest(BitcoinTestFramework):
         assert_raises_rpc_error(-5, "Cannot use the p2sh flag with an address - use a script instead", self.nodes[0].importaddress, temp_address, "label", False, True)
 
         # This will raise an exception for attempting to dump the private key of an address you do not own
-        assert_raises_rpc_error(-3, "Address does not refer to a key", self.nodes[0].dumpprivkey, temp_address)
+        # assert_raises_rpc_error(-3, "Address does not refer to a key", self.nodes[0].dumpprivkey, temp_address)
 
         # This will raise an exception for attempting to get the private key of an invalid Bitcoin address
-        assert_raises_rpc_error(-5, "Invalid Bitcoin address", self.nodes[0].dumpprivkey, "invalid")
+        assert_raises_rpc_error(-5, "Invalid LBRY address", self.nodes[0].dumpprivkey, "invalid")
 
         # This will raise an exception for attempting to set a label for an invalid Bitcoin address
-        assert_raises_rpc_error(-5, "Invalid Bitcoin address", self.nodes[0].setlabel, "invalid address", "label")
+        assert_raises_rpc_error(-5, "Invalid LBRY address", self.nodes[0].setlabel, "invalid address", "label")
 
         # This will raise an exception for importing an invalid address
-        assert_raises_rpc_error(-5, "Invalid Bitcoin address or script", self.nodes[0].importaddress, "invalid")
+        assert_raises_rpc_error(-5, "Invalid LBRY address or script", self.nodes[0].importaddress, "invalid")
 
         # This will raise an exception for attempting to import a pubkey that isn't in hex
         assert_raises_rpc_error(-5, "Pubkey must be a hex string", self.nodes[0].importpubkey, "not hex")
@@ -487,7 +487,7 @@ class WalletTest(BitcoinTestFramework):
         # Test getaddressinfo 'ischange' field on change address.
         self.nodes[0].generate(1)
         destination = self.nodes[1].getnewaddress()
-        txid = self.nodes[0].sendtoaddress(destination, 0.123)
+        txid = self.nodes[0].sendtoaddress(destination, 0.0123)
         tx = self.nodes[0].decoderawtransaction(self.nodes[0].gettransaction(txid)['hex'])
         output_addresses = [vout['scriptPubKey']['addresses'][0] for vout in tx["vout"]]
         assert len(output_addresses) > 1

@@ -56,7 +56,7 @@ class BumpFeeTest(BitcoinTestFramework):
 
         # fund rbf node with 10 coins of 0.001 btc (100,000 satoshis)
         self.log.info("Mining blocks...")
-        peer_node.generate(110)
+        peer_node.generate(160)
         self.sync_all()
         for i in range(25):
             peer_node.sendtoaddress(rbf_node_address, 0.001)
@@ -336,9 +336,9 @@ def test_unconfirmed_not_spendable(rbf_node, rbf_node_address):
 
 
 def test_bumpfee_metadata(rbf_node, dest_address):
-    assert(rbf_node.getbalance() < 49)
+    assert(rbf_node.getbalance() < 0.98)
     rbf_node.generatetoaddress(101, rbf_node.getnewaddress())
-    rbfid = rbf_node.sendtoaddress(dest_address, 49, "comment value", "to value")
+    rbfid = rbf_node.sendtoaddress(dest_address, 0.98, "comment value", "to value")
     bumped_tx = rbf_node.bumpfee(rbfid)
     bumped_wtx = rbf_node.gettransaction(bumped_tx["txid"])
     assert_equal(bumped_wtx["comment"], "comment value")

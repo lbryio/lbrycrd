@@ -127,11 +127,11 @@ class BlockchainTest(BitcoinTestFramework):
         assert_greater_than(res['size_on_disk'], 0)
 
         assert_equal(res['softforks'], {
-            'bip34': {'type': 'buried', 'active': False, 'height': 500},
+            'bip34': {'type': 'buried', 'active': False, 'height': 1000},
             'bip66': {'type': 'buried', 'active': False, 'height': 1251},
             'bip65': {'type': 'buried', 'active': False, 'height': 1351},
-            'csv': {'type': 'buried', 'active': False, 'height': 432},
-            'segwit': {'type': 'buried', 'active': True, 'height': 0},
+            'csv': {'type': 'buried', 'active': True, 'height': 0},
+            'segwit': {'type': 'buried', 'active': True, 'height': 150},
             'testdummy': {
                 'type': 'bip9',
                 'bip9': {
@@ -217,7 +217,7 @@ class BlockchainTest(BitcoinTestFramework):
         assert_equal(res['bestblock'], node.getblockhash(200))
         size = res['disk_size']
         assert size > 6400
-        assert size < 64000
+        assert size < 164000
         assert_equal(len(res['bestblock']), 64)
         assert_equal(len(res['hash_serialized_2']), 64)
 

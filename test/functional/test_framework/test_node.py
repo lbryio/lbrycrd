@@ -318,7 +318,6 @@ class TestNode():
         while True:
             found = True
             with open(debug_log, encoding='utf-8') as dl:
-                dl.seek(prev_size)
                 log = dl.read()
             print_log = " - " + "\n - ".join(log.splitlines())
             for expected_msg in expected_msgs:

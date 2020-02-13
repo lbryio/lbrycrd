@@ -344,7 +344,8 @@ class BIP68Test(BitcoinTestFramework):
     # being run, then it's possible the test has activated the soft fork, and
     # this test should be moved to run earlier, or deleted.
     def test_bip68_not_consensus(self):
-        assert not softfork_active(self.nodes[0], 'csv')
+        # NOTE csv is always active
+        # assert not softfork_active(self.nodes[0], 'csv')
         txid = self.nodes[0].sendtoaddress(self.nodes[0].getnewaddress(), 2)
 
         tx1 = FromHex(CTransaction(), self.nodes[0].getrawtransaction(txid))
@@ -385,7 +386,8 @@ class BIP68Test(BitcoinTestFramework):
         block.solve()
 
         self.nodes[0].submitblock(block.serialize().hex())
-        assert_equal(self.nodes[0].getbestblockhash(), block.hash)
+        # NOTE csv is always active
+        # assert_equal(self.nodes[0].getbestblockhash(), block.hash)
 
     def activateCSV(self):
         # activation should happen at block height 432 (3 periods)
@@ -394,7 +396,8 @@ class BIP68Test(BitcoinTestFramework):
         height = self.nodes[0].getblockcount()
         assert_greater_than(min_activation_height - height, 2)
         self.nodes[0].generate(min_activation_height - height - 2)
-        assert not softfork_active(self.nodes[0], 'csv')
+        # NOTE csv is always active
+        # assert not softfork_active(self.nodes[0], 'csv')
         self.nodes[0].generate(1)
         assert softfork_active(self.nodes[0], 'csv')
         self.sync_blocks()

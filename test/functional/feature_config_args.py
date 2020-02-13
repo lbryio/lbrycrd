@@ -41,12 +41,12 @@ class ConfArgsTest(BitcoinTestFramework):
         if self.is_wallet_compiled():
             with open(inc_conf_file_path, 'w', encoding='utf8') as conf:
                 conf.write("wallet=foo\n")
-            self.nodes[0].assert_start_raises_init_error(expected_msg='Error: Config setting for -wallet only applied on regtest network when in [regtest] section.')
+            self.nodes[0].assert_start_raises_init_error(expected_msg='Error: Config setting for -wallet only applied on lbrycrdreg network when in [lbrycrdreg] section.')
 
         with open(inc_conf_file_path, 'w', encoding='utf-8') as conf:
             conf.write('regtest=0\n') # mainnet
             conf.write('acceptnonstdtxn=1\n')
-        self.nodes[0].assert_start_raises_init_error(expected_msg='Error: acceptnonstdtxn is not currently supported for main chain')
+        self.nodes[0].assert_start_raises_init_error(expected_msg='Error: acceptnonstdtxn is not currently supported for lbrycrd chain')
 
         with open(inc_conf_file_path, 'w', encoding='utf-8') as conf:
             conf.write('nono\n')
@@ -73,7 +73,7 @@ class ConfArgsTest(BitcoinTestFramework):
         with open(inc_conf_file2_path, 'w', encoding='utf-8') as conf:
             conf.write('[testnet]\n')
         self.restart_node(0)
-        self.nodes[0].stop_node(expected_stderr='Warning: ' + inc_conf_file_path + ':1 Section [testnot] is not recognized.' + os.linesep + 'Warning: ' + inc_conf_file2_path + ':1 Section [testnet] is not recognized.')
+        self.nodes[0].stop_node(expected_stderr='Warning: ' + inc_conf_file_path + ':1 Section [testnot] is not recognized.')
 
         with open(inc_conf_file_path, 'w', encoding='utf-8') as conf:
             conf.write('')  # clear

@@ -289,7 +289,7 @@ class MultiWalletTest(BitcoinTestFramework):
         # Also ensure unload works during walletpassphrase timeout
         w2.encryptwallet('test')
         w2.walletpassphrase('test', 1)
-        self.restart_node(0, ['-wallet={}'.format(wallet) for wallet in wallets])
+        self.restart_node(0, ['-wallet={}'.format(wallet) for wallet in wallet_names])
         w1 = node.get_wallet_rpc(wallet_names[0])
         w2 = node.get_wallet_rpc(wallet_names[1])
         w2.walletpassphrase('test', 1)
@@ -349,7 +349,7 @@ class MultiWalletTest(BitcoinTestFramework):
         )
         self.stop_node(
             i=0,
-            expected_stderr='Error: Error loading {}: Wallet requires newer version of Bitcoin Core'.format(
+            expected_stderr='Error: Error loading {}: Wallet requires newer version of LBRYcrd Core'.format(
                 wallet_dir('high_minversion', 'wallet.dat')),
         )
 

@@ -15,7 +15,7 @@ from test_framework.util import (
 def reset_balance(node, discardaddr):
     '''Throw away all owned coins by the node so it gets a balance of 0.'''
     balance = node.getbalance(avoid_reuse=False)
-    if balance > 0.5:
+    if balance > 0:
         node.sendtoaddress(address=discardaddr, amount=balance, subtractfeefromamount=True, avoid_reuse=False)
 
 def count_unspent(node):
@@ -68,6 +68,9 @@ class AvoidReuseTest(BitcoinTestFramework):
     def set_test_params(self):
         self.setup_clean_chain = False
         self.num_nodes = 2
+        # This test isn't testing txn relay/timing, so set whitelist on the
+        # peers for instant txn relay. This speeds up the test run time 2-3x.
+        self.extra_args = [["-whitelist=127.0.0.1"]] * self.num_nodes
 
     def skip_test_if_missing_module(self):
         self.skip_if_no_wallet()
@@ -91,8 +94,13 @@ class AvoidReuseTest(BitcoinTestFramework):
         reset_balance(self.nodes[1], self.nodes[0].getnewaddress())
         self.test_getbalances_used()
 
+        reset_balance(self.nodes[1], self.nodes[0].getnewaddress())
+        self.test_getbalances_used()
+
     def test_persistence(self):
         '''Test that wallet files persist the avoid_reuse flag.'''
+        self.log.info("Test wallet files persist avoid_reuse flag")
+
         # Configure node 1 to use avoid_reuse
         self.nodes[1].setwalletflag('avoid_reuse')
 
@@ -115,6 +123,8 @@ class AvoidReuseTest(BitcoinTestFramework):
 
     def test_immutable(self):
         '''Test immutable wallet flags'''
+        self.log.info("Test immutable wallet flags")
+
         # Attempt to set the disable_private_keys flag; this should not work
         assert_raises_rpc_error(-8, "Wallet flag is immutable", self.nodes[1].setwalletflag, 'disable_private_keys')
 
@@ -136,49 +146,50 @@ class AvoidReuseTest(BitcoinTestFramework):
         the avoid_reuse flag set to false. This means the 10 BTC send should succeed,
         where it fails in test_fund_send_fund_send.
         '''
+        self.log.info("Test fund send fund send dirty")
 
         fundaddr = self.nodes[1].getnewaddress()
         retaddr = self.nodes[0].getnewaddress()
 
-        self.nodes[0].sendtoaddress(fundaddr, 10)
+        self.nodes[0].sendtoaddress(fundaddr, 0.2)
         self.nodes[0].generate(1)
         self.sync_all()
 
         # listunspent should show 1 single, unused 10 btc output
-        assert_unspent(self.nodes[1], total_count=1, total_sum=10, reused_supported=True, reused_count=0)
+        assert_unspent(self.nodes[1], total_count=1, total_sum=0.2, reused_supported=True, reused_count=0)
         # getbalances should show no used, 10 btc trusted
-        assert_balances(self.nodes[1], mine={"used": 0, "trusted": 10})
+        assert_balances(self.nodes[1], mine={"used": 0, "trusted": 0.2})
         # node 0 should not show a used entry, as it does not enable avoid_reuse
         assert("used" not in self.nodes[0].getbalances()["mine"])
 
-        self.nodes[1].sendtoaddress(retaddr, 5)
+        self.nodes[1].sendtoaddress(retaddr, 0.1)
         self.nodes[0].generate(1)
         self.sync_all()
 
         # listunspent should show 1 single, unused 5 btc output
-        assert_unspent(self.nodes[1], total_count=1, total_sum=5, reused_supported=True, reused_count=0)
+        assert_unspent(self.nodes[1], total_count=1, total_sum=0.1, reused_supported=True, reused_count=0)
         # getbalances should show no used, 5 btc trusted
-        assert_balances(self.nodes[1], mine={"used": 0, "trusted": 5})
+        assert_balances(self.nodes[1], mine={"used": 0, "trusted": 0.1})
 
-        self.nodes[0].sendtoaddress(fundaddr, 10)
+        self.nodes[0].sendtoaddress(fundaddr, 0.2)
         self.nodes[0].generate(1)
         self.sync_all()
 
         # listunspent should show 2 total outputs (5, 10 btc), one unused (5), one reused (10)
-        assert_unspent(self.nodes[1], total_count=2, total_sum=15, reused_count=1, reused_sum=10)
+        assert_unspent(self.nodes[1], total_count=2, total_sum=0.3, reused_count=1, reused_sum=0.2)
         # getbalances should show 10 used, 5 btc trusted
-        assert_balances(self.nodes[1], mine={"used": 10, "trusted": 5})
+        assert_balances(self.nodes[1], mine={"used": 0.2, "trusted": 0.1})
 
-        self.nodes[1].sendtoaddress(address=retaddr, amount=10, avoid_reuse=False)
+        self.nodes[1].sendtoaddress(address=retaddr, amount=0.09, avoid_reuse=False)
 
         # listunspent should show 1 total outputs (5 btc), unused
-        assert_unspent(self.nodes[1], total_count=1, total_sum=5, reused_count=0)
+        assert_unspent(self.nodes[1], total_count=2, total_sum=0.21, reused_count=1)
         # getbalances should show no used, 5 btc trusted
-        assert_balances(self.nodes[1], mine={"used": 0, "trusted": 5})
+        assert_balances(self.nodes[1], mine={"used": 0.2, "trusted": 0.009})
 
         # node 1 should now have about 5 btc left (for both cases)
-        assert_approx(self.nodes[1].getbalance(), 5, 0.001)
-        assert_approx(self.nodes[1].getbalance(avoid_reuse=False), 5, 0.001)
+        assert_approx(self.nodes[1].getbalance(), 0.01, 0.01)
+        assert_approx(self.nodes[1].getbalance(avoid_reuse=False), 0.2, 0.1)
 
     def test_fund_send_fund_send(self, second_addr_type):
         '''
@@ -189,27 +200,28 @@ class AvoidReuseTest(BitcoinTestFramework):
         [1] tries to spend 10 BTC (fails; dirty).
         [1] tries to spend 4 BTC (succeeds; change address sufficient)
         '''
+        self.log.info("Test fund send fund send")
 
         fundaddr = self.nodes[1].getnewaddress(label="", address_type="legacy")
         retaddr = self.nodes[0].getnewaddress()
 
-        self.nodes[0].sendtoaddress(fundaddr, 10)
+        self.nodes[0].sendtoaddress(fundaddr, 0.2)
         self.nodes[0].generate(1)
         self.sync_all()
 
         # listunspent should show 1 single, unused 10 btc output
-        assert_unspent(self.nodes[1], total_count=1, total_sum=10, reused_supported=True, reused_count=0)
+        assert_unspent(self.nodes[1], total_count=1, total_sum=0.2, reused_supported=True, reused_count=0)
         # getbalances should show no used, 10 btc trusted
-        assert_balances(self.nodes[1], mine={"used": 0, "trusted": 10})
+        assert_balances(self.nodes[1], mine={"used": 0, "trusted": 0.2})
 
-        self.nodes[1].sendtoaddress(retaddr, 5)
+        self.nodes[1].sendtoaddress(retaddr, 0.1)
         self.nodes[0].generate(1)
         self.sync_all()
 
         # listunspent should show 1 single, unused 5 btc output
-        assert_unspent(self.nodes[1], total_count=1, total_sum=5, reused_supported=True, reused_count=0)
+        assert_unspent(self.nodes[1], total_count=1, total_sum=0.1, reused_supported=True, reused_count=0)
         # getbalances should show no used, 5 btc trusted
-        assert_balances(self.nodes[1], mine={"used": 0, "trusted": 5})
+        assert_balances(self.nodes[1], mine={"used": 0, "trusted": 0.1})
 
         # For the second send, we transmute it to a related single-key address
         # to make sure it's also detected as re-use
@@ -223,31 +235,31 @@ class AvoidReuseTest(BitcoinTestFramework):
             new_fundaddr = fundaddr
             assert_equal(second_addr_type, "legacy")
 
-        self.nodes[0].sendtoaddress(new_fundaddr, 10)
+        self.nodes[0].sendtoaddress(new_fundaddr, 0.2)
         self.nodes[0].generate(1)
         self.sync_all()
 
         # listunspent should show 2 total outputs (5, 10 btc), one unused (5), one reused (10)
-        assert_unspent(self.nodes[1], total_count=2, total_sum=15, reused_count=1, reused_sum=10)
+        assert_unspent(self.nodes[1], total_count=2, total_sum=0.3, reused_count=1, reused_sum=0.2)
         # getbalances should show 10 used, 5 btc trusted
-        assert_balances(self.nodes[1], mine={"used": 10, "trusted": 5})
+        assert_balances(self.nodes[1], mine={"used": 0.2, "trusted": 0.1})
 
         # node 1 should now have a balance of 5 (no dirty) or 15 (including dirty)
-        assert_approx(self.nodes[1].getbalance(), 5, 0.001)
-        assert_approx(self.nodes[1].getbalance(avoid_reuse=False), 15, 0.001)
+        assert_approx(self.nodes[1].getbalance(), 0.1, 0.01)
+        assert_approx(self.nodes[1].getbalance(avoid_reuse=False), 0.3, 0.01)
 
-        assert_raises_rpc_error(-6, "Insufficient funds", self.nodes[1].sendtoaddress, retaddr, 10)
+        assert_raises_rpc_error(-6, "Insufficient funds", self.nodes[1].sendtoaddress, retaddr, 0.2)
 
-        self.nodes[1].sendtoaddress(retaddr, 4)
+        self.nodes[1].sendtoaddress(retaddr, 0.08)
 
         # listunspent should show 2 total outputs (1, 10 btc), one unused (1), one reused (10)
-        assert_unspent(self.nodes[1], total_count=2, total_sum=11, reused_count=1, reused_sum=10)
+        assert_unspent(self.nodes[1], total_count=2, total_sum=0.22, reused_count=1, reused_sum=0.2)
         # getbalances should show 10 used, 1 btc trusted
-        assert_balances(self.nodes[1], mine={"used": 10, "trusted": 1})
+        assert_balances(self.nodes[1], mine={"used": 0.2, "trusted": 0.02})
 
         # node 1 should now have about 1 btc left (no dirty) and 11 (including dirty)
-        assert_approx(self.nodes[1].getbalance(), 1, 0.001)
-        assert_approx(self.nodes[1].getbalance(avoid_reuse=False), 11, 0.001)
+        assert_approx(self.nodes[1].getbalance(), 0.01, 0.01)
+        assert_approx(self.nodes[1].getbalance(avoid_reuse=False), 0.2, 0.1)
 
     def test_getbalances_used(self):
         '''
@@ -265,19 +277,19 @@ class AvoidReuseTest(BitcoinTestFramework):
 
         # send multiple transactions, reusing one address
         for _ in range(11):
-            self.nodes[0].sendtoaddress(new_addr, 1)
+            self.nodes[0].sendtoaddress(new_addr, 0.02)
 
         self.nodes[0].generate(1)
         self.sync_all()
 
         # send transaction that should not use all the available outputs
         # per the current coin selection algorithm
-        self.nodes[1].sendtoaddress(ret_addr, 5)
+        self.nodes[1].sendtoaddress(ret_addr, 0.1)
 
         # getbalances and listunspent should show the remaining outputs
         # in the reused address as used/reused
-        assert_unspent(self.nodes[1], total_count=2, total_sum=6, reused_count=1, reused_sum=1)
-        assert_balances(self.nodes[1], mine={"used": 1, "trusted": 5})
+        assert_unspent(self.nodes[1], total_count=2, total_sum=0.12, reused_count=1, reused_sum=0.02)
+        assert_balances(self.nodes[1], mine={"used": 0, "trusted": 0.12})
 
 if __name__ == '__main__':
     AvoidReuseTest().main()

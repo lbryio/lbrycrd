@@ -108,7 +108,7 @@ class MiningTest(BitcoinTestFramework):
         block.vtx = [coinbase_tx]
 
         self.log.info("getblocktemplate: segwit rule must be set")
-        assert_raises_rpc_error(-8, "getblocktemplate must be called with the segwit rule set", node.getblocktemplate)
+        assert_raises_rpc_error(-8, "Segwit support is now required. Please include \"segwit\" in the client's rules.", node.getblocktemplate)
 
         self.log.info("getblocktemplate: Test valid block")
         assert_template(node, block, None)
@@ -194,25 +194,34 @@ class MiningTest(BitcoinTestFramework):
         def chain_tip(b_hash, *, status='headers-only', branchlen=1):
             return {'hash': b_hash, 'height': 202, 'branchlen': branchlen, 'status': status}
 
-        assert chain_tip(block.hash) not in node.getchaintips()
+        def getchaintips(node):
+            new_tips = []
+            tips = node.getchaintips()
+            for tip in tips:
+                tip.pop('branchhash', None)
+                tip.pop('branchhashNext', None)
+                new_tips += [tip]
+            return new_tips
+
+        assert chain_tip(block.hash) not in getchaintips(node)
         node.submitheader(hexdata=block.serialize().hex())
-        assert chain_tip(block.hash) in node.getchaintips()
+        assert chain_tip(block.hash) in getchaintips(node)
         node.submitheader(hexdata=CBlockHeader(block).serialize().hex())  # Noop
-        assert chain_tip(block.hash) in node.getchaintips()
+        assert chain_tip(block.hash) in getchaintips(node)
 
         bad_block_root = copy.deepcopy(block)
         bad_block_root.hashMerkleRoot += 2
         bad_block_root.solve()
-        assert chain_tip(bad_block_root.hash) not in node.getchaintips()
+        assert chain_tip(bad_block_root.hash) not in getchaintips(node)
         node.submitheader(hexdata=CBlockHeader(bad_block_root).serialize().hex())
-        assert chain_tip(bad_block_root.hash) in node.getchaintips()
+        assert chain_tip(bad_block_root.hash) in getchaintips(node)
         # Should still reject invalid blocks, even if we have the header:
         assert_equal(node.submitblock(hexdata=bad_block_root.serialize().hex()), 'bad-txnmrklroot')
         assert_equal(node.submitblock(hexdata=bad_block_root.serialize().hex()), 'bad-txnmrklroot')
-        assert chain_tip(bad_block_root.hash) in node.getchaintips()
+        assert chain_tip(bad_block_root.hash) in getchaintips(node)
         # We know the header for this invalid block, so should just return early without error:
         node.submitheader(hexdata=CBlockHeader(bad_block_root).serialize().hex())
-        assert chain_tip(bad_block_root.hash) in node.getchaintips()
+        assert chain_tip(bad_block_root.hash) in getchaintips(node)
 
         bad_block_lock = copy.deepcopy(block)
         bad_block_lock.vtx[0].nLockTime = 2**32 - 1
@@ -238,7 +247,7 @@ class MiningTest(BitcoinTestFramework):
         node.p2p.wait_for_getheaders(timeout=5)  # Drop the first getheaders
         node.p2p.send_blocks_and_test(blocks=[block], node=node)
         # Must be active now:
-        assert chain_tip(block.hash, status='active', branchlen=0) in node.getchaintips()
+        assert chain_tip(block.hash, status='active', branchlen=0) in getchaintips(node)
 
         # Building a few blocks should give the same results
         node.generatetoaddress(10, node.get_deterministic_priv_key().address)

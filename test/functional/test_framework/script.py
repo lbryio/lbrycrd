@@ -14,7 +14,7 @@ import struct
 
 from .bignum import bn2vch
 
-MAX_SCRIPT_ELEMENT_SIZE = 520
+MAX_SCRIPT_ELEMENT_SIZE = 20000
 
 OPCODE_NAMES = {}
 
