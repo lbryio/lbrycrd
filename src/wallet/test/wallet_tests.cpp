@@ -207,12 +207,9 @@ static int64_t AddTx(CWallet& wallet, uint32_t lockTime, int64_t mockTime, int64
     CBlockIndex* block = nullptr;
     if (blockTime > 0) {
         LOCK(cs_main);
-        auto inserted = g_chainstate.mapBlockIndex.emplace(GetRandHash(), new CBlockIndex);
-        assert(inserted.second);
-        const uint256& hash = inserted.first->first;
-        block = inserted.first->second;
+        auto inserted = g_chainstate.mapBlockIndex.insert(new CBlockIndex(GetRandHash()));
+        block = *inserted.first;
         block->nTime = blockTime;
-        block->phashBlock = &hash;
     }
 
     CWalletTx wtx(&wallet, MakeTransactionRef(tx));

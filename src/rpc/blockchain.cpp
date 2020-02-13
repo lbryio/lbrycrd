@@ -1351,9 +1351,9 @@ static UniValue getchaintips(const JSONRPCRequest& request)
 
     for (const auto& item : g_chainstate.mapBlockIndex)
     {
-        if (!chainActive.Contains(item.second)) {
-            setOrphans.insert(item.second);
-            setPrevs.insert(item.second->pprev);
+        if (!chainActive.Contains(item)) {
+            setOrphans.insert(item);
+            setPrevs.insert(item->pprev);
         }
     }
 
@@ -1373,7 +1373,7 @@ static UniValue getchaintips(const JSONRPCRequest& request)
     {
         UniValue obj(UniValue::VOBJ);
         obj.pushKV("height", block->nHeight);
-        obj.pushKV("hash", block->phashBlock->GetHex());
+        obj.pushKV("hash", block->hash.GetHex());
 
         // not use ForkAt method because we need the previous one as well
         const CBlockIndex *forkAt = block, *forkPrev = block;
@@ -1385,8 +1385,8 @@ static UniValue getchaintips(const JSONRPCRequest& request)
         const int branchLen = block->nHeight - forkAt->nHeight;
         obj.pushKV("branchlen", branchLen);
         if (forkAt != forkPrev) {
-            obj.pushKV("branchhash", forkAt->phashBlock->GetHex());
-            obj.pushKV("branchhashNext", forkPrev->phashBlock->GetHex());
+            obj.pushKV("branchhash", forkAt->hash.GetHex());
+            obj.pushKV("branchhashNext", forkPrev->hash.GetHex());
         }
 
         std::string status;

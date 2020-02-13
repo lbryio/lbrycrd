@@ -144,7 +144,25 @@ extern CCriticalSection cs_main;
 extern CBlockPolicyEstimator feeEstimator;
 extern CTxMemPool mempool;
 extern std::atomic_bool g_is_mempool_loaded;
-typedef std::map<uint256, CBlockIndex*> BlockMap;
+
+struct BlockIndexPointerCompare {
+    inline bool operator() (const CBlockIndex* lhs, const CBlockIndex* rhs) const {
+        return lhs->hash < rhs->hash;
+    }
+};
+
+struct BlockMap : public std::set<CBlockIndex*, BlockIndexPointerCompare> {
+    inline iterator find(const uint256& blockHash) {
+        CBlockIndex temp(blockHash);
+        return std::set<CBlockIndex*, BlockIndexPointerCompare>::find(&temp);
+    }
+
+    inline const_iterator find(const uint256& blockHash) const {
+        CBlockIndex temp(blockHash);
+        return std::set<CBlockIndex*, BlockIndexPointerCompare>::find(&temp);
+    }
+};
+
 extern uint64_t nLastBlockTx;
 extern uint64_t nLastBlockWeight;
 extern const std::string strMessageMagic;

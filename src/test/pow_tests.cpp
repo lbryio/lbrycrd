@@ -18,7 +18,7 @@ BOOST_AUTO_TEST_CASE(get_next_work)
 {
     const auto chainParams = CreateChainParams(CBaseChainParams::MAIN);
     int64_t nLastRetargetTime = 1261130161; // Block #30240
-    CBlockIndex pindexLast;
+    CBlockIndex pindexLast((uint256()));
     pindexLast.nHeight = 32255;
     pindexLast.nTime = 1262152739;  // Block #32255
     pindexLast.nBits = 0x1d00ffff;
@@ -30,7 +30,7 @@ BOOST_AUTO_TEST_CASE(get_next_work_pow_limit)
 {
     const auto chainParams = CreateChainParams(CBaseChainParams::MAIN);
     int64_t nLastRetargetTime = 1231006505; // Block #0
-    CBlockIndex pindexLast;
+    CBlockIndex pindexLast((uint256()));
     pindexLast.nHeight = 2015;
     pindexLast.nTime = 1233061996;  // Block #2015
     pindexLast.nBits = 0x1d00ffff;
@@ -42,7 +42,7 @@ BOOST_AUTO_TEST_CASE(get_next_work_lower_limit_actual)
 {
     const auto chainParams = CreateChainParams(CBaseChainParams::MAIN);
     int64_t nLastRetargetTime = 1279008237; // Block #66528
-    CBlockIndex pindexLast;
+    CBlockIndex pindexLast((uint256()));
     pindexLast.nHeight = 68543;
     pindexLast.nTime = 1279297671;  // Block #68543
     pindexLast.nBits = 0x1c05a3f4;
@@ -54,7 +54,7 @@ BOOST_AUTO_TEST_CASE(get_next_work_upper_limit_actual)
 {
     const auto chainParams = CreateChainParams(CBaseChainParams::MAIN);
     int64_t nLastRetargetTime = 1263163443; // NOTE: Not an actual block time
-    CBlockIndex pindexLast;
+    CBlockIndex pindexLast((uint256()));
     pindexLast.nHeight = 46367;
     pindexLast.nTime = 1269211443;  // Block #46367
     pindexLast.nBits = 0x1c387f6f;
@@ -64,8 +64,10 @@ BOOST_AUTO_TEST_CASE(get_next_work_upper_limit_actual)
 BOOST_AUTO_TEST_CASE(GetBlockProofEquivalentTime_test)
 {
     const auto chainParams = CreateChainParams(CBaseChainParams::MAIN);
-    std::vector<CBlockIndex> blocks(10000);
+    std::vector<CBlockIndex> blocks;
+    blocks.reserve(10000);
     for (int i = 0; i < 10000; i++) {
+        blocks.emplace_back(uint256());
         blocks[i].pprev = i ? &blocks[i - 1] : nullptr;
         blocks[i].nHeight = i;
         blocks[i].nTime = 1269211443 + i * chainParams->GetConsensus().nPowTargetSpacing;
