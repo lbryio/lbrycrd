@@ -350,7 +350,7 @@ static UniValue setmocktime(const JSONRPCRequest& request)
                 RPCExamples{""},
             }.Check(request);
 
-    if (!Params().MineBlocksOnDemand())
+    if (Params().NetworkIDString() != CBaseChainParams::REGTEST)
         throw std::runtime_error("setmocktime for regression testing (-regtest mode) only");
 
     // For now, don't change mocktime if we're in the middle of validation, as
