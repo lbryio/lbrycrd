@@ -2342,8 +2342,8 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
         // in. Some OP_UPDATE_CLAIM's, for example, may be invalid, and so may never have been
         // inserted into the trie in the first place.
 
-        offset += ::GetSerializeSize(tx, CLIENT_VERSION);
         txOffsets.push_back(std::make_pair(tx.GetHash(), offset));
+        offset += ::GetSerializeSize(tx, CLIENT_VERSION);
     }
 
     // TODO: if the "just check" flag is set, we should reduce the work done here. Incrementing blocks twice per mine is not efficient.
