@@ -55,9 +55,9 @@ public:
 
     uint256 GetBestBlock() const override { return hashBestBlock_; }
 
-    bool BatchWrite(CCoinsMap& mapCoins, const uint256& hashBlock, bool sync) override
+    bool BatchWrite(const CCoinsMap& mapCoins, const uint256& hashBlock, bool sync) override
     {
-        for (CCoinsMap::iterator it = mapCoins.begin(); it != mapCoins.end(); ) {
+        for (auto it = mapCoins.begin(); it != mapCoins.end(); ++it) {
             if (it->second.flags & CCoinsCacheEntry::DIRTY) {
                 // Same optimization used in CCoinsViewDB is to only write dirty entries.
                 map_[it->first] = it->second.coin;
@@ -66,7 +66,6 @@ public:
                     map_.erase(it->first);
                 }
             }
-            mapCoins.erase(it++);
         }
         if (!hashBlock.IsNull())
             hashBestBlock_ = hashBlock;
@@ -187,7 +186,7 @@ BOOST_AUTO_TEST_CASE(coins_cache_simulation_test)
             COutPoint out(txids[InsecureRand32() % txids.size()], 0);
             int cacheid = InsecureRand32() % stack.size();
             stack[cacheid]->Uncache(out);
-            uncached_an_entry |= !stack[cacheid]->HaveCoinInCache(out);
+            uncached_an_entry |= !stack[cacheid]->HaveCoin(out);
         }
 
         // Once every 1000 iterations and at the end, verify the full cache.
@@ -200,7 +199,7 @@ BOOST_AUTO_TEST_CASE(coins_cache_simulation_test)
                 if (coin.IsSpent()) {
                     missed_an_entry = true;
                 } else {
-                    BOOST_CHECK(stack.back()->HaveCoinInCache(entry.first));
+                    BOOST_CHECK(stack.back()->HaveCoin(entry.first));
                     found_an_entry = true;
                 }
             }

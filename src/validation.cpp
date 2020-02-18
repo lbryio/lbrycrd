@@ -676,32 +676,29 @@ bool MemPoolAccept::PreChecks(ATMPArgs& args, Workspace& ws)
         }
     }
 
-    
     LockPoints lp;
     m_view.SetBackend(m_viewmempool);
 
     CCoinsViewCache& coins_cache = ::ChainstateActive().CoinsTip();
     // do all inputs exist?
     for (const CTxIn& txin : tx.vin) {
-        if (!coins_cache.HaveCoinInCache(txin.prevout)) {
+        if (!coins_cache.HaveCoin(txin.prevout))
             coins_to_uncache.push_back(txin.prevout);
-        }
 
         // Note: this call may add txin.prevout to the coins cache
         // (coins_cache.cacheCoins) by way of FetchCoin(). It should be removed
         // later (via coins_to_uncache) if this tx turns out to be invalid.
         if (!m_view.HaveCoin(txin.prevout)) {
             // Are inputs missing because we already have the tx?
-            for (size_t out = 0; out < tx.vout.size(); out++) {
+            for (size_t out = 0; out < tx.vout.size(); out++)
                 // Optimistically just do efficient check of cache for outputs
-                if (coins_cache.HaveCoinInCache(COutPoint(hash, out))) {
+                if (coins_cache.HaveCoin(COutPoint(hash, out)))
                     return state.Invalid(ValidationInvalidReason::TX_CONFLICT, false, REJECT_DUPLICATE, "txn-already-known");
-                }
-            }
+
             // Otherwise assume this might be an orphan tx for which we just haven't seen parents yet
-            if (pfMissingInputs) {
+            if (pfMissingInputs)
                 *pfMissingInputs = true;
-            }
+
             return false; // fMissingInputs and !state.IsInvalid() is used to detect this condition, don't set state.Invalid()
         }
     }

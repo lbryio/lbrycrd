@@ -71,11 +71,10 @@ class MempoolAcceptanceTest(BitcoinTestFramework):
         txid_in_block = node.sendrawtransaction(hexstring=raw_tx_in_block, maxfeerate=0)
         node.generate(1)
         self.mempool_size = 0
-        # FIXME: it returns missing-inputs since HaveCoinInCache returns false
-    #    self.check_mempool_result(
-    #        result_expected=[{'txid': txid_in_block, 'allowed': False, 'reject-reason': '18: txn-already-known'}],
-    #        rawtxs=[raw_tx_in_block],
-    #    )
+        self.check_mempool_result(
+            result_expected=[{'txid': txid_in_block, 'allowed': False, 'reject-reason': '18: txn-already-known'}],
+            rawtxs=[raw_tx_in_block],
+        )
 
         self.log.info('A transaction not in the mempool')
         fee = 0.00000700

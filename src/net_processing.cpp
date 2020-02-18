@@ -1300,8 +1300,8 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 
             return recentRejects->contains(inv.hash) ||
                    mempool.exists(inv.hash) ||
-                   coins_cache.HaveCoinInCache(COutPoint(inv.hash, 0)) || // Best effort: only try output 0 and 1
-                   coins_cache.HaveCoinInCache(COutPoint(inv.hash, 1));
+                   coins_cache.HaveCoin(COutPoint(inv.hash, 0)) || // Best effort: only try output 0 and 1
+                   coins_cache.HaveCoin(COutPoint(inv.hash, 1));
         }
     case MSG_BLOCK:
     case MSG_WITNESS_BLOCK:

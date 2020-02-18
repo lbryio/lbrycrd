@@ -12,14 +12,9 @@
 bool CCoinsView::GetCoin(const COutPoint &outpoint, Coin &coin) const { return false; }
 uint256 CCoinsView::GetBestBlock() const { return uint256(); }
 std::vector<uint256> CCoinsView::GetHeadBlocks() const { return std::vector<uint256>(); }
-bool CCoinsView::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock, bool sync) { return false; }
+bool CCoinsView::BatchWrite(const CCoinsMap &mapCoins, const uint256 &hashBlock, bool sync) { return false; }
 CCoinsViewCursor *CCoinsView::Cursor() const { return nullptr; }
-
-bool CCoinsView::HaveCoin(const COutPoint &outpoint) const
-{
-    Coin coin;
-    return GetCoin(outpoint, coin);
-}
+bool CCoinsView::HaveCoin(const COutPoint &outpoint) const { return false; }
 
 CCoinsViewBacked::CCoinsViewBacked(CCoinsView *viewIn) : base(viewIn) { }
 bool CCoinsViewBacked::GetCoin(const COutPoint &outpoint, Coin &coin) const { return base->GetCoin(outpoint, coin); }
@@ -27,7 +22,7 @@ bool CCoinsViewBacked::HaveCoin(const COutPoint &outpoint) const { return base->
 uint256 CCoinsViewBacked::GetBestBlock() const { return base->GetBestBlock(); }
 std::vector<uint256> CCoinsViewBacked::GetHeadBlocks() const { return base->GetHeadBlocks(); }
 void CCoinsViewBacked::SetBackend(CCoinsView &viewIn) { base = &viewIn; }
-bool CCoinsViewBacked::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock, bool sync) { return base->BatchWrite(mapCoins, hashBlock, sync); }
+bool CCoinsViewBacked::BatchWrite(const CCoinsMap &mapCoins, const uint256 &hashBlock, bool sync) { return base->BatchWrite(mapCoins, hashBlock, sync); }
 CCoinsViewCursor *CCoinsViewBacked::Cursor() const { return base->Cursor(); }
 size_t CCoinsViewBacked::EstimateSize() const { return base->EstimateSize(); }
 
@@ -129,11 +124,6 @@ bool CCoinsViewCache::HaveCoin(const COutPoint &outpoint) const {
     return (it != cacheCoins.end() && !it->second.coin.IsSpent());
 }
 
-bool CCoinsViewCache::HaveCoinInCache(const COutPoint &outpoint) const {
-    CCoinsMap::const_iterator it = cacheCoins.find(outpoint);
-    return (it != cacheCoins.end() && !it->second.coin.IsSpent());
-}
-
 uint256 CCoinsViewCache::GetBestBlock() const {
     if (hashBlock.IsNull())
         hashBlock = base->GetBestBlock();
@@ -144,8 +134,8 @@ void CCoinsViewCache::SetBestBlock(const uint256 &hashBlockIn) {
     hashBlock = hashBlockIn;
 }
 
-bool CCoinsViewCache::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlockIn, bool sync) {
-    for (CCoinsMap::iterator it = mapCoins.begin(); it != mapCoins.end(); it = mapCoins.erase(it)) {
+bool CCoinsViewCache::BatchWrite(const CCoinsMap &mapCoins, const uint256 &hashBlockIn, bool sync) {
+    for (auto it = mapCoins.begin(); it != mapCoins.end(); ++it) {
         // Ignore non-dirty entries (optimization).
         if (!(it->second.flags & CCoinsCacheEntry::DIRTY)) {
             continue;
