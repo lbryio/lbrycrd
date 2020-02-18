@@ -375,8 +375,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     // Create an actual 209999-long block chain (without valid blocks).
     while (::ChainActive().Tip()->nHeight < 209999) {
         CBlockIndex* prev = ::ChainActive().Tip();
-        CBlockIndex* next = new CBlockIndex();
-        next->phashBlock = new uint256(InsecureRand256());
+        CBlockIndex* next = new CBlockIndex(uint256(InsecureRand256()));
         next->hashClaimTrie = pblocktemplate->block.hashClaimTrie;
         ::ChainstateActive().CoinsTip().SetBestBlock(next->GetBlockHash());
         next->pprev = prev;
@@ -388,8 +387,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     // Extend to a 210000-long block chain.
     while (::ChainActive().Tip()->nHeight < 210000) {
         CBlockIndex* prev = ::ChainActive().Tip();
-        CBlockIndex* next = new CBlockIndex();
-        next->phashBlock = new uint256(InsecureRand256());
+        CBlockIndex* next = new CBlockIndex(uint256(InsecureRand256()));
         next->hashClaimTrie = pblocktemplate->block.hashClaimTrie;
         ::ChainstateActive().CoinsTip().SetBestBlock(next->GetBlockHash());
         next->pprev = prev;
@@ -422,7 +420,6 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         CBlockIndex* del = ::ChainActive().Tip();
         ::ChainActive().SetTip(del->pprev);
         ::ChainstateActive().CoinsTip().SetBestBlock(del->pprev->GetBlockHash());
-        delete del->phashBlock;
         delete del;
     }
 

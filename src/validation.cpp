@@ -83,6 +83,21 @@ bool CBlockIndexWorkComparator::operator()(const CBlockIndex *pa, const CBlockIn
     return false;
 }
 
+bool CBlockIndexHashComparator::operator()(const CBlockIndex* pa, const CBlockIndex* pb) const
+{
+    return pa->hash < pb->hash;
+}
+
+bool CBlockIndexHashComparator::operator()(const CBlockIndex* pa, const uint256& hash) const
+{
+    return pa->hash < hash;
+}
+
+bool CBlockIndexHashComparator::operator()(const uint256& hash, const CBlockIndex* pa) const
+{
+    return hash < pa->hash;
+}
+
 namespace {
 BlockManager g_blockman;
 } // anon namespace
@@ -188,8 +203,8 @@ namespace {
 CBlockIndex* LookupBlockIndex(const uint256& hash)
 {
     AssertLockHeld(cs_main);
-    BlockMap::const_iterator it = g_blockman.m_block_index.find(hash);
-    return it == g_blockman.m_block_index.end() ? nullptr : it->second;
+    auto it = g_blockman.m_block_index.find(hash);
+    return it == g_blockman.m_block_index.end() ? nullptr : *it;
 }
 
 CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& locator)
@@ -1441,14 +1456,14 @@ static void CheckForkWarningConditions() EXCLUSIVE_LOCKS_REQUIRED(cs_main)
         if (!GetfLargeWorkForkFound() && pindexBestForkBase)
         {
             std::string warning = std::string("'Warning: Large-work fork detected, forking after block ") +
-                pindexBestForkBase->phashBlock->ToString() + std::string("'");
+                pindexBestForkBase->hash.ToString() + std::string("'");
             AlertNotify(warning);
         }
         if (pindexBestForkTip && pindexBestForkBase)
         {
             LogPrintf("%s: Warning: Large valid fork found\n  forking the chain at height %d (%s)\n  lasting to height %d (%s).\nChain state database corruption likely.\n", __func__,
-                   pindexBestForkBase->nHeight, pindexBestForkBase->phashBlock->ToString(),
-                   pindexBestForkTip->nHeight, pindexBestForkTip->phashBlock->ToString());
+                   pindexBestForkBase->nHeight, pindexBestForkBase->hash.ToString(),
+                   pindexBestForkTip->nHeight, pindexBestForkTip->hash.ToString());
             SetfLargeWorkForkFound(true);
         }
         else
@@ -1983,8 +1998,7 @@ static unsigned int GetBlockScriptFlags(const CBlockIndex* pindex, const Consens
     // mainnet and testnet), so for simplicity, always leave P2SH
     // on except for the one violating block.
     if (consensusparams.BIP16Exception.IsNull() || // no bip16 exception on this chain
-        pindex->phashBlock == nullptr || // this is a new candidate block, eg from TestBlockValidity()
-        *pindex->phashBlock != consensusparams.BIP16Exception) // this block isn't the historical exception
+        pindex->hash != consensusparams.BIP16Exception) // this block isn't the historical exception
     {
         flags |= SCRIPT_VERIFY_P2SH;
     }
@@ -2037,7 +2051,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
 {
     AssertLockHeld(cs_main);
     assert(pindex);
-    assert(*pindex->phashBlock == block.GetHash());
+    assert(pindex->hash == block.GetHash());
     int64_t nTimeStart = GetTimeMicros();
 
     // Check it again in case a previous version let a bad block in
@@ -2093,9 +2107,9 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
         //  relative to a piece of software is an objective fact these defaults can be easily reviewed.
         // This setting doesn't force the selection of any particular chain but makes validating some faster by
         //  effectively caching the result of part of the verification.
-        BlockMap::const_iterator  it = m_blockman.m_block_index.find(hashAssumeValid);
+        auto it = m_blockman.m_block_index.find(hashAssumeValid);
         if (it != m_blockman.m_block_index.end()) {
-            if (it->second->GetAncestor(pindex->nHeight) == pindex &&
+            if ((*it)->GetAncestor(pindex->nHeight) == pindex &&
                 pindexBestHeader->GetAncestor(pindex->nHeight) == pindex &&
                 pindexBestHeader->nChainWork >= nMinimumChainWork) {
                 // This block is a member of the assumed verified chain and an ancestor of the best header.
@@ -2384,7 +2398,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
         setDirtyBlockIndex.insert(pindex);
     }
 
-    assert(pindex->phashBlock);
+    assert(!pindex->hash.IsNull());
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
 
@@ -3159,8 +3173,7 @@ bool CChainState::InvalidateBlock(CValidationState& state, const CChainParams& c
 
     {
         LOCK(cs_main);
-        for (const auto& entry : m_blockman.m_block_index) {
-            CBlockIndex *candidate = entry.second;
+        for (auto candidate : m_blockman.m_block_index) {
             // We don't need to put anything in our active chain into the
             // multimap, because those candidates will be found and considered
             // as we disconnect.
@@ -3255,11 +3268,10 @@ bool CChainState::InvalidateBlock(CValidationState& state, const CChainParams& c
         // it up here, this should be an essentially unobservable error.
         // Loop back over all block index entries and add any missing entries
         // to setBlockIndexCandidates.
-        BlockMap::iterator it = m_blockman.m_block_index.begin();
+        auto it = m_blockman.m_block_index.begin();
         while (it != m_blockman.m_block_index.end()) {
-            if (it->second->IsValid(BLOCK_VALID_TRANSACTIONS) && it->second->HaveTxsDownloaded() && !setBlockIndexCandidates.value_comp()(it->second, m_chain.Tip())) {
-                setBlockIndexCandidates.insert(it->second);
-            }
+            if ((*it)->IsValid(BLOCK_VALID_TRANSACTIONS) && (*it)->HaveTxsDownloaded() && !setBlockIndexCandidates.value_comp()(*it, m_chain.Tip()))
+                setBlockIndexCandidates.insert(*it);
             it++;
         }
 
@@ -3283,19 +3295,19 @@ void CChainState::ResetBlockFailureFlags(CBlockIndex *pindex) {
     int nHeight = pindex->nHeight;
 
     // Remove the invalidity flag from this block and all its descendants.
-    BlockMap::iterator it = m_blockman.m_block_index.begin();
+    auto it = m_blockman.m_block_index.begin();
     while (it != m_blockman.m_block_index.end()) {
-        if (!it->second->IsValid() && it->second->GetAncestor(nHeight) == pindex) {
-            it->second->nStatus &= ~BLOCK_FAILED_MASK;
-            setDirtyBlockIndex.insert(it->second);
-            if (it->second->IsValid(BLOCK_VALID_TRANSACTIONS) && it->second->HaveTxsDownloaded() && setBlockIndexCandidates.value_comp()(m_chain.Tip(), it->second)) {
-                setBlockIndexCandidates.insert(it->second);
+        if (!(*it)->IsValid() && (*it)->GetAncestor(nHeight) == pindex) {
+            (*it)->nStatus &= ~BLOCK_FAILED_MASK;
+            setDirtyBlockIndex.insert(*it);
+            if ((*it)->IsValid(BLOCK_VALID_TRANSACTIONS) && (*it)->HaveTxsDownloaded() && setBlockIndexCandidates.value_comp()(m_chain.Tip(), *it)) {
+                setBlockIndexCandidates.insert(*it);
             }
-            if (it->second == pindexBestInvalid) {
+            if (*it == pindexBestInvalid) {
                 // Reset invalid block marker if it was pointing to one of those.
                 pindexBestInvalid = nullptr;
             }
-            m_blockman.m_failed_blocks.erase(it->second);
+            m_blockman.m_failed_blocks.erase(*it);
         }
         it++;
     }
@@ -3321,9 +3333,9 @@ CBlockIndex* BlockManager::AddToBlockIndex(const CBlockHeader& block)
 
     // Check for duplicate
     uint256 hash = block.GetHash();
-    BlockMap::iterator it = m_block_index.find(hash);
+    auto it = m_block_index.find(hash);
     if (it != m_block_index.end())
-        return it->second;
+        return *it;
 
     // Construct new block index object
     CBlockIndex* pindexNew = new CBlockIndex(block);
@@ -3331,12 +3343,10 @@ CBlockIndex* BlockManager::AddToBlockIndex(const CBlockHeader& block)
     // to avoid miners withholding blocks but broadcasting headers, to get a
     // competitive advantage.
     pindexNew->nSequenceId = 0;
-    BlockMap::iterator mi = m_block_index.insert(std::make_pair(hash, pindexNew)).first;
-    pindexNew->phashBlock = &((*mi).first);
-    BlockMap::iterator miPrev = m_block_index.find(block.hashPrevBlock);
-    if (miPrev != m_block_index.end())
-    {
-        pindexNew->pprev = (*miPrev).second;
+    auto mi = m_block_index.insert(pindexNew).first;
+    auto miPrev = m_block_index.find(block.hashPrevBlock);
+    if (miPrev != m_block_index.end()) {
+        pindexNew->pprev = (*miPrev);
         pindexNew->nHeight = pindexNew->pprev->nHeight + 1;
         pindexNew->BuildSkip();
     }
@@ -3759,12 +3769,12 @@ bool BlockManager::AcceptBlockHeader(const CBlockHeader& block, CValidationState
     AssertLockHeld(cs_main);
     // Check for duplicate
     uint256 hash = block.GetHash();
-    BlockMap::iterator miSelf = m_block_index.find(hash);
+    auto miSelf = m_block_index.find(hash);
     CBlockIndex *pindex = nullptr;
     if (hash != chainparams.GetConsensus().hashGenesisBlock) {
         if (miSelf != m_block_index.end()) {
             // Block header is already known.
-            pindex = miSelf->second;
+            pindex = *miSelf;
             if (ppindex)
                 *ppindex = pindex;
             if (pindex->nStatus & BLOCK_FAILED_MASK)
@@ -3777,10 +3787,10 @@ bool BlockManager::AcceptBlockHeader(const CBlockHeader& block, CValidationState
 
         // Get prev block index
         CBlockIndex* pindexPrev = nullptr;
-        BlockMap::iterator mi = m_block_index.find(block.hashPrevBlock);
+        auto mi = m_block_index.find(block.hashPrevBlock);
         if (mi == m_block_index.end())
             return state.Invalid(ValidationInvalidReason::BLOCK_MISSING_PREV, error("%s: prev block not found", __func__), 0, "prev-blk-not-found");
-        pindexPrev = (*mi).second;
+        pindexPrev = (*mi);
         if (pindexPrev->nStatus & BLOCK_FAILED_MASK)
             return state.Invalid(ValidationInvalidReason::BLOCK_INVALID_PREV, error("%s: prev block invalid", __func__), REJECT_INVALID, "bad-prevblk");
         if (!ContextualCheckBlockHeader(block, state, chainparams, pindexPrev, GetAdjustedTime()))
@@ -4009,7 +4019,6 @@ bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams,
     CBlockIndex indexDummy(block);
     indexDummy.pprev = pindexPrev;
     indexDummy.nHeight = pindexPrev->nHeight + 1;
-    indexDummy.phashBlock = &block_hash;
 
     // NOTE: CheckBlockHeader is called by CheckBlock
     if (!ContextualCheckBlockHeader(block, state, chainparams, pindexPrev, GetAdjustedTime()))
@@ -4046,8 +4055,7 @@ void PruneOneBlockFile(const int fileNumber)
 {
     LOCK(cs_LastBlockFile);
 
-    for (const auto& entry : g_blockman.m_block_index) {
-        CBlockIndex* pindex = entry.second;
+    for (auto pindex : g_blockman.m_block_index) {
         if (pindex->nFile == fileNumber) {
             pindex->nStatus &= ~BLOCK_HAVE_DATA;
             pindex->nStatus &= ~BLOCK_HAVE_UNDO;
@@ -4214,22 +4222,21 @@ fs::path GetBlockPosFilename(const FlatFilePos &pos)
     return BlockFileSeq().FileName(pos);
 }
 
-CBlockIndex * BlockManager::InsertBlockIndex(const uint256& hash)
+CBlockIndex* BlockManager::InsertBlockIndex(const uint256& hash)
 {
     AssertLockHeld(cs_main);
 
     // Return existing
     auto mi = m_block_index.find(hash);
     if (mi != m_block_index.end())
-        return mi->second;
+        return *mi;
 
     if (hash.IsNull())
         return nullptr;
 
     // Create new
-    CBlockIndex* pindexNew = new CBlockIndex();
-    mi = m_block_index.insert(std::make_pair(hash, pindexNew)).first;
-    pindexNew->phashBlock = &(mi->first);
+    CBlockIndex* pindexNew = new CBlockIndex(hash);
+    m_block_index.insert(pindexNew);
 
     return pindexNew;
 }
@@ -4245,14 +4252,11 @@ bool BlockManager::LoadBlockIndex(
     // Calculate nChainWork
     std::vector<std::pair<int, CBlockIndex*> > vSortedByHeight;
     vSortedByHeight.reserve(m_block_index.size());
-    for (const std::pair<const uint256, CBlockIndex*>& item : m_block_index)
-    {
-        CBlockIndex* pindex = item.second;
+    for (auto pindex : m_block_index)
         vSortedByHeight.push_back(std::make_pair(pindex->nHeight, pindex));
-    }
+
     sort(vSortedByHeight.begin(), vSortedByHeight.end());
-    for (const std::pair<int, CBlockIndex*>& item : vSortedByHeight)
-    {
+    for (const std::pair<int, CBlockIndex*>& item : vSortedByHeight) {
         if (ShutdownRequested()) return false;
         CBlockIndex* pindex = item.second;
         pindex->nChainWork = (pindex->pprev ? pindex->pprev->nChainWork : 0) + GetBlockProof(*pindex);
@@ -4289,13 +4293,13 @@ bool BlockManager::LoadBlockIndex(
     return true;
 }
 
-void BlockManager::Unload() {
+void BlockManager::Unload()
+{
     m_failed_blocks.clear();
     m_blocks_unlinked.clear();
 
-    for (const BlockMap::value_type& entry : m_block_index) {
-        delete entry.second;
-    }
+    for (auto pindex : m_block_index)
+        delete pindex;
 
     m_block_index.clear();
 }
@@ -4326,19 +4330,14 @@ bool static LoadBlockIndexDB(const CChainParams& chainparams) EXCLUSIVE_LOCKS_RE
     // Check presence of blk files
     LogPrintf("Checking all blk files are present...\n");
     std::set<int> setBlkDataFiles;
-    for (const std::pair<const uint256, CBlockIndex*>& item : g_blockman.m_block_index)
-    {
-        CBlockIndex* pindex = item.second;
-        if (pindex->nStatus & BLOCK_HAVE_DATA) {
+    for (auto pindex : g_blockman.m_block_index)
+        if (pindex->nStatus & BLOCK_HAVE_DATA)
             setBlkDataFiles.insert(pindex->nFile);
-        }
-    }
-    for (auto it = setBlkDataFiles.begin(); it != setBlkDataFiles.end(); ++it)
-    {
+
+    for (auto it = setBlkDataFiles.begin(); it != setBlkDataFiles.end(); ++it) {
         FlatFilePos pos(*it, 0);
-        if (CAutoFile(OpenBlockFile(pos, true), SER_DISK, CLIENT_VERSION).IsNull()) {
+        if (CAutoFile(OpenBlockFile(pos, true), SER_DISK, CLIENT_VERSION).IsNull())
             return false;
-        }
     }
 
     // Check whether we have ever pruned block & undo files
@@ -4533,16 +4532,18 @@ bool CChainState::ReplayBlocks(const CChainParams& params)
     const CBlockIndex* pindexNew;            // New tip during the interrupted flush.
     const CBlockIndex* pindexFork = nullptr; // Latest block common to both the old and the new tip.
 
-    if (m_blockman.m_block_index.count(hashHeads[0]) == 0) {
+    auto it = m_blockman.m_block_index.find(hashHeads[0]);
+    if (it == m_blockman.m_block_index.end())
         return error("ReplayBlocks(): reorganization to unknown block requested");
-    }
-    pindexNew = m_blockman.m_block_index[hashHeads[0]];
+
+    pindexNew = *it;
 
     if (!hashHeads[1].IsNull()) { // The old tip is allowed to be 0, indicating it's the first flush.
-        if (m_blockman.m_block_index.count(hashHeads[1]) == 0) {
+        it = m_blockman.m_block_index.find(hashHeads[1]);
+        if (it == m_blockman.m_block_index.end())
             return error("ReplayBlocks(): reorganization from unknown block requested");
-        }
-        pindexOld = m_blockman.m_block_index[hashHeads[1]];
+
+        pindexOld = *it;
         pindexFork = LastCommonAncestor(pindexOld, pindexNew);
         assert(pindexFork != nullptr);
     }
@@ -4628,11 +4629,9 @@ bool CChainState::RewindBlockIndex(const CChainParams& params)
     // blocks will be dealt with below (releasing cs_main in between).
     {
         LOCK(cs_main);
-        for (const auto& entry : m_blockman.m_block_index) {
-            if (IsWitnessEnabled(entry.second->pprev, params.GetConsensus()) && !(entry.second->nStatus & BLOCK_OPT_WITNESS) && !m_chain.Contains(entry.second)) {
-                EraseBlockData(entry.second);
-            }
-        }
+        for (auto pindex : m_blockman.m_block_index)
+            if (IsWitnessEnabled(pindex->pprev, params.GetConsensus()) && !(pindex->nStatus & BLOCK_OPT_WITNESS) && !m_chain.Contains(pindex))
+                EraseBlockData(pindex);
     }
 
     // Find what height we need to reorganize to.
@@ -4963,9 +4962,8 @@ void CChainState::CheckBlockIndex(const Consensus::Params& consensusParams)
 
     // Build forward-pointing map of the entire block tree.
     std::multimap<CBlockIndex*,CBlockIndex*> forward;
-    for (const std::pair<const uint256, CBlockIndex*>& entry : m_blockman.m_block_index) {
-        forward.insert(std::make_pair(entry.second->pprev, entry.second));
-    }
+    for (auto pindex : m_blockman.m_block_index)
+        forward.insert(std::make_pair(pindex->pprev, pindex));
 
     assert(forward.size() == m_blockman.m_block_index.size());
 
@@ -5318,7 +5316,7 @@ public:
         // block headers
         auto it1 = g_blockman.m_block_index.begin();
         for (; it1 != g_blockman.m_block_index.end(); it1++)
-            delete (*it1).second;
+            delete (*it1);
         g_blockman.m_block_index.clear();
     }
 };

@@ -1351,20 +1351,16 @@ static UniValue getchaintips(const JSONRPCRequest& request)
     std::set<const CBlockIndex*> setOrphans;
     std::set<const CBlockIndex*> setPrevs;
 
-    for (const std::pair<const uint256, CBlockIndex*>& item : ::BlockIndex())
-    {
-        if (!::ChainActive().Contains(item.second)) {
-            setOrphans.insert(item.second);
-            setPrevs.insert(item.second->pprev);
+    for (auto pindex : ::BlockIndex())
+        if (!::ChainActive().Contains(pindex)) {
+            setOrphans.insert(pindex);
+            setPrevs.insert(pindex->pprev);
         }
-    }
 
-    for (std::set<const CBlockIndex*>::iterator it = setOrphans.begin(); it != setOrphans.end(); ++it)
-    {
+    for (auto it = setOrphans.begin(); it != setOrphans.end(); ++it)
         if (setPrevs.erase(*it) == 0) {
             setTips.insert(*it);
         }
-    }
 
     // Always report the currently active tip.
     setTips.insert(::ChainActive().Tip());
@@ -1375,7 +1371,7 @@ static UniValue getchaintips(const JSONRPCRequest& request)
     {
         UniValue obj(UniValue::VOBJ);
         obj.pushKV("height", block->nHeight);
-        obj.pushKV("hash", block->phashBlock->GetHex());
+        obj.pushKV("hash", block->hash.GetHex());
 
         // not use ForkAt method because we need the previous one as well
         const CBlockIndex *forkAt = block, *forkPrev = block;
@@ -1387,8 +1383,8 @@ static UniValue getchaintips(const JSONRPCRequest& request)
         const int branchLen = block->nHeight - forkAt->nHeight;
         obj.pushKV("branchlen", branchLen);
         if (forkAt != forkPrev) {
-            obj.pushKV("branchhash", forkAt->phashBlock->GetHex());
-            obj.pushKV("branchhashNext", forkPrev->phashBlock->GetHex());
+            obj.pushKV("branchhash", forkAt->hash.GetHex());
+            obj.pushKV("branchhashNext", forkPrev->hash.GetHex());
         }
 
         std::string status;
