@@ -30,6 +30,7 @@ CScript SupportClaimScript(std::string name, uint160 claimId, std::string value=
 CScript UpdateClaimScript(std::string name, uint160 claimId, std::string value);
 bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams, bool allowSupportMetadata=true);
 bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector<unsigned char> >& vvchParams, CScript::const_iterator& pc, bool allowSupportMetadata=true);
+bool DecodeClaimScript(const CScript& scriptIn, int& op, CScript::const_iterator& pc, bool allowSupportMetadata=true);
 CScript StripClaimScriptPrefix(const CScript& scriptIn);
 CScript StripClaimScriptPrefix(const CScript& scriptIn, int& op);
 uint160 ClaimIdHash(const uint256& txhash, uint32_t nOut);

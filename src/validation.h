@@ -667,10 +667,11 @@ public:
         const CChainParams& chainparams,
         CValidationState &state,
         FlushStateMode mode,
-        int nManualPruneHeight = 0);
+        int nManualPruneHeight = 0,
+        bool syncToDisk=false);
 
     //! Unconditionally flush all changes to disk.
-    void ForceFlushStateToDisk();
+    void ForceFlushStateToDisk(bool syncToDisk=false);
 
     //! Prune blockfiles from the disk if necessary and then flush chainstate changes
     //! if we pruned.

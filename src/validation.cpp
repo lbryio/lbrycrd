@@ -2412,7 +2412,8 @@ bool CChainState::FlushStateToDisk(
     const CChainParams& chainparams,
     CValidationState &state,
     FlushStateMode mode,
-    int nManualPruneHeight)
+    int nManualPruneHeight,
+    bool syncToDisk)
 {
     int64_t nMempoolUsage = mempool.DynamicMemoryUsage();
     LOCK(cs_main);
@@ -2484,7 +2485,7 @@ bool CChainState::FlushStateToDisk(
                     vBlocks.push_back(*it);
                     setDirtyBlockIndex.erase(it++);
                 }
-                if (!pblocktree->BatchWrite(vFiles, nLastBlockFile, vBlocks, mode == FlushStateMode::ALWAYS)) {
+                if (!pblocktree->BatchWrite(vFiles, nLastBlockFile, vBlocks, syncToDisk)) {
                     return AbortNode(state, "Failed to write to block index database");
                 }
             }
@@ -2503,10 +2504,10 @@ bool CChainState::FlushStateToDisk(
             if (!CheckDiskSpace(GetDataDir(), 48 * 2 * 2 * CoinsTip().GetCacheSize())) {
                 return AbortNode(state, "Disk space is too low!", _("Error: Disk space is too low!").translated, CClientUIInterface::MSG_NOPREFIX);
             }
-            if (mode == FlushStateMode::ALWAYS && !::Claimtrie().SyncToDisk())
+            if (syncToDisk && !::Claimtrie().SyncToDisk())
                 return state.Error("Failed to write to claim trie database");
             // Flush the chainstate (which may refer to block index entries).
-            if (!CoinsTip().Flush(mode == FlushStateMode::ALWAYS))
+            if (!CoinsTip().Flush(syncToDisk))
                 return AbortNode(state, "Failed to write to coin database");
             nLastFlush = nNow;
             full_flush_completed = true;
@@ -2523,10 +2524,10 @@ bool CChainState::FlushStateToDisk(
     return true;
 }
 
-void CChainState::ForceFlushStateToDisk() {
+void CChainState::ForceFlushStateToDisk(bool syncToDisk) {
     CValidationState state;
     const CChainParams& chainparams = Params();
-    if (!this->FlushStateToDisk(chainparams, state, FlushStateMode::ALWAYS)) {
+    if (!this->FlushStateToDisk(chainparams, state, FlushStateMode::ALWAYS, 0, syncToDisk)) {
         LogPrintf("%s: failed to flush state (%s)\n", __func__, FormatStateMessage(state));
     }
 }
@@ -2652,7 +2653,7 @@ bool CChainState::DisconnectTip(CValidationState& state, const CChainParams& cha
     }
     LogPrint(BCLog::BENCH, "- Disconnect block: %.2fms\n", (GetTimeMicros() - nStart) * MILLI);
     // Write the chain state to disk, if necessary.
-    if (!FlushStateToDisk(chainparams, state, FlushStateMode::IF_NEEDED))
+    if (!IsInitialBlockDownload() && !FlushStateToDisk(chainparams, state, FlushStateMode::ALWAYS))
         return false;
 
     if (disconnectpool) {
@@ -2796,7 +2797,7 @@ bool CChainState::ConnectTip(CValidationState& state, const CChainParams& chainp
     int64_t nTime4 = GetTimeMicros(); nTimeFlush += nTime4 - nTime3;
     LogPrint(BCLog::BENCH, "  - Flush: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime4 - nTime3) * MILLI, nTimeFlush * MICRO, nTimeFlush * MILLI / nBlocksTotal);
     // Write the chain state to disk, if necessary.
-    if (!FlushStateToDisk(chainparams, state, FlushStateMode::IF_NEEDED))
+    if (!IsInitialBlockDownload() && !FlushStateToDisk(chainparams, state, FlushStateMode::ALWAYS))
         return false;
     int64_t nTime5 = GetTimeMicros(); nTimeChainState += nTime5 - nTime4;
     LogPrint(BCLog::BENCH, "  - Writing chainstate: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime5 - nTime4) * MILLI, nTimeChainState * MICRO, nTimeChainState * MILLI / nBlocksTotal);
@@ -3077,11 +3078,11 @@ bool CChainState::ActivateBestChain(CValidationState &state, const CChainParams&
             if (!blocks_connected) return true;
 
             const CBlockIndex* pindexFork = m_chain.FindFork(starting_tip);
-            bool fInitialDownload = IsInitialBlockDownload();
 
             // Notify external listeners about the new tip.
             // Enqueue while holding cs_main to ensure that UpdatedBlockTip is called in the order in which blocks are connected
             if (pindexFork != pindexNewTip) {
+                bool fInitialDownload = IsInitialBlockDownload();
                 // Notify ValidationInterface subscribers
                 GetMainSignals().UpdatedBlockTip(pindexNewTip, pindexFork, fInitialDownload);
 
@@ -3102,14 +3103,13 @@ bool CChainState::ActivateBestChain(CValidationState &state, const CChainParams&
     } while (pindexNewTip != pindexMostWork);
     CheckBlockIndex(chainparams.GetConsensus());
 
-    auto flushMode = FlushStateMode::PERIODIC;
-    if (pindexNewTip && pindexNewTip->nTime + chainparams.GetConsensus().nPowTargetSpacing > GetAdjustedTime()) {
-        // trying to ensure that we flush to disk after new blocks when we're caught up to the chain
-        // they're technically allowed to be two hours late, but experience says one minute is more likely
-        // LogPrintf("Added tip with time %d but it is now %ll\n", pindexNewTip->nTime, GetAdjustedTime());
-        flushMode = FlushStateMode::ALWAYS;
-    }
-    return FlushStateToDisk(chainparams, state, flushMode);
+    auto& consensus = chainparams.GetConsensus();
+    CheckBlockIndex(consensus);
+
+    auto flushMode = IsInitialBlockDownload() ? FlushStateMode::IF_NEEDED : FlushStateMode::ALWAYS;
+    auto diskSync = chainparams.NetworkIDString() != CBaseChainParams::REGTEST
+                    && flushMode == FlushStateMode::ALWAYS;
+    return FlushStateToDisk(chainparams, state, flushMode, 0, diskSync);
 }
 
 bool ActivateBestChain(CValidationState &state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock) {

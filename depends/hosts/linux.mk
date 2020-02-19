@@ -1,7 +1,7 @@
 linux_CFLAGS=-pipe
 linux_CXXFLAGS=$(linux_CFLAGS) -std=c++11
 
-linux_release_CFLAGS=-O2 -g
+linux_release_CFLAGS=-O3 -g -include $(BASEDIR)/glibc_version_header/force_link_glibc_2.19.h
 linux_release_CXXFLAGS=$(linux_release_CFLAGS)
 
 linux_debug_CFLAGS=-O1 -g

@@ -29,8 +29,8 @@ define $(package)_config_cmds
   PKG_CONFIG_SYSROOT_DIR=/ \
   PKG_CONFIG_LIBDIR=$(host_prefix)/lib/pkgconfig \
   PKG_CONFIG_PATH=$(host_prefix)/share/pkgconfig \
-  sed -i.old 's/^GEN_DEPS.c=.*/& $($(package)_cflags)/' config/mh-mingw* && \
-  sed -i.old 's/^GEN_DEPS.cc=.*/& $($(package)_cxxflags)/' config/mh-mingw* && \
+  sed -i.old 's|^GEN_DEPS.c=.*|& $($(package)_cflags)|' config/mh-mingw* && \
+  sed -i.old 's|^GEN_DEPS.cc=.*|& $($(package)_cxxflags)|' config/mh-mingw* && \
   $($(package)_autoconf)
 endef
 

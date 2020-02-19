@@ -14,7 +14,7 @@ jobs:
     - &build-template
       stage: build
       name: linux
-      env: NAME=linux EXT=
+      env: NAME=linux DOCKER_IMAGE=lbry/build_lbrycrd_gcc EXT=
       os: linux
       dist: xenial
       language: minimal
@@ -22,7 +22,7 @@ jobs:
         - docker
       install:
         - mkdir -p ${HOME}/ccache
-        - docker pull $DOCKER_BUILD_IMAGE
+        - docker pull $DOCKER_IMAGE
       script:
         - docker run -v "$(pwd):/lbrycrd" -v "${HOME}/ccache:/ccache" -w /lbrycrd -e CCACHE_DIR=/ccache ${DOCKER_IMAGE} packaging/build_${NAME}_64bit.sh
       before_deploy:
@@ -55,11 +55,11 @@ jobs:
 
     - <<: *build-template
       name: windows
-      env: NAME=windows EXT=.exe
+      env: NAME=windows DOCKER_IMAGE=lbry/build_lbrycrd EXT=.exe
 
     - <<: *build-template
       name: osx
-      env: NAME=darwin EXT=
+      env: NAME=darwin DOCKER_IMAGE=lbry/build_lbrycrd EXT=
       before_install:
         - mkdir -p ./depends/SDKs && pushd depends/SDKs && curl -C - ${MAC_OS_SDK} | tar --skip-old-files -xJ && popd
 
@@ -85,8 +85,8 @@ jobs:
       services:
         - docker
       script:
-        - docker pull $DOCKER_WINE_IMAGE
-        - docker run -v "$(pwd):/test" -e "WINEDEBUG=-all" -e "TRIEHASH_FUZZER_BLOCKS=1000" -it $DOCKER_WINE_IMAGE wine "/test/test_lbrycrd.exe"
+        - docker pull lbry/wine
+        - docker run -v "$(pwd):/test" -e "WINEDEBUG=-all" -e "TRIEHASH_FUZZER_BLOCKS=1000" -it lbry/wine wine "/test/test_lbrycrd.exe"
 
     - <<: *test-template
       os: osx

@@ -1,17 +1,12 @@
-FROM ubuntu:16.04
+FROM ubuntu:18.04
 ENV LANG C.UTF-8
 
 RUN set -xe; \
     apt-get update; \
     apt-get install --no-install-recommends -y build-essential libtool autotools-dev automake pkg-config git wget apt-utils \
         librsvg2-bin libtiff-tools cmake imagemagick libcap-dev libz-dev libbz2-dev python-setuptools python3-setuptools xz-utils ccache g++-multilib \
-        g++-mingw-w64-i686 mingw-w64-i686-dev bsdmainutils curl ca-certificates g++-mingw-w64-x86-64 mingw-w64-x86-64-dev; \
-    rm -rf /var/lib/apt/lists/*;
-
-RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -; \
-    echo 'deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main' >> /etc/apt/sources.list; \
-    apt-get update; \
-    apt-get install --no-install-recommends -y clang-8 lldb-8 lld-8 libc++-8-dev; \
+        g++-mingw-w64-i686 mingw-w64-i686-dev bsdmainutils curl ca-certificates g++-mingw-w64-x86-64 mingw-w64-x86-64-dev \
+        clang-8 lldb-8 lld-8 libc++-8-dev; \
     rm -rf /var/lib/apt/lists/*;
 
 RUN update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang-cpp-8 80; \
@@ -28,7 +23,7 @@ ARG VCS_REF
 ARG BUILD_DATE
 LABEL maintainer="blockchain@lbry.com" \
     decription="build_lbrycrd" \
-    version="1.1" \
+    version="1.2" \
     org.label-schema.name="build_lbrycrd" \
     org.label-schema.description="Use this to generate a reproducible build of LBRYcrd" \
     org.label-schema.build-date=$BUILD_DATE \
