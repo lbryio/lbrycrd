@@ -37,7 +37,7 @@ BOOST_FIXTURE_TEST_CASE(scan_for_wallet_transactions, TestChain100Setup)
 {
     // Cap last block file size, and mine new block in a new block file.
     CBlockIndex* oldTip = ::ChainActive().Tip();
-    GetBlockFileInfo(oldTip->GetBlockPos().nFile)->nSize = MAX_BLOCKFILE_SIZE;
+    GetBlockFileInfo(oldTip->GetBlockPos().nFile)->nSize = DEFAULT_MAX_BLOCKFILE_SIZE;
     CreateAndProcessBlock({}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
     CBlockIndex* newTip = ::ChainActive().Tip();
 
@@ -116,7 +116,7 @@ BOOST_FIXTURE_TEST_CASE(importmulti_rescan, TestChain100Setup)
 {
     // Cap last block file size, and mine new block in a new block file.
     CBlockIndex* oldTip = ::ChainActive().Tip();
-    GetBlockFileInfo(oldTip->GetBlockPos().nFile)->nSize = MAX_BLOCKFILE_SIZE;
+    GetBlockFileInfo(oldTip->GetBlockPos().nFile)->nSize = DEFAULT_MAX_BLOCKFILE_SIZE;
     CreateAndProcessBlock({}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
     CBlockIndex* newTip = ::ChainActive().Tip();
 
