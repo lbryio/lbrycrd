@@ -16,9 +16,11 @@ BOOST_FIXTURE_TEST_SUITE(skiplist_tests, BasicTestingSetup)
 
 BOOST_AUTO_TEST_CASE(skiplist_test)
 {
-    std::vector<CBlockIndex> vIndex(SKIPLIST_LENGTH);
+    std::vector<CBlockIndex> vIndex;
+    vIndex.reserve(SKIPLIST_LENGTH);
 
     for (int i=0; i<SKIPLIST_LENGTH; i++) {
+        vIndex.emplace_back(uint256());
         vIndex[i].nHeight = i;
         vIndex[i].pprev = (i == 0) ? nullptr : &vIndex[i - 1];
         vIndex[i].BuildSkip();
@@ -47,12 +49,13 @@ BOOST_AUTO_TEST_CASE(getlocator_test)
 {
     // Build a main chain 100000 blocks long.
     std::vector<uint256> vHashMain(100000);
-    std::vector<CBlockIndex> vBlocksMain(100000);
-    for (unsigned int i=0; i<vBlocksMain.size(); i++) {
+    std::vector<CBlockIndex> vBlocksMain;
+    vBlocksMain.reserve(100000);
+    for (unsigned int i=0; i<vHashMain.size(); i++) {
         vHashMain[i] = ArithToUint256(i); // Set the hash equal to the height, so we can quickly check the distances.
+        vBlocksMain.emplace_back(vHashMain[i]);
         vBlocksMain[i].nHeight = i;
         vBlocksMain[i].pprev = i ? &vBlocksMain[i - 1] : nullptr;
-        vBlocksMain[i].phashBlock = &vHashMain[i];
         vBlocksMain[i].BuildSkip();
         BOOST_CHECK_EQUAL((int)UintToArith256(vBlocksMain[i].GetBlockHash()).GetLow64(), vBlocksMain[i].nHeight);
         BOOST_CHECK(vBlocksMain[i].pprev == nullptr || vBlocksMain[i].nHeight == vBlocksMain[i].pprev->nHeight + 1);
@@ -60,12 +63,13 @@ BOOST_AUTO_TEST_CASE(getlocator_test)
 
     // Build a branch that splits off at block 49999, 50000 blocks long.
     std::vector<uint256> vHashSide(50000);
-    std::vector<CBlockIndex> vBlocksSide(50000);
-    for (unsigned int i=0; i<vBlocksSide.size(); i++) {
+    std::vector<CBlockIndex> vBlocksSide;
+    vBlocksSide.reserve(50000);
+    for (unsigned int i=0; i<vHashSide.size(); i++) {
         vHashSide[i] = ArithToUint256(i + 50000 + (arith_uint256(1) << 128)); // Add 1<<128 to the hashes, so GetLow64() still returns the height.
+        vBlocksSide.emplace_back(vHashSide[i]);
         vBlocksSide[i].nHeight = i + 50000;
         vBlocksSide[i].pprev = i ? &vBlocksSide[i - 1] : (vBlocksMain.data()+49999);
-        vBlocksSide[i].phashBlock = &vHashSide[i];
         vBlocksSide[i].BuildSkip();
         BOOST_CHECK_EQUAL((int)UintToArith256(vBlocksSide[i].GetBlockHash()).GetLow64(), vBlocksSide[i].nHeight);
         BOOST_CHECK(vBlocksSide[i].pprev == nullptr || vBlocksSide[i].nHeight == vBlocksSide[i].pprev->nHeight + 1);
@@ -102,12 +106,13 @@ BOOST_AUTO_TEST_CASE(getlocator_test)
 BOOST_AUTO_TEST_CASE(findearliestatleast_test)
 {
     std::vector<uint256> vHashMain(100000);
-    std::vector<CBlockIndex> vBlocksMain(100000);
-    for (unsigned int i=0; i<vBlocksMain.size(); i++) {
+    std::vector<CBlockIndex> vBlocksMain;
+    vBlocksMain.reserve(100000);
+    for (unsigned int i=0; i<vHashMain.size(); i++) {
         vHashMain[i] = ArithToUint256(i); // Set the hash equal to the height
+        vBlocksMain.emplace_back(vHashMain[i]);
         vBlocksMain[i].nHeight = i;
         vBlocksMain[i].pprev = i ? &vBlocksMain[i - 1] : nullptr;
-        vBlocksMain[i].phashBlock = &vHashMain[i];
         vBlocksMain[i].BuildSkip();
         if (i < 10) {
             vBlocksMain[i].nTime = i;
@@ -148,7 +153,7 @@ BOOST_AUTO_TEST_CASE(findearliestatleast_edge_test)
     std::list<CBlockIndex> blocks;
     for (unsigned int timeMax : {100, 100, 100, 200, 200, 200, 300, 300, 300}) {
         CBlockIndex* prev = blocks.empty() ? nullptr : &blocks.back();
-        blocks.emplace_back();
+        blocks.emplace_back(uint256());
         blocks.back().nHeight = prev ? prev->nHeight + 1 : 0;
         blocks.back().pprev = prev;
         blocks.back().BuildSkip();

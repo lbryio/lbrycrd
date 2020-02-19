@@ -76,7 +76,7 @@ public:
 
     VersionBitsTester& Mine(unsigned int height, int32_t nTime, int32_t nVersion) {
         while (vpblock.size() < height) {
-            CBlockIndex* pindex = new CBlockIndex();
+            CBlockIndex* pindex = new CBlockIndex((uint256()));
             pindex->nHeight = vpblock.size();
             pindex->pprev = vpblock.size() > 0 ? vpblock.back() : nullptr;
             pindex->nTime = nTime;

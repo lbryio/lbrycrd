@@ -156,7 +156,7 @@ enum class FlushStateMode {
 };
 
 // See definition for documentation
-static bool FlushStateToDisk(const CChainParams& chainParams, CValidationState &state, FlushStateMode mode, int nManualPruneHeight=0);
+static bool FlushStateToDisk(const CChainParams& chainParams, CValidationState &state, FlushStateMode mode, int nManualPruneHeight=0, bool syncToDisk=false);
 static void FindFilesToPruneManual(std::set<int>& setFilesToPrune, int nManualPruneHeight);
 static void FindFilesToPrune(std::set<int>& setFilesToPrune, uint64_t nPruneAfterHeight);
 bool CheckInputs(const CTransaction& tx, CValidationState &state, const CCoinsViewCache &inputs, bool fScriptChecks, unsigned int flags, bool cacheSigStore, bool cacheFullScriptStore, PrecomputedTransactionData& txdata, std::vector<CScriptCheck> *pvChecks = nullptr);
@@ -220,7 +220,7 @@ bool CheckSequenceLocks(const CTransaction &tx, int flags, LockPoints* lp, bool 
     CBlockIndex* tip = chainActive.Tip();
     assert(tip != nullptr);
 
-    CBlockIndex index;
+    CBlockIndex index((uint256()));
     index.pprev = tip;
     // CheckSequenceLocks() uses chainActive.Height()+1 to evaluate
     // height based locks because when SequenceLocks() is called within
@@ -505,14 +505,14 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
 
         // do all inputs exist?
         for (const CTxIn& txin : tx.vin) {
-            if (!pcoinsTip->HaveCoinInCache(txin.prevout)) {
+            if (!pcoinsTip->HaveCoin(txin.prevout)) {
                 coins_to_uncache.push_back(txin.prevout);
             }
             if (!view.HaveCoin(txin.prevout)) {
                 // Are inputs missing because we already have the tx?
                 for (size_t out = 0; out < tx.vout.size(); out++) {
                     // Optimistically just do efficient check of cache for outputs
-                    if (pcoinsTip->HaveCoinInCache(COutPoint(hash, out))) {
+                    if (pcoinsTip->HaveCoin(COutPoint(hash, out))) {
                         return state.Invalid(false, REJECT_DUPLICATE, "txn-already-known");
                     }
                 }
@@ -1151,14 +1151,14 @@ static void CheckForkWarningConditions()
         if (!GetfLargeWorkForkFound() && pindexBestForkBase)
         {
             std::string warning = std::string("'Warning: Large-work fork detected, forking after block ") +
-                pindexBestForkBase->phashBlock->ToString() + std::string("'");
+                pindexBestForkBase->hash.ToString() + std::string("'");
             AlertNotify(warning);
         }
         if (pindexBestForkTip && pindexBestForkBase)
         {
             LogPrintf("%s: Warning: Large valid fork found\n  forking the chain at height %d (%s)\n  lasting to height %d (%s).\nChain state database corruption likely.\n", __func__,
-                   pindexBestForkBase->nHeight, pindexBestForkBase->phashBlock->ToString(),
-                   pindexBestForkTip->nHeight, pindexBestForkTip->phashBlock->ToString());
+                   pindexBestForkBase->nHeight, pindexBestForkBase->hash.ToString(),
+                   pindexBestForkTip->nHeight, pindexBestForkTip->hash.ToString());
             SetfLargeWorkForkFound(true);
         }
         else
@@ -1713,8 +1713,8 @@ static unsigned int GetBlockScriptFlags(const CBlockIndex* pindex, const Consens
     // mainnet and testnet), so for simplicity, always leave P2SH
     // on except for the one violating block.
     if (consensusparams.BIP16Exception.IsNull() || // no bip16 exception on this chain
-        pindex->phashBlock == nullptr || // this is a new candidate block, eg from TestBlockValidity()
-        *pindex->phashBlock != consensusparams.BIP16Exception) // this block isn't the historical exception
+        pindex->hash.IsNull() || // this is a new candidate block, eg from TestBlockValidity()
+        pindex->hash != consensusparams.BIP16Exception) // this block isn't the historical exception
     {
         flags |= SCRIPT_VERIFY_P2SH;
     }
@@ -1766,7 +1766,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
 {
     AssertLockHeld(cs_main);
     assert(pindex);
-    assert(*pindex->phashBlock == block.GetHash());
+    assert(pindex->hash == block.GetHash());
     int64_t nTimeStart = GetTimeMicros();
 
     // Check it again in case a previous version let a bad block in
@@ -1822,9 +1822,9 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
         //  relative to a piece of software is an objective fact these defaults can be easily reviewed.
         // This setting doesn't force the selection of any particular chain but makes validating some faster by
         //  effectively caching the result of part of the verification.
-        BlockMap::const_iterator  it = mapBlockIndex.find(hashAssumeValid);
+        auto it = mapBlockIndex.find(hashAssumeValid);
         if (it != mapBlockIndex.end()) {
-            if (it->second->GetAncestor(pindex->nHeight) == pindex &&
+            if ((*it)->GetAncestor(pindex->nHeight) == pindex &&
                 pindexBestHeader->GetAncestor(pindex->nHeight) == pindex &&
                 pindexBestHeader->nChainWork >= nMinimumChainWork) {
                 // This block is a member of the assumed verified chain and an ancestor of the best header.
@@ -2095,7 +2095,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
         setDirtyBlockIndex.insert(pindex);
     }
 
-    assert(pindex->phashBlock);
+    assert(!pindex->hash.IsNull());
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
 
@@ -2117,7 +2117,8 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
  * If FlushStateMode::NONE is used, then FlushStateToDisk(...) won't do anything
  * besides checking if we need to prune.
  */
-bool static FlushStateToDisk(const CChainParams& chainparams, CValidationState &state, FlushStateMode mode, int nManualPruneHeight) {
+bool static FlushStateToDisk(const CChainParams& chainparams, CValidationState &state,
+        FlushStateMode mode, int nManualPruneHeight, bool syncToDisk) {
     int64_t nMempoolUsage = mempool.DynamicMemoryUsage();
     LOCK(cs_main);
     static int64_t nLastWrite = 0;
@@ -2186,7 +2187,7 @@ bool static FlushStateToDisk(const CChainParams& chainparams, CValidationState &
                     vBlocks.push_back(*it);
                     setDirtyBlockIndex.erase(it++);
                 }
-                if (!pblocktree->BatchWrite(vFiles, nLastBlockFile, vBlocks, mode == FlushStateMode::ALWAYS)) {
+                if (!pblocktree->BatchWrite(vFiles, nLastBlockFile, vBlocks, syncToDisk)) {
                     return AbortNode(state, "Failed to write to block index database");
                 }
             }
@@ -2204,10 +2205,10 @@ bool static FlushStateToDisk(const CChainParams& chainparams, CValidationState &
             // overwrite one. Still, use a conservative safety factor of 2.
             if (!CheckDiskSpace(48 * 2 * 2 * pcoinsTip->GetCacheSize()))
                 return state.Error("out of disk space");
-            if (mode == FlushStateMode::ALWAYS && !pclaimTrie->SyncToDisk())
+            if (syncToDisk && !pclaimTrie->SyncToDisk())
                 return state.Error("Failed to write to claim trie database");
             // Flush the chainstate (which may refer to block index entries).
-            if (!pcoinsTip->Flush(mode == FlushStateMode::ALWAYS))
+            if (!pcoinsTip->Flush(syncToDisk))
                 return AbortNode(state, "Failed to write to coin database");
             nLastFlush = nNow;
             full_flush_completed = true;
@@ -2224,10 +2225,10 @@ bool static FlushStateToDisk(const CChainParams& chainparams, CValidationState &
     return true;
 }
 
-void FlushStateToDisk() {
+void FlushStateToDisk(bool diskSync) {
     CValidationState state;
     const CChainParams& chainparams = Params();
-    if (!FlushStateToDisk(chainparams, state, FlushStateMode::ALWAYS)) {
+    if (!FlushStateToDisk(chainparams, state, FlushStateMode::ALWAYS, 0, diskSync)) {
         LogPrintf("%s: failed to flush state (%s)\n", __func__, FormatStateMessage(state));
     }
 }
@@ -2355,7 +2356,7 @@ bool CChainState::DisconnectTip(CValidationState& state, const CChainParams& cha
     }
     LogPrint(BCLog::BENCH, "- Disconnect block: %.2fms\n", (GetTimeMicros() - nStart) * MILLI);
     // Write the chain state to disk, if necessary.
-    if (!FlushStateToDisk(chainparams, state, FlushStateMode::IF_NEEDED))
+    if (!IsInitialBlockDownload() && !FlushStateToDisk(chainparams, state, FlushStateMode::ALWAYS))
         return false;
 
     if (disconnectpool) {
@@ -2502,7 +2503,7 @@ bool CChainState::ConnectTip(CValidationState& state, const CChainParams& chainp
     int64_t nTime4 = GetTimeMicros(); nTimeFlush += nTime4 - nTime3;
     LogPrint(BCLog::BENCH, "  - Flush: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime4 - nTime3) * MILLI, nTimeFlush * MICRO, nTimeFlush * MILLI / nBlocksTotal);
     // Write the chain state to disk, if necessary.
-    if (!FlushStateToDisk(chainparams, state, FlushStateMode::IF_NEEDED))
+    if (!IsInitialBlockDownload() && !FlushStateToDisk(chainparams, state, FlushStateMode::ALWAYS))
         return false;
     int64_t nTime5 = GetTimeMicros(); nTimeChainState += nTime5 - nTime4;
     LogPrint(BCLog::BENCH, "  - Writing chainstate: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime5 - nTime4) * MILLI, nTimeChainState * MICRO, nTimeChainState * MILLI / nBlocksTotal);
@@ -2775,11 +2776,11 @@ bool CChainState::ActivateBestChain(CValidationState &state, const CChainParams&
             if (!blocks_connected) return true;
 
             const CBlockIndex* pindexFork = chainActive.FindFork(starting_tip);
-            bool fInitialDownload = IsInitialBlockDownload();
 
             // Notify external listeners about the new tip.
             // Enqueue while holding cs_main to ensure that UpdatedBlockTip is called in the order in which blocks are connected
             if (pindexFork != pindexNewTip) {
+                bool fInitialDownload = IsInitialBlockDownload();
                 // Notify ValidationInterface subscribers
                 GetMainSignals().UpdatedBlockTip(pindexNewTip, pindexFork, fInitialDownload);
 
@@ -2802,14 +2803,10 @@ bool CChainState::ActivateBestChain(CValidationState &state, const CChainParams&
     auto& consensus = chainparams.GetConsensus();
     CheckBlockIndex(consensus);
 
-    auto flushMode = FlushStateMode::PERIODIC;
-    if (pindexNewTip && chainparams.NetworkIDString() != CBaseChainParams::REGTEST 
-        && pindexNewTip->nTime + consensus.nPowTargetSpacing > GetAdjustedTime()) {
-        // trying to ensure that we flush to disk after new blocks when we're caught up to the chain
-        // they're technically allowed to be two hours late, but experience says one minute is more likely
-        flushMode = FlushStateMode::ALWAYS;
-    }
-    return FlushStateToDisk(chainparams, state, flushMode);
+    auto flushMode = IsInitialBlockDownload() ? FlushStateMode::IF_NEEDED : FlushStateMode::ALWAYS;
+    auto diskSync = chainparams.NetworkIDString() != CBaseChainParams::REGTEST
+                    && flushMode == FlushStateMode::ALWAYS;
+    return FlushStateToDisk(chainparams, state, flushMode, 0, diskSync);
 }
 
 bool ActivateBestChain(CValidationState &state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock) {
@@ -2895,12 +2892,12 @@ bool CChainState::InvalidateBlock(CValidationState& state, const CChainParams& c
 
     // The resulting new best tip may not be in setBlockIndexCandidates anymore, so
     // add it again.
-    BlockMap::iterator it = mapBlockIndex.begin();
+    auto it = mapBlockIndex.begin();
     while (it != mapBlockIndex.end()) {
-        if (it->second->IsValid(BLOCK_VALID_TRANSACTIONS) && it->second->nChainTx && !setBlockIndexCandidates.value_comp()(it->second, chainActive.Tip())) {
-            setBlockIndexCandidates.insert(it->second);
+        if ((*it)->IsValid(BLOCK_VALID_TRANSACTIONS) && (*it)->nChainTx && !setBlockIndexCandidates.value_comp()(*it, chainActive.Tip())) {
+            setBlockIndexCandidates.insert(*it);
         }
-        it++;
+        ++it;
     }
 
     InvalidChainFound(pindex);
@@ -2921,21 +2918,21 @@ void CChainState::ResetBlockFailureFlags(CBlockIndex *pindex) {
     int nHeight = pindex->nHeight;
 
     // Remove the invalidity flag from this block and all its descendants.
-    BlockMap::iterator it = mapBlockIndex.begin();
+    auto it = mapBlockIndex.begin();
     while (it != mapBlockIndex.end()) {
-        if (!it->second->IsValid() && it->second->GetAncestor(nHeight) == pindex) {
-            it->second->nStatus &= ~BLOCK_FAILED_MASK;
-            setDirtyBlockIndex.insert(it->second);
-            if (it->second->IsValid(BLOCK_VALID_TRANSACTIONS) && it->second->nChainTx && setBlockIndexCandidates.value_comp()(chainActive.Tip(), it->second)) {
-                setBlockIndexCandidates.insert(it->second);
+        if (!(*it)->IsValid() && (*it)->GetAncestor(nHeight) == pindex) {
+            (*it)->nStatus &= ~BLOCK_FAILED_MASK;
+            setDirtyBlockIndex.insert(*it);
+            if ((*it)->IsValid(BLOCK_VALID_TRANSACTIONS) && (*it)->nChainTx && setBlockIndexCandidates.value_comp()(chainActive.Tip(), *it)) {
+                setBlockIndexCandidates.insert(*it);
             }
-            if (it->second == pindexBestInvalid) {
+            if (*it == pindexBestInvalid) {
                 // Reset invalid block marker if it was pointing to one of those.
                 pindexBestInvalid = nullptr;
             }
-            m_failed_blocks.erase(it->second);
+            m_failed_blocks.erase(*it);
         }
-        it++;
+        ++it;
     }
 
     // Remove the invalidity flag from all ancestors too.
@@ -2959,9 +2956,9 @@ CBlockIndex* CChainState::AddToBlockIndex(const CBlockHeader& block)
 
     // Check for duplicate
     uint256 hash = block.GetHash();
-    BlockMap::iterator it = mapBlockIndex.find(hash);
+    auto it = mapBlockIndex.find(hash);
     if (it != mapBlockIndex.end())
-        return it->second;
+        return *it;
 
     // Construct new block index object
     CBlockIndex* pindexNew = new CBlockIndex(block);
@@ -2969,12 +2966,11 @@ CBlockIndex* CChainState::AddToBlockIndex(const CBlockHeader& block)
     // to avoid miners withholding blocks but broadcasting headers, to get a
     // competitive advantage.
     pindexNew->nSequenceId = 0;
-    BlockMap::iterator mi = mapBlockIndex.insert(std::make_pair(hash, pindexNew)).first;
-    pindexNew->phashBlock = &((*mi).first);
+    mapBlockIndex.insert(pindexNew);
     BlockMap::iterator miPrev = mapBlockIndex.find(block.hashPrevBlock);
     if (miPrev != mapBlockIndex.end())
     {
-        pindexNew->pprev = (*miPrev).second;
+        pindexNew->pprev = *miPrev;
         pindexNew->nHeight = pindexNew->pprev->nHeight + 1;
         pindexNew->BuildSkip();
     }
@@ -3404,12 +3400,12 @@ bool CChainState::AcceptBlockHeader(const CBlockHeader& block, CValidationState&
     AssertLockHeld(cs_main);
     // Check for duplicate
     uint256 hash = block.GetHash();
-    BlockMap::iterator miSelf = mapBlockIndex.find(hash);
+    auto miSelf = mapBlockIndex.find(hash);
     CBlockIndex *pindex = nullptr;
     if (hash != chainparams.GetConsensus().hashGenesisBlock) {
         if (miSelf != mapBlockIndex.end()) {
             // Block header is already known.
-            pindex = miSelf->second;
+            pindex = *miSelf;
             if (ppindex)
                 *ppindex = pindex;
             if (pindex->nStatus & BLOCK_FAILED_MASK)
@@ -3422,10 +3418,10 @@ bool CChainState::AcceptBlockHeader(const CBlockHeader& block, CValidationState&
 
         // Get prev block index
         CBlockIndex* pindexPrev = nullptr;
-        BlockMap::iterator mi = mapBlockIndex.find(block.hashPrevBlock);
+        auto mi = mapBlockIndex.find(block.hashPrevBlock);
         if (mi == mapBlockIndex.end())
             return state.DoS(10, error("%s: prev block not found", __func__), 0, "prev-blk-not-found");
-        pindexPrev = (*mi).second;
+        pindexPrev = *mi;
         if (pindexPrev->nStatus & BLOCK_FAILED_MASK)
             return state.DoS(100, error("%s: prev block invalid", __func__), REJECT_INVALID, "bad-prevblk");
         if (!ContextualCheckBlockHeader(block, state, chainparams, pindexPrev, GetAdjustedTime()))
@@ -3620,11 +3616,9 @@ bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams,
     assert(pindexPrev && pindexPrev == chainActive.Tip());
     CCoinsViewCache viewNew(pcoinsTip.get());
     CClaimTrieCache trieCache(pclaimTrie);
-    uint256 block_hash(block.GetHash());
     CBlockIndex indexDummy(block);
     indexDummy.pprev = pindexPrev;
     indexDummy.nHeight = pindexPrev->nHeight + 1;
-    indexDummy.phashBlock = &block_hash;
 
     // NOTE: CheckBlockHeader is called by CheckBlock
     if (!ContextualCheckBlockHeader(block, state, chainparams, pindexPrev, GetAdjustedTime()))
@@ -3662,7 +3656,7 @@ void PruneOneBlockFile(const int fileNumber)
     LOCK(cs_LastBlockFile);
 
     for (const auto& entry : g_chainstate.mapBlockIndex) {
-        CBlockIndex* pindex = entry.second;
+        CBlockIndex* pindex = entry;
         if (pindex->nFile == fileNumber) {
             pindex->nStatus &= ~BLOCK_HAVE_DATA;
             pindex->nStatus &= ~BLOCK_HAVE_UNDO;
@@ -3859,15 +3853,14 @@ CBlockIndex * CChainState::InsertBlockIndex(const uint256& hash)
     // Return existing
     auto mi = mapBlockIndex.find(hash);
     if (mi != mapBlockIndex.end())
-        return mi->second;
+        return *mi;
 
     if (hash.IsNull())
         return nullptr;
 
     // Create new
-    CBlockIndex* pindexNew = new CBlockIndex();
-    mi = mapBlockIndex.insert(std::make_pair(hash, pindexNew)).first;
-    pindexNew->phashBlock = &(mi->first);
+    CBlockIndex* pindexNew = new CBlockIndex(hash);
+    mapBlockIndex.insert(pindexNew);
 
     return pindexNew;
 }
@@ -3882,9 +3875,8 @@ bool CChainState::LoadBlockIndex(const Consensus::Params& consensus_params, CBlo
     // Calculate nChainWork
     std::vector<std::pair<int, CBlockIndex*> > vSortedByHeight;
     vSortedByHeight.reserve(mapBlockIndex.size());
-    for (const std::pair<const uint256, CBlockIndex*>& item : mapBlockIndex)
+    for (const auto& pindex : mapBlockIndex)
     {
-        CBlockIndex* pindex = item.second;
         vSortedByHeight.push_back(std::make_pair(pindex->nHeight, pindex));
     }
     sort(vSortedByHeight.begin(), vSortedByHeight.end());
@@ -3949,9 +3941,8 @@ bool static LoadBlockIndexDB(const CChainParams& chainparams) EXCLUSIVE_LOCKS_RE
     // Check presence of blk files
     LogPrintf("Checking all blk files are present...\n");
     std::set<int> setBlkDataFiles;
-    for (const std::pair<const uint256, CBlockIndex*>& item : g_chainstate.mapBlockIndex)
+    for (const auto& pindex : g_chainstate.mapBlockIndex)
     {
-        CBlockIndex* pindex = item.second;
         if (pindex->nStatus & BLOCK_HAVE_DATA) {
             setBlkDataFiles.insert(pindex->nFile);
         }
@@ -4138,10 +4129,7 @@ bool CChainState::RollforwardBlock(const CBlockIndex* pindex, CCoinsViewCache& i
 
 bool CChainState::ReplayBlocks(const CChainParams& params, CCoinsView* view)
 {
-    LOCK(cs_main);
-
-    CCoinsViewCache cache(view);
-    CClaimTrieCache trieCache(pclaimTrie);
+    AssertLockHeld(cs_main);
 
     std::vector<uint256> hashHeads = view->GetHeadBlocks();
     if (hashHeads.empty()) return true; // We're already in a consistent state.
@@ -4154,19 +4142,24 @@ bool CChainState::ReplayBlocks(const CChainParams& params, CCoinsView* view)
     const CBlockIndex* pindexNew;            // New tip during the interrupted flush.
     const CBlockIndex* pindexFork = nullptr; // Latest block common to both the old and the new tip.
 
-    if (mapBlockIndex.count(hashHeads[0]) == 0) {
+    auto it = mapBlockIndex.find(hashHeads[0]);
+    if (it == mapBlockIndex.end()) {
         return error("ReplayBlocks(): reorganization to unknown block requested");
     }
-    pindexNew = mapBlockIndex[hashHeads[0]];
+    pindexNew = *it;
 
     if (!hashHeads[1].IsNull()) { // The old tip is allowed to be 0, indicating it's the first flush.
-        if (mapBlockIndex.count(hashHeads[1]) == 0) {
+        it = mapBlockIndex.find(hashHeads[1]);
+        if (it == mapBlockIndex.end()) {
             return error("ReplayBlocks(): reorganization from unknown block requested");
         }
-        pindexOld = mapBlockIndex[hashHeads[1]];
+        pindexOld = *it;
         pindexFork = LastCommonAncestor(pindexOld, pindexNew);
         assert(pindexFork != nullptr);
     }
+
+    CCoinsViewCache cache(view);
+    CClaimTrieCache trieCache(pclaimTrie);
 
     // Rollback along the old branch.
     while (pindexOld != pindexFork) {
@@ -4249,8 +4242,7 @@ bool CChainState::RewindBlockIndex(const CChainParams& params)
     // Reduce validity flag and have-data flags.
     // We do this after actual disconnecting, otherwise we'll end up writing the lack of data
     // to disk before writing the chainstate, resulting in a failure to continue if interrupted.
-    for (const auto& entry : mapBlockIndex) {
-        CBlockIndex* pindexIter = entry.second;
+    for (const auto& pindexIter : mapBlockIndex) {
 
         // Note: If we encounter an insufficiently validated block that
         // is on chainActive, it must be because we are a pruning node, and
@@ -4343,8 +4335,8 @@ void UnloadBlockIndex()
         warningcache[b].clear();
     }
 
-    for (BlockMap::value_type& entry : g_chainstate.mapBlockIndex) {
-        delete entry.second;
+    for (auto& entry : g_chainstate.mapBlockIndex) {
+        delete entry;
     }
     g_chainstate.mapBlockIndex.clear();
     fHavePruned = false;
@@ -4392,7 +4384,7 @@ bool CChainState::LoadGenesisBlock(const CChainParams& chainparams)
     // mapBlockIndex. Note that we can't use chainActive here, since it is
     // set based on the coins db, not the block index db, which is the only
     // thing loaded at this point.
-    if (mapBlockIndex.count(chainparams.GenesisBlock().GetHash()))
+    if (mapBlockIndex.find(chainparams.GenesisBlock().GetHash()) != mapBlockIndex.end())
         return true;
 
     try {
@@ -4555,7 +4547,7 @@ void CChainState::CheckBlockIndex(const Consensus::Params& consensusParams)
     // Build forward-pointing map of the entire block tree.
     std::multimap<CBlockIndex*,CBlockIndex*> forward;
     for (auto& entry : mapBlockIndex) {
-        forward.insert(std::make_pair(entry.second->pprev, entry.second));
+        forward.insert(std::make_pair(entry->pprev, entry));
     }
 
     assert(forward.size() == mapBlockIndex.size());
@@ -4901,7 +4893,7 @@ double GuessVerificationProgress(const ChainTxData& data, const CBlockIndex *pin
 CBlockIndex *LookupBlockIndex(const uint256 &hash) {
     AssertLockHeld(cs_main);
     auto it = g_chainstate.mapBlockIndex.find(hash);
-    return it == g_chainstate.mapBlockIndex.end() ? nullptr : it->second;
+    return it == g_chainstate.mapBlockIndex.end() ? nullptr : *it;
 }
 
 class CMainCleanup
@@ -4912,7 +4904,7 @@ public:
         // block headers
         auto it1 = g_chainstate.mapBlockIndex.begin();
         for (; it1 != g_chainstate.mapBlockIndex.end(); ++it1)
-            delete (*it1).second;
+            delete *it1;
         g_chainstate.mapBlockIndex.clear();
     }
 } instance_of_cmaincleanup;

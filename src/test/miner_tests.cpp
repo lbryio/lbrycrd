@@ -76,7 +76,7 @@ const unsigned int nonces[] = {
 
 static CBlockIndex CreateBlockIndex(int nHeight)
 {
-    CBlockIndex index;
+    CBlockIndex index((uint256()));
     index.nHeight = nHeight;
     index.pprev = chainActive.Tip();
     return index;
@@ -376,8 +376,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     // Create an actual 209999-long block chain (without valid blocks).
     while (chainActive.Tip()->nHeight < 209999) {
         CBlockIndex* prev = chainActive.Tip();
-        CBlockIndex* next = new CBlockIndex();
-        next->phashBlock = new uint256(InsecureRand256());
+        CBlockIndex* next = new CBlockIndex(InsecureRand256());
         next->hashClaimTrie = pblocktemplate->block.hashClaimTrie;
         pcoinsTip->SetBestBlock(next->GetBlockHash());
         next->pprev = prev;
@@ -389,8 +388,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     // Extend to a 210000-long block chain.
     while (chainActive.Tip()->nHeight < 210000) {
         CBlockIndex* prev = chainActive.Tip();
-        CBlockIndex* next = new CBlockIndex();
-        next->phashBlock = new uint256(InsecureRand256());
+        CBlockIndex* next = new CBlockIndex(InsecureRand256());
         next->hashClaimTrie = pblocktemplate->block.hashClaimTrie;
         pcoinsTip->SetBestBlock(next->GetBlockHash());
         next->pprev = prev;
@@ -423,7 +421,6 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         CBlockIndex* del = chainActive.Tip();
         chainActive.SetTip(del->pprev);
         pcoinsTip->SetBestBlock(del->pprev->GetBlockHash());
-        delete del->phashBlock;
         delete del;
     }
 

@@ -93,74 +93,61 @@ std::vector<uint256> CCoinsViewDB::GetHeadBlocks() const {
     return vhashHeadBlocks;
 }
 
-bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock, bool sync) {
+bool CCoinsViewDB::BatchWrite(const CCoinsMap &mapCoins, const uint256 &hashBlock, bool sync) {
 
     size_t count = 0;
     size_t changed = 0;
     int crash_simulate = gArgs.GetArg("-dbcrashratio", 0);
     assert(!hashBlock.IsNull());
 
-    uint256 old_tip = GetBestBlock();
-    if (old_tip.IsNull()) {
-        // We may be in the middle of replaying.
-        std::vector<uint256> old_heads = GetHeadBlocks();
-        if (old_heads.size() == 2) {
-            assert(old_heads[0] == hashBlock);
-            old_tip = old_heads[1];
-        }
-    }
-
     db << "BEGIN";
-    db << "INSERT OR REPLACE INTO marker VALUES('head_block', ?)" << hashBlock;
-
-    auto dbd = db << "DELETE FROM unspent WHERE txID = ? AND txN = ?";
-    auto dbi = db << "INSERT OR REPLACE INTO unspent VALUES(?,?,?,?,?,?,?)";
-    for (auto it = mapCoins.begin(); it != mapCoins.end();) {
-        if (it->second.flags & CCoinsCacheEntry::DIRTY) {
-            if (it->second.coin.IsSpent()) {
-                // at present the "IsSpent" flag is used for both "spent" and "block going backwards"
-                dbd << it->first.hash << it->first.n;
-                dbd++;
+    if (!mapCoins.empty()) {
+        db << "INSERT OR REPLACE INTO marker VALUES('head_block', ?)" << hashBlock;
+        auto dbd = db << "DELETE FROM unspent WHERE txID = ? AND txN = ?";
+        auto dbi = db << "INSERT OR REPLACE INTO unspent VALUES(?,?,?,?,?,?,?)";
+        for (auto it = mapCoins.begin(); it != mapCoins.end(); ++it) {
+            if (it->second.flags & CCoinsCacheEntry::DIRTY) {
+                if (it->second.coin.IsSpent()) {
+                    // at present the "IsSpent" flag is used for both "spent" and "block going backwards"
+                    dbd << it->first.hash << it->first.n;
+                    dbd++;
+                } else {
+                    CTxDestination address;
+                    std::string destination;
+                    if (ExtractDestination(it->second.coin.out.scriptPubKey, address))
+                        destination = EncodeDestination(address);
+                    uint32_t isCoinBase = it->second.coin.fCoinBase; // bit-field
+                    uint32_t coinHeight = it->second.coin.nHeight; // bit-field
+                    dbi << it->first.hash << it->first.n << isCoinBase << coinHeight
+                        << it->second.coin.out.nValue << it->second.coin.out.scriptPubKey << destination;
+                    dbi++;
+                }
+                changed++;
             }
-            else {
-                CTxDestination address;
-                std::string destination;
-                if (ExtractDestination(it->second.coin.out.scriptPubKey, address))
-                    destination = EncodeDestination(address);
-                uint32_t isCoinBase = it->second.coin.fCoinBase; // bit-field
-                uint32_t coinHeight = it->second.coin.nHeight; // bit-field
-                dbi << it->first.hash << it->first.n << isCoinBase << coinHeight
-                    << it->second.coin.out.nValue << it->second.coin.out.scriptPubKey << destination;
-                dbi++;
-            }
-            changed++;
-        }
-        count++;
-        auto itOld = it++;
-        mapCoins.erase(itOld);
-        if (crash_simulate && count % 200000 == 0) {
-            static FastRandomContext rng;
-            if (rng.randrange(crash_simulate) == 0) {
-                LogPrintf("Simulating a crash. Goodbye.\n");
-                _Exit(0);
+            if (crash_simulate && ++count % 200000 == 0) {
+                static FastRandomContext rng;
+                if (rng.randrange(crash_simulate) == 0) {
+                    LogPrintf("Simulating a crash. Goodbye.\n");
+                    _Exit(0);
+                }
             }
         }
+        dbd.used(true);
+        dbi.used(true);
+        db << "DELETE FROM marker WHERE name = 'head_block'";
     }
-    dbd.used(true);
-    dbi.used(true);
     db << "INSERT OR REPLACE INTO marker VALUES('best_block', ?)" << hashBlock;
-    db << "DELETE FROM marker WHERE name = 'head_block'";
 
     auto code = sqlite::commit(db);
     if (code != SQLITE_OK) {
-        LogPrint(BCLog::COINDB, "Error committing transaction outputs changes to coin database. SQLite error: %d\n", code);
+        LogPrintf("%s: Error committing coins info to database. SQLite error: %d\n", __func__, code);
         return false;
     }
-    LogPrint(BCLog::COINDB, "Committed %u changed transaction outputs (out of %u) to coin database...\n", (unsigned int)changed, (unsigned int)count);
+    LogPrint(BCLog::COINDB, "Committed %zu changed transaction outputs (out of %zu) to coin database...\n", changed, count);
     if (sync) {
-        auto code = sqlite::sync(db);
+        code = sqlite::sync(db);
         if (code != SQLITE_OK) {
-            LogPrint(BCLog::COINDB, "Error syncing coin database. SQLite error: %d\n", code);
+            LogPrintf("%s: Error syncing coin database. SQLite error: %d\n", __func__, code);
             return false;
         }
     }
@@ -312,27 +299,33 @@ void CCoinsViewDBCursor::Next()
 bool CBlockTreeDB::BatchWrite(const std::vector<std::pair<int, const CBlockFileInfo*> >& fileInfo,
                               int nLastFile, const std::vector<const CBlockIndex*>& blockInfo, bool sync) {
     db << "BEGIN";
-    auto ibf = db << "INSERT OR REPLACE INTO block_file(file, blocks, size, undoSize, heightFirst, heightLast, timeFirst, timeLast) "
-                     "VALUES(?,?,?,?,?,?,?,?)";
-    for (auto& kvp: fileInfo) {
-        ibf << kvp.first << kvp.second->nBlocks << kvp.second->nSize << kvp.second->nUndoSize
-            << kvp.second->nHeightFirst << kvp.second->nHeightLast << kvp.second->nTimeFirst << kvp.second->nTimeLast;
-        ibf++;
+    if (!fileInfo.empty()) {
+        auto ibf = db << "INSERT OR REPLACE INTO block_file(file, blocks, size, undoSize, heightFirst, "
+                         "heightLast, timeFirst, timeLast) VALUES(?,?,?,?,?,?,?,?)";
+        for (auto &kvp: fileInfo) {
+            ibf << kvp.first << kvp.second->nBlocks << kvp.second->nSize << kvp.second->nUndoSize
+                << kvp.second->nHeightFirst << kvp.second->nHeightLast << kvp.second->nTimeFirst
+                << kvp.second->nTimeLast;
+            ibf++;
+        }
+        ibf.used(true);
     }
-    ibf.used(true);
+
     db << "INSERT OR REPLACE INTO flag VALUES('last_block', ?)" << nLastFile; // TODO: is this always max(file column)?
 
-    auto ibi = db << "INSERT OR REPLACE INTO block_info(hash, prevHash, height, file, dataPos, undoPos, "
-                     "txCount, status, version, rootTxHash, rootTrieHash, time, bits, nonce) "
-                     "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-    for (auto& bi: blockInfo) {
-        ibi << bi->GetBlockHash() << (bi->pprev ? bi->pprev->GetBlockHash() : uint256())
-            << bi->nHeight << bi->nFile << bi->nDataPos << bi->nUndoPos << bi->nTx
-            << bi->nStatus << bi->nVersion << bi->hashMerkleRoot << bi->hashClaimTrie
-            << bi->nTime << bi->nBits << bi->nNonce;
-        ibi++;
+    if(!blockInfo.empty()) {
+        auto ibi = db << "INSERT OR REPLACE INTO block_info(hash, prevHash, height, file, dataPos, undoPos, "
+                         "txCount, status, version, rootTxHash, rootTrieHash, time, bits, nonce) "
+                         "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        for (auto &bi: blockInfo) {
+            ibi << bi->GetBlockHash() << (bi->pprev ? bi->pprev->GetBlockHash() : uint256())
+                << bi->nHeight << bi->nFile << bi->nDataPos << bi->nUndoPos << bi->nTx
+                << bi->nStatus << bi->nVersion << bi->hashMerkleRoot << bi->hashClaimTrie
+                << bi->nTime << bi->nBits << bi->nNonce;
+            ibi++;
+        }
+        ibi.used(true);
     }
-    ibi.used(true);
     auto code = sqlite::commit(db);
     if (code != SQLITE_OK) {
         LogPrintf("%s: Error committing block info to database. SQLite error: %d\n", __func__, code);
@@ -340,7 +333,7 @@ bool CBlockTreeDB::BatchWrite(const std::vector<std::pair<int, const CBlockFileI
     }
     // by Sync they mean disk sync:
     if (sync) {
-        auto code = sqlite::sync(db);
+        code = sqlite::sync(db);
         if (code != SQLITE_OK) {
             LogPrintf("%s: Error syncing block database. SQLite error: %d\n", __func__, code);
             return false;

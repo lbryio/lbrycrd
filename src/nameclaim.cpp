@@ -119,9 +119,56 @@ bool DecodeClaimScript(const CScript& scriptIn, int& op, std::vector<std::vector
     vvchParams.push_back(std::move(vchParam2));
     if (last_drop == OP_2DROP)
         vvchParams.push_back(std::move(vchParam3));
-
     return true;
 }
+
+// this overload exists because optimizer wouldn't inline GetScriptOp:
+bool DecodeClaimScript(const CScript& scriptIn, int& op, CScript::const_iterator& pc, bool allowSupportMetadata)
+{
+    op = -1;
+    opcodetype opcode;
+    if (!scriptIn.GetOp(pc, opcode))
+        return false;
+
+    if (opcode != OP_CLAIM_NAME && opcode != OP_SUPPORT_CLAIM && opcode != OP_UPDATE_CLAIM)
+        return false;
+
+    op = opcode;
+
+    // Valid formats:
+    // OP_CLAIM_NAME vchName vchValue OP_2DROP OP_DROP pubkeyscript
+    // OP_UPDATE_CLAIM vchName vchClaimId vchValue OP_2DROP OP_2DROP pubkeyscript
+    // OP_SUPPORT_CLAIM vchName vchClaimId OP_2DROP OP_DROP pubkeyscript
+    // OP_SUPPORT_CLAIM vchName vchClaimId vchValue OP_2DROP OP_2DROP pubkeyscript
+    // All others are invalid.
+
+    if (!scriptIn.GetOp(pc, opcode) || opcode < 0 || opcode > OP_PUSHDATA4)
+        return false;
+
+    if (!scriptIn.GetOp(pc, opcode) || opcode < 0 || opcode > OP_PUSHDATA4)
+        return false;
+
+    if (!scriptIn.GetOp(pc, opcode))
+        return false;
+
+    auto last_drop = OP_DROP;
+    if (opcode >= 0 && opcode <= OP_PUSHDATA4 && op != OP_CLAIM_NAME) {
+        if (!scriptIn.GetOp(pc, opcode))
+            return false;
+        last_drop = OP_2DROP;
+    } else if (op == OP_UPDATE_CLAIM)
+        return false;
+
+    if (opcode != OP_2DROP)
+        return false;
+
+    if (!scriptIn.GetOp(pc, opcode) || opcode != last_drop)
+        return false;
+
+    return !(op == OP_SUPPORT_CLAIM && last_drop == OP_2DROP && !allowSupportMetadata);
+
+}
+
 
 uint160 ClaimIdHash(const uint256& txhash, uint32_t nOut)
 {
@@ -139,10 +186,10 @@ CScript StripClaimScriptPrefix(const CScript& scriptIn)
 
 CScript StripClaimScriptPrefix(const CScript& scriptIn, int& op)
 {
-    std::vector<std::vector<unsigned char> > vvchParams;
     CScript::const_iterator pc = scriptIn.begin();
 
-    if (!DecodeClaimScript(scriptIn, op, vvchParams, pc))
+    auto isClaim = DecodeClaimScript(scriptIn, op, pc);
+    if (!isClaim)
         return scriptIn;
 
     return CScript(pc, scriptIn.end());

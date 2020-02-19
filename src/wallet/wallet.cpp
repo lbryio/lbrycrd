@@ -1030,7 +1030,8 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFlushOnClose)
     }
 
     //// debug print
-    WalletLogPrintf("AddToWallet %s  %s%s\n", wtxIn.GetHash().ToString(), (fInsertedNew ? "new" : ""), (fUpdated ? "update" : ""));
+    if (LogAcceptCategory(BCLog::DB))
+        WalletLogPrintf("AddToWallet %s%s%s\n", wtxIn.GetHash().ToString(), (fInsertedNew ? "  new" : ""), (fUpdated ? "  update" : ""));
 
     // Write to disk
     if (fInsertedNew || fUpdated)
@@ -1876,7 +1877,8 @@ bool CWalletTx::RelayWalletTransaction(CConnman* connman)
         CValidationState state;
         /* GetDepthInMainChain already catches known conflicts. */
         if (InMempool() || AcceptToMemoryPool(maxTxFee, state)) {
-            pwallet->WalletLogPrintf("Relaying wtx %s\n", GetHash().ToString());
+            if (LogAcceptCategory(BCLog::DB))
+                pwallet->WalletLogPrintf("Relaying wtx %s\n", GetHash().ToString());
             if (connman) {
                 CInv inv(MSG_TX, GetHash());
                 connman->ForEachNode([&inv](CNode* pnode)
@@ -2285,7 +2287,9 @@ CAmount CWallet::GetAvailableBalance(const CCoinControl* coinControl) const
     return balance;
 }
 
-void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const CCoinControl *coinControl, const CAmount &nMinimumAmount, const CAmount &nMaximumAmount, const CAmount &nMinimumSumAmount, const uint64_t nMaximumCount, const int nMinDepth, const int nMaxDepth) const
+void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const CCoinControl *coinControl,
+        const CAmount &nMinimumAmount, const CAmount &nMaximumAmount, const CAmount &nMinimumSumAmount,
+        const uint64_t nMaximumCount, const int nMinDepth, const int nMaxDepth, bool computeSolvable) const
 {
     AssertLockHeld(cs_main);
     AssertLockHeld(cs_wallet);
@@ -2372,17 +2376,23 @@ void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const
                 continue;
             }
 
-            bool solvable = IsSolvable(*this, pcoin->tx->vout[i].scriptPubKey);
-            bool spendable = (mine & ISMINE_SPENDABLE) || (((mine & ISMINE_WATCH_ONLY) != ISMINE_NO) && (coinControl && coinControl->fAllowWatchOnly && solvable));
-
             // spending claims or supports requires specific selection:
-            auto isClaimCoin = (mine & ISMINE_CLAIM) || (mine & ISMINE_SUPPORT);
+            auto isClaimCoin = bool(mine & ISMINE_STAKE);
             auto claimSpendRequested = isClaimCoin && coinControl && coinControl->IsSelected(COutPoint(entry.first, i));
-
-            if (spendable && isClaimCoin && !claimSpendRequested)
+            if (isClaimCoin && !claimSpendRequested)
                 continue;
 
-            vCoins.push_back(COutput(pcoin, i, nDepth, spendable, solvable, safeTx, (coinControl && coinControl->fAllowWatchOnly)));
+            bool solvable = false, computedSolvable = false;
+            bool spendable = bool(mine & ISMINE_SPENDABLE);
+            if (!spendable && bool(mine & ISMINE_WATCH_ONLY) && coinControl && coinControl->fAllowWatchOnly) {
+                solvable = IsSolvable(*this, pcoin->tx->vout[i].scriptPubKey); // this is a slow call
+                spendable = solvable;
+                computedSolvable = true;
+            };
+            if (computeSolvable && !computedSolvable)
+                solvable = IsSolvable(*this, pcoin->tx->vout[i].scriptPubKey);
+
+            vCoins.emplace_back(pcoin, i, nDepth, spendable, solvable, safeTx, (coinControl && coinControl->fAllowWatchOnly));
 
             // Checks the sum amount of all UTXO's.
             if (nMinimumSumAmount != MAX_MONEY) {
@@ -3494,7 +3504,8 @@ bool CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool, bool fRe
         }
 
         m_pool_key_to_index.erase(keypool.vchPubKey.GetID());
-        WalletLogPrintf("keypool reserve %d\n", nIndex);
+        if (LogAcceptCategory(BCLog::DB))
+            WalletLogPrintf("keypool reserve %d\n", nIndex);
     }
     return true;
 }
@@ -3504,7 +3515,8 @@ void CWallet::KeepKey(int64_t nIndex)
     // Remove from key pool
     WalletBatch batch(*database);
     batch.ErasePool(nIndex);
-    WalletLogPrintf("keypool keep %d\n", nIndex);
+    if (LogAcceptCategory(BCLog::DB))
+        WalletLogPrintf("keypool keep %d\n", nIndex);
 }
 
 void CWallet::ReturnKey(int64_t nIndex, bool fInternal, const CPubKey& pubkey)

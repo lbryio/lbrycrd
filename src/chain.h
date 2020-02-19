@@ -171,7 +171,7 @@ class CBlockIndex
 {
 public:
     //! pointer to the hash of the block, if any. Memory is owned by this CBlockIndex
-    const uint256* phashBlock;
+    const uint256 hash;
 
     //! pointer to the index of the predecessor of this block
     CBlockIndex* pprev;
@@ -222,7 +222,6 @@ public:
 
     void SetNull()
     {
-        phashBlock = nullptr;
         pprev = nullptr;
         pskip = nullptr;
         nHeight = 0;
@@ -244,12 +243,12 @@ public:
         nNonce         = 0;
     }
 
-    CBlockIndex()
+    CBlockIndex(const uint256& blockHash) : hash(blockHash)
     {
         SetNull();
     }
 
-    explicit CBlockIndex(const CBlockHeader& block)
+    explicit CBlockIndex(const CBlockHeader& block) : hash(block.GetHash())
     {
         SetNull();
 
@@ -295,7 +294,7 @@ public:
 
     uint256 GetBlockHash() const
     {
-        return *phashBlock;
+        return hash;
     }
 
     uint256 GetBlockPoWHash() const
