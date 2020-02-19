@@ -1443,6 +1443,7 @@ bool AppInitMain()
 
     bool fLoaded = false;
     while (!fLoaded && !ShutdownRequested()) {
+        bool fReset = fReindex; // reindex flag gets changed out from underneath us
         std::string strLoadError;
 
         uiInterface.InitMessage(_("Loading block index..."));
@@ -1459,7 +1460,7 @@ bool AppInitMain()
                 // new CBlockTreeDB tries to delete the existing file, which
                 // fails if it's still open from the previous loop. Close it first:
                 pblocktree.reset();
-                pblocktree.reset(new CBlockTreeDB(nBlockTreeDBCache, false, fReindex));
+                pblocktree.reset(new CBlockTreeDB(nBlockTreeDBCache, false, fReset));
 
                 // use faster N way hash function
                 // NOTE: it assumes memory is continuous
@@ -1468,7 +1469,7 @@ bool AppInitMain()
                     SHA256D64(hashes[0].begin(), hashes[0].begin(), hashes.size() / 2);
                 };
 
-                if (fReindex) {
+                if (fReset) {
                     pblocktree->WriteReindexing(true);
                     //If we're reindexing in prune mode, wipe away unusable block files and all undo data files
                     if (fPruneMode)
@@ -1511,7 +1512,7 @@ bool AppInitMain()
                 // At this point we're either in reindex or we've loaded a useful
                 // block tree into mapBlockIndex!
 
-                pcoinsdbview.reset(new CCoinsViewDB(nCoinDBCache, false, fReindex || fReindexChainState));
+                pcoinsdbview.reset(new CCoinsViewDB(nCoinDBCache, false, fReset || fReindexChainState));
                 pcoinscatcher.reset(new CCoinsViewErrorCatcher(pcoinsdbview.get()));
 
                 if (g_logger->Enabled() && LogAcceptCategory(BCLog::CLAIMS))
@@ -1519,7 +1520,7 @@ bool AppInitMain()
 
                 delete pclaimTrie;
                 auto& consensus = chainparams.GetConsensus();
-                pclaimTrie = new CClaimTrie(nClaimtrieCache, fReindex || fReindexChainState, 0,
+                pclaimTrie = new CClaimTrie(nClaimtrieCache, fReset || fReindexChainState, 0,
                                             GetDataDir().string(),
                                             consensus.nNormalizedNameForkHeight,
                                             consensus.nMinRemovalWorkaroundHeight,
@@ -1539,7 +1540,7 @@ bool AppInitMain()
                 // The on-disk coinsdb is now in a good state, create the cache
                 pcoinsTip.reset(new CCoinsViewCache(pcoinscatcher.get()));
 
-                bool is_coinsview_empty = fReindex || fReindexChainState || pcoinsTip->GetBestBlock().IsNull();
+                bool is_coinsview_empty = fReset || fReindexChainState || pcoinsTip->GetBestBlock().IsNull();
                 if (!is_coinsview_empty) {
                     // LoadChainTip sets chainActive based on pcoinsTip's best block
                     if (!LoadChainTip(chainparams)) {
@@ -1556,7 +1557,7 @@ bool AppInitMain()
                     break;
                 }
 
-                if (!fReindex) {
+                if (!fReset) {
                     // Note that RewindBlockIndex MUST run even if we're about to -reindex-chainstate.
                     // It both disconnects blocks based on chainActive, and drops block data in
                     // mapBlockIndex based on lack of available witness data.
@@ -1601,7 +1602,7 @@ bool AppInitMain()
 
         if (!fLoaded && !ShutdownRequested()) {
             // first suggest a reindex
-            if (!fReindex) {
+            if (!fReset) {
                 bool fRet = uiInterface.ThreadSafeQuestion(
                     strLoadError + ".\n\n" + _("Do you want to rebuild the block database now?"),
                     strLoadError + ".\nPlease restart with -reindex to recover.",
