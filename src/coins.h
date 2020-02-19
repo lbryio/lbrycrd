@@ -163,7 +163,7 @@ public:
 
     //! Do a bulk modification (multiple Coin changes + BestBlock change).
     //! The passed mapCoins can be modified.
-    virtual bool BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock, bool sync);
+    virtual bool BatchWrite(const CCoinsMap &mapCoins, const uint256 &hashBlock, bool sync);
 
     //! Get a cursor to iterate over the whole state
     virtual CCoinsViewCursor *Cursor() const;
@@ -189,7 +189,7 @@ public:
     uint256 GetBestBlock() const override;
     std::vector<uint256> GetHeadBlocks() const override;
     void SetBackend(CCoinsView &viewIn);
-    bool BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock, bool sync) override;
+    bool BatchWrite(const CCoinsMap &mapCoins, const uint256 &hashBlock, bool sync) override;
     CCoinsViewCursor *Cursor() const override;
     size_t EstimateSize() const override;
 };
@@ -222,17 +222,10 @@ public:
     bool HaveCoin(const COutPoint &outpoint) const override;
     uint256 GetBestBlock() const override;
     void SetBestBlock(const uint256 &hashBlock);
-    bool BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock, bool sync) override;
+    bool BatchWrite(const CCoinsMap &mapCoins, const uint256 &hashBlock, bool sync) override;
     CCoinsViewCursor* Cursor() const override {
         throw std::logic_error("CCoinsViewCache cursor iteration not supported.");
     }
-
-    /**
-     * Check if we have the given utxo already loaded in this cache.
-     * The semantics are the same as HaveCoin(), but no calls to
-     * the backing CCoinsView are made.
-     */
-    bool HaveCoinInCache(const COutPoint &outpoint) const;
 
     /**
      * Return a reference to Coin in the cache, or a pruned one if not found. This is

@@ -93,7 +93,7 @@ std::vector<uint256> CCoinsViewDB::GetHeadBlocks() const {
     return vhashHeadBlocks;
 }
 
-bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock, bool sync) {
+bool CCoinsViewDB::BatchWrite(const CCoinsMap &mapCoins, const uint256 &hashBlock, bool sync) {
 
     size_t count = 0;
     size_t changed = 0;
@@ -105,7 +105,7 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock, boo
         db << "INSERT OR REPLACE INTO marker VALUES('head_block', ?)" << hashBlock;
         auto dbd = db << "DELETE FROM unspent WHERE txID = ? AND txN = ?";
         auto dbi = db << "INSERT OR REPLACE INTO unspent VALUES(?,?,?,?,?,?,?)";
-        for (auto it = mapCoins.begin(); it != mapCoins.end(); it = mapCoins.erase(it)) {
+        for (auto it = mapCoins.begin(); it != mapCoins.end(); ++it) {
             if (it->second.flags & CCoinsCacheEntry::DIRTY) {
                 if (it->second.coin.IsSpent()) {
                     // at present the "IsSpent" flag is used for both "spent" and "block going backwards"

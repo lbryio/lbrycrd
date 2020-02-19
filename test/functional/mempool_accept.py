@@ -70,6 +70,7 @@ class MempoolAcceptanceTest(BitcoinTestFramework):
         ))['hex']
         txid_in_block = node.sendrawtransaction(hexstring=raw_tx_in_block, allowhighfees=True)
         node.generate(1)
+        self.mempool_size = 0
         self.check_mempool_result(
             result_expected=[{'txid': txid_in_block, 'allowed': False, 'reject-reason': '18: txn-already-known'}],
             rawtxs=[raw_tx_in_block],
