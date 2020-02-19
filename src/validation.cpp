@@ -3042,7 +3042,8 @@ static bool FindBlockPos(CDiskBlockPos &pos, unsigned int nAddSize, unsigned int
     }
 
     if (!fKnown) {
-        while (vinfoBlockFile[nFile].nSize + nAddSize >= MAX_BLOCKFILE_SIZE) {
+        const static int64_t maxBlockfileSize = std::max<int64_t>(BLOCKFILE_CHUNK_SIZE, gArgs.GetArg("-maxblockfilesize", DEFAULT_MAX_BLOCKFILE_SIZE >> 20U) << 20U);
+        while (vinfoBlockFile[nFile].nSize + nAddSize >= maxBlockfileSize) {
             nFile++;
             if (vinfoBlockFile.size() <= nFile) {
                 vinfoBlockFile.resize(nFile + 1);
