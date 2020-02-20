@@ -1469,6 +1469,7 @@ bool AppInitMain(InitInterfaces& interfaces)
 
     bool fLoaded = false;
     while (!fLoaded && !ShutdownRequested()) {
+        bool fReset = fReindex; // reindex flag gets changed out from underneath us
         std::string strLoadError;
 
         uiInterface.InitMessage(_("Loading block index...").translated);
@@ -1485,7 +1486,7 @@ bool AppInitMain(InitInterfaces& interfaces)
                 // new CBlockTreeDB tries to delete the existing file, which
                 // fails if it's still open from the previous loop. Close it first:
                 pblocktree.reset();
-                pblocktree.reset(new CBlockTreeDB(nBlockTreeDBCache, false, fReindex));
+                pblocktree.reset(new CBlockTreeDB(nBlockTreeDBCache, false, fReset));
 
                 // use faster N way hash function
                 // NOTE: it assumes memory is continuous
@@ -1494,7 +1495,7 @@ bool AppInitMain(InitInterfaces& interfaces)
                     SHA256D64(hashes[0].begin(), hashes[0].begin(), hashes.size() / 2);
                 };
 
-                if (fReindex) {
+                if (fReset) {
                     pblocktree->WriteReindexing(true);
                     //If we're reindexing in prune mode, wipe away unusable block files and all undo data files
                     if (fPruneMode)
@@ -1542,7 +1543,7 @@ bool AppInitMain(InitInterfaces& interfaces)
                 ::ChainstateActive().InitCoinsDB(
                     /* cache_size_bytes */ nCoinDBCache,
                     /* in_memory */ false,
-                    /* should_wipe */ fReindex || fReindexChainState);
+                    /* should_wipe */ fReset || fReindexChainState);
 
                 ::ChainstateActive().CoinsErrorCatcher().AddReadErrCallback([]() {
                     uiInterface.ThreadSafeMessageBox(
@@ -1560,7 +1561,7 @@ bool AppInitMain(InitInterfaces& interfaces)
                 ::ChainstateActive().InitCoinsCache();
                 assert(::ChainstateActive().CanFlushToDisk());
 
-                is_coinsview_empty = fReindex || fReindexChainState ||
+                is_coinsview_empty = fReset || fReindexChainState ||
                     ::ChainstateActive().CoinsTip().GetBestBlock().IsNull();
                 if (!is_coinsview_empty) {
                     // LoadChainTip initializes the chain based on CoinsTip()'s best block
@@ -1582,7 +1583,7 @@ bool AppInitMain(InitInterfaces& interfaces)
                     break;
                 }
 
-                if (!fReindex) {
+                if (!fReset) {
                     // Note that RewindBlockIndex MUST run even if we're about to -reindex-chainstate.
                     // It both disconnects blocks based on ::ChainActive(), and drops block data in
                     // BlockIndex() based on lack of available witness data.
@@ -1629,7 +1630,7 @@ bool AppInitMain(InitInterfaces& interfaces)
 
         if (!fLoaded && !ShutdownRequested()) {
             // first suggest a reindex
-            if (!fReindex) {
+            if (!fReset) {
                 bool fRet = uiInterface.ThreadSafeQuestion(
                     strLoadError + ".\n\n" + _("Do you want to rebuild the block database now?").translated,
                     strLoadError + ".\nPlease restart with -reindex to recover.",
