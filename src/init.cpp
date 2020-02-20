@@ -1428,7 +1428,7 @@ bool AppInitMain()
     // however, we want the claimtrie cache to be larger than the others
 
     int64_t nBlockTreeDBCache = std::min(nTotalCache / 4, nMaxBlockDBCache << 20);
-    int64_t nCoinDBCache = std::min(nTotalCache / 8, nMaxCoinsDBCache << 20);
+    int64_t nCoinDBCache = std::min(nTotalCache / 4, nMaxCoinsDBCache << 20);
     int64_t nClaimtrieCache = nTotalCache / 4;
     nTotalCache -= nBlockTreeDBCache;
     nTotalCache -= nCoinDBCache;

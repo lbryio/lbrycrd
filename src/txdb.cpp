@@ -256,7 +256,8 @@ CCoinsViewCursor *CCoinsViewDB::Cursor() const
 
 CCoinsViewDBCursor::CCoinsViewDBCursor(const uint256 &hashBlockIn, const CCoinsViewDB* view)
         : CCoinsViewCursor(hashBlockIn), owner(view),
-        query(owner->db << "SELECT txID, txN, isCoinbase, blockHeight, amount, script FROM unspent")
+        query(owner->db << "SELECT txID, txN, isCoinbase, blockHeight, amount, script "
+                           "FROM unspent ORDER BY txID ASC, txN ASC")
 {
     iter = query.begin();
 }

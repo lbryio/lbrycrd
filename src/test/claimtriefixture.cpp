@@ -192,7 +192,7 @@ bool ClaimTrieChainFixture::CreateBlock(const std::unique_ptr<CBlockTemplate>& p
                 break;
         }
     }
-    auto success = ProcessNewBlock(Params(), std::make_shared<const CBlock>(*pblock), true, nullptr);
+    auto success = ProcessNewBlock(Params(), std::make_shared<const CBlock>(*pblock), true, nullptr, false);
     return success && pblock->GetHash() == chainActive.Tip()->GetBlockHash();
 }
 
