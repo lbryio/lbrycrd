@@ -2123,7 +2123,11 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                 //  artificially set the default assumed verified block further back.
                 // The test against nMinimumChainWork prevents the skipping when denied access to any chain at
                 //  least as good as the expected chain.
-                fScriptChecks = (GetBlockProofEquivalentTime(*pindexBestHeader, *pindex, *pindexBestHeader, chainparams.GetConsensus()) <= 60 * 60 * 24 * 7 * 2);
+                auto& consensus = chainparams.GetConsensus();
+                auto target = consensus.nPowTargetTimespan;
+                if (target < 2 && chainparams.NetworkIDString() == CBaseChainParams::REGTEST)
+                    target = 150; // it's not setted in regtest but still need for testing
+                fScriptChecks = (GetBlockProofEquivalentTime(*pindexBestHeader, *pindex, *pindexBestHeader, consensus) <= target);
             }
         }
     }
