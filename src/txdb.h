@@ -63,7 +63,7 @@ static const int64_t nMaxBlockDBCache = 260;
 //! Max memory allocated to all block filter index caches combined in MiB.
 static const int64_t max_filter_index_cache = 1024;
 //! Max memory allocated to coin DB specific cache (MiB)
-static const int64_t nMaxCoinsDBCache = 40;
+static const int64_t nMaxCoinsDBCache = 200;
 
 /** CCoinsView backed by the coin database (chainstate/) */
 class CCoinsViewDB final : public CCoinsView

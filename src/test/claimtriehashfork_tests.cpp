@@ -395,7 +395,7 @@ BOOST_AUTO_TEST_CASE(bogus_claimtrie_hash_test)
             break;
         }
     }
-    bool success = ProcessNewBlock(Params(), std::make_shared<const CBlock>(pblockTemp->block), true, nullptr);
+    bool success = ProcessNewBlock(Params(), std::make_shared<const CBlock>(pblockTemp->block), true, nullptr, false);
     // will process , but will not be connected
     BOOST_CHECK(success);
     BOOST_CHECK(pblockTemp->block.GetHash() != ::ChainActive().Tip()->GetBlockHash());

@@ -1443,7 +1443,7 @@ bool AppInitMain(InitInterfaces& interfaces)
     // however, we want the claimtrie cache to be larger than the others
 
     int64_t nBlockTreeDBCache = std::min(nTotalCache / 4, nMaxBlockDBCache << 20);
-    int64_t nCoinDBCache = std::min(nTotalCache / 8, nMaxCoinsDBCache << 20);
+    int64_t nCoinDBCache = std::min(nTotalCache / 4, nMaxCoinsDBCache << 20);
     int64_t nClaimtrieCache = ::Claimtrie().cache();
     nTotalCache -= nBlockTreeDBCache;
     int64_t filter_index_cache = 0;

@@ -213,7 +213,7 @@ static const uint64_t MIN_DISK_SPACE_FOR_BLOCK_FILES = 550 * 1024 * 1024;
  * @param[out]  fNewBlock A boolean which is set to indicate if the block was first received via this call
  * @returns     If the block was processed, independently of block validity
  */
-bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<const CBlock> pblock, bool fForceProcessing, bool* fNewBlock) LOCKS_EXCLUDED(cs_main);
+bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<const CBlock> pblock, bool fForceProcessing, bool* fNewBlock, bool lastInBatch=true) LOCKS_EXCLUDED(cs_main);
 
 /**
  * Process incoming block headers.
@@ -252,7 +252,7 @@ bool GetTransaction(const uint256& hash, CTransactionRef& tx, const Consensus::P
  * May not be called with cs_main held. May not be called in a
  * validationinterface callback.
  */
-bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock = std::shared_ptr<const CBlock>());
+bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock = std::shared_ptr<const CBlock>(), bool lastInBatch = true);
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams);
 
 /** Guess verification progress (as a fraction between 0.0=genesis and 1.0=current tip). */
@@ -694,7 +694,7 @@ public:
     bool ActivateBestChain(
         CValidationState& state,
         const CChainParams& chainparams,
-        std::shared_ptr<const CBlock> pblock) LOCKS_EXCLUDED(cs_main);
+        std::shared_ptr<const CBlock> pblock, bool lastInBatch = true) LOCKS_EXCLUDED(cs_main);
 
     bool AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CValidationState& state, const CChainParams& chainparams, CBlockIndex** ppindex, bool fRequested, const FlatFilePos* dbp, bool* fNewBlock) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 

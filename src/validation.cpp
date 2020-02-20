@@ -2656,8 +2656,8 @@ bool CChainState::DisconnectTip(CValidationState& state, const CChainParams& cha
         assert(pindexDelete->pprev->hashClaimTrie == trieCache.getMerkleHash());
     }
     LogPrint(BCLog::BENCH, "- Disconnect block: %.2fms\n", (GetTimeMicros() - nStart) * MILLI);
-    // Write the chain state to disk, if necessary.
-    if (!IsInitialBlockDownload() && !FlushStateToDisk(chainparams, state, FlushStateMode::ALWAYS))
+    // Write the chain state to disk, if necessary, to keep RAM usage down
+    if (!FlushStateToDisk(chainparams, state, FlushStateMode::IF_NEEDED))
         return false;
 
     if (disconnectpool) {
@@ -2800,8 +2800,8 @@ bool CChainState::ConnectTip(CValidationState& state, const CChainParams& chainp
     }
     int64_t nTime4 = GetTimeMicros(); nTimeFlush += nTime4 - nTime3;
     LogPrint(BCLog::BENCH, "  - Flush: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime4 - nTime3) * MILLI, nTimeFlush * MICRO, nTimeFlush * MILLI / nBlocksTotal);
-    // Write the chain state to disk, if necessary.
-    if (!IsInitialBlockDownload() && !FlushStateToDisk(chainparams, state, FlushStateMode::ALWAYS))
+    // Write the chain state to disk, if necessary, to keep memory usage down
+    if (!FlushStateToDisk(chainparams, state, FlushStateMode::IF_NEEDED))
         return false;
     int64_t nTime5 = GetTimeMicros(); nTimeChainState += nTime5 - nTime4;
     LogPrint(BCLog::BENCH, "  - Writing chainstate: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime5 - nTime4) * MILLI, nTimeChainState * MICRO, nTimeChainState * MILLI / nBlocksTotal);
@@ -3015,7 +3015,7 @@ static void LimitValidationInterfaceQueue() LOCKS_EXCLUDED(cs_main) {
     }
 }
 
-bool CChainState::ActivateBestChain(CValidationState &state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock) {
+bool CChainState::ActivateBestChain(CValidationState &state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock, bool lastInBatch) {
     // Note that while we're often called here from ProcessNewBlock, this is
     // far from a guarantee. Things in the P2P/RPC will often end up calling
     // us in the middle of ProcessNewBlock - do not assume pblock is set
@@ -3073,12 +3073,23 @@ bool CChainState::ActivateBestChain(CValidationState &state, const CChainParams&
                     pindexMostWork = nullptr;
                 }
                 pindexNewTip = m_chain.Tip();
+                auto wantsAnotherRound = !pindexNewTip || (starting_tip && CBlockIndexWorkComparator()(pindexNewTip, starting_tip));
+
+                // flush before we send any signals:
+                auto flushMode = !lastInBatch || !blocks_connected || IsInitialBlockDownload() ? FlushStateMode::IF_NEEDED : FlushStateMode::ALWAYS;
+                auto diskSync = chainparams.NetworkIDString() != CBaseChainParams::REGTEST
+                                && flushMode == FlushStateMode::ALWAYS && !wantsAnotherRound && pindexNewTip == pindexMostWork;
+                if (!FlushStateToDisk(chainparams, state, flushMode, 0, diskSync))
+                    return error("Unable to flush after ActivateBestChainStep");
 
                 for (const PerBlockConnectTrace& trace : connectTrace.GetBlocksConnected()) {
                     assert(trace.pblock && trace.pindex);
                     GetMainSignals().BlockConnected(trace.pblock, trace.pindex, trace.conflictedTxs);
                 }
-            } while (!m_chain.Tip() || (starting_tip && CBlockIndexWorkComparator()(m_chain.Tip(), starting_tip)));
+
+                if (!wantsAnotherRound)
+                    break;
+            } while (true);
             if (!blocks_connected) return true;
 
             const CBlockIndex* pindexFork = m_chain.FindFork(starting_tip);
@@ -3109,15 +3120,11 @@ bool CChainState::ActivateBestChain(CValidationState &state, const CChainParams&
 
     auto& consensus = chainparams.GetConsensus();
     CheckBlockIndex(consensus);
-
-    auto flushMode = IsInitialBlockDownload() ? FlushStateMode::IF_NEEDED : FlushStateMode::ALWAYS;
-    auto diskSync = chainparams.NetworkIDString() != CBaseChainParams::REGTEST
-                    && flushMode == FlushStateMode::ALWAYS;
-    return FlushStateToDisk(chainparams, state, flushMode, 0, diskSync);
+    return true;
 }
 
-bool ActivateBestChain(CValidationState &state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock) {
-    return ::ChainstateActive().ActivateBestChain(state, chainparams, std::move(pblock));
+bool ActivateBestChain(CValidationState &state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock, bool lastInBatch) {
+    return ::ChainstateActive().ActivateBestChain(state, chainparams, std::move(pblock), lastInBatch);
 }
 
 bool CChainState::PreciousBlock(CValidationState& state, const CChainParams& params, CBlockIndex *pindex)
@@ -3976,7 +3983,7 @@ bool CChainState::AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CVali
     return true;
 }
 
-bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<const CBlock> pblock, bool fForceProcessing, bool *fNewBlock)
+bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<const CBlock> pblock, bool fForceProcessing, bool *fNewBlock, bool lastInBatch)
 {
     AssertLockNotHeld(cs_main);
 
@@ -4005,7 +4012,7 @@ bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<cons
     NotifyHeaderTip();
 
     CValidationState state; // Only used to report errors, not invalidity - ignore it
-    if (!::ChainstateActive().ActivateBestChain(state, chainparams, pblock))
+    if (!::ChainstateActive().ActivateBestChain(state, chainparams, pblock, lastInBatch))
         return error("%s: ActivateBestChain failed (%s)", __func__, FormatStateMessage(state));
 
     return true;
