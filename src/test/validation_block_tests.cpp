@@ -138,7 +138,7 @@ BOOST_AUTO_TEST_CASE(processnewblock_signals_ordering)
     BOOST_CHECK(ProcessNewBlockHeaders(headers, state, Params()));
 
     // Connect the genesis block and drain any outstanding events
-    ProcessNewBlock(Params(), std::make_shared<CBlock>(Params().GenesisBlock()), true, &ignored);
+    ProcessNewBlock(Params(), std::make_shared<CBlock>(Params().GenesisBlock()), true, &ignored, false);
     SyncWithValidationInterfaceQueue();
 
     // subscribe to events (this subscriber will validate event ordering)
@@ -159,13 +159,13 @@ BOOST_AUTO_TEST_CASE(processnewblock_signals_ordering)
             bool ignored;
             for (int i = 0; i < 1000; i++) {
                 auto block = blocks[GetRand(blocks.size() - 1)];
-                ProcessNewBlock(Params(), block, true, &ignored);
+                ProcessNewBlock(Params(), block, true, &ignored, false);
             }
 
             // to make sure that eventually we process the full chain - do it here
             for (auto block : blocks) {
                 if (block->vtx.size() == 1) {
-                    bool processed = ProcessNewBlock(Params(), block, true, &ignored);
+                    bool processed = ProcessNewBlock(Params(), block, true, &ignored, false);
                     assert(processed);
                 }
             }

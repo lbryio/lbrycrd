@@ -142,9 +142,10 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
             continue;
         }
         std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(*pblock);
-        if (!ProcessNewBlock(Params(), shared_pblock, true, nullptr))
+        auto lastInBatch = ++nHeight >= nHeightEnd;
+        if (!ProcessNewBlock(Params(), shared_pblock, true, nullptr, lastInBatch))
             throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
-        ++nHeight;
+
         blockHashes.push_back(pblock->GetHash().GetHex());
 
         //mark script as important because it was used at least for one coinbase output if the script came from the wallet
@@ -172,6 +173,10 @@ static UniValue generatetoaddress(const JSONRPCRequest& request)
             "\nGenerate 11 blocks to myaddress\n"
             + HelpExampleCli("generatetoaddress", "11 \"myaddress\"")
         );
+
+    if (IsInitialBlockDownload()) {
+        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "generatetoaddress is not available during the initial block download");
+    }
 
     int nGenerate = request.params[0].get_int();
     uint64_t nMaxTries = 1000000;

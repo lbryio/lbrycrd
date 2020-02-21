@@ -4499,6 +4499,10 @@ UniValue generate(const JSONRPCRequest& request)
         );
     }
 
+    if (IsInitialBlockDownload()) {
+        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "generate is not available during the initial block download");
+    }
+
     int num_generate = request.params[0].get_int();
     uint64_t max_tries = 1000000;
     if (!request.params[1].isNull()) {
