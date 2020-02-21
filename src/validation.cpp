@@ -1106,7 +1106,7 @@ bool IsInitialBlockDownload()
         return true;
     if (chainActive.Tip()->nChainWork < nMinimumChainWork)
         return true;
-    if (chainActive.Tip()->GetBlockTime() < (GetTime() - nMaxTipAge))
+    if (Params().NetworkIDString() == CBaseChainParams::MAIN && chainActive.Tip()->GetBlockTime() < (GetTime() - nMaxTipAge))
         return true;
     LogPrintf("Leaving InitialBlockDownload (latching to false)\n");
     latchToFalse.store(true, std::memory_order_relaxed);
