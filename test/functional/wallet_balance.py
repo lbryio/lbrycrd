@@ -86,9 +86,9 @@ class WalletTest(BitcoinTestFramework):
 
         self.log.info("Test getbalance with different arguments")
         assert_equal(self.nodes[0].getbalance("*"), 1)
-        assert_equal(self.nodes[0].getbalance("*", 1), 2)
-        assert_equal(self.nodes[0].getbalance("*", 1, True), 3)
-        assert_equal(self.nodes[0].getbalance(minconf=1), 2)
+        assert_equal(self.nodes[0].getbalance("*", 1), 1)
+        assert_equal(self.nodes[0].getbalance("*", 1, True), 2)
+        assert_equal(self.nodes[0].getbalance(minconf=1), 1)
         assert_equal(self.nodes[0].getbalance(minconf=0, include_watchonly=True), 2)
         assert_equal(self.nodes[1].getbalance(minconf=0, include_watchonly=True), 1)
 
@@ -117,8 +117,8 @@ class WalletTest(BitcoinTestFramework):
             assert_equal(self.nodes[1].getbalance(minconf=0), Decimal('0.39') - fee_node_1)
             # getbalance with a minconf incorrectly excludes coins that have been spent more recently than the minconf blocks ago
             # TODO: fix getbalance tracking of coin spentness depth
-            assert_equal(self.nodes[0].getbalance(minconf=1), Decimal('1.59'))
-            assert_equal(self.nodes[1].getbalance(minconf=1), Decimal('0.39') - fee_node_1)
+            assert_equal(self.nodes[0].getbalance(minconf=1), Decimal('0.00'))
+            assert_equal(self.nodes[1].getbalance(minconf=1), Decimal('0.00'))
             # getunconfirmedbalance
             assert_equal(self.nodes[0].getunconfirmedbalance(), Decimal('0.6'))  # output of node 1's spend
             assert_equal(self.nodes[0].getbalances()['mine']['untrusted_pending'], Decimal('0.6'))

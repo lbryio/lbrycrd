@@ -289,7 +289,7 @@ class AvoidReuseTest(BitcoinTestFramework):
         # getbalances and listunspent should show the remaining outputs
         # in the reused address as used/reused
         assert_unspent(self.nodes[1], total_count=2, total_sum=0.12, reused_count=1, reused_sum=0.02)
-        assert_balances(self.nodes[1], mine={"used": 0, "trusted": 0.12})
+        assert_balances(self.nodes[1], mine={"used": 0.02, "trusted": 0.1})
 
 if __name__ == '__main__':
     AvoidReuseTest().main()

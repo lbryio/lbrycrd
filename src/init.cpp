@@ -245,10 +245,6 @@ void Shutdown(InitInterfaces& interfaces)
     GetMainSignals().FlushBackgroundCallbacks();
 
     // Stop and delete all indexes only after flushing background callbacks.
-    if (g_txindex) {
-        g_txindex->Stop();
-        g_txindex.reset();
-    }
     ForEachBlockFilterIndex([](BlockFilterIndex& index) { index.Stop(); });
     DestroyAllBlockFilterIndexes();
 

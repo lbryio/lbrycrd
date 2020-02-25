@@ -275,7 +275,7 @@ class MempoolPackagesTest(BitcoinTestFramework):
         for i in range(6):
             (txid, sent_value) = self.chain_transaction(self.nodes[0], txid, vout, value, fee, 1)
             vout = 0
-            value = sent_value
+            value = max(sent_value, 0.00000001)
 
         # Mine these in a block
         self.nodes[0].generate(1)
