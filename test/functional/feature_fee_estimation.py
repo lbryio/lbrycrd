@@ -130,9 +130,9 @@ class EstimateFeeTest(BitcoinTestFramework):
         # mine non-standard txs (e.g. txs with "dust" outputs)
         # Force fSendTrickle to true (via whitelist)
         self.extra_args = [
-            ["-acceptnonstdtxn", "-whitelist=127.0.0.1"],
-            ["-acceptnonstdtxn", "-whitelist=127.0.0.1", "-blockmaxweight=68000"],
-            ["-acceptnonstdtxn", "-whitelist=127.0.0.1", "-blockmaxweight=32000"],
+            ["-acceptnonstdtxn", "-whitelist=127.0.0.1", "-limitancestorcount=100"],
+            ["-acceptnonstdtxn", "-whitelist=127.0.0.1", "-blockmaxweight=68000", "-limitancestorcount=100"],
+            ["-acceptnonstdtxn", "-whitelist=127.0.0.1", "-blockmaxweight=32000", "-limitancestorcount=100"],
         ]
 
     def skip_test_if_missing_module(self):
@@ -166,10 +166,10 @@ class EstimateFeeTest(BitcoinTestFramework):
         # resorting to tx's that depend on the mempool when those run out
         for i in range(numblocks):
             random.shuffle(self.confutxo)
-            for j in range(random.randrange(100 - 50, 100 + 50)):
+            for j in range(random.randrange(50, 80)):
                 from_index = random.randint(1, 2)
                 (txhex, fee) = small_txpuzzle_randfee(self.nodes[from_index], self.confutxo,
-                                                      self.memutxo, Decimal("0.005"), min_fee, min_fee)
+                                                      self.memutxo, Decimal("0.0015"), min_fee, min_fee)
                 tx_kbytes = (len(txhex) // 2) / 1000.0
                 self.fees_per_kb.append(float(fee) / tx_kbytes)
             self.sync_mempools(wait=.1)

@@ -138,3 +138,4 @@ compile_commands\.json
 osx_volname
 dist/
 *.background.tiff
+**/compiler*\.d
