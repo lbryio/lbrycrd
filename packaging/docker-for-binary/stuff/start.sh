@@ -35,7 +35,6 @@ function set_config() {
       override_config_option RPC_ALLOW_IP rpcallowip $MERGED_CONFIG
       override_config_option RPC_PORT rpcport $MERGED_CONFIG
       override_config_option RPC_BIND rpcbind $MERGED_CONFIG
-      override_config_option TX_INDEX txindex $MERGED_CONFIG
       override_config_option MAX_TX_FEE maxtxfee $MERGED_CONFIG
       override_config_option DUST_RELAY_FEE dustrelayfee $MERGED_CONFIG
       # Make the new merged config file the new CONFIG_PATH
@@ -50,11 +49,12 @@ printtoconsole=1
 port=${PORT:-9246}
 rpcuser=${RPC_USER:-lbry}
 rpcpassword=${RPC_PASSWORD:-lbry}
+## Be careful what you set this to when running mainnet. By default it only allows RPC connections from localhost
+## if running inside a composition of services Then pass the environment variable `RPC_ALLOW_IP=0.0.0.0/0`
 rpcallowip=${RPC_ALLOW_IP:-127.0.0.1}
 rpcport=${RPC_PORT:-9245}
 rpcbind=${RPC_BIND:-"0.0.0.0"}
 
-txindex=${TX_INDEX:-"1"}
 maxtxfee=${MAX_TX_FEE:-"0.5"}
 dustrelayfee=${DUST_RELAY_FEE:-"0.00000001"}
 EOF
@@ -88,15 +88,15 @@ case $RUN_MODE in
     download_snapshot
     exec lbrycrdd -conf=$CONFIG_PATH
     ;;
-  ## If it's a first run you need to do a full index including all transactions
-  ## tx index creates an index of every single transaction in the block history if
-  ## not specified it will only create an index for transactions that are related to the wallet or have unspent outputs.
-  ## This is generally specific to chainquery.
+  ## If for some reason one is told to reindex their blockchain this run mode will launch lbrycrd with the reindex parameter.
+  ## Don't forget to change it back to default once complete ( you will need to remove the container to re-apply the run mode).
   reindex )
     ## Apply this RUN_MODE in the case you need to update a dataset.  NOTE: you do not need to use `RUN_MODE reindex` for more than one complete run.
     set_config
     exec lbrycrdd -conf=$CONFIG_PATH -reindex
     ;;
+  ## Regtest requires ports to be the port listed below. It is hardcoded to be this port for regtest when using a config.
+  ## Only way to override it is to run lbrycrd from the commandline and set the port there.
   regtest )
     ## Set config params
     ## TODO: Make this more automagic in the future.
@@ -107,7 +107,6 @@ case $RUN_MODE in
     echo "rpcbind=0.0.0.0" >>       $CONFIG_PATH
     echo "rpcallowip=0.0.0.0/0" >>  $CONFIG_PATH
     echo "regtest=1" >>             $CONFIG_PATH
-    echo "txindex=1" >>             $CONFIG_PATH
     echo "server=1" >>              $CONFIG_PATH
     echo "printtoconsole=1" >>      $CONFIG_PATH
 
@@ -125,7 +124,6 @@ case $RUN_MODE in
     echo "rpcbind=0.0.0.0" >>       $CONFIG_PATH
     echo "rpcallowip=0.0.0.0/0" >>  $CONFIG_PATH
     echo "testnet=1" >>             $CONFIG_PATH
-    echo "txindex=1" >>             $CONFIG_PATH
     echo "server=1" >>              $CONFIG_PATH
     echo "printtoconsole=1" >>      $CONFIG_PATH
 
