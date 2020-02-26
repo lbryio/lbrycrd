@@ -315,11 +315,12 @@ bool CBlockTreeDB::BatchWrite(const std::vector<std::pair<int, const CBlockFileI
     db << "INSERT OR REPLACE INTO flag VALUES('last_block', ?)" << nLastFile; // TODO: is this always max(file column)?
 
     if(!blockInfo.empty()) {
+        const static uint256 empty;
         auto ibi = db << "INSERT OR REPLACE INTO block_info(hash, prevHash, height, file, dataPos, undoPos, "
                          "txCount, status, version, rootTxHash, rootTrieHash, time, bits, nonce) "
                          "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
         for (auto &bi: blockInfo) {
-            ibi << bi->GetBlockHash() << (bi->pprev ? bi->pprev->GetBlockHash() : uint256())
+            ibi << bi->hash << (bi->pprev ? bi->pprev->hash : empty)
                 << bi->nHeight << bi->nFile << bi->nDataPos << bi->nUndoPos << bi->nTx
                 << bi->nStatus << bi->nVersion << bi->hashMerkleRoot << bi->hashClaimTrie
                 << bi->nTime << bi->nBits << bi->nNonce;
