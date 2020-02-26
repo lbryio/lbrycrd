@@ -261,7 +261,7 @@ public:
         return block;
     }
 
-    uint256 GetBlockHash() const
+    const uint256& GetBlockHash() const
     {
         return hash;
     }
