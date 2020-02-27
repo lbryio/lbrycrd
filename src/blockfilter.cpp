@@ -269,7 +269,7 @@ static GCSFilter::ElementSet BasicFilterElements(const CBlock& block,
     }
 
     for (const CTxUndo& tx_undo : block_undo.vtxundo) {
-        for (const Coin& prevout : tx_undo.vprevout) {
+        for (const auto& prevout : tx_undo.vprevout) {
             const CScript& script = prevout.out.scriptPubKey;
             if (script.empty()) continue;
             elements.emplace(script.begin(), script.end());

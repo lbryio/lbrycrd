@@ -1878,7 +1878,7 @@ static UniValue getblockstats(const JSONRPCRequest& request)
         if (loop_inputs) {
             CAmount tx_total_in = 0;
             const auto& txundo = blockUndo.vtxundo.at(i - 1);
-            for (const Coin& coin: txundo.vprevout) {
+            for (const auto& coin: txundo.vprevout) {
                 const CTxOut& prevoutput = coin.out;
 
                 tx_total_in += prevoutput.nValue;

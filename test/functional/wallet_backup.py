@@ -163,6 +163,7 @@ class WalletBackupTest(BitcoinTestFramework):
         # Start node2 with no chain
         shutil.rmtree(os.path.join(self.nodes[2].datadir, 'regtest', 'blocks'))
         os.remove(os.path.join(self.nodes[2].datadir, 'regtest', 'coins.sqlite'))
+        os.remove(os.path.join(self.nodes[2].datadir, 'regtest', 'block_index.sqlite'))
 
         # Restore wallets from backup
         shutil.copyfile(os.path.join(self.nodes[0].datadir, 'wallet.bak'), os.path.join(self.nodes[0].datadir, 'regtest', 'wallets', 'wallet.dat'))
@@ -184,6 +185,7 @@ class WalletBackupTest(BitcoinTestFramework):
         #start node2 with no chain
         shutil.rmtree(os.path.join(self.nodes[2].datadir, 'regtest', 'blocks'))
         os.remove(os.path.join(self.nodes[2].datadir, 'regtest', 'coins.sqlite'))
+        os.remove(os.path.join(self.nodes[2].datadir, 'regtest', 'block_index.sqlite'))
 
         self.start_three()
 

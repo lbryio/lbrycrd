@@ -156,7 +156,7 @@ size_t CCoinsViewDB::EstimateSize() const
 }
 
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe)
-    : db(fMemory ? ":memory:" : (GetBlocksDir() / "index.sqlite").string(), sharedConfig)
+    : db(fMemory ? ":memory:" : (GetDataDir() / "block_index.sqlite").string(), sharedConfig)
 {
     applyPragmas(db, nCacheSize >> 10); // in -KB
 

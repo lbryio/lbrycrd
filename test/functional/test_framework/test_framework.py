@@ -312,8 +312,11 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
         self.import_deterministic_coinbase_privkeys()
         if not self.setup_clean_chain:
             for n in self.nodes:
-                while n.getblockchaininfo()["blocks"] < 199:
+                hits = 0
+                while n.getblockchaininfo()["blocks"] < 199 and hits < 20:
                     time.sleep(1)
+                    hits += 1
+                assert n.getblockchaininfo()["blocks"] >= 199
             # To ensure that all nodes are out of IBD, the most recent block
             # must have a timestamp not too old (see IsInitialBlockDownload()).
             self.log.debug('Generate a block with current time')
@@ -540,7 +543,7 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
 
             os.rmdir(cache_path('wallets'))  # Remove empty wallets dir
             for entry in os.listdir(cache_path()):
-                if entry not in ['blocks']:  # Only keep blocks folder
+                if entry != 'blocks' and not entry.endswith('.sqlite'):
                     os.remove(cache_path(entry))
 
         for i in range(self.num_nodes):
@@ -578,23 +581,6 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
         """Skip the running test if lbrycrd-cli has not been compiled."""
         if not self.is_cli_compiled():
             raise SkipTest("lbrycrd-cli has not been compiled.")
-
-    def is_cli_compiled(self):
-        """Checks whether lbrycrd-cli was compiled."""
-
-        return config["components"].getboolean("ENABLE_UTILS")
-
-    def is_wallet_compiled(self):
-        """Checks whether the wallet module was compiled."""
-        config = configparser.ConfigParser()
-        config.read_file(open(self.options.configfile))
-
-        return config["components"].getboolean("ENABLE_WALLET")
-
-    def is_zmq_compiled(self):
-        """Checks whether the zmq module was compiled."""
-        config = configparser.ConfigParser()
-        config.read_file(open(self.options.configfile))
 
     def is_cli_compiled(self):
         """Checks whether bitcoin-cli was compiled."""

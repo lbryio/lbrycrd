@@ -50,7 +50,7 @@ BlockFilterIndex::BlockFilterIndex(BlockFilterType filter_type,
     const std::string& filter_name = BlockFilterTypeName(filter_type);
     if (filter_name.empty()) throw std::invalid_argument("unknown filter_type");
 
-    fs::path path = GetBlocksDir() / "filter" / filter_name;
+    fs::path path = GetDataDir() / "filter" / filter_name;
     fs::create_directories(path);
 
     m_name = filter_name + " block filter index";
@@ -181,11 +181,13 @@ bool BlockFilterIndex::WriteBlock(const CBlock& block, const CBlockIndex* pindex
     if (bytes_written == 0)
         return false;
 
+    const auto filterHash = filter.GetHash(); // trying to avoid temps
+    const auto filterHeader = filter.ComputeHeader(prev_header);
     (*m_db) << "INSERT INTO block VALUES(?, ?, ?, ?, ?, ?)"
             << pindex->nHeight
-            << pindex->GetBlockHash()
-            << filter.GetHash()
-            << filter.ComputeHeader(prev_header)
+            << pindex->hash
+            << filterHash
+            << filterHeader
             << m_next_filter_pos.nFile
             << m_next_filter_pos.nPos;
 

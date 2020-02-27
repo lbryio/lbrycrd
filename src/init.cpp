@@ -1574,21 +1574,22 @@ bool AppInitMain(InitInterfaces& interfaces)
                 break;
             }
 
-                auto tip = ::ChainActive().Tip();
-                if (tip && !::ClaimtrieCache().validateDb(tip->nHeight, tip->hashClaimTrie)) {
-                    strLoadError = _("Error validating the stored claim trie").translated;
+            auto tip = ::ChainActive().Tip();
+            LogPrintf("Checking existing claim trie consistency...\n");
+            if (tip && !::ClaimtrieCache().validateDb(tip->nHeight, tip->hashClaimTrie)) {
+                strLoadError = _("Error validating the stored claim trie").translated;
+                break;
+            }
+
+            if (!fReset) {
+                // Note that RewindBlockIndex MUST run even if we're about to -reindex-chainstate.
+                // It both disconnects blocks based on ::ChainActive(), and drops block data in
+                // BlockIndex() based on lack of available witness data.
+                uiInterface.InitMessage(_("Rewinding blocks...").translated);
+                if (!RewindBlockIndex(chainparams)) {
+                    strLoadError = _("Unable to rewind the database to a pre-fork state. You will need to redownload the blockchain").translated;
                     break;
                 }
-
-                if (!fReset) {
-                    // Note that RewindBlockIndex MUST run even if we're about to -reindex-chainstate.
-                    // It both disconnects blocks based on ::ChainActive(), and drops block data in
-                    // BlockIndex() based on lack of available witness data.
-                    uiInterface.InitMessage(_("Rewinding blocks...").translated);
-                    if (!RewindBlockIndex(chainparams)) {
-                        strLoadError = _("Unable to rewind the database to a pre-fork state. You will need to redownload the blockchain").translated;
-                        break;
-                    }
             }
 
             try {

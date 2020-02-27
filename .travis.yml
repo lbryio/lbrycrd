@@ -32,7 +32,7 @@ jobs:
         - cp -l dist/lbrycrd-${NAME}.zip packaging/docker-for-binary/lbrycrd-${NAME}.zip
         - sha256sum dist/lbrycrd-${NAME}.zip
         - sha256sum dist/lbrycrd-${NAME}-test.zip
-        - cp test/config.ini dist/config.ini
+        - cp test/config.ini dist/config-${NAME}.ini
       deploy:
         - provider: s3
           access_key_id: AKIAICKFHNTR5RITASAQ
@@ -101,7 +101,7 @@ jobs:
         clone: true
         depth: 3
       install:
-        - curl http://build.lbry.io/lbrycrd/${TRAVIS_BRANCH}/config.ini -o test/config.ini
+        - curl http://build.lbry.io/lbrycrd/${TRAVIS_BRANCH}/config-${NAME}.ini -o test/config.ini
         - sed -i "s|/lbrycrd|$(pwd)|" test/config.ini
         - curl http://build.lbry.io/lbrycrd/${TRAVIS_BRANCH}/lbrycrd-${NAME}.zip -o src/temp.zip
         - cd src && unzip temp.zip && cd ..

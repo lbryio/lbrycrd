@@ -1542,10 +1542,11 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txund
     // mark inputs spent
     if (!tx.IsCoinBase()) {
         txundo.vprevout.reserve(tx.vin.size());
+        Coin coin;
         for (const CTxIn &txin : tx.vin) {
-            txundo.vprevout.emplace_back();
-            bool is_spent = inputs.SpendCoin(txin.prevout, &txundo.vprevout.back());
+            bool is_spent = inputs.SpendCoin(txin.prevout, &coin);
             assert(is_spent);
+            txundo.vprevout.emplace_back(coin.out, coin.IsCoinBase(), int(coin.nHeight));
         }
     }
     // add outputs
@@ -1782,23 +1783,21 @@ int ApplyTxInUndo(unsigned int index, CTxUndo& txUndo, CCoinsViewCache& view, CC
         }
     }
 
-    if (!undo.out.scriptPubKey.empty()) {
-        auto it = txUndo.claimHeights.find(index);
-        // restore claim if applicable
-        if (it != txUndo.claimHeights.end()) {
-            auto nValidHeight = it->second.first;
-            auto nOriginalHeight = it->second.second;
-            // assert(nValidHeight > 0 && nOriginalHeight > 0); // fails unit tests
-            CClaimScriptUndoSpendOp undoSpend(out, undo.out.nValue, undo.nHeight, nValidHeight, nOriginalHeight);
-            ProcessClaim(undoSpend, trieCache, undo.out.scriptPubKey);
-        }
+// restore claim if applicable
+    if (undo.fIsClaim && !undo.out.scriptPubKey.empty()) {
+        auto nValidHeight = int(undo.nClaimValidHeight);
+        auto nOriginalHeight = int(undo.nClaimOriginalHeight);
+        // assert(nValidHeight > 0 && nOriginalHeight > 0); // fails unit tests
+        CClaimScriptUndoSpendOp undoSpend(COutPoint(out.hash, out.n), undo.out.nValue, undo.nHeight,
+                                          nValidHeight, nOriginalHeight);
+        ProcessClaim(undoSpend, trieCache, undo.out.scriptPubKey);
     }
-
     // The potential_overwrite parameter to AddCoin is only allowed to be false if we know for
     // sure that the coin did not already exist in the cache. As we have queried for that above
     // using HaveCoin, we don't need to guess. When fClean is false, a coin already existed and
     // it is an overwrite.
-    view.AddCoin(out, std::move(undo), !fClean);
+    Coin coin(undo.out, int(undo.nHeight), undo.fCoinBase);
+    view.AddCoin(out, std::move(coin), !fClean);
 
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
@@ -2343,9 +2342,13 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
         }
         UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
         if (i > 0 && !mClaimUndoHeights.empty()) {
-            auto& claimsHeights = blockundo.vtxundo.back().claimHeights;
+            auto& txinUndos = blockundo.vtxundo.back().vprevout;
             for (auto itHeight = mClaimUndoHeights.begin(); itHeight != mClaimUndoHeights.end(); ++itHeight)
-                claimsHeights[itHeight->first] = itHeight->second;
+            {
+                txinUndos[itHeight->first].nClaimValidHeight = itHeight->second.first;
+                txinUndos[itHeight->first].nClaimOriginalHeight = itHeight->second.second;
+                txinUndos[itHeight->first].fIsClaim = true;
+            }
         }
 
         // The CTxUndo vector contains the heights at which claims should be put into the trie.

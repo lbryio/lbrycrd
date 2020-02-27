@@ -32,7 +32,6 @@ class BlocksdirTest(BitcoinTestFramework):
         self.nodes[0].generatetoaddress(10, self.nodes[0].get_deterministic_priv_key().address)
         assert os.path.isfile(os.path.join(blocksdir_path, "regtest", "blk00000.dat"))
         assert os.path.isfile(os.path.join(blocksdir_path, "regtest", "rev00000.dat"))
-        assert os.path.isfile(os.path.join(blocksdir_path, "regtest", "index.sqlite"))
 
 
 if __name__ == '__main__':
