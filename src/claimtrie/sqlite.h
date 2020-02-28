@@ -14,15 +14,31 @@
         return sqlite3_bind_blob(stmt, inx, val.begin(), int(val.size()), SQLITE_STATIC);
     }
 
+    inline int bind_col_in_db(sqlite3_stmt* stmt, int inx, uint160&& val) {
+        return sqlite3_bind_blob(stmt, inx, val.begin(), int(val.size()), SQLITE_TRANSIENT);
+    }
+
     inline int bind_col_in_db(sqlite3_stmt* stmt, int inx, const uint256& val) {
         return sqlite3_bind_blob(stmt, inx, val.begin(), int(val.size()), SQLITE_STATIC);
     }
 
+    inline int bind_col_in_db(sqlite3_stmt* stmt, int inx, uint256&& val) {
+        return sqlite3_bind_blob(stmt, inx, val.begin(), int(val.size()), SQLITE_TRANSIENT);
+    }
+
     inline void store_result_in_db(sqlite3_context* db, const uint160& val) {
+        sqlite3_result_blob(db, val.begin(), int(val.size()), SQLITE_STATIC);
+    }
+
+    inline void store_result_in_db(sqlite3_context* db, uint160&& val) {
         sqlite3_result_blob(db, val.begin(), int(val.size()), SQLITE_TRANSIENT);
     }
 
     inline void store_result_in_db(sqlite3_context* db, const uint256& val) {
+        sqlite3_result_blob(db, val.begin(), int(val.size()), SQLITE_STATIC);
+    }
+
+    inline void store_result_in_db(sqlite3_context* db, uint256&& val) {
         sqlite3_result_blob(db, val.begin(), int(val.size()), SQLITE_TRANSIENT);
     }
 }

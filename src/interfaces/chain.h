@@ -81,7 +81,7 @@ public:
         virtual int getBlockDepth(const uint256& hash) = 0;
 
         //! Get block hash. Height must be valid or this function will abort.
-        virtual uint256 getBlockHash(int height) = 0;
+        virtual const uint256& getBlockHash(int height) = 0;
 
         //! Get block time. Height must be valid or this function will abort.
         virtual int64_t getBlockTime(int height) = 0;

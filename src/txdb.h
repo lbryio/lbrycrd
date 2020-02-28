@@ -24,7 +24,15 @@ namespace sqlite {
         return sqlite3_bind_blob(stmt, inx, val.data(), int(val.size()), SQLITE_STATIC);
     }
 
+    inline int bind_col_in_db(sqlite3_stmt* stmt, int inx, CScript&& val) {
+        return sqlite3_bind_blob(stmt, inx, val.data(), int(val.size()), SQLITE_TRANSIENT);
+    }
+
     inline void store_result_in_db(sqlite3_context* db, const CScript& val) {
+        sqlite3_result_blob(db, val.data(), int(val.size()), SQLITE_STATIC);
+    }
+
+    inline void store_result_in_db(sqlite3_context* db, CScript&& val) {
         sqlite3_result_blob(db, val.data(), int(val.size()), SQLITE_TRANSIENT);
     }
 }

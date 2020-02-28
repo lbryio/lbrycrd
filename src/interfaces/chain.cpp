@@ -65,7 +65,7 @@ class LockImpl : public Chain::Lock, public UniqueLock<CCriticalSection>
         const Optional<int> height = getBlockHeight(hash);
         return tip_height && height ? *tip_height - *height + 1 : 0;
     }
-    uint256 getBlockHash(int height) override
+    const uint256& getBlockHash(int height) override
     {
         LockAssertion lock(::cs_main);
         CBlockIndex* block = ::ChainActive()[height];
