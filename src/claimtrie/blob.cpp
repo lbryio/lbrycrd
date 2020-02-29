@@ -9,9 +9,8 @@
 
 /** Template base class for fixed-sized opaque blobs. */
 template<uint32_t BITS>
-CBaseBlob<BITS>::CBaseBlob()
+CBaseBlob<BITS>::CBaseBlob() : data{}
 {
-    SetNull();
 }
 
 template<uint32_t BITS>
@@ -30,8 +29,7 @@ CBaseBlob<BITS>::CBaseBlob(const CBaseBlob& o)
 template<uint32_t BITS>
 CBaseBlob<BITS>& CBaseBlob<BITS>::operator=(const CBaseBlob& o)
 {
-    if (this != &o)
-        std::copy(o.begin(), o.end(), begin());
+    data = o.data;
     return *this;
 }
 
@@ -44,19 +42,19 @@ int CBaseBlob<BITS>::Compare(const CBaseBlob& b) const
 template<uint32_t BITS>
 bool CBaseBlob<BITS>::operator<(const CBaseBlob& b) const
 {
-    return Compare(b) < 0;
+    return data < b.data;
 }
 
 template<uint32_t BITS>
 bool CBaseBlob<BITS>::operator==(const CBaseBlob& b) const
 {
-    return Compare(b) == 0;
+    return data == b.data;
 }
 
 template<uint32_t BITS>
 bool CBaseBlob<BITS>::operator!=(const CBaseBlob& b) const
 {
-    return !(*this == b);
+    return data != b.data;
 }
 
 template<uint32_t BITS>

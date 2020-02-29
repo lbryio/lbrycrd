@@ -121,3 +121,7 @@ contrib/devtools/split-debug.sh
 cmake-build-*/
 
 compile_commands\.json
+**/compiler*\.d
+conftest.dir/
+
+confdefs.h

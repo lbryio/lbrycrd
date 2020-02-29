@@ -126,7 +126,7 @@ private:
     bool fDecryptionThoroughlyChecked;
 
 protected:
-    using CryptedKeyMap = std::map<CKeyID, std::pair<CPubKey, std::vector<unsigned char>>>;
+    using CryptedKeyMap = std::unordered_map<CKeyID, std::pair<CPubKey, std::vector<unsigned char>>>;
 
     bool SetCrypted();
 

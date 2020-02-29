@@ -145,21 +145,27 @@ extern CBlockPolicyEstimator feeEstimator;
 extern CTxMemPool mempool;
 extern std::atomic_bool g_is_mempool_loaded;
 
-struct BlockIndexPointerCompare {
-    inline bool operator() (const CBlockIndex* lhs, const CBlockIndex* rhs) const {
-        return lhs->hash < rhs->hash;
+struct BlockMapHasher {
+    std::size_t operator()(const CBlockIndex* block) const {
+        return *reinterpret_cast<const std::size_t*>(block->hash.begin());
     }
 };
 
-struct BlockMap : public std::set<CBlockIndex*, BlockIndexPointerCompare> {
+struct BlockMapComparer {
+    bool operator()(const CBlockIndex* a, const CBlockIndex* b) const {
+        return a == b || a->hash == b->hash;
+    }
+};
+
+struct BlockMap : public std::unordered_set<CBlockIndex*, BlockMapHasher, BlockMapComparer> {
     inline iterator find(const uint256& blockHash) {
         CBlockIndex temp(blockHash);
-        return std::set<CBlockIndex*, BlockIndexPointerCompare>::find(&temp);
+        return std::unordered_set<CBlockIndex*, BlockMapHasher, BlockMapComparer>::find(&temp);
     }
 
     inline const_iterator find(const uint256& blockHash) const {
         CBlockIndex temp(blockHash);
-        return std::set<CBlockIndex*, BlockIndexPointerCompare>::find(&temp);
+        return std::unordered_set<CBlockIndex*, BlockMapHasher, BlockMapComparer>::find(&temp);
     }
 };
 

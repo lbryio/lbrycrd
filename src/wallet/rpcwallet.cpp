@@ -467,14 +467,10 @@ static UniValue getaddressesbyaccount(const JSONRPCRequest& request)
 static CTransactionRef SendMoney(CWallet * const pwallet, const CTxDestination &address, CAmount nValue,
         bool fSubtractFeeFromAmount, const CCoinControl& coin_control, mapValue_t mapValue, std::string fromAccount,
         const CScript& prefix = CScript()){
-    CAmount curBalance = pwallet->GetBalance();
 
     // Check amount
     if (nValue <= 0)
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid amount");
-
-    if (nValue > curBalance)
-        throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Insufficient funds");
 
     if (pwallet->GetBroadcastTransactions() && !g_connman) {
         throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
@@ -493,6 +489,7 @@ static CTransactionRef SendMoney(CWallet * const pwallet, const CTxDestination &
     vecSend.push_back(recipient);
     CTransactionRef tx;
     if (!pwallet->CreateTransaction(vecSend, tx, reservekey, nFeeRequired, nChangePosRet, strError, coin_control)) {
+        CAmount curBalance = pwallet->GetBalance();
         if (!fSubtractFeeFromAmount && nValue + nFeeRequired > curBalance)
             strError = strprintf("Error: This transaction requires a transaction fee of at least %s", FormatMoney(nFeeRequired));
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
@@ -2193,7 +2190,6 @@ static UniValue ListReceived(CWallet * const pwallet, const UniValue& params, bo
     for (auto item_it = start; item_it != end; ++item_it)
     {
         const CTxDestination& address = item_it->first;
-        const std::string& label = item_it->second.name;
         auto it = mapTally.find(address);
         if (it == mapTally.end() && !fIncludeEmpty)
             continue;
@@ -2208,6 +2204,7 @@ static UniValue ListReceived(CWallet * const pwallet, const UniValue& params, bo
             fIsWatchonly = (*it).second.fIsWatchonly;
         }
 
+        const std::string& label = item_it->second.name;
         if (by_label)
         {
             tallyitem& _item = label_tally[label];
@@ -2225,6 +2222,7 @@ static UniValue ListReceived(CWallet * const pwallet, const UniValue& params, bo
             obj.pushKV("amount",        ValueFromAmount(nAmount));
             obj.pushKV("confirmations", (nConf == std::numeric_limits<int>::max() ? 0 : nConf));
             obj.pushKV("label", label);
+            obj.pushKV("purpose", item_it->second.purpose);
             UniValue transactions(UniValue::VARR);
             if (it != mapTally.end())
             {

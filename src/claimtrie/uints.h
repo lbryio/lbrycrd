@@ -40,4 +40,26 @@ uint160 uint160S(const std::string& s);
 uint256 uint256S(const char* str);
 uint256 uint256S(const std::string& s);
 
+namespace std {
+
+    template <>
+    struct hash<uint160>
+    {
+        std::size_t operator()(const uint160& k) const
+        {
+            return *reinterpret_cast<const std::size_t*>(k.begin());
+        }
+    };
+
+    template <>
+    struct hash<uint256>
+    {
+        std::size_t operator()(const uint256& k) const
+        {
+            return *reinterpret_cast<const std::size_t*>(k.begin());
+        }
+    };
+}
+
+
 #endif // CLAIMTRIE_UINTS_H

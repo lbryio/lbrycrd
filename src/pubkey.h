@@ -36,6 +36,17 @@ public:
     }
 };
 
+namespace std {
+    template <>
+    struct hash<CKeyID>
+    {
+        std::size_t operator()(const CKeyID& k) const
+        {
+            return *reinterpret_cast<const std::size_t*>(k.begin());
+        }
+    };
+}
+
 typedef uint256 ChainCode;
 
 /** An encapsulated public key. */
