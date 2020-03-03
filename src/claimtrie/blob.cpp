@@ -42,19 +42,19 @@ int CBaseBlob<BITS>::Compare(const CBaseBlob& b) const
 template<uint32_t BITS>
 bool CBaseBlob<BITS>::operator<(const CBaseBlob& b) const
 {
-    return data < b.data;
+    return Compare(b) < 0;
 }
 
 template<uint32_t BITS>
 bool CBaseBlob<BITS>::operator==(const CBaseBlob& b) const
 {
-    return data == b.data;
+    return Compare(b) == 0;
 }
 
 template<uint32_t BITS>
 bool CBaseBlob<BITS>::operator!=(const CBaseBlob& b) const
 {
-    return data != b.data;
+    return Compare(b) != 0;
 }
 
 template<uint32_t BITS>

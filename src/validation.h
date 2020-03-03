@@ -158,15 +158,15 @@ struct BlockMapComparer {
     }
 };
 
-struct BlockMap : public robin_hood::unordered_flat_set<CBlockIndex*, BlockMapHasher, BlockMapComparer> {
+struct BlockMap : public robin_hood::unordered_set<CBlockIndex*, BlockMapHasher, BlockMapComparer> {
     inline iterator find(const uint256& blockHash) {
         CBlockIndex temp(blockHash);
-        return robin_hood::unordered_flat_set<CBlockIndex*, BlockMapHasher, BlockMapComparer>::find(&temp);
+        return robin_hood::unordered_set<CBlockIndex*, BlockMapHasher, BlockMapComparer>::find(&temp);
     }
 
     inline const_iterator find(const uint256& blockHash) const {
         CBlockIndex temp(blockHash);
-        return robin_hood::unordered_flat_set<CBlockIndex*, BlockMapHasher, BlockMapComparer>::find(&temp);
+        return robin_hood::unordered_set<CBlockIndex*, BlockMapHasher, BlockMapComparer>::find(&temp);
     }
 };
 

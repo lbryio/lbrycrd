@@ -699,7 +699,7 @@ private:
      * detect and report conflicts (double-spends or
      * mutated transactions where the mutant gets mined).
      */
-    typedef robin_hood::unordered_flat_map<uint256, robin_hood::unordered_flat_map<uint32_t, std::vector<uint256>>> TxSpends;
+    typedef robin_hood::unordered_map<uint256, robin_hood::unordered_map<uint32_t, std::vector<uint256>>> TxSpends;
     TxSpends mapTxSpends;
     void AddToSpends(const COutPoint& outpoint, const uint256& wtxid);
     void AddToSpends(const uint256& wtxid);
@@ -808,10 +808,10 @@ public:
     void MarkPreSplitKeys();
 
     // Map from Key ID to key metadata.
-    robin_hood::unordered_flat_map<CKeyID, CKeyMetadata> mapKeyMetadata;
+    robin_hood::unordered_map<CKeyID, CKeyMetadata> mapKeyMetadata;
 
     // Map from Script ID to key metadata (for watch-only keys).
-    robin_hood::unordered_flat_map<CScriptID, CKeyMetadata> m_script_metadata;
+    robin_hood::unordered_map<CScriptID, CKeyMetadata> m_script_metadata;
 
     typedef std::map<unsigned int, CMasterKey> MasterKeyMap;
     MasterKeyMap mapMasterKeys;
