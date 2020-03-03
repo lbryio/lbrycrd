@@ -117,14 +117,14 @@ sudo add-apt-repository ppa:bitcoin/bitcoin
 sudo apt-get update
 sudo apt-get install libdb4.8-dev libdb4.8++-dev libicu-dev libssl-dev libevent-dev \
                      build-essential git libtool autotools-dev automake pkg-config bsdmainutils curl ca-certificates \
-                     libboost-system-dev libboost-filesystem-dev libboost-chrono-dev libboost-test-dev libboost-thread-dev
+                     libboost-system-dev libboost-filesystem-dev libboost-chrono-dev libboost-test-dev libboost-thread-dev doxygen
 
 # optionally include libminiupnpc-dev libzmq3-dev
 
 git clone https://github.com/lbryio/lbrycrd.git
 cd lbrycrd
 ./autogen.sh
-./configure --enable-static --disable-shared --with-pic --without-gui CXXFLAGS="-O3 -march=native"
+./configure --enable-static=no --enable-shared --with-pic --without-gui CXXFLAGS="-O3 -march=native" CFLAGS="-O3 -march=native"
 make -j$(nproc)
 ./src/lbrycrdd -server ...
 
