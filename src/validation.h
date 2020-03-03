@@ -17,6 +17,7 @@
 #include <nameclaim.h>
 #include <protocol.h> // For CMessageHeader::MessageStartChars
 #include <policy/feerate.h>
+#include <primitives/robin_hood.h>
 #include <script/script_error.h>
 #include <sync.h>
 #include <txmempool.h>
@@ -157,15 +158,15 @@ struct BlockMapComparer {
     }
 };
 
-struct BlockMap : public std::unordered_set<CBlockIndex*, BlockMapHasher, BlockMapComparer> {
+struct BlockMap : public robin_hood::unordered_flat_set<CBlockIndex*, BlockMapHasher, BlockMapComparer> {
     inline iterator find(const uint256& blockHash) {
         CBlockIndex temp(blockHash);
-        return std::unordered_set<CBlockIndex*, BlockMapHasher, BlockMapComparer>::find(&temp);
+        return robin_hood::unordered_flat_set<CBlockIndex*, BlockMapHasher, BlockMapComparer>::find(&temp);
     }
 
     inline const_iterator find(const uint256& blockHash) const {
         CBlockIndex temp(blockHash);
-        return std::unordered_set<CBlockIndex*, BlockMapHasher, BlockMapComparer>::find(&temp);
+        return robin_hood::unordered_flat_set<CBlockIndex*, BlockMapHasher, BlockMapComparer>::find(&temp);
     }
 };
 

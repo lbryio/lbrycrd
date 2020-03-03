@@ -40,9 +40,9 @@ namespace std {
     template <>
     struct hash<CKeyID>
     {
-        std::size_t operator()(const CKeyID& k) const
+        size_t operator()(const CKeyID& k) const
         {
-            return *reinterpret_cast<const std::size_t*>(k.begin());
+            return *reinterpret_cast<const size_t*>(k.begin());
         }
     };
 }

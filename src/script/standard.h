@@ -31,9 +31,9 @@ namespace std {
     template <>
     struct hash<CScriptID>
     {
-        std::size_t operator()(const CScriptID& k) const
+        size_t operator()(const CScriptID& k) const
         {
-            return *reinterpret_cast<const std::size_t*>(k.begin());
+            return *reinterpret_cast<const size_t*>(k.begin());
         }
     };
 }

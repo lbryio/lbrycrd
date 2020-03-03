@@ -45,18 +45,18 @@ namespace std {
     template <>
     struct hash<uint160>
     {
-        std::size_t operator()(const uint160& k) const
+        size_t operator()(const uint160& k) const
         {
-            return *reinterpret_cast<const std::size_t*>(k.begin());
+            return *reinterpret_cast<const size_t*>(k.begin());
         }
     };
 
     template <>
     struct hash<uint256>
     {
-        std::size_t operator()(const uint256& k) const
+        size_t operator()(const uint256& k) const
         {
-            return *reinterpret_cast<const std::size_t*>(k.begin());
+            return *reinterpret_cast<const size_t*>(k.begin());
         }
     };
 }
