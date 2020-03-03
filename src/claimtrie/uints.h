@@ -5,6 +5,8 @@
 #include <blob.h>
 #include <string>
 
+#include <primitives/robin_hood.h>
+
 class uint160 : public CBaseBlob<160>
 {
 public:
@@ -39,5 +41,27 @@ uint160 uint160S(const std::string& s);
 
 uint256 uint256S(const char* str);
 uint256 uint256S(const std::string& s);
+
+namespace std {
+
+    template <>
+    struct hash<uint160>
+    {
+        size_t operator()(const uint160& k) const
+        {
+            return robin_hood::hash_bytes(k.begin(), k.size());
+        }
+    };
+
+    template <>
+    struct hash<uint256>
+    {
+        size_t operator()(const uint256& k) const
+        {
+            return robin_hood::hash_bytes(k.begin(), k.size());
+        }
+    };
+}
+
 
 #endif // CLAIMTRIE_UINTS_H

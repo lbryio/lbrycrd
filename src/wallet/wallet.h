@@ -9,6 +9,7 @@
 #include <amount.h>
 #include <outputtype.h>
 #include <policy/feerate.h>
+#include <primitives/robin_hood.h>
 #include <streams.h>
 #include <tinyformat.h>
 #include <ui_interface.h>
@@ -28,7 +29,6 @@
 #include <memory>
 #include <set>
 #include <stdexcept>
-#include <stdint.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -699,7 +699,7 @@ private:
      * detect and report conflicts (double-spends or
      * mutated transactions where the mutant gets mined).
      */
-    typedef std::multimap<COutPoint, uint256> TxSpends;
+    typedef robin_hood::unordered_map<uint256, robin_hood::unordered_map<uint32_t, std::vector<uint256>>> TxSpends;
     TxSpends mapTxSpends;
     void AddToSpends(const COutPoint& outpoint, const uint256& wtxid);
     void AddToSpends(const uint256& wtxid);
@@ -725,7 +725,7 @@ private:
     /* Mark a transaction's inputs dirty, thus forcing the outputs to be recomputed */
     void MarkInputsDirty(const CTransactionRef& tx);
 
-    void SyncMetaData(std::pair<TxSpends::iterator, TxSpends::iterator>);
+    void SyncMetaData(const COutPoint& outpoint);
 
     /* Used by TransactionAddedToMemorypool/BlockConnected/Disconnected/ScanForWalletTransactions.
      * Should be called with pindexBlock and posInBlock if this is for a transaction that is included in a block. */
@@ -808,17 +808,18 @@ public:
     void MarkPreSplitKeys();
 
     // Map from Key ID to key metadata.
-    std::map<CKeyID, CKeyMetadata> mapKeyMetadata;
+    robin_hood::unordered_map<CKeyID, CKeyMetadata> mapKeyMetadata;
 
     // Map from Script ID to key metadata (for watch-only keys).
-    std::map<CScriptID, CKeyMetadata> m_script_metadata;
+    robin_hood::unordered_map<CScriptID, CKeyMetadata> m_script_metadata;
 
     typedef std::map<unsigned int, CMasterKey> MasterKeyMap;
     MasterKeyMap mapMasterKeys;
     unsigned int nMasterKeyMaxID = 0;
 
     /** Construct wallet with specified name and database implementation. */
-    CWallet(const WalletLocation& location, std::unique_ptr<WalletDatabase> database) : m_location(location), database(std::move(database))
+    CWallet(const WalletLocation& location, std::unique_ptr<WalletDatabase> database)
+        : m_location(location), database(std::move(database))
     {
     }
 
@@ -830,7 +831,7 @@ public:
         encrypted_batch = nullptr;
     }
 
-    std::map<uint256, CWalletTx> mapWallet;
+    robin_hood::unordered_node_map<uint256, CWalletTx> mapWallet;
     std::list<CAccountingEntry> laccentries;
 
     typedef std::pair<CWalletTx*, CAccountingEntry*> TxPair;

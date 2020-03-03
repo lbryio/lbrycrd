@@ -9,9 +9,8 @@
 
 /** Template base class for fixed-sized opaque blobs. */
 template<uint32_t BITS>
-CBaseBlob<BITS>::CBaseBlob()
+CBaseBlob<BITS>::CBaseBlob() noexcept : data{}
 {
-    SetNull();
 }
 
 template<uint32_t BITS>
@@ -22,16 +21,15 @@ CBaseBlob<BITS>::CBaseBlob(const std::vector<uint8_t>& vec)
 }
 
 template<uint32_t BITS>
-CBaseBlob<BITS>::CBaseBlob(const CBaseBlob& o)
+CBaseBlob<BITS>::CBaseBlob(const CBaseBlob& o) noexcept
 {
     *this = o;
 }
 
 template<uint32_t BITS>
-CBaseBlob<BITS>& CBaseBlob<BITS>::operator=(const CBaseBlob& o)
+CBaseBlob<BITS>& CBaseBlob<BITS>::operator=(const CBaseBlob& o) noexcept
 {
-    if (this != &o)
-        std::copy(o.begin(), o.end(), begin());
+    data = o.data;
     return *this;
 }
 
@@ -56,7 +54,7 @@ bool CBaseBlob<BITS>::operator==(const CBaseBlob& b) const
 template<uint32_t BITS>
 bool CBaseBlob<BITS>::operator!=(const CBaseBlob& b) const
 {
-    return !(*this == b);
+    return Compare(b) != 0;
 }
 
 template<uint32_t BITS>

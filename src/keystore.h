@@ -15,6 +15,9 @@
 
 #include <boost/signals2/signal.hpp>
 
+#include <primitives/robin_hood.h>
+#include <set>
+
 /** A virtual base class for key stores */
 class CKeyStore : public SigningProvider
 {
@@ -44,9 +47,9 @@ class CBasicKeyStore : public CKeyStore
 protected:
     mutable CCriticalSection cs_KeyStore;
 
-    using KeyMap = std::map<CKeyID, CKey>;
-    using WatchKeyMap = std::map<CKeyID, CPubKey>;
-    using ScriptMap = std::map<CScriptID, CScript>;
+    using KeyMap = robin_hood::unordered_map<CKeyID, CKey>;
+    using WatchKeyMap = robin_hood::unordered_map<CKeyID, CPubKey>;
+    using ScriptMap = robin_hood::unordered_map<CScriptID, CScript>;
     using WatchOnlySet = std::set<CScript>;
 
     KeyMap mapKeys GUARDED_BY(cs_KeyStore);
