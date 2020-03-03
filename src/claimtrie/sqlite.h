@@ -105,14 +105,15 @@ namespace sqlite
         return code;
     }
 
-    inline int sync(database& db, std::size_t attempts = 200)
+    inline int sync(database& db, std::size_t attempts = 20)
     {
         int code = SQLITE_OK;
         for (auto i = 0u; i < attempts; ++i) {
             code = sqlite3_wal_checkpoint_v2(db.connection().get(), nullptr, SQLITE_CHECKPOINT_FULL, nullptr, nullptr);
             if (code != SQLITE_OK) {
+                sqlite3_wal_checkpoint_v2(db.connection().get(), nullptr, SQLITE_CHECKPOINT_PASSIVE, nullptr, nullptr);
                 using namespace std::chrono_literals;
-                std::this_thread::sleep_for(100ms);
+                std::this_thread::sleep_for(200ms);
                 continue;
             }
             break;

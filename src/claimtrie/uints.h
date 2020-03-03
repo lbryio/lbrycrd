@@ -5,6 +5,8 @@
 #include <blob.h>
 #include <string>
 
+#include <primitives/robin_hood.h>
+
 class uint160 : public CBaseBlob<160>
 {
 public:
@@ -47,7 +49,7 @@ namespace std {
     {
         size_t operator()(const uint160& k) const
         {
-            return *reinterpret_cast<const size_t*>(k.begin());
+            return robin_hood::hash_bytes(k.begin(), k.size());
         }
     };
 
@@ -56,7 +58,7 @@ namespace std {
     {
         size_t operator()(const uint256& k) const
         {
-            return *reinterpret_cast<const size_t*>(k.begin());
+            return robin_hood::hash_bytes(k.begin(), k.size());
         }
     };
 }

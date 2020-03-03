@@ -42,7 +42,7 @@ namespace std {
     {
         size_t operator()(const CKeyID& k) const
         {
-            return *reinterpret_cast<const size_t*>(k.begin());
+            return robin_hood::hash_bytes(k.begin(), k.size());
         }
     };
 }

@@ -148,7 +148,7 @@ bool CCoinsViewDB::BatchWrite(const CCoinsMap &mapCoins, const uint256 &hashBloc
         code = sqlite::sync(db);
         if (code != SQLITE_OK) {
             LogPrintf("%s: Error syncing coin database. SQLite error: %d\n", __func__, code);
-            return false;
+            // don't return false as it may happen if someone else is reading our DB
         }
     }
     return true;
@@ -338,7 +338,7 @@ bool CBlockTreeDB::BatchWrite(const std::vector<std::pair<int, const CBlockFileI
         code = sqlite::sync(db);
         if (code != SQLITE_OK) {
             LogPrintf("%s: Error syncing block database. SQLite error: %d\n", __func__, code);
-            return false;
+            // don't return false here as this may happen if someone else is reading our DB
         }
     }
     return true;

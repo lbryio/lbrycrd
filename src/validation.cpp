@@ -2206,7 +2206,7 @@ bool static FlushStateToDisk(const CChainParams& chainparams, CValidationState &
             if (!CheckDiskSpace(48 * 2 * 2 * pcoinsTip->GetCacheSize()))
                 return state.Error("out of disk space");
             if (syncToDisk && !pclaimTrie->SyncToDisk())
-                return state.Error("Failed to write to claim trie database");
+                LogPrintf("Failed to sync claim trie database to disk");
             // Flush the chainstate (which may refer to block index entries).
             if (!pcoinsTip->Flush(syncToDisk))
                 return AbortNode(state, "Failed to write to coin database");

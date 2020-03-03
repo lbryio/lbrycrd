@@ -148,7 +148,7 @@ extern std::atomic_bool g_is_mempool_loaded;
 
 struct BlockMapHasher {
     std::size_t operator()(const CBlockIndex* block) const {
-        return *reinterpret_cast<const std::size_t*>(block->hash.begin());
+        return robin_hood::hash_bytes(block->hash.begin(), block->hash.size());
     }
 };
 
