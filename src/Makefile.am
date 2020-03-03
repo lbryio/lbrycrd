@@ -174,6 +174,7 @@ BITCOIN_CORE_H = \
   policy/settings.h \
   pow.h \
   protocol.h \
+  primitives/robin_hood.h \
   psbt.h \
   random.h \
   reverse_iterator.h \

@@ -36,6 +36,17 @@ public:
     }
 };
 
+namespace std {
+    template <>
+    struct hash<CKeyID>
+    {
+        size_t operator()(const CKeyID& k) const
+        {
+            return robin_hood::hash_bytes(k.begin(), k.size());
+        }
+    };
+}
+
 typedef uint256 ChainCode;
 
 /** An encapsulated public key. */

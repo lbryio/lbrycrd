@@ -18,6 +18,7 @@
 #include <nameclaim.h>
 #include <policy/feerate.h>
 #include <protocol.h> // For CMessageHeader::MessageStartChars
+#include <primitives/robin_hood.h>
 #include <script/script_error.h>
 #include <sync.h>
 #include <txmempool.h> // For CTxMemPool::cs
@@ -144,6 +145,7 @@ extern CBlockPolicyEstimator feeEstimator;
 extern CTxMemPool mempool;
 extern Mutex g_best_block_mutex;
 extern std::condition_variable g_best_block_cv;
+extern std::atomic_bool g_is_mempool_loaded;
 extern uint256 g_best_block;
 extern std::atomic_bool fImporting;
 extern std::atomic_bool fReindex;
@@ -428,15 +430,31 @@ struct CBlockIndexWorkComparator
     bool operator()(const CBlockIndex *pa, const CBlockIndex *pb) const;
 };
 
+struct CBlockMapHasher
+{
+    std::size_t operator()(const uint256& hash) const;
+    std::size_t operator()(const CBlockIndex* block) const;
+};
+
 struct CBlockIndexHashComparator
 {
-    using is_transparent = void;
     bool operator()(const CBlockIndex* pa, const CBlockIndex* pb) const;
     bool operator()(const CBlockIndex* pa, const uint256& hash) const;
     bool operator()(const uint256& hash, const CBlockIndex* pa) const;
 };
 
-typedef std::set<CBlockIndex*, CBlockIndexHashComparator> BlockMap;
+struct BlockMap : public robin_hood::unordered_set<CBlockIndex*, CBlockMapHasher, CBlockIndexHashComparator>
+{
+    inline iterator find(const uint256& hash)
+    {
+        return robin_hood::unordered_set<CBlockIndex*, CBlockMapHasher, CBlockIndexHashComparator>::find(hash, robin_hood::is_transparent_tag());
+    }
+
+    inline const_iterator find(const uint256& hash) const
+    {
+        return robin_hood::unordered_set<CBlockIndex*, CBlockMapHasher, CBlockIndexHashComparator>::find(hash, robin_hood::is_transparent_tag());
+    }
+};
 
 /**
  * Maintains a tree of blocks (stored in `m_block_index`) which is consulted

@@ -137,5 +137,8 @@ compile_commands\.json
 
 osx_volname
 dist/
+conftest.dir/
+
+confdefs.h
 *.background.tiff
 **/compiler*\.d

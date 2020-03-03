@@ -12,15 +12,15 @@ class CBaseBlob
 {
     std::array<uint8_t, BITS / 8> data;
 public:
-    CBaseBlob();
+    CBaseBlob() noexcept;
 
     explicit CBaseBlob(const std::vector<uint8_t>& vec);
 
     CBaseBlob(CBaseBlob&&) = default;
     CBaseBlob& operator=(CBaseBlob&&) = default;
 
-    CBaseBlob(const CBaseBlob& o);
-    CBaseBlob& operator=(const CBaseBlob& o);
+    CBaseBlob(const CBaseBlob& o) noexcept;
+    CBaseBlob& operator=(const CBaseBlob& o) noexcept;
 
     int Compare(const CBaseBlob& b) const;
     bool operator<(const CBaseBlob& b) const;

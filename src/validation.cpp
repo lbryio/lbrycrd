@@ -83,19 +83,29 @@ bool CBlockIndexWorkComparator::operator()(const CBlockIndex *pa, const CBlockIn
     return false;
 }
 
+std::size_t CBlockMapHasher::operator()(const uint256& hash) const
+{
+    return robin_hood::hash_bytes(hash.begin(), hash.size());
+}
+
+std::size_t CBlockMapHasher::operator()(const CBlockIndex* block) const
+{
+    return (*this)(block->hash);
+}
+
 bool CBlockIndexHashComparator::operator()(const CBlockIndex* pa, const CBlockIndex* pb) const
 {
-    return pa->hash < pb->hash;
+    return pa == pb || pa->hash == pb->hash;
 }
 
 bool CBlockIndexHashComparator::operator()(const CBlockIndex* pa, const uint256& hash) const
 {
-    return pa->hash < hash;
+    return pa->hash == hash;
 }
 
 bool CBlockIndexHashComparator::operator()(const uint256& hash, const CBlockIndex* pa) const
 {
-    return hash < pa->hash;
+    return (*this)(pa, hash);
 }
 
 namespace {
@@ -2514,7 +2524,7 @@ bool CChainState::FlushStateToDisk(
                 return AbortNode(state, "Disk space is too low!", _("Error: Disk space is too low!").translated, CClientUIInterface::MSG_NOPREFIX);
             }
             if (syncToDisk && !::Claimtrie().SyncToDisk())
-                return state.Error("Failed to write to claim trie database");
+                LogPrintf("Failed to sync claim trie database to disk");
             // Flush the chainstate (which may refer to block index entries).
             if (!CoinsTip().Flush(syncToDisk))
                 return AbortNode(state, "Failed to write to coin database");
@@ -3285,7 +3295,7 @@ bool CChainState::InvalidateBlock(CValidationState& state, const CChainParams& c
         while (it != m_blockman.m_block_index.end()) {
             if ((*it)->IsValid(BLOCK_VALID_TRANSACTIONS) && (*it)->HaveTxsDownloaded() && !setBlockIndexCandidates.value_comp()(*it, m_chain.Tip()))
                 setBlockIndexCandidates.insert(*it);
-            it++;
+            ++it;
         }
 
         InvalidChainFound(to_mark_failed);
@@ -3322,7 +3332,7 @@ void CChainState::ResetBlockFailureFlags(CBlockIndex *pindex) {
             }
             m_blockman.m_failed_blocks.erase(*it);
         }
-        it++;
+        ++it;
     }
 
     // Remove the invalidity flag from all ancestors too.
@@ -4814,7 +4824,8 @@ bool CChainState::LoadGenesisBlock(const CChainParams& chainparams)
     // m_blockman.m_block_index. Note that we can't use m_chain here, since it is
     // set based on the coins db, not the block index db, which is the only
     // thing loaded at this point.
-    if (m_blockman.m_block_index.count(chainparams.GenesisBlock().GetHash()))
+    auto it  = m_blockman.m_block_index.find(chainparams.GenesisBlock().GetHash());
+    if (it != m_blockman.m_block_index.end())
         return true;
 
     try {
@@ -5329,7 +5340,7 @@ public:
     ~CMainCleanup() {
         // block headers
         auto it1 = g_blockman.m_block_index.begin();
-        for (; it1 != g_blockman.m_block_index.end(); it1++)
+        for (; it1 != g_blockman.m_block_index.end(); ++it1)
             delete (*it1);
         g_blockman.m_block_index.clear();
     }

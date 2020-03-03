@@ -27,6 +27,17 @@ public:
     CScriptID(const uint160& in) : uint160(in) {}
 };
 
+namespace std {
+    template <>
+    struct hash<CScriptID>
+    {
+        size_t operator()(const CScriptID& k) const
+        {
+            return robin_hood::hash_bytes(k.begin(), k.size());
+        }
+    };
+}
+
 /**
  * Default setting for nMaxDatacarrierBytes. 80 bytes of data, +1 for OP_RETURN,
  * +2 for the pushdata opcodes.
