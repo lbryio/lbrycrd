@@ -702,7 +702,7 @@ private:
     typedef robin_hood::unordered_map<uint256, robin_hood::unordered_map<uint32_t, std::vector<uint256>>> TxSpends;
     TxSpends mapTxSpends;
     void AddToSpends(const COutPoint& outpoint, const uint256& wtxid);
-    void AddToSpends(const uint256& wtxid);
+    void AddToSpends(const CWalletTx& wtx);
 
     /**
      * Add a transaction to the wallet, or update it.  pIndex and posInBlock should
@@ -877,7 +877,7 @@ public:
     bool IsSpent(const uint256& hash, unsigned int n) const;
     std::vector<OutputGroup> GroupOutputs(const std::vector<COutput>& outputs, bool single_coin) const;
 
-    bool IsLockedCoin(uint256 hash, unsigned int n) const EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
+    bool IsLockedCoin(const uint256& hash, unsigned int n) const EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
     void LockCoin(const COutPoint& output) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
     void UnlockCoin(const COutPoint& output) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
     void UnlockAllCoins() EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
@@ -1214,8 +1214,8 @@ public:
 
     /** Returns a bracketed wallet name for displaying in logs, will return [default wallet] if the wallet has no name */
     const std::string GetDisplayName() const {
-        std::string wallet_name = GetName().length() == 0 ? "default wallet" : GetName();
-        return strprintf("[%s]", wallet_name);
+        const std::string wallet_name = GetName();
+        return strprintf("[%s]", wallet_name.empty() ? "default wallet" : wallet_name);
     };
 
     /** Prepends the wallet name in logging output to ease debugging in multi-wallet use cases */

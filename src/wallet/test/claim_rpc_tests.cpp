@@ -93,6 +93,15 @@ UniValue LookupAllNames() {
     return rpc_method(req);
 }
 
+UniValue PruneAbandonFunds(const uint256& txid) {
+    rpcfn_type rpc_method = tableRPC["removeprunedfunds"]->actor;
+    JSONRPCRequest req;
+    req.URI = "/wallet/tester_wallet";
+    req.params = UniValue(UniValue::VARR);
+    req.params.push_back(txid.GetHex());
+    return rpc_method(req);
+}
+
 std::vector<uint256> generateBlock(int blocks = 1) {
     rpcfn_type rpc_method = tableRPC["generate"]->actor;
     JSONRPCRequest req;
@@ -486,6 +495,18 @@ BOOST_AUTO_TEST_CASE(can_claim_after_each_fork)
     generateBlock(1);
     auto looked = LookupAllNames().get_array();
     BOOST_CHECK_EQUAL(looked.size(), 4U);
+}
+
+BOOST_AUTO_TEST_CASE(remove_pruned_funds)
+{
+    generateBlock(140);
+    // claim a name
+    auto txid = ClaimAName("tester", "deadbeef", "1.0");
+    generateBlock();
+    // abandon claim
+    AbandonAClaim(txid);
+    generateBlock();
+    PruneAbandonFunds(txid);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
