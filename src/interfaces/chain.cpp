@@ -167,8 +167,8 @@ public:
     void disconnect() override
     {
         if (m_notifications) {
-            m_notifications = nullptr;
             UnregisterValidationInterface(this);
+            m_notifications = nullptr;
         }
     }
     void TransactionAddedToMempool(const CTransactionRef& tx) override
@@ -347,15 +347,17 @@ public:
     {
         return MakeUnique<NotificationsHandlerImpl>(*this, notifications);
     }
-    void waitForNotificationsIfNewBlocksConnected(const uint256& old_tip) override
+    bool waitForNotificationsIfTipIsNotSame(const uint256& tip) override
     {
-        if (!old_tip.IsNull()) {
+        if (!tip.IsNull()) {
             LOCK(::cs_main);
-            if (old_tip == ::ChainActive().Tip()->GetBlockHash()) return;
-            CBlockIndex* block = LookupBlockIndex(old_tip);
-            if (block && block->GetAncestor(::ChainActive().Height()) == ::ChainActive().Tip()) return;
+            auto chainTip = ::ChainActive().Tip();
+            if (tip == chainTip->GetBlockHash()) return true;
+            CBlockIndex* block = LookupBlockIndex(tip);
+            if (block && block->GetAncestor(::ChainActive().Height()) == chainTip) return true;
         }
         SyncWithValidationInterfaceQueue();
+        return false;
     }
     std::unique_ptr<Handler> handleRpc(const CRPCCommand& command) override
     {

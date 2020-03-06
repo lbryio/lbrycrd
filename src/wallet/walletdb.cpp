@@ -78,7 +78,7 @@ bool WalletBatch::WriteTx(const CWalletTx& wtx)
     return WriteIC(std::make_pair(DBKeys::TX, wtx.GetHash()), wtx);
 }
 
-bool WalletBatch::EraseTx(uint256 hash)
+bool WalletBatch::EraseTx(const uint256& hash)
 {
     return EraseIC(std::make_pair(DBKeys::TX, hash));
 }
@@ -615,10 +615,10 @@ DBErrors WalletBatch::ZapSelectTx(std::vector<uint256>& vTxHashIn, std::vector<u
 
     // erase each matching wallet TX
     bool delerror = false;
-    std::vector<uint256>::iterator it = vTxHashIn.begin();
+    auto it = vTxHashIn.begin();
     for (const uint256& hash : vTxHash) {
-        while (it < vTxHashIn.end() && (*it) < hash) {
-            it++;
+        while (it != vTxHashIn.end() && (*it) < hash) {
+            ++it;
         }
         if (it == vTxHashIn.end()) {
             break;

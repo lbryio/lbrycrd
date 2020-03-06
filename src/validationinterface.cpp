@@ -104,6 +104,7 @@ void RegisterValidationInterface(CValidationInterface* pwalletIn) {
 void UnregisterValidationInterface(CValidationInterface* pwalletIn) {
     if (g_signals.m_internals) {
         g_signals.m_internals->m_connMainSignals.erase(pwalletIn);
+        g_signals.FlushBackgroundCallbacks();
     }
 }
 
