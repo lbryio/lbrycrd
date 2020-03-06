@@ -151,8 +151,8 @@ bool CCoinsViewDB::BatchWrite(const CCoinsMap &mapCoins, const uint256 &hashBloc
 size_t CCoinsViewDB::EstimateSize() const
 {
     size_t ret = 0;
-    db << "SELECT COUNT(*) FROM unspent" >> ret;
-    return ret * 100;
+    db << "SELECT COUNT(*) FROM unspent ORDER BY txID, txN" >> ret; // force index use via order by
+    return ret * 770; // number chosen empirically
 }
 
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe)
