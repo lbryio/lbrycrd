@@ -17,6 +17,7 @@
 #include <util/translation.h>
 
 #include <stdint.h>
+#include <boost/thread/interruption.hpp>
 
 static const sqlite::sqlite_config sharedConfig {
         sqlite::OpenFlags::READWRITE | sqlite::OpenFlags::CREATE,
