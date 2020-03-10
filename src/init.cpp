@@ -24,6 +24,7 @@
 #include <httprpc.h>
 #include <httpserver.h>
 #include <index/blockfilterindex.h>
+#include <index/txindex.h>
 #include <interfaces/chain.h>
 #include <key.h>
 #include <lbry.h>
@@ -168,6 +169,8 @@ void Interrupt()
     InterruptMapPort();
     if (g_connman)
         g_connman->Interrupt();
+    if (g_txindex)
+        g_txindex->Interrupt();
     ForEachBlockFilterIndex([](BlockFilterIndex& index) { index.Interrupt(); });
 }
 
@@ -245,7 +248,10 @@ void Shutdown(InitInterfaces& interfaces)
     GetMainSignals().FlushBackgroundCallbacks();
 
     // Stop and delete all indexes only after flushing background callbacks.
-    ForEachBlockFilterIndex([](BlockFilterIndex& index) { index.Stop(); });
+    if (g_txindex) {
+        g_txindex->Stop();
+        g_txindex.reset();
+    }ForEachBlockFilterIndex([](BlockFilterIndex& index) { index.Stop(); });
     DestroyAllBlockFilterIndexes();
 
     // Any future callbacks will be dropped. This should absolutely be safe - if
@@ -385,7 +391,7 @@ void SetupServerArgs()
         -GetNumCores(), MAX_SCRIPTCHECK_THREADS, DEFAULT_SCRIPTCHECK_THREADS), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     gArgs.AddArg("-persistmempool", strprintf("Whether to save the mempool on shutdown and load on restart (default: %u)", DEFAULT_PERSIST_MEMPOOL), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     gArgs.AddArg("-pid=<file>", strprintf("Specify pid file. Relative paths will be prefixed by a net-specific datadir location. (default: %s)", BITCOIN_PID_FILENAME), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
-    gArgs.AddArg("-prune=<n>", strprintf("Reduce storage requirements by enabling pruning (deleting) of old blocks. This allows the pruneblockchain RPC to be called to delete specific blocks, and enables automatic pruning of old blocks if a target size in MiB is provided. This mode is incompatible with -rescan. "
+    gArgs.AddArg("-prune=<n>", strprintf("Reduce storage requirements by enabling pruning (deleting) of old blocks. This allows the pruneblockchain RPC to be called to delete specific blocks, and enables automatic pruning of old blocks if a target size in MiB is provided. This mode is incompatible with -rescan and -txindex. "
             "Warning: Reverting this setting requires re-downloading the entire blockchain. "
             "(default: 0 = disable pruning blocks, 1 = allow manual pruning via RPC, >=%u = automatically prune block files to stay under the specified target size in MiB)", MIN_DISK_SPACE_FOR_BLOCK_FILES / 1024 / 1024), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     gArgs.AddArg("-reindex", "Rebuild chain state and block index from the blk*.dat files on disk", ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
@@ -395,6 +401,7 @@ void SetupServerArgs()
 #else
     hidden_args.emplace_back("-sysperms");
 #endif
+    gArgs.AddArg("-txindex", strprintf("Maintain a full transaction index, used by the getrawtransaction rpc call (default: %u)", DEFAULT_TXINDEX), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     gArgs.AddArg("-blockfilterindex=<type>",
                  strprintf("Maintain an index of compact filters by block (default: %s, values: %s).", DEFAULT_BLOCKFILTERINDEX, ListBlockFilterTypes()) +
                  " If <type> is not supplied or if <type> = 1, indexes for all known types are enabled.",
@@ -856,6 +863,9 @@ void InitLogging()
     version_string += " (release build)";
 #endif
     LogPrintf(PACKAGE_NAME " version %s\n", version_string);
+
+    if (LogInstance().Enabled() && LogAcceptCategory(BCLog::CLAIMS))
+        CLogPrint::global().setLogger(&LogInstance());
 }
 
 namespace { // Variables internal to initialization process only
@@ -963,6 +973,8 @@ bool AppInitParameterInteraction()
     }
 
     if (gArgs.GetArg("-prune", 0)) {
+        if (gArgs.GetBoolArg("-txindex", DEFAULT_TXINDEX))
+            return InitError(_("Prune mode is incompatible with -txindex.").translated);
         if (!g_enabled_filter_types.empty()) {
             return InitError(_("Prune mode is incompatible with -blockfilterindex.").translated);
         }
@@ -1254,9 +1266,6 @@ bool AppInitMain(InitInterfaces& interfaces)
             }
     );
 
-    if (LogInstance().Enabled() && LogAcceptCategory(BCLog::CLAIMS))
-        CLogPrint::global().setLogger(&LogInstance());
-
     InitSignatureCache();
     InitScriptExecutionCache();
 
@@ -1438,17 +1447,19 @@ bool AppInitMain(InitInterfaces& interfaces)
     // the coin cache, the block cache, the claimtrie cache
     // however, we want the claimtrie cache to be larger than the others
 
-    int64_t nBlockTreeDBCache = std::min(nTotalCache / 4, nMaxBlockDBCache << 20);
+    int64_t nBlockTreeDBCache = std::min(nTotalCache / 5, nMaxBlockDBCache << 20);
     int64_t nCoinDBCache = std::min(nTotalCache / 4, nMaxCoinsDBCache << 20);
     int64_t nClaimtrieCache = ::Claimtrie().cache();
     nTotalCache -= nBlockTreeDBCache;
+    int64_t nTxIndexCache = std::min(nTotalCache / 4, gArgs.GetBoolArg("-txindex", DEFAULT_TXINDEX) ? int64_t(1 << 24) : 0);
     int64_t filter_index_cache = 0;
     if (!g_enabled_filter_types.empty()) {
         size_t n_indexes = g_enabled_filter_types.size();
-        int64_t max_cache = std::min(nTotalCache / 8, max_filter_index_cache << 20);
+        int64_t max_cache = std::min(nTotalCache / 4, max_filter_index_cache << 20);
         filter_index_cache = max_cache / n_indexes;
         nTotalCache -= filter_index_cache * n_indexes;
     }
+
     nTotalCache -= nCoinDBCache;
     nTotalCache -= nClaimtrieCache;
     nCoinCacheUsage = nTotalCache; // the rest goes to in-memory cache
@@ -1458,6 +1469,8 @@ bool AppInitMain(InitInterfaces& interfaces)
     LogPrintf("* Using %.1fMiB for block index database cache\n", nBlockTreeDBCache * (1.0 / 1024 / 1024));
     LogPrintf("* Using %.1fMiB for chain state database cache\n", nCoinDBCache * (1.0 / 1024 / 1024));
     LogPrintf("* Using %.1fMiB for claimtrie database cache\n", nClaimtrieCache * (1.0 / 1024 / 1024));
+    if (nTxIndexCache)
+        LogPrintf("* Using %.1fMiB for txindex database cache\n", nTxIndexCache * (1.0 / 1024 / 1024));
     for (BlockFilterType filter_type : g_enabled_filter_types) {
         LogPrintf("* Using %.1f MiB for %s block filter index database\n",
                   filter_index_cache * (1.0 / 1024 / 1024), BlockFilterTypeName(filter_type));
@@ -1671,7 +1684,8 @@ bool AppInitMain(InitInterfaces& interfaces)
 
     // ********************************************************* Step 8: start indexers
     if (gArgs.GetBoolArg("-txindex", DEFAULT_TXINDEX)) {
-        LogPrintf("The txindex parameter is no longer necessary. It is always on.\n");
+        g_txindex = MakeUnique<TxIndex>(nTxIndexCache, false, fReindex);
+        g_txindex->Start();
     }
 
     for (const auto& filter_type : g_enabled_filter_types) {

@@ -18,8 +18,6 @@
 
 #include <stdint.h>
 
-#include <boost/thread.hpp>
-
 static const sqlite::sqlite_config sharedConfig {
         sqlite::OpenFlags::READWRITE | sqlite::OpenFlags::CREATE,
         nullptr, sqlite::Encoding::UTF8
@@ -188,11 +186,7 @@ CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe)
           "nonce INTEGER NOT NULL "
           ")";
 
-    db << "CREATE TABLE IF NOT EXISTS tx_to_block ("
-          "txID BLOB NOT NULL PRIMARY KEY, "
-          "file INTEGER NOT NULL, "
-          "blockPos INTEGER NOT NULL, "
-          "txPos INTEGER NOT NULL)";
+    db << "DROP TABLE IF EXISTS tx_to_block";
 
     db << "CREATE TABLE IF NOT EXISTS flag ("
           "name TEXT NOT NULL PRIMARY KEY, "
@@ -392,32 +386,4 @@ bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, 
     }
 
     return true;
-}
-
-bool CBlockTreeDB::WriteTxIndex(const FlatFilePos& file, const std::vector<std::pair<uint256, uint32_t>>& txOffsets)
-{
-    if (txOffsets.empty()) return true;
-    db << "begin";
-    auto query = db << "INSERT OR REPLACE INTO tx_to_block VALUES(?,?,?,?)";
-    for (auto& kvp: txOffsets) {
-        query << kvp.first << file.nFile << file.nPos << kvp.second;
-        query++;
-    }
-    query.used(true);
-    auto code = sqlite::commit(db);
-    if (code != SQLITE_OK) {
-        LogPrintf("%s: Error committing tx to database. SQLite error: %d\n", __func__, code);
-        return false;
-    }
-    return true;
-}
-
-bool CBlockTreeDB::ReadTxIndex(const uint256 &txid, FlatFilePos &file, uint32_t& offset)
-{
-    auto query = db << "SELECT file, blockPos, txPos FROM tx_to_block WHERE txID = ?" << txid;
-    for (auto&& row: query) {
-        row >> file.nFile >> file.nPos >> offset;
-        return true;
-    }
-    return false;
 }

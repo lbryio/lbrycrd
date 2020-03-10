@@ -60,7 +60,7 @@ BlockFilterIndex::BlockFilterIndex(BlockFilterType filter_type,
     (*m_db) << "CREATE TABLE IF NOT EXISTS block (height INTEGER, hash BLOB NOT NULL COLLATE BINARY, "
                "filter_hash BLOB NOT NULL COLLATE BINARY, header BLOB NOT NULL COLLATE BINARY, "
                "file INTEGER NOT NULL, pos INTEGER NOT NULL, "
-               "PRIMARY KEY(height, hash), UNIQUE(filter_hash, header, file, pos));";
+               "PRIMARY KEY(height, hash));";
 
     (*m_db) << "CREATE TABLE IF NOT EXISTS file_pos (file INTEGER NOT NULL, pos INTEGER NOT NULL);";
 
@@ -214,7 +214,7 @@ bool BlockFilterIndex::WriteBlock(const CBlock& block, const CBlockIndex* pindex
 
     const auto filterHash = filter.GetHash(); // trying to avoid temps
     const auto filterHeader = filter.ComputeHeader(prev_header);
-    (*m_db) << "INSERT INTO block VALUES(?, ?, ?, ?, ?, ?)"
+    (*m_db) << "INSERT OR REPLACE INTO block VALUES(?, ?, ?, ?, ?, ?)"
             << pindex->nHeight
             << pindex->hash
             << filterHash

@@ -7,6 +7,7 @@
 #include <consensus/validation.h>
 #include <core_io.h>
 #include <claimtrie/forks.h>
+#include <index/txindex.h>
 #include <init.h>
 #include <interfaces/chain.h>
 #include <key_io.h>
@@ -788,6 +789,13 @@ UniValue supportclaim(const JSONRPCRequest& request)
     if (sClaimId.length() > claimLength)
         throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("claimid must be maximum of length %d", claimLength));
 
+    auto isTip = false;
+    if (request.params.size() > 4)
+        isTip = request.params[4].get_bool();
+
+    if (isTip && g_txindex)
+        g_txindex->BlockUntilSyncedToCurrentChain();
+
     pwallet->BlockUntilSyncedToCurrentChain();
     auto locked_chain = pwallet->chain().lock();
     LOCK(pwallet->cs_wallet);
@@ -821,10 +829,6 @@ UniValue supportclaim(const JSONRPCRequest& request)
     }
 
     supportScript = supportScript << OP_2DROP << lastOp;
-
-    auto isTip = false;
-    if (request.params.size() > 4)
-        isTip = request.params[4].get_bool();
 
     CTxDestination dest;
     if (isTip) {

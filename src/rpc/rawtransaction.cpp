@@ -8,6 +8,7 @@
 #include <compat/byteswap.h>
 #include <consensus/validation.h>
 #include <core_io.h>
+#include <index/txindex.h>
 #include <key_io.h>
 #include <merkleblock.h>
 #include <node/coin.h>
@@ -178,6 +179,11 @@ static UniValue getrawtransaction(const JSONRPCRequest& request)
         in_active_chain = ::ChainActive().Contains(blockindex);
     }
 
+    bool f_txindex_ready = false;
+    if (g_txindex && !blockindex) {
+        f_txindex_ready = g_txindex->BlockUntilSyncedToCurrentChain();
+    }
+
     CTransactionRef tx;
     uint256 hash_block;
     if (!GetTransaction(hash, tx, Params().GetConsensus(), hash_block, blockindex)) {
@@ -187,6 +193,10 @@ static UniValue getrawtransaction(const JSONRPCRequest& request)
                 throw JSONRPCError(RPC_MISC_ERROR, "Block not available");
             }
             errmsg = "No such transaction found in the provided block";
+        } else if (!g_txindex) {
+            errmsg = "No such mempool transaction. Use -txindex or provide a block hash to enable blockchain transaction queries";
+        } else if (!f_txindex_ready) {
+            errmsg = "No such mempool transaction. Blockchain transactions are still in the process of being indexed";
         } else {
             errmsg = "No such mempool or blockchain transaction";
         }
@@ -257,6 +267,10 @@ static UniValue gettxoutproof(const JSONRPCRequest& request)
                 break;
             }
         }
+    }
+
+    if (g_txindex && !pblockindex) {
+        g_txindex->BlockUntilSyncedToCurrentChain();
     }
 
     LOCK(cs_main);

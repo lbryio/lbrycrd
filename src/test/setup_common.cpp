@@ -33,6 +33,11 @@
 
 #include <functional>
 
+#ifdef BOOST_TEST_DYN_LINK // do not include in qt
+#include <boost/test/unit_test.hpp>
+#include <boost/test/unit_test_parameters.hpp>
+#endif
+
 const std::function<std::string(const char*)> G_TRANSLATION_FUN = nullptr;
 
 FastRandomContext g_insecure_rand_ctx;
@@ -70,10 +75,20 @@ std::ostream& operator<<(std::ostream& os, const CSupportValue& support)
 BasicTestingSetup::BasicTestingSetup(const std::string& chainName)
     : m_path_root(fs::temp_directory_path() / "test_common_" PACKAGE_TARNAME / strprintf("%lu_%i", (unsigned long)GetTime(), (int)(InsecureRandRange(1 << 30))))
 {
+    gArgs.ForceSetArg("-printtoconsole", "0");
+#ifdef BOOST_TEST_DYN_LINK // do not include in qt
+    // for debugging:
+    if (boost::unit_test::runtime_config::get<boost::unit_test::log_level>(boost::unit_test::runtime_config::btrt_log_level)
+        <= boost::unit_test::log_level::log_messages) {
+        gArgs.ForceSetArg("-printtoconsole", "1");
+        gArgs.ForceSetArg("-logtimemicros", "1");
+        LogInstance().EnableCategory(BCLog::ALL);
+    }
+#endif
+
     gArgs.ForceSetArg("-datadir", m_path_root.string());
     ClearDatadirCache();
     SelectParams(chainName);
-    gArgs.ForceSetArg("-printtoconsole", "0");
     InitLogging();
     LogInstance().StartLogging();
     SHA256AutoDetect();

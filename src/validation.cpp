@@ -18,6 +18,7 @@
 #include <consensus/validation.h>
 #include <cuckoocache.h>
 #include <flatfile.h>
+#include <index/txindex.h>
 #include <hash.h>
 #include <nameclaim.h>
 #include <policy/fees.h>
@@ -1137,29 +1138,6 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
     return AcceptToMemoryPoolWithTime(chainparams, pool, state, tx, pfMissingInputs, GetTime(), plTxnReplaced, bypass_limits, nAbsurdFee, test_accept);
 }
 
-bool FillTx(const uint256& tx_hash, const FlatFilePos& pos, uint32_t offset, uint256& block_hash, CTransactionRef& tx)
-{
-    CAutoFile file(OpenBlockFile(pos, true), SER_DISK, CLIENT_VERSION);
-    if (file.IsNull()) {
-        return error("%s: OpenBlockFile failed", __func__);
-    }
-    CBlockHeader header;
-    try {
-        file >> header;
-        if (fseek(file.Get(), offset, SEEK_CUR)) {
-            return error("%s: fseek(...) failed", __func__);
-        }
-        file >> tx;
-    } catch (const std::exception& e) {
-        return error("%s: Deserialize or I/O error - %s", __func__, e.what());
-    }
-    if (tx->GetHash() != tx_hash) {
-        return error("%s: txid mismatch", __func__);
-    }
-    block_hash = header.GetHash();
-    return true;
-}
-
 /**
  * Return transaction in txOut, and if it was found inside a block, its hash is placed in hashBlock.
  * If blockIndex is provided, the transaction is fetched from the corresponding block.
@@ -1174,13 +1152,9 @@ bool GetTransaction(const uint256& hash, CTransactionRef& txOut, const Consensus
             txOut = ptx;
             return true;
         }
-        if (pblocktree) {
-            uint32_t offset;
-            FlatFilePos pos;
-            if (pblocktree->ReadTxIndex(hash, pos, offset) && FillTx(hash, pos, offset, hashBlock, ptx)) {
-                txOut = ptx;
-                return true;
-            }
+
+        if (g_txindex) {
+            return g_txindex->FindTx(hash, hashBlock, txOut);
         }
     } else {
         CBlock block;
@@ -2261,9 +2235,6 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     CAmount nFees = 0;
     int nInputs = 0;
     int64_t nSigOpsCost = 0;
-    std::vector<std::pair<uint256, uint32_t>> txOffsets;
-    uint32_t offset = ::GetSizeOfCompactSize(block.vtx.size());
-    txOffsets.reserve(block.vtx.size());
     blockundo.vtxundo.reserve(block.vtx.size() - 1);
     std::vector<PrecomputedTransactionData> txdata;
     txdata.reserve(block.vtx.size()); // Required so that pointers to individual PrecomputedTransactionData don't get invalidated
@@ -2371,9 +2342,6 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
         // or cache when trying to spend it, we shouldn't try to put a claim or support back
         // in. Some OP_UPDATE_CLAIM's, for example, may be invalid, and so may never have been
         // inserted into the trie in the first place.
-
-        txOffsets.push_back(std::make_pair(tx.GetHash(), offset));
-        offset += ::GetSerializeSize(tx, CLIENT_VERSION);
     }
 
     // TODO: if the "just check" flag is set, we should reduce the work done here. Incrementing blocks twice per mine is not efficient.
@@ -2405,8 +2373,6 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
         return true;
 
     if (pindex->pprev && !WriteUndoDataForBlock(blockundo, state, pindex, chainparams))
-        return false;
-    if (!pblocktree->WriteTxIndex(pindex->GetBlockPos(), txOffsets))
         return false;
 
     if (!pindex->IsValid(BLOCK_VALID_SCRIPTS)) {

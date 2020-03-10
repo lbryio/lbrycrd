@@ -12,6 +12,8 @@
 #include <validation.h>
 #include <warnings.h>
 
+#include <chrono>
+
 constexpr int64_t SYNC_LOG_INTERVAL = 30; // seconds
 constexpr int64_t SYNC_LOCATOR_WRITE_INTERVAL = 30; // seconds
 
@@ -105,6 +107,7 @@ static const CBlockIndex* NextSyncBlock(const CBlockIndex* pindex_prev) EXCLUSIV
 
 void BaseIndex::ThreadSync()
 {
+    auto start = std::chrono::high_resolution_clock::now();
     const CBlockIndex* pindex = m_best_block_index.load();
     if (!m_synced) {
         auto& consensus_params = Params().GetConsensus();
@@ -172,10 +175,11 @@ void BaseIndex::ThreadSync()
         }
     }
 
+    auto done = 1e-9 * std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count();
     if (pindex) {
-        LogPrintf("%s is enabled at height %d\n", GetName(), pindex->nHeight);
+        LogPrintf("%s is enabled at height %d. Indexing time: %f sec.\n", GetName(), pindex->nHeight, done);
     } else {
-        LogPrintf("%s is enabled\n", GetName());
+        LogPrintf("%s is enabled. Indexing time: %f sec.\n", GetName(), done);
     }
 }
 
@@ -209,7 +213,7 @@ bool BaseIndex::Rewind(const CBlockIndex* current_tip, const CBlockIndex* new_ti
 
     // In the case of a reorg, ensure persisted block locator is not stale.
     m_best_block_index = new_tip;
-    if (!Commit()) {
+    if (!CommitInternal()) {
         // If commit fails, revert the best block index to avoid corruption.
         m_best_block_index = current_tip;
         return false;
