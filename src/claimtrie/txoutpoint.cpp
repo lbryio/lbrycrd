@@ -4,9 +4,9 @@
 #include <limits>
 #include <sstream>
 
-COutPoint::COutPoint() noexcept
+COutPoint::COutPoint() noexcept : n(std::numeric_limits<uint32_t>::max())
 {
-    SetNull();
+
 }
 
 COutPoint::COutPoint(uint256 hashIn, uint32_t nIn) : hash(std::move(hashIn)), n(nIn)

@@ -33,24 +33,15 @@ static const sqlite::sqlite_config sharedConfig {
 };
 
 BaseIndex::DB::DB(const fs::path& path, size_t n_cache_size, bool fMemory, bool fWipe)
-    : sqlite::database(fMemory ? ":memory:" : (path / "db.sqlite").string(), sharedConfig)
+    : sqlite::database(fMemory ? ":memory:" : path.string() + ".sqlite", sharedConfig)
 {
     applyPragmas(*this, n_cache_size >> 10); // in -KB
 
     (*this) << "CREATE TABLE IF NOT EXISTS locator (branch BLOB NOT NULL COLLATE BINARY);";
-    (*this) << "CREATE TABLE IF NOT EXISTS file_pos (file INTEGER NOT NULL, pos INTEGER NOT NULL);";
-
-    (*this) << "CREATE TABLE IF NOT EXISTS block (height INTEGER, hash BLOB NOT NULL COLLATE BINARY, "
-                "filter_hash BLOB NOT NULL COLLATE BINARY, header BLOB NOT NULL COLLATE BINARY, "
-                "file INTEGER NOT NULL, pos INTEGER NOT NULL, "
-                "PRIMARY KEY(height, hash), UNIQUE(filter_hash, header, file, pos));";
 
     if (fWipe) {
         (*this) << "DELETE FROM locator";
-        (*this) << "DELETE FROM file_pos";
-        (*this) << "DELETE FROM block";
     }
-    (*this) << "BEGIN";
 }
 
 bool BaseIndex::DB::ReadBestBlock(CBlockLocator& locator) const
@@ -71,24 +62,6 @@ bool BaseIndex::DB::WriteBestBlock(const CBlockLocator& locator)
     for (auto& branch : locator.vHave)
         (*this) << "INSERT INTO locator VALUES(?)" << branch;
     return (*this).rows_modified() > 0;
-}
-
-bool BaseIndex::DB::ReadFilePos(FlatFilePos& file) const
-{
-    file.SetNull();
-    bool success = false;
-    for (auto&& row : (*this) << "SELECT file, pos FROM file_pos") {
-        row >> file.nFile >> file.nPos;
-        success = true;
-    }
-    return success;
-}
-
-bool BaseIndex::DB::WriteFilePos(const FlatFilePos& file)
-{
-    (*this) << "DELETE FROM file_pos";
-    (*this) << "INSERT INTO file_pos VALUES(?, ?)" << file.nFile << file.nPos;
-    return rows_modified() > 0;
 }
 
 BaseIndex::~BaseIndex()
@@ -135,6 +108,7 @@ void BaseIndex::ThreadSync()
     const CBlockIndex* pindex = m_best_block_index.load();
     if (!m_synced) {
         auto& consensus_params = Params().GetConsensus();
+        GetDB() << "BEGIN";
 
         int64_t last_log_time = 0;
         int64_t last_locator_write_time = 0;
@@ -144,7 +118,7 @@ void BaseIndex::ThreadSync()
                 // No need to handle errors in Commit. If it fails, the error will be already be
                 // logged. The best way to recover is to continue, as index cannot be corrupted by
                 // a missed commit to disk for an advanced index state.
-                Commit();
+                Commit(true);
                 return;
             }
 
@@ -155,10 +129,11 @@ void BaseIndex::ThreadSync()
                     m_best_block_index = pindex;
                     m_synced = true;
                     // No need to handle errors in Commit. See rationale above.
-                    Commit();
+                    Commit(true);
                     break;
                 }
                 if (pindex_next->pprev != pindex && !Rewind(pindex, pindex_next->pprev)) {
+                    GetDB() << "ROLLBACK";
                     FatalError("%s: Failed to rewind index %s to a previous chain tip",
                                __func__, GetName());
                     return;
@@ -178,15 +153,18 @@ void BaseIndex::ThreadSync()
                 last_locator_write_time = current_time;
                 // No need to handle errors in Commit. See rationale above.
                 Commit();
+                GetDB() << "BEGIN";
             }
 
             CBlock block;
             if (!ReadBlockFromDisk(block, pindex, consensus_params)) {
+                GetDB() << "ROLLBACK";
                 FatalError("%s: Failed to read block %s from disk",
                            __func__, pindex->GetBlockHash().ToString());
                 return;
             }
             if (!WriteBlock(block, pindex)) {
+                GetDB() << "ROLLBACK";
                 FatalError("%s: Failed to write block %s to index database",
                            __func__, pindex->GetBlockHash().ToString());
                 return;
@@ -201,21 +179,27 @@ void BaseIndex::ThreadSync()
     }
 }
 
-bool BaseIndex::Commit()
+bool BaseIndex::Commit(bool syncToDisk)
 {
     if (!CommitInternal() || sqlite::commit(GetDB()) != SQLITE_OK) {
         GetDB() << "ROLLBACK";
-        GetDB() << "BEGIN";
         return error("%s: Failed to commit latest %s state", __func__, GetName());
     }
-    GetDB() << "BEGIN";
+    if (syncToDisk) {
+        if (sqlite::sync(GetDB()) != SQLITE_OK)
+            return error("%s: Unable to sync to disk", __func__);
+    }
     return true;
 }
 
 bool BaseIndex::CommitInternal()
 {
-    LOCK(cs_main);
-    return GetDB().WriteBestBlock(::ChainActive().GetLocator(m_best_block_index));
+    CBlockLocator locator;
+    {
+        LOCK(cs_main);
+        locator = ::ChainActive().GetLocator(m_best_block_index);
+    }
+    return GetDB().WriteBestBlock(locator);
 }
 
 bool BaseIndex::Rewind(const CBlockIndex* current_tip, const CBlockIndex* new_tip)
@@ -268,52 +252,16 @@ void BaseIndex::BlockConnected(const std::shared_ptr<const CBlock>& block, const
         }
     }
 
+    GetDB() << "BEGIN";
     if (WriteBlock(*block, pindex)) {
+        Commit(true);
         m_best_block_index = pindex;
     } else {
+        GetDB() << "ROLLBACK";
         FatalError("%s: Failed to write block %s to index",
                    __func__, pindex->GetBlockHash().ToString());
         return;
     }
-}
-
-void BaseIndex::ChainStateFlushed(const CBlockLocator& locator)
-{
-    if (!m_synced) {
-        return;
-    }
-
-    const uint256& locator_tip_hash = locator.vHave.front();
-    const CBlockIndex* locator_tip_index;
-    {
-        LOCK(cs_main);
-        locator_tip_index = LookupBlockIndex(locator_tip_hash);
-    }
-
-    if (!locator_tip_index) {
-        FatalError("%s: First block (hash=%s) in locator was not found",
-                   __func__, locator_tip_hash.ToString());
-        return;
-    }
-
-    // This checks that ChainStateFlushed callbacks are received after BlockConnected. The check may fail
-    // immediately after the sync thread catches up and sets m_synced. Consider the case where
-    // there is a reorg and the blocks on the stale branch are in the ValidationInterface queue
-    // backlog even after the sync thread has caught up to the new chain tip. In this unlikely
-    // event, log a warning and let the queue clear.
-    const CBlockIndex* best_block_index = m_best_block_index.load();
-    if (best_block_index->GetAncestor(locator_tip_index->nHeight) != locator_tip_index) {
-        LogPrintf("%s: WARNING: Locator contains block (hash=%s) not on known best " /* Continued */
-                  "chain (tip=%s); not writing index locator\n",
-                  __func__, locator_tip_hash.ToString(),
-                  best_block_index->GetBlockHash().ToString());
-        return;
-    }
-
-    // No need to handle errors in Commit. If it fails, the error will be already be logged. The
-    // best way to recover is to continue, as index cannot be corrupted by a missed commit to disk
-    // for an advanced index state.
-    Commit();
 }
 
 bool BaseIndex::BlockUntilSyncedToCurrentChain()

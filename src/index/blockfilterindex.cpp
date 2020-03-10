@@ -56,16 +56,47 @@ BlockFilterIndex::BlockFilterIndex(BlockFilterType filter_type,
     m_name = filter_name + " block filter index";
     m_db = MakeUnique<BaseIndex::DB>(path, n_cache_size, f_memory, f_wipe);
     m_filter_fileseq = MakeUnique<FlatFileSeq>(std::move(path), "fltr", FLTR_FILE_CHUNK_SIZE);
+
+    (*m_db) << "CREATE TABLE IF NOT EXISTS block (height INTEGER, hash BLOB NOT NULL COLLATE BINARY, "
+               "filter_hash BLOB NOT NULL COLLATE BINARY, header BLOB NOT NULL COLLATE BINARY, "
+               "file INTEGER NOT NULL, pos INTEGER NOT NULL, "
+               "PRIMARY KEY(height, hash), UNIQUE(filter_hash, header, file, pos));";
+
+    (*m_db) << "CREATE TABLE IF NOT EXISTS file_pos (file INTEGER NOT NULL, pos INTEGER NOT NULL);";
+
+    if (f_wipe) {
+        (*m_db) << "DELETE FROM file_pos";
+        (*m_db) << "DELETE FROM block";
+    }
 }
 
 bool BlockFilterIndex::Init()
 {
-    if (!m_db->ReadFilePos(m_next_filter_pos)) {
+    if (!ReadFilePos(m_next_filter_pos)) {
         m_next_filter_pos.nFile = 0;
         m_next_filter_pos.nPos = 0;
     }
     return BaseIndex::Init();
 }
+
+bool BlockFilterIndex::ReadFilePos(FlatFilePos& file) const
+{
+    file.SetNull();
+    bool success = false;
+    for (auto&& row : (*m_db) << "SELECT file, pos FROM file_pos") {
+        row >> file.nFile >> file.nPos;
+        success = true;
+    }
+    return success;
+}
+
+bool BlockFilterIndex::WriteFilePos(const FlatFilePos& file)
+{
+    (*m_db) << "DELETE FROM file_pos";
+    (*m_db) << "INSERT INTO file_pos VALUES(?, ?)" << file.nFile << file.nPos;
+    return m_db->rows_modified() > 0;
+}
+
 
 bool BlockFilterIndex::CommitInternal()
 {
@@ -222,7 +253,7 @@ bool BlockFilterIndex::Rewind(const CBlockIndex* current_tip, const CBlockIndex*
     // The latest filter position gets written in Commit by the call to the BaseIndex::Rewind.
     // But since this creates new references to the filter, the position should get updated here
     // atomically as well in case Commit fails.
-    if (!m_db->WriteFilePos(m_next_filter_pos)) return false;
+    if (!WriteFilePos(m_next_filter_pos)) return false;
 
     return BaseIndex::Rewind(current_tip, new_tip);
 }

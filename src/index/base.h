@@ -33,10 +33,6 @@ protected:
 
         /// Write block locator of the chain that the txindex is in sync with.
         bool WriteBestBlock(const CBlockLocator& locator);
-
-        bool ReadFilePos(FlatFilePos& file) const;
-
-        bool WriteFilePos(const FlatFilePos& file);
     };
 
 private:
@@ -66,13 +62,11 @@ private:
     /// from further behind on reboot. If the new state is not a successor of the previous state (due
     /// to a chain reorganization), the index must halt until Commit succeeds or else it could end up
     /// getting corrupted.
-    bool Commit();
+    bool Commit(bool syncToDisk=false);
 
 protected:
     void BlockConnected(const std::shared_ptr<const CBlock>& block, const CBlockIndex* pindex,
                         const std::vector<CTransactionRef>& txn_conflicted) override;
-
-    void ChainStateFlushed(const CBlockLocator& locator) override;
 
     /// Initialize internal state from the database and block index.
     virtual bool Init();
