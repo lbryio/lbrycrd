@@ -321,7 +321,8 @@ static UniValue setlabel(const JSONRPCRequest& request)
 
 static CTransactionRef SendMoney(interfaces::Chain::Lock& locked_chain, CWallet * const pwallet, const CTxDestination &address, CAmount nValue, bool fSubtractFeeFromAmount, const CCoinControl& coin_control, mapValue_t mapValue, const CScript& prefix = CScript())
 {
-    CAmount curBalance = pwallet->GetBalance(ISMINE_NO, 0, coin_control.m_avoid_address_reuse).m_mine_trusted;
+    CAmount maxNeeded = nValue + (fSubtractFeeFromAmount ? 0 : pwallet->m_default_max_tx_fee);
+    CAmount curBalance = pwallet->GetBalance(ISMINE_NO, 0, coin_control.m_avoid_address_reuse, maxNeeded).m_mine_trusted;
 
     // Check amount
     if (nValue <= 0)

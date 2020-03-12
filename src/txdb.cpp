@@ -196,7 +196,6 @@ CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe)
     if (fWipe) {
         db << "DELETE FROM block_file";
         db << "DELETE FROM block_info";
-        db << "DELETE FROM tx_to_block";
         db << "DELETE FROM flag";
     }
 

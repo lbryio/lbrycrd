@@ -92,6 +92,7 @@ class TestNode():
             "-logtimemicros",
             "-logthreadnames",
             "-debug",
+            "-txindex=0",
             "-debugexclude=libevent",
             "-uacomment=testnode%d" % i,
         ]

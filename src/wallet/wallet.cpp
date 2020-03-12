@@ -2465,7 +2465,7 @@ void MaybeResendWalletTxs()
  */
 
 
-CWallet::Balance CWallet::GetBalance(isminefilter filter, const int min_depth, bool avoid_reuse) const
+CWallet::Balance CWallet::GetBalance(isminefilter filter, const int min_depth, bool avoid_reuse, CAmount earlyExit) const
 {
     Balance ret;
     if (!avoid_reuse)
@@ -2491,6 +2491,8 @@ CWallet::Balance CWallet::GetBalance(isminefilter filter, const int min_depth, b
             }
             ret.m_mine_immature += wtx.GetImmatureCredit(*locked_chain);
             ret.m_watchonly_immature += wtx.GetImmatureWatchOnlyCredit(*locked_chain);
+            if (earlyExit > 0 && ret.m_mine_trusted >= earlyExit)
+                break;
         }
     }
     return ret;
