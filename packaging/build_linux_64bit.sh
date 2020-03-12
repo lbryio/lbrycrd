@@ -27,7 +27,7 @@ cd ..
 DEPS_DIR=$(pwd)/depends/x86_64-pc-linux-gnu
 CONFIG_SITE=${DEPS_DIR}/share/config.site ./configure --enable-static --disable-shared --with-pic --without-gui
 make -j$(getconf _NPROCESSORS_ONLN)
-strip src/lbrycrdd src/lbrycrd-cli src/lbrycrd-tx
+strip src/lbrycrdd src/lbrycrd-cli src/lbrycrd-tx src/lbrycrd-wallet
 
 if which ccache >/dev/null; then
     echo "ccache stats:"

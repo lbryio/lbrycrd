@@ -27,7 +27,7 @@ jobs:
         - docker run -v "$(pwd):/lbrycrd" -v "${HOME}/ccache:/ccache" -w /lbrycrd -e CCACHE_DIR=/ccache ${DOCKER_IMAGE} packaging/build_${NAME}_64bit.sh
       before_deploy:
         - mkdir -p dist
-        - zip -Xj dist/lbrycrd-${NAME}.zip src/lbrycrdd${EXT} src/lbrycrd-cli${EXT} src/lbrycrd-tx${EXT}
+        - zip -Xj dist/lbrycrd-${NAME}.zip src/lbrycrdd${EXT} src/lbrycrd-cli${EXT} src/lbrycrd-tx${EXT} src/lbrycrd-wallet${EXT}
         - zip -Xj dist/lbrycrd-${NAME}-test.zip src/test/test_lbrycrd${EXT} src/test/test_lbrycrd_fuzzy${EXT}
         - cp -l dist/lbrycrd-${NAME}.zip packaging/docker-for-binary/lbrycrd-${NAME}.zip
         - sha256sum dist/lbrycrd-${NAME}.zip

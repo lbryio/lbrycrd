@@ -27,7 +27,7 @@ popd
 DEPS_DIR=$(pwd)/depends/x86_64-w64-mingw32
 CONFIG_SITE=${DEPS_DIR}/share/config.site ./configure --prefix=/ --without-gui --with-icu="$DEPS_DIR" --enable-static --disable-shared
 make -j$(getconf _NPROCESSORS_ONLN)
-x86_64-w64-mingw32-strip src/lbrycrdd.exe src/lbrycrd-cli.exe src/lbrycrd-tx.exe
+x86_64-w64-mingw32-strip src/lbrycrdd.exe src/lbrycrd-cli.exe src/lbrycrd-tx.exe src/lbrycrd-wallet.exe
 
 if which ccache >/dev/null; then
     echo "ccache stats:"

@@ -37,7 +37,7 @@ popd
 DEPS_DIR=$(pwd)/depends/x86_64-apple-darwin14
 CONFIG_SITE=${DEPS_DIR}/share/config.site ./configure --enable-reduce-exports --without-gui --with-icu="${DEPS_DIR}" --enable-static --disable-shared
 make -j$(getconf _NPROCESSORS_ONLN)
-${DEPS_DIR}/native/bin/x86_64-apple-darwin14-strip src/lbrycrdd src/lbrycrd-cli src/lbrycrd-tx
+${DEPS_DIR}/native/bin/x86_64-apple-darwin14-strip src/lbrycrdd src/lbrycrd-cli src/lbrycrd-tx src/lbrycrd-wallet
 
 if which ccache >/dev/null; then
     echo "ccache stats:"
