@@ -1524,12 +1524,16 @@ isminetype CWallet::IsMine(const CTxIn &txin) const
 }
 
 
-static bool excludeStake(isminefilter ismine, isminefilter filter)
+static bool matchFilterConsideringStake(isminefilter ismine, isminefilter filter)
 {
-    assert((ismine & ISMINE_STAKE) != ISMINE_STAKE);
-    assert((filter & ISMINE_STAKE) != ISMINE_STAKE);
-    return (ismine & filter) && (!(filter & ISMINE_STAKE)
-        || ((ismine & ISMINE_STAKE) == (filter & ISMINE_STAKE)));
+    // the rules:
+    // 1. if filter does not have stake do simple &
+    // 2. if filter & claim ^ filter & support then require that one stake bit
+    // 3. if filter & claim & support then allow either
+    auto stakeFilter = filter & ISMINE_STAKE;
+    if (stakeFilter)
+        return ismine & stakeFilter;
+    return ismine & filter;
 }
 
 // Note that this function doesn't distinguish between a 0-valued input,
@@ -1543,7 +1547,7 @@ CAmount CWallet::GetDebit(const CTxIn &txin, const isminefilter& filter) const
         {
             const CWalletTx& prev = (*mi).second;
             if (txin.prevout.n < prev.tx->vout.size())
-                if (excludeStake(IsMine(prev.tx->vout[txin.prevout.n]), filter))
+                if (matchFilterConsideringStake(IsMine(prev.tx->vout[txin.prevout.n]), filter))
                     return prev.tx->vout[txin.prevout.n].nValue;
         }
     }
@@ -1559,7 +1563,7 @@ CAmount CWallet::GetCredit(const CTxOut& txout, const isminefilter& filter) cons
 {
     if (!MoneyRange(txout.nValue))
         throw std::runtime_error(std::string(__func__) + ": value out of range");
-    return excludeStake(IsMine(txout), filter) ? txout.nValue : 0;
+    return matchFilterConsideringStake(IsMine(txout), filter) ? txout.nValue : 0;
 }
 
 bool CWallet::IsChange(const CTxOut& txout) const
@@ -1637,7 +1641,7 @@ bool CWallet::IsAllFromMe(const CTransaction& tx, const isminefilter& filter) co
         if (txin.prevout.n >= prev.tx->vout.size())
             return false; // invalid input!
 
-        if (!(IsMine(prev.tx->vout[txin.prevout.n]) & filter))
+        if (!matchFilterConsideringStake(IsMine(prev.tx->vout[txin.prevout.n]), filter))
             return false;
     }
     return true;
@@ -1999,7 +2003,7 @@ void CWalletTx::GetAmounts(std::list<COutputEntry>& listReceived,
             if (pwallet->IsChange(txout))
                 continue;
         }
-        else if (!(fIsMine & filter))
+        else if (!matchFilterConsideringStake(fIsMine, filter))
             continue;
 
         // In either case, we need to get the destination address
@@ -2018,7 +2022,7 @@ void CWalletTx::GetAmounts(std::list<COutputEntry>& listReceived,
             listSent.push_back(output);
 
         // If we are receiving the output, add it as a "received" entry
-        if (fIsMine & filter)
+        if (matchFilterConsideringStake(fIsMine, filter))
             listReceived.push_back(output);
     }
 

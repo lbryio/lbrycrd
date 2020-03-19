@@ -23,7 +23,7 @@ class GetblockstatsTest(BitcoinTestFramework):
 
     def add_options(self, parser):
         parser.add_argument('--gen-test-data', dest='gen_test_data',
-                            default=True, action='store_true',
+                            default=False, action='store_true',
                             help='Generate test data')
         parser.add_argument('--test-data', dest='test_data',
                             default='data/rpc_getblockstats.json',
