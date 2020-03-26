@@ -117,7 +117,7 @@ bool CCoinsViewDB::BatchWrite(const CCoinsMap &mapCoins, const uint256 &hashBloc
                 }
                 changed++;
             }
-            if (crash_simulate && ++count % 200000 == 0) {
+            if (++count % 200000 == 0 && crash_simulate) {
                 static FastRandomContext rng;
                 if (rng.randrange(crash_simulate) == 0) {
                     LogPrintf("Simulating a crash. Goodbye.\n");

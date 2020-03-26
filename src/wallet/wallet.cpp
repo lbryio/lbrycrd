@@ -2268,12 +2268,14 @@ CAmount CWalletTx::GetDebit(const isminefilter& filter) const
     if (tx->vin.empty())
         return 0;
 
+    assert((filter & ISMINE_ALL) == filter);
+
     CAmount debit = 0;
     if (filter & ISMINE_SPENDABLE) {
-        debit += GetCachableAmount(DEBIT, filter & ~ISMINE_WATCH_ONLY);
+        debit += GetCachableAmount(DEBIT, ISMINE_SPENDABLE);
     }
     if (filter & ISMINE_WATCH_ONLY) {
-        debit += GetCachableAmount(DEBIT, filter & ~ISMINE_SPENDABLE);
+        debit += GetCachableAmount(DEBIT, ISMINE_WATCH_ONLY);
     }
     return debit;
 }
@@ -2284,13 +2286,15 @@ CAmount CWalletTx::GetCredit(interfaces::Chain::Lock& locked_chain, const ismine
     if (IsImmatureCoinBase(locked_chain))
         return 0;
 
+    assert((filter & ISMINE_ALL) == filter);
+
     CAmount credit = 0;
     if (filter & ISMINE_SPENDABLE) {
         // GetBalance can assume transactions in mapWallet won't change
-        credit += GetCachableAmount(CREDIT, filter & ~ISMINE_WATCH_ONLY);
+        credit += GetCachableAmount(CREDIT, ISMINE_SPENDABLE);
     }
     if (filter & ISMINE_WATCH_ONLY) {
-        credit += GetCachableAmount(CREDIT, filter & ~ISMINE_SPENDABLE);
+        credit += GetCachableAmount(CREDIT, ISMINE_WATCH_ONLY);
     }
     return credit;
 }
@@ -2388,8 +2392,11 @@ bool CWalletTx::IsTrusted(interfaces::Chain::Lock& locked_chain) const
         const CWalletTx* parent = pwallet->GetWalletTx(txin.prevout.hash);
         if (parent == nullptr)
             return false;
+
         const CTxOut& parentOut = parent->tx->vout[txin.prevout.n];
-        if (!(pwallet->IsMine(parentOut) & ISMINE_SPENDABLE))
+        auto mine = pwallet->IsMine(parentOut);
+        const auto flags = ISMINE_SPENDABLE | ISMINE_STAKE;
+        if ((mine & flags) != mine)
             return false;
     }
     return true;

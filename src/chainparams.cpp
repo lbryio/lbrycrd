@@ -425,7 +425,7 @@ void CRegTestParams::UpdateActivationParametersFromArgs(const ArgsManager& args)
 {
     if (gArgs.IsArgSet("-segwitheight")) {
         int height = gArgs.GetArg("-segwitheight", consensus.SegwitHeight);
-        if (height <= 0) {
+        if (height < 0) {
             LogPrintf("Segwit disabled for testing\n");
             height = std::numeric_limits<int>::max();
         }

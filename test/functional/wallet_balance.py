@@ -20,7 +20,8 @@ def create_transactions(node, address, amt, fees):
     # Create and sign raw transactions from node to address for amt.
     # Creates a transaction for each fee and returns an array
     # of the raw transactions.
-    utxos = [u for u in node.listunspent(0) if u['spendable']]
+    unspents = node.listunspent(0)
+    utxos = [u for u in unspents if u['spendable'] and u['safe']]
 
     # Create transactions
     inputs = []
@@ -52,8 +53,10 @@ class WalletTest(BitcoinTestFramework):
         self.setup_clean_chain = True
         self.extra_args = [
             ['-limitdescendantcount=3',
-             '-segwitheight=0'],  # Limit mempool descendants as a hack to have wallet txs rejected from the mempool
-            ['-segwitheight=0'],
+             '-segwitheight=0',  # Limit mempool descendants as a hack to have wallet txs rejected from the mempool
+             '-whitelist=127.0.0.1'],
+            ['-segwitheight=0',
+             '-whitelist=127.0.0.1']
         ]
 
     def skip_test_if_missing_module(self):
@@ -111,10 +114,10 @@ class WalletTest(BitcoinTestFramework):
         def test_balances(*, fee_node_1=0):
             # getbalance without any arguments includes unconfirmed transactions, but not untrusted transactions
             assert_equal(self.nodes[0].getbalance(), Decimal('0.59'))  # change from node 0's send
-            assert_equal(self.nodes[1].getbalance(), Decimal('0.39') - fee_node_1)  # change from node 1's send
+            assert_equal(self.nodes[1].getbalance(), Decimal('0.4') - fee_node_1)  # change from node 1's send
             # Same with minconf=0
             assert_equal(self.nodes[0].getbalance(minconf=0), Decimal('0.59'))
-            assert_equal(self.nodes[1].getbalance(minconf=0), Decimal('0.39') - fee_node_1)
+            assert_equal(self.nodes[1].getbalance(minconf=0), Decimal('0.4') - fee_node_1)
             # getbalance with a minconf incorrectly excludes coins that have been spent more recently than the minconf blocks ago
             # TODO: fix getbalance tracking of coin spentness depth
             assert_equal(self.nodes[0].getbalance(minconf=1), Decimal('0.00'))
@@ -128,7 +131,7 @@ class WalletTest(BitcoinTestFramework):
             assert_equal(self.nodes[1].getbalances()['mine']['untrusted_pending'], Decimal('0.4'))
             assert_equal(self.nodes[1].getwalletinfo()["unconfirmed_balance"], Decimal('0.4'))
 
-        test_balances(fee_node_1=Decimal('0'))
+        test_balances(fee_node_1=Decimal('0.01'))
 
         # Node 1 bumps the transaction fee and resends
         self.nodes[1].sendrawtransaction(txs[1]['hex'])
@@ -136,7 +139,7 @@ class WalletTest(BitcoinTestFramework):
         self.sync_all()
 
         self.log.info("Test getbalance and getunconfirmedbalance with conflicted unconfirmed inputs")
-        test_balances(fee_node_1=Decimal('0.01'))
+        test_balances(fee_node_1=Decimal('0.02'))
 
         self.nodes[1].generatetoaddress(1, ADDRESS_WATCHONLY)
         self.sync_all()
@@ -209,7 +212,7 @@ class WalletTest(BitcoinTestFramework):
         assert_equal(self.nodes[0].getbalance(minconf=0), 0)  # wallet txs not in the mempool are untrusted
 
         # Now confirm tx_orig
-        self.restart_node(1, ['-persistmempool=0'])
+        self.restart_node(1, ['-persistmempool=0', '-segwitheight=0', '-whitelist=127.0.0.1'])
         connect_nodes(self.nodes[0], 1)
         sync_blocks(self.nodes)
         self.nodes[1].sendrawtransaction(tx_orig)
