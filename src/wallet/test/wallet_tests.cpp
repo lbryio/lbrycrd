@@ -283,7 +283,7 @@ static int64_t AddTx(CWallet& wallet, uint32_t lockTime, int64_t mockTime, int64
     LOCK(wallet.cs_wallet);
     // If transaction is already in map, to avoid inconsistencies, unconfirmation
     // is needed before confirm again with different block.
-    std::map<uint256, CWalletTx>::iterator it = wallet.mapWallet.find(wtx.GetHash());
+    auto it = wallet.mapWallet.find(wtx.GetHash());
     if (it != wallet.mapWallet.end()) {
         wtx.setUnconfirmed();
         wallet.AddToWallet(wtx);

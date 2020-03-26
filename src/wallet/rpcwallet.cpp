@@ -2228,7 +2228,8 @@ static UniValue listsinceblock(const JSONRPCRequest& request)
     for (const auto& pairWtx : pwallet->mapWallet) {
         CWalletTx tx = pairWtx.second;
 
-        if (depth == -1 || abs(tx.GetDepthInMainChain(*locked_chain)) < depth) {
+        auto dmc = tx.GetDepthInMainChain(*locked_chain);
+        if (depth == -1 || (dmc >= 0 && dmc < depth)) {
             ListTransactions(*locked_chain, pwallet, tx, 0, true, transactions, filter, nullptr /* filter_label */);
         }
     }

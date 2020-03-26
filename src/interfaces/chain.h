@@ -230,7 +230,7 @@ public:
     //! Wait for pending notifications to be processed unless block hash points to the current
     //! chain tip, or to a possible descendant of the current chain tip that isn't currently
     //! connected.
-    virtual bool waitForNotificationsIfTipIsNotSame(const uint256& tip) = 0;
+    virtual void waitForNotificationsIfTipIsNotSame(const uint256& tip) = 0;
 
     //! Register handler for RPC. Command is not copied, so reference
     //! needs to remain valid until Handler is disconnected.

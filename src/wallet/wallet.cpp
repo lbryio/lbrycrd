@@ -1498,13 +1498,8 @@ void CWallet::BlockUntilSyncedToCurrentChain() {
     // ::ChainActive().Tip(), otherwise put a callback in the validation interface queue and wait
     // for the queue to drain enough to execute it (indicating we are caught up
     // at least with the time we entered this function).
-    auto lastProcessedBlock = [this]() -> uint256 {
-        return WITH_LOCK(cs_wallet, return m_last_block_processed);
-    };
-    bool tipIsSame = false;
-    uint256 last_block_hash;
-    while (!tipIsSame && !(last_block_hash = lastProcessedBlock()).IsNull())
-        tipIsSame = chain().waitForNotificationsIfTipIsNotSame(last_block_hash);
+    uint256 last_block_hash = WITH_LOCK(cs_wallet, return m_last_block_processed);
+    chain().waitForNotificationsIfTipIsNotSame(last_block_hash);
 }
 
 
@@ -2444,7 +2439,7 @@ void CWallet::ResendWalletTransactions()
         LOCK(cs_wallet);
 
         // Relay transactions
-        for (std::pair<const uint256, CWalletTx>& item : mapWallet) {
+        for (auto& item : mapWallet) {
             CWalletTx& wtx = item.second;
             // Attempt to rebroadcast all txes more than 5 minutes older than
             // the last block. SubmitMemoryPoolAndRelay() will not rebroadcast
