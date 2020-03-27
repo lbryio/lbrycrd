@@ -1,7 +1,7 @@
 # LBRYcrd - The LBRY blockchain
 
-[![Build Status](https://travis-ci.org/lbryio/lbrycrd.svg?branch=master)](https://travis-ci.org/lbryio/lbrycrd)
-[![MIT licensed](https://img.shields.io/dub/l/vibe-d.svg?style=flat)](https://github.com/lbryio/lbry-desktop/blob/master/LICENSE)
+[![Build Status](https://travis-ci.org/lbryio/lbrycrd.svg?branch=v19_master)](https://travis-ci.org/lbryio/lbrycrd)
+[![MIT licensed](https://img.shields.io/dub/l/vibe-d.svg?style=flat)](https://github.com/lbryio/lbrycrd/blob/v19_master/LICENSE)
 LBRYcrd uses a blockchain similar to bitcoin's to implement an index and payment system for content on the LBRY network. It is a fork of [bitcoin core](https://github.com/bitcoin/bitcoin). In addition to the libraries used by bitcoin, LBRYcrd also uses [icu4c](https://github.com/unicode-org/icu/tree/master/icu4c).
 
 Please read the [lbry.tech overview](https://lbry.tech/overview) for a general understanding of the LBRY pieces. From there you could read the [LBRY spec](https://spec.lbry.com/) for specifics on the data in the blockchain.
@@ -201,10 +201,10 @@ Then open the newly generated compile_commands.json file as a project in CLion. 
 Contributions to this project are welcome, encouraged, and compensated. For more details, see [https://lbry.tech/contribute](https://lbry.tech/contribute)
 
 We follow the same coding guidelines as documented by Bitcoin Core, see [here](/doc/developer-notes.md). To run an automated code formatting check, try:
-`git diff -U0 master -- '*.h' '*.cpp' | ./contrib/devtools/clang-format-diff.py -p1`. This will check any commits not on master for proper code formatting.
+`git diff -U0 v19_master -- '*.h' '*.cpp' | ./contrib/devtools/clang-format-diff.py -p1`. This will check any commits not on master for proper code formatting.
 We try to avoid altering parts of the code that is inherited from Bitcoin Core unless absolutely necessary. This will make it easier to merge changes from Bitcoin Core. If commits are expected not to be merged upstream (i.e. we broke up a commit from Bitcoin Core in order to use a single feature in it), the commit message must contain the string "NOT FOR UPSTREAM MERGE".
 
-The `master` branch is regularly built and tested, but is not guaranteed to be
+The `master` branches are regularly built and tested but are not guaranteed to be
 completely stable. [Releases](https://github.com/lbryio/lbrycrd/releases) are created
 regularly to indicate new official, stable release versions.
 
@@ -220,7 +220,7 @@ The Travis CI system makes sure that every pull request is built, and that unit 
 
 Testnet is maintained for testing purposes and can be accessed using the command `./lbrycrdd -testnet`. If you would like to obtain testnet credits, please contact brannon@lbry.com or grin@lbry.com .
 
-It is easy to solo mine on testnet. (It's easy on mainnet too, but much harder to win.) For instructions see  [SGMiner](https://github.com/lbryio/sgminer-gm) and [Mining Contributions](https://github.com/lbryio/lbrycrd/tree/master/contrib/mining) 
+It is easy to solo mine on testnet. (It's easy on mainnet too, but much harder to win.) For instructions see  [SGMiner](https://github.com/lbryio/sgminer-gm) and [Mining Contributions](https://github.com/lbryio/lbrycrd/tree/v19_master/contrib/mining) 
 
 ## Mailing List
 
