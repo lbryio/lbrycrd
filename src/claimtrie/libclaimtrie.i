@@ -20,6 +20,10 @@
 
 %ignore CBaseBlob(CBaseBlob &&);
 %ignore CClaimNsupports(CClaimNsupports &&);
+%ignore CClaimTrieCacheHashFork(CClaimTrieCacheHashFork &&);
+%ignore CClaimTrieCacheExpirationFork(CClaimTrieCacheExpirationFork &&);
+%ignore CClaimTrieCacheNormalizationFork(CClaimTrieCacheNormalizationFork &&);
+%ignore CClaimTrieCacheClaimInfoHashFork(CClaimTrieCacheClaimInfoHashFork &&);
 %ignore CClaimTrieProof(CClaimTrieProof &&);
 %ignore CClaimTrieProofNode(CClaimTrieProofNode &&);
 %ignore CClaimValue(CClaimValue &&);
@@ -39,7 +43,7 @@
 %include "txoutpoint.h"
 %include "data.h"
 
-%rename(CClaimTrieCache) CClaimTrieCacheHashFork;
+%rename(CClaimTrieCache) CClaimTrieCacheClaimInfoHashFork;
 
 %include "trie.h"
 %include "forks.h"

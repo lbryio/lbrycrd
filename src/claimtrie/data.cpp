@@ -2,6 +2,7 @@
 #include <data.h>
 
 #include <algorithm>
+#include <cassert>
 #include <sstream>
 
 CClaimValue::CClaimValue(COutPoint outPoint, uint160 claimId, int64_t nAmount, int nHeight, int nValidAtHeight)
@@ -120,4 +121,51 @@ bool CClaimNsupports::operator<(const CClaimNsupports& other) const
 CClaimTrieProofNode::CClaimTrieProofNode(std::vector<std::pair<unsigned char, uint256>> children, bool hasValue, uint256 valHash)
     : children(std::move(children)), hasValue(hasValue), valHash(std::move(valHash))
 {
+}
+
+// Sequence ordering is pretty similar to bid one (ASC)
+// what we have in CClaimValue::operator< just ignoring effective amount
+bool CClaimInfo::operator<(const CClaimInfo& other) const
+{
+    if (originalHeight < other.originalHeight)
+        return true;
+    if (originalHeight != other.originalHeight)
+        return false;
+    if (updateHeight > other.updateHeight)
+        return true;
+    if (updateHeight != other.updateHeight)
+        return false;
+    return outPoint != other.outPoint && !(outPoint < other.outPoint);
+}
+
+bool CClaimInfo::operator==(const CClaimInfo& other) const
+{
+    return claimId == other.claimId;
+}
+
+static CClaimInfo claimInfo(const CClaimNsupports& claimNsupports)
+{
+    CClaimInfo info;
+    info.originalHeight = claimNsupports.originalHeight;
+    info.updateHeight = claimNsupports.claim.nHeight;
+    info.outPoint = claimNsupports.claim.outPoint;
+    return info;
+}
+
+std::vector<CClaimNsupports> seqSort(const std::vector<CClaimNsupports>& source)
+{
+    auto claimsNsupports = source;
+    std::sort(claimsNsupports.begin(), claimsNsupports.end(), [](const CClaimNsupports& lhs, const CClaimNsupports& rhs) {
+        return claimInfo(lhs) < claimInfo(rhs);
+    });
+    return claimsNsupports;
+}
+
+std::size_t indexOf(const std::vector<CClaimNsupports>& source, const uint160& claimId)
+{
+    auto it = std::find_if(source.begin(), source.end(), [&claimId](const CClaimNsupports& claimNsupports) {
+        return claimNsupports.claim.claimId == claimId;
+    });
+    assert(it != source.end());
+    return std::distance(source.begin(), it);
 }

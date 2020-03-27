@@ -76,9 +76,10 @@ BlockAssembler AssemblerForTest()
 
 ClaimTrieChainFixture::ClaimTrieChainFixture() : CClaimTrieCache(&::Claimtrie()),
     unique_block_counter(0), normalization_original(-1), expirationForkHeight(-1), forkhash_original(-1),
-    minRemovalWorkaroundHeight(-1), maxRemovalWorkaroundHeight(-1)
+    claiminfo_original(-1), minRemovalWorkaroundHeight(-1), maxRemovalWorkaroundHeight(-1)
 {
-    fRequireStandard = false;
+    lRequireStandard = fRequireStandard;
+    fRequireStandard = false; // we don't require standard tx
     BOOST_CHECK_EQUAL(nNextHeight, ::ChainActive().Height() + 1);
     setNormalizationForkHeight(1000000);
 
@@ -98,6 +99,7 @@ ClaimTrieChainFixture::ClaimTrieChainFixture() : CClaimTrieCache(&::Claimtrie())
 ClaimTrieChainFixture::~ClaimTrieChainFixture()
 {
     added_unchecked = false;
+    fRequireStandard = lRequireStandard;
     DecrementBlocks(::ChainActive().Height());
     auto& consensus = const_cast<Consensus::Params&>(Params().GetConsensus());
     if (normalization_original >= 0) {
@@ -116,6 +118,10 @@ ClaimTrieChainFixture::~ClaimTrieChainFixture()
         consensus.nAllClaimsInMerkleForkHeight = forkhash_original;
         const_cast<int64_t&>(base->nAllClaimsInMerkleForkHeight) = forkhash_original;
     }
+    if (claiminfo_original >= 0) {
+        consensus.nClaimInfoInMerkleForkHeight = claiminfo_original;
+        const_cast<int64_t&>(base->nClaimInfoInMerkleForkHeight) = claiminfo_original;
+    }
     if (minRemovalWorkaroundHeight >= 0) {
         consensus.nMinRemovalWorkaroundHeight = minRemovalWorkaroundHeight;
         consensus.nMaxRemovalWorkaroundHeight = maxRemovalWorkaroundHeight;
@@ -124,7 +130,8 @@ ClaimTrieChainFixture::~ClaimTrieChainFixture()
     }
 }
 
-void ClaimTrieChainFixture::setRemovalWorkaroundHeight(int targetMinusCurrent, int blocks = 1000) {
+void ClaimTrieChainFixture::setRemovalWorkaroundHeight(int targetMinusCurrent, int blocks = 1000)
+{
     int target = ::ChainActive().Height() + targetMinusCurrent;
     auto& consensus = const_cast<Consensus::Params&>(Params().GetConsensus());
     if (minRemovalWorkaroundHeight < 0) {
@@ -172,6 +179,18 @@ void ClaimTrieChainFixture::setHashForkHeight(int targetMinusCurrent)
         forkhash_original = consensus.nAllClaimsInMerkleForkHeight;
     consensus.nAllClaimsInMerkleForkHeight = target;
     const_cast<int64_t&>(base->nAllClaimsInMerkleForkHeight) = target;
+}
+
+void ClaimTrieChainFixture::setClaimInfoForkHeight(int targetMinusCurrent)
+{
+    if (targetMinusCurrent)
+        setHashForkHeight(targetMinusCurrent - 1);
+    int target = ::ChainActive().Height() + targetMinusCurrent;
+    auto& consensus = const_cast<Consensus::Params&>(Params().GetConsensus());
+    if (claiminfo_original < 0)
+        claiminfo_original = consensus.nClaimInfoInMerkleForkHeight;
+    consensus.nClaimInfoInMerkleForkHeight = target;
+    const_cast<int64_t&>(base->nClaimInfoInMerkleForkHeight) = target;
 }
 
 bool ClaimTrieChainFixture::CreateBlock(const std::unique_ptr<CBlockTemplate>& pblocktemplate)

@@ -526,5 +526,27 @@ BOOST_AUTO_TEST_CASE(remove_pruned_funds)
     PruneAbandonFunds(txid);
 }
 
+class HasMessage {
+public:
+    explicit HasMessage(const std::string& reason) : m_reason(reason) {}
+    bool operator() (const UniValue& e) const {
+        return e["message"].get_str().find(m_reason) != std::string::npos;
+    };
+private:
+    const std::string m_reason;
+};
+
+BOOST_AUTO_TEST_CASE(invalid_utf8_claim_name)
+{
+    // nClaimInfoInMerkleForkHeight = 1350
+    generateBlock(1350);
+    // disallow non UTF8 strings
+    BOOST_CHECK_EXCEPTION(ClaimAName("\xFF\xFF", "deadbeef", "1.0"), UniValue, HasMessage("Claim name is not valid UTF8 string"));
+    // disallow \0 in string
+    BOOST_CHECK_EXCEPTION(ClaimAName(std::string("test\0ab", 7), "deadbeef", "1.0"), UniValue, HasMessage("Claim name contains invalid symbol"));
+    // allow ^ in string
+    ClaimAName("test^ab", "deadbeef", "1.0");
+}
+
 BOOST_AUTO_TEST_SUITE_END()
 

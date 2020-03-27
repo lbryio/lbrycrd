@@ -132,4 +132,19 @@ struct CClaimTrieProof
     COutPoint outPoint;
 };
 
+struct CClaimInfo
+{
+    CClaimInfo() = default;
+    bool operator<(const CClaimInfo& other) const;
+    bool operator==(const CClaimInfo& other) const;
+
+    uint160 claimId;
+    COutPoint outPoint;
+    int updateHeight = 0;
+    int originalHeight = 0;
+};
+
+std::vector<CClaimNsupports> seqSort(const std::vector<CClaimNsupports>& source);
+std::size_t indexOf(const std::vector<CClaimNsupports>& source, const uint160& claimId);
+
 #endif // CLAIMTRIE_DATA_H

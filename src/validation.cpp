@@ -141,6 +141,7 @@ CClaimTrie& Claimtrie() {
                                 consensus.nExtendedClaimExpirationTime,
                                 consensus.nExtendedClaimExpirationForkHeight,
                                 consensus.nAllClaimsInMerkleForkHeight,
+                                consensus.nClaimInfoInMerkleForkHeight,
                                 Params().NetworkIDString() == CBaseChainParams::MAIN ? 32 : 1);
     };
     return *g_claimtrie;

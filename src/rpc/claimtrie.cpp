@@ -79,7 +79,8 @@ void RollBackTo(const CBlockIndex* targetIndex, CCoinsViewCache& coinsCache, CCl
     trieCache.getMerkleHash(); // update the hash tree
 }
 
-std::string escapeNonUtf8(const std::string& name)
+// it ensures name is utf8 like string
+std::string convertToUtf8(const std::string& name)
 {
     using namespace boost::locale::conv;
     try {
@@ -120,26 +121,6 @@ static bool extractValue(const CScript& scriptPubKey, std::string& name, std::st
     return true;
 }
 
-std::vector<CClaimNsupports> seqSort(const std::vector<CClaimNsupports>& source)
-{
-    auto claimsNsupports = source;
-
-    std::sort(claimsNsupports.begin(), claimsNsupports.end(), [](const CClaimNsupports& lhs, const CClaimNsupports& rhs) {
-        return lhs.originalHeight < rhs.originalHeight || (lhs.originalHeight == rhs.originalHeight && lhs.claim < rhs.claim);
-    });
-
-    return claimsNsupports;
-}
-
-std::size_t indexOf(const std::vector<CClaimNsupports>& source, const uint160& claimId)
-{
-    auto it = std::find_if(source.begin(), source.end(), [&claimId](const CClaimNsupports& claimNsupports) {
-        return claimNsupports.claim.claimId == claimId;
-    });
-    assert(it != source.end());
-    return std::distance(source.begin(), it);
-}
-
 UniValue claimToJSON(const CCoinsViewCache& coinsCache, const CClaimValue& claim)
 {
     UniValue result(UniValue::VOBJ);
@@ -148,7 +129,7 @@ UniValue claimToJSON(const CCoinsViewCache& coinsCache, const CClaimValue& claim
     if (!coin.IsSpent()) {
         std::string name, value;
         if (extractValue(coin.out.scriptPubKey, name, value)) {
-            result.pushKV(T_NAME, escapeNonUtf8(name));
+            result.pushKV(T_NAME, convertToUtf8(name));
             result.pushKV(T_VALUE, value);
         }
 
@@ -245,7 +226,7 @@ static UniValue getnamesintrie(const JSONRPCRequest& request)
 
     UniValue ret(UniValue::VARR);
     trieCache.getNamesInTrie([&ret](const std::string& name) {
-        ret.push_back(escapeNonUtf8(name));
+        ret.push_back(convertToUtf8(name));
 
         if (ShutdownRequested())
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Shutdown requested");
@@ -294,7 +275,7 @@ static UniValue getvalueforname(const JSONRPCRequest& request)
         bid = indexOf(csToName.claimsNsupports, claimIdIn);
     }
 
-    ret.pushKV(T_NORMALIZEDNAME, escapeNonUtf8(csToName.name));
+    ret.pushKV(T_NORMALIZEDNAME, convertToUtf8(csToName.name));
     ret.pushKVs(claimAndSupportsToJSON(coinsCache, claimNsupports));
     ret.pushKV(T_LASTTAKEOVERHEIGHT, csToName.nLastTakeoverHeight);
     ret.pushKV(T_BID, (int)bid);
@@ -320,7 +301,7 @@ UniValue getclaimsforname(const JSONRPCRequest& request)
     auto csToName = trieCache.getClaimsForName(name);
 
     UniValue result(UniValue::VOBJ);
-    result.pushKV(T_NORMALIZEDNAME, escapeNonUtf8(csToName.name));
+    result.pushKV(T_NORMALIZEDNAME, convertToUtf8(csToName.name));
 
     auto seqOrder = seqSort(csToName.claimsNsupports);
 
@@ -378,7 +359,7 @@ UniValue getclaimbybid(const JSONRPCRequest& request)
         seq = indexOf(seqOrder, claimNsupports.claim.claimId);
     }
 
-    result.pushKV(T_NORMALIZEDNAME, escapeNonUtf8(csToName.name));
+    result.pushKV(T_NORMALIZEDNAME, convertToUtf8(csToName.name));
     result.pushKVs(claimAndSupportsToJSON(coinsCache, claimNsupports));
     result.pushKV(T_LASTTAKEOVERHEIGHT, csToName.nLastTakeoverHeight);
     result.pushKV(T_BID, bid);
@@ -423,7 +404,7 @@ UniValue getclaimbyseq(const JSONRPCRequest& request)
         return claimNsupports;
     }();
 
-    result.pushKV(T_NORMALIZEDNAME, escapeNonUtf8(csToName.name));
+    result.pushKV(T_NORMALIZEDNAME, convertToUtf8(csToName.name));
     result.pushKVs(claimAndSupportsToJSON(coinsCache, claimNsupports));
     result.pushKV(T_LASTTAKEOVERHEIGHT, csToName.nLastTakeoverHeight);
     result.pushKV(T_BID, (int)bid);
@@ -458,7 +439,7 @@ UniValue getclaimbyid(const JSONRPCRequest& request)
                 seq = indexOf(seqOrder, foundClaim.claimId);
                 bid = indexOf(csToName.claimsNsupports, foundClaim.claimId);
             }
-            ret.pushKV(T_NORMALIZEDNAME, escapeNonUtf8(csToName.name));
+            ret.pushKV(T_NORMALIZEDNAME, convertToUtf8(csToName.name));
             ret.pushKVs(claimAndSupportsToJSON(coinsCache, claimNsupports));
             ret.pushKV(T_LASTTAKEOVERHEIGHT, csToName.nLastTakeoverHeight);
             ret.pushKV(T_BID, (int)bid);
@@ -529,7 +510,7 @@ UniValue getclaimsfortx(const JSONRPCRequest& request)
         UniValue o(UniValue::VOBJ);
         o.pushKV(T_N, static_cast<int64_t>(i));
         std::string sName(vvchParams[0].begin(), vvchParams[0].end());
-        o.pushKV(T_NAME, escapeNonUtf8(sName));
+        o.pushKV(T_NAME, convertToUtf8(sName));
         if (op == OP_CLAIM_NAME) {
             uint160 claimId = ClaimIdHash(hash, i);
             o.pushKV(T_CLAIMID, claimId.GetHex());

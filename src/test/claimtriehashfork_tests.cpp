@@ -8,7 +8,7 @@
 
 using namespace std;
 
-void ValidatePairs(CClaimTrieCache& cache, const std::vector<std::pair<bool, uint256>>& pairs, uint256 claimHash)
+boost::test_tools::predicate_result ValidatePairs(CClaimTrieCache& cache, const std::vector<std::pair<bool, uint256>>& pairs, uint256 claimHash)
 {
     for (auto& pair : pairs)
         if (pair.first) // we're on the right because we were an odd index number
@@ -16,7 +16,12 @@ void ValidatePairs(CClaimTrieCache& cache, const std::vector<std::pair<bool, uin
         else
             claimHash = Hash(claimHash.begin(), claimHash.end(), pair.second.begin(), pair.second.end());
 
-    BOOST_CHECK_EQUAL(cache.getMerkleHash(), claimHash);
+    if (cache.getMerkleHash() == claimHash)
+        return true;
+    boost::test_tools::predicate_result res(false);
+    res.message() << cache.getMerkleHash().ToString()
+                    << " != " << claimHash.ToString();
+    return res;
 }
 
 BOOST_FIXTURE_TEST_SUITE(claimtriehashfork_tests, RegTestingSetup)
@@ -55,7 +60,7 @@ BOOST_AUTO_TEST_CASE(hash_includes_all_claims_single_test)
     BOOST_CHECK(proof.hasValue);
     BOOST_CHECK_EQUAL(proof.outPoint, outPoint);
     auto claimHash = getValueHash(outPoint, proof.nHeightOfLastTakeover);
-    ValidatePairs(fixture, proof.pairs, claimHash);
+    BOOST_CHECK(ValidatePairs(fixture, proof.pairs, claimHash));
 }
 
 BOOST_AUTO_TEST_CASE(hash_includes_all_claims_triple_test)
@@ -84,7 +89,7 @@ BOOST_AUTO_TEST_CASE(hash_includes_all_claims_triple_test)
             BOOST_CHECK(proof.hasValue);
             BOOST_CHECK_EQUAL(proof.outPoint, claim.outPoint);
             auto claimHash = getValueHash(claim.outPoint, proof.nHeightOfLastTakeover);
-            ValidatePairs(fixture, proof.pairs, claimHash);
+            BOOST_CHECK(ValidatePairs(fixture, proof.pairs, claimHash));
         }
     }
 }
@@ -113,7 +118,7 @@ BOOST_AUTO_TEST_CASE(hash_includes_all_claims_branched_test)
             BOOST_CHECK(proof.hasValue);
             BOOST_CHECK_EQUAL(proof.outPoint, claim.outPoint);
             auto claimHash = getValueHash(claim.outPoint, proof.nHeightOfLastTakeover);
-            ValidatePairs(fixture, proof.pairs, claimHash);
+            BOOST_CHECK(ValidatePairs(fixture, proof.pairs, claimHash));
         }
     }
 }
@@ -174,7 +179,7 @@ BOOST_AUTO_TEST_CASE(hash_claims_children_fuzzer_test)
             BOOST_CHECK(proof.hasValue);
             BOOST_CHECK_EQUAL(proof.outPoint, claim.outPoint);
             auto claimHash = getValueHash(claim.outPoint, proof.nHeightOfLastTakeover);
-            ValidatePairs(fixture, proof.pairs, claimHash);
+            BOOST_CHECK(ValidatePairs(fixture, proof.pairs, claimHash));
         }
     }
 }

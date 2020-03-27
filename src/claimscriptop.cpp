@@ -4,8 +4,13 @@
 
 #include <coins.h>
 #include <claimscriptop.h>
+#include <consensus/validation.h>
 #include <logging.h>
 #include <nameclaim.h>
+#include <validation.h>
+#include <util/translation.h>
+
+#include <boost/locale.hpp>
 
 CClaimScriptAddOp::CClaimScriptAddOp(const COutPoint& point, CAmount nValue, int nHeight)
     : point(point), nValue(nValue), nHeight(nHeight)
@@ -176,8 +181,47 @@ bool ProcessClaim(CClaimScriptOp& claimOp, CClaimTrieCache& trieCache, const CSc
         case OP_UPDATE_CLAIM:
             return claimOp.updateClaim(trieCache, vchToString(vvchParams[0]), uint160(vvchParams[1]));
         default:
-            throw std::runtime_error("Unimplemented OP handler.");
+            throw std::runtime_error(_("Unimplemented OP handler.").translated);
     }
+}
+
+static bool isUtf8(const std::string& name)
+{
+    using namespace boost::locale::conv;
+    try {
+        return to_utf<char>(name, "UTF-8", stop) == name;
+    } catch (const conversion_error&) {
+        return false;
+    }
+}
+
+bool ValidateClaimName(const CScript& scriptPubKey, std::string& reason)
+{
+    int op;
+    std::vector<std::vector<unsigned char> > vvchParams;
+    if (!DecodeClaimScript(scriptPubKey, op, vvchParams))
+        return true;
+
+    switch (op) {
+        case OP_CLAIM_NAME:
+        case OP_UPDATE_CLAIM:
+        case OP_SUPPORT_CLAIM:
+            break;
+        default:
+            reason = _("Unsupported operation").translated;
+            return false;
+    }
+    const auto name = vchToString(vvchParams[0]);
+    if (!isUtf8(name)) {
+        reason = _("Claim name is not valid UTF8 string").translated;
+        return false;
+    }
+    static const std::string disallowedSymbols("=&#:$@%?;/\\\"<>*\n\t\r\b\0", 20);
+    if (name.find_first_of(disallowedSymbols) != std::string::npos) {
+        reason = _("Claim name contains invalid symbol").translated;
+        return false;
+    }
+    return true;
 }
 
 void UpdateCache(const CTransaction& tx, CClaimTrieCache& trieCache, const CCoinsViewCache& view, int nHeight, const CUpdateCacheCallbacks& callbacks)

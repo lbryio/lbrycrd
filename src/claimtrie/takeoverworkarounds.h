@@ -452,4 +452,16 @@ const boost::container::flat_map<std::pair<int, std::string>, int> takeoverWorka
         {{658098, "le-temps-nous-glisse-entre-les-doigts"}, 600099},
 };
 
+inline bool isTakeoverWorkaroundActive(int nHeight, const std::string& name)
+{
+    // This is a super ugly hack to work around bug in old code.
+    // The bug: un/support a name then update it. This will cause its takeover height to be reset to current.
+    // This is because the old code with add to the cache without setting block originals when dealing in supports.
+    if (nHeight < 658300) {
+        auto wit = takeoverWorkarounds.find(std::make_pair(nHeight, name));
+        return wit != takeoverWorkarounds.end();
+    }
+    return false;
+}
+
 #endif // TAKEOVERWORKAROUNDS_H

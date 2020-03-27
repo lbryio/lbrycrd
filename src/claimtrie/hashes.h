@@ -28,6 +28,41 @@ uint256 Hash(TIterator begin, TIterator end, Args... args)
     return CalcHash(&sha, begin, end, args...);
 }
 
+template <typename T>
+struct IsHashable {
+    static const bool value = false;
+};
+
+template <typename T>
+struct IsHashable<std::vector<T>> {
+    static const bool value = true;
+};
+
+template <>
+struct IsHashable<std::string> {
+    static const bool value = true;
+};
+
+template <>
+struct IsHashable<uint256> {
+    static const bool value = true;
+};
+
+template <typename T>
+uint256 Hash(const T& c)
+{
+    static_assert(IsHashable<T>::value, "T is not hashable");
+    return Hash(c.begin(), c.end());
+}
+
+template <typename T1, typename T2>
+uint256 Hash2(const T1& c1, const T2& c2)
+{
+    static_assert(IsHashable<T1>::value, "T1 is not hashable");
+    static_assert(IsHashable<T2>::value, "T2 is not hashable");
+    return Hash(c1.begin(), c1.end(), c2.begin(), c2.end());
+}
+
 extern std::function<void(std::vector<uint256>&)> sha256n_way;
 
 #endif // CLAIMTRIE_HASHES_H

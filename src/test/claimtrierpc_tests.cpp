@@ -8,7 +8,7 @@
 
 using namespace std;
 
-extern void ValidatePairs(CClaimTrieCache& cache, const std::vector<std::pair<bool, uint256>>& pairs, uint256 claimHash);
+extern boost::test_tools::predicate_result ValidatePairs(CClaimTrieCache& cache, const std::vector<std::pair<bool, uint256>>& pairs, uint256 claimHash);
 
 BOOST_FIXTURE_TEST_SUITE(claimtrierpc_tests, RegTestingSetup)
 
@@ -325,7 +325,7 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
 
     result = getnameproof(req);
     auto claimHash = getValueHash(COutPoint(tx2.GetHash(), 1), result[T_LASTTAKEOVERHEIGHT].get_int());
-    ValidatePairs(fixture, jsonToPairs(result[T_PAIRS]), claimHash);
+    BOOST_CHECK(ValidatePairs(fixture, jsonToPairs(result[T_PAIRS]), claimHash));
 
     // check by partial id (can be even 2 chars)
     req.params = UniValue(UniValue::VARR);
@@ -335,7 +335,7 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
 
     result = getnameproof(req);
     claimHash = getValueHash(COutPoint(tx2.GetHash(), 0), result[T_LASTTAKEOVERHEIGHT].get_int());
-    ValidatePairs(fixture, jsonToPairs(result[T_PAIRS]), claimHash);
+    BOOST_CHECK(ValidatePairs(fixture, jsonToPairs(result[T_PAIRS]), claimHash));
 
     auto getclaimproofbybid = tableRPC["getclaimproofbybid"];
     req.params = UniValue(UniValue::VARR);
@@ -344,7 +344,7 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
 
     result = getclaimproofbybid(req);
     claimHash = getValueHash(COutPoint(tx1.GetHash(), 0), result[T_LASTTAKEOVERHEIGHT].get_int());
-    ValidatePairs(fixture, jsonToPairs(result[T_PAIRS]), claimHash);
+    BOOST_CHECK(ValidatePairs(fixture, jsonToPairs(result[T_PAIRS]), claimHash));
 
     auto getclaimproofbyseq = tableRPC["getclaimproofbyseq"];
     req.params = UniValue(UniValue::VARR);
@@ -353,7 +353,7 @@ BOOST_AUTO_TEST_CASE(hash_bid_seq_claim_changes_test)
 
     result = getclaimproofbyseq(req);
     claimHash = getValueHash(COutPoint(tx3.GetHash(), 0), result[T_LASTTAKEOVERHEIGHT].get_int());
-    ValidatePairs(fixture, jsonToPairs(result[T_PAIRS]), claimHash);
+    BOOST_CHECK(ValidatePairs(fixture, jsonToPairs(result[T_PAIRS]), claimHash));
 
     auto getchangesinblock = tableRPC["getchangesinblock"];
     req.params = UniValue(UniValue::VARR);

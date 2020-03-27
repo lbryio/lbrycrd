@@ -103,6 +103,7 @@ struct Params {
     }
     /** blocks before the hard fork that adds all claims into the merkle hash */
     int64_t nAllClaimsInMerkleForkHeight;
+    int64_t nClaimInfoInMerkleForkHeight;
     int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
     uint256 nMinimumChainWork;
     uint256 defaultAssumeValid;

@@ -138,6 +138,7 @@ public:
         consensus.nMinRemovalWorkaroundHeight = 297706;
         consensus.nMaxRemovalWorkaroundHeight = 658300;
         consensus.nAllClaimsInMerkleForkHeight = 658310; // targeting 30 Oct 2019
+        consensus.nClaimInfoInMerkleForkHeight = 900000; // FIXME pick height
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1916; // 95% of a  half week
@@ -247,6 +248,7 @@ public:
         consensus.nMinRemovalWorkaroundHeight = 99;
         consensus.nMaxRemovalWorkaroundHeight = 100;
         consensus.nAllClaimsInMerkleForkHeight = 110;
+        consensus.nClaimInfoInMerkleForkHeight = 1500000; // FIXME pick height
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1512; // 75% for testchains
@@ -345,6 +347,7 @@ public:
         consensus.nMinRemovalWorkaroundHeight = -1;
         consensus.nMaxRemovalWorkaroundHeight = -1;
         consensus.nAllClaimsInMerkleForkHeight = 350;
+        consensus.nClaimInfoInMerkleForkHeight = 1350;
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 108; // 75% for testchains

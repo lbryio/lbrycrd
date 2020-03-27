@@ -24,11 +24,9 @@ std::vector<unsigned char> heightToVch(int n)
 
 uint256 getValueHash(const COutPoint& outPoint, int nHeightOfLastTakeover)
 {
-    auto hash1 = Hash(outPoint.hash.begin(), outPoint.hash.end());
-    auto snOut = std::to_string(outPoint.n);
-    auto hash2 = Hash(snOut.begin(), snOut.end());
-    auto vchHash = heightToVch(nHeightOfLastTakeover);
-    auto hash3 = Hash(vchHash.begin(), vchHash.end());
+    auto hash1 = Hash(outPoint.hash);
+    auto hash2 = Hash(std::to_string(outPoint.n));
+    auto hash3 = Hash(heightToVch(nHeightOfLastTakeover));
     return Hash(hash1.begin(), hash1.end(), hash2.begin(), hash2.end(), hash3.begin(), hash3.end());
 }
 
@@ -56,6 +54,7 @@ CClaimTrie::CClaimTrie(std::size_t cacheBytes, bool fWipe, int height,
                        int64_t nExtendedClaimExpirationTime,
                        int64_t nExtendedClaimExpirationForkHeight,
                        int64_t nAllClaimsInMerkleForkHeight,
+                       int64_t nClaimInfoInMerkleForkHeight,
                        int proportionalDelayFactor) :
                        nNextHeight(height),
                        dbCacheBytes(cacheBytes),
@@ -67,7 +66,8 @@ CClaimTrie::CClaimTrie(std::size_t cacheBytes, bool fWipe, int height,
                        nOriginalClaimExpirationTime(nOriginalClaimExpirationTime),
                        nExtendedClaimExpirationTime(nExtendedClaimExpirationTime),
                        nExtendedClaimExpirationForkHeight(nExtendedClaimExpirationForkHeight),
-                       nAllClaimsInMerkleForkHeight(nAllClaimsInMerkleForkHeight)
+                       nAllClaimsInMerkleForkHeight(nAllClaimsInMerkleForkHeight),
+                       nClaimInfoInMerkleForkHeight(nClaimInfoInMerkleForkHeight)
 {
     applyPragmas(db, cacheBytes >> 10U); // in KB
 
@@ -582,7 +582,7 @@ bool CClaimTrieCacheBase::flush()
 const std::string childHashQuery_s = "SELECT name, hash FROM node WHERE parent = ? ORDER BY name";
 
 const std::string claimHashQuery_s =
-    "SELECT c.txID, c.txN, c.claimID, c.updateHeight, c.activationHeight, c.amount, "
+    "SELECT c.txID, c.txN, c.claimID, c.updateHeight, c.activationHeight, c.amount, c.originalHeight, "
     "(SELECT IFNULL(SUM(s.amount),0)+c.amount FROM support s INDEXED BY support_supportedClaimID "
     "WHERE s.supportedClaimID = c.claimID AND s.nodeName = c.nodeName "
     "AND s.activationHeight < ?1 AND s.expirationHeight >= ?1) as effectiveAmount "
@@ -798,9 +798,6 @@ bool CClaimTrieCacheBase::removeSupport(const COutPoint& outPoint, std::string& 
     return true;
 }
 
-// hardcoded claims that should trigger a takeover
-#include <takeoverworkarounds.h>
-
 bool CClaimTrieCacheBase::incrementBlock()
 {
     // the plan:
@@ -826,7 +823,11 @@ bool CClaimTrieCacheBase::incrementBlock()
     return true;
 }
 
-void CClaimTrieCacheBase::insertTakeovers(bool allowReplace) {
+// hardcoded claims that should trigger a takeover
+#include <takeoverworkarounds.h>
+
+void CClaimTrieCacheBase::insertTakeovers(bool allowReplace)
+{
     auto insertTakeoverQuery = allowReplace ?
             db << "INSERT OR REPLACE INTO takeover(name, height, claimID) VALUES(?, ?, ?)" :
             db << "INSERT INTO takeover(name, height, claimID) VALUES(?, ?, ?)";
@@ -847,13 +848,7 @@ void CClaimTrieCacheBase::insertTakeovers(bool allowReplace) {
         if (takeoverHappening && activateAllFor(nameWithTakeover))
             hasCandidate = getInfoForName(nameWithTakeover, candidateValue, 1);
 
-        // This is a super ugly hack to work around bug in old code.
-        // The bug: un/support a name then update it. This will cause its takeover height to be reset to current.
-        // This is because the old code with add to the cache without setting block originals when dealing in supports.
-        if (nNextHeight < 658300) {
-            auto wit = takeoverWorkarounds.find(std::make_pair(nNextHeight, nameWithTakeover));
-            takeoverHappening |= wit != takeoverWorkarounds.end();
-        }
+        takeoverHappening |= isTakeoverWorkaroundActive(nNextHeight, nameWithTakeover);
 
         logPrint << "Takeover on " << nameWithTakeover << " at " << nNextHeight << ", happening: " << takeoverHappening << ", set before: " << hasCurrentWinner << Clog::endl;
 

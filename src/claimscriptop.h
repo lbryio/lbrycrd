@@ -242,4 +242,11 @@ struct CUpdateCacheCallbacks
  */
 void UpdateCache(const CTransaction& tx, CClaimTrieCache& trieCache, const CCoinsViewCache& view, int nHeight, const CUpdateCacheCallbacks& callbacks = {});
 
+/**
+ * Function to validate that we process only UTF8 claim names
+ * @param[in]  scriptPubKey     claim script to be decoded
+ * @param[in]  reason           rejection reason if any
+ * */
+bool ValidateClaimName(const CScript& scriptPubKey, std::string& reason);
+
 #endif // BITCOIN_CLAIMSCRIPTOP_H

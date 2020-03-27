@@ -42,11 +42,13 @@ struct ClaimTrieChainFixture: public CClaimTrieCache
     int normalization_original;
     unsigned int num_txs_for_next_block;
     bool added_unchecked;
+    bool lRequireStandard;
 
     int64_t expirationForkHeight;
     int64_t originalExpiration;
     int64_t extendedExpiration;
     int64_t forkhash_original;
+    int64_t claiminfo_original;
     int minRemovalWorkaroundHeight, maxRemovalWorkaroundHeight;
 
     using CClaimTrieCache::getSupportsForName;
@@ -60,6 +62,8 @@ struct ClaimTrieChainFixture: public CClaimTrieCache
     void setNormalizationForkHeight(int targetMinusCurrent);
 
     void setHashForkHeight(int targetMinusCurrent);
+
+    void setClaimInfoForkHeight(int targetMinusCurrent);
 
     void setRemovalWorkaroundHeight(int targetMinusCurrent, int blocks);
 

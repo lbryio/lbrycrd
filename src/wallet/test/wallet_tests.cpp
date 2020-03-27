@@ -340,8 +340,9 @@ BOOST_AUTO_TEST_CASE(LoadReceiveRequests)
 class ListCoinsTestingSetup : public TestChain100Setup
 {
 public:
-    ListCoinsTestingSetup()
+    ListCoinsTestingSetup() : lRequireStandard(fRequireStandard)
     {
+        fRequireStandard = false; // ensure all txs goes to wallet
         CreateAndProcessBlock({}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
         wallet = MakeUnique<CWallet>(m_chain.get(), WalletLocation(), WalletDatabase::CreateMock());
         bool firstRun;
@@ -359,6 +360,7 @@ public:
     ~ListCoinsTestingSetup()
     {
         wallet.reset();
+        fRequireStandard = lRequireStandard;
     }
 
     CWalletTx& AddTx(CRecipient recipient)
@@ -389,6 +391,7 @@ public:
         return it->second;
     }
 
+    bool lRequireStandard;
     std::unique_ptr<interfaces::Chain> m_chain = interfaces::MakeChain();
     std::unique_ptr<CWallet> wallet;
 };

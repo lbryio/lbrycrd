@@ -35,6 +35,7 @@ function set_config() {
       override_config_option RPC_ALLOW_IP rpcallowip $MERGED_CONFIG
       override_config_option RPC_PORT rpcport $MERGED_CONFIG
       override_config_option RPC_BIND rpcbind $MERGED_CONFIG
+      override_config_option TX_INDEX txindex $MERGED_CONFIG
       override_config_option MAX_TX_FEE maxtxfee $MERGED_CONFIG
       override_config_option DUST_RELAY_FEE dustrelayfee $MERGED_CONFIG
       # Make the new merged config file the new CONFIG_PATH

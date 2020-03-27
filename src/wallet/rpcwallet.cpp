@@ -571,7 +571,7 @@ UniValue abandonclaim(const JSONRPCRequest& request)
 
 static void MaybePushAddress(UniValue& entry, const CTxDestination &dest);
 
-extern std::string escapeNonUtf8(const std::string&);
+extern std::string convertToUtf8(const std::string&);
 
 void ListNameClaims(interfaces::Chain::Lock& locked_chain, const CWalletTx& wtx, CWallet* const pwallet, int nMinDepth,
                     UniValue& ret, const bool include_supports, bool list_spent)
@@ -599,7 +599,7 @@ void ListNameClaims(interfaces::Chain::Lock& locked_chain, const CWalletTx& wtx,
             continue;
 
         std::string sName (vvchParams[0].begin(), vvchParams[0].end());
-        entry.pushKV("name", escapeNonUtf8(sName));
+        entry.pushKV("name", convertToUtf8(sName));
         if (op == OP_CLAIM_NAME)
         {
             uint160 claimId = ClaimIdHash(wtx.GetHash(), s.vout);

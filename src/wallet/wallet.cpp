@@ -15,7 +15,7 @@
 #include <key_io.h>
 #include <nameclaim.h>
 #include <policy/fees.h>
-#include <policy/policy.h>
+#include <policy/settings.h>
 #include <primitives/block.h>
 #include <primitives/transaction.h>
 #include <script/descriptor.h>
@@ -3378,8 +3378,12 @@ bool CWallet::CommitTransaction(CTransactionRef tx, mapValue_t mapValue, std::ve
 {
     {
         auto locked_chain = chain().lock();
-        LOCK(cs_wallet);
+        std::string reason;
+        // reject non standard tx before adding to mempool
+        if (fRequireStandard && !IsStandardTx(*tx, reason))
+            return state.Invalid(ValidationInvalidReason::TX_NOT_STANDARD, false, REJECT_NONSTANDARD, reason);
 
+        LOCK(cs_wallet);
         CWalletTx wtxNew(this, std::move(tx));
         wtxNew.mapValue = std::move(mapValue);
         wtxNew.vOrderForm = std::move(orderForm);
@@ -3411,7 +3415,6 @@ bool CWallet::CommitTransaction(CTransactionRef tx, mapValue_t mapValue, std::ve
             std::string err_string;
             if (!wtx.SubmitMemoryPoolAndRelay(err_string, true, *locked_chain)) {
                 WalletLogPrintf("CommitTransaction(): Transaction cannot be broadcast immediately, %s\n", err_string);
-                // TODO: if we expect the failure to be long term or permanent, instead delete wtx from the wallet and return failure.
             }
         }
     }
