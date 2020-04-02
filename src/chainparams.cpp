@@ -247,24 +247,27 @@ public:
         consensus.nMajorityRejectBlockOutdated = 75;
         consensus.nMajorityWindow = 100;
         consensus.BIP16Exception = uint256S("0x00000000dd30457c001f4095d208cc1296b0eed002427aa599874af7a432b105");
-        consensus.BIP34Height = 21111;
-        consensus.BIP34Hash = uint256S("0x0000000023b3a96d3484e5abb3755c413e7d41500f8e2a5c3f0dd01299cd8ef8");
+        consensus.BIP34Height = 14;
+        consensus.BIP34Hash = uint256S("0x079557d16edcd640c4057c9fddb81257263014fe384c4aa348c5b9d190650a46");
         // FIXME: adjust heights
-        consensus.BIP65Height = 1200000;
-        consensus.BIP66Height = 1200000;
+        consensus.BIP65Height = 120;
+        consensus.BIP66Height = 120;
         consensus.powLimit = uint256S("0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 150;
+//        consensus.CSVHeight = 0;
+//        consensus.SegwitHeight = 120;
+//        consensus.MinBIP9WarningHeight = 2136; // segwit activation height + miner confirmation window
         consensus.nPowTargetSpacing = 150;
         consensus.nOriginalClaimExpirationTime = 262974;
         consensus.nExtendedClaimExpirationTime = 2102400;
-        consensus.nExtendedClaimExpirationForkHeight = 278160;
-        consensus.nAllowMinDiffMinHeight = 277299;
-        consensus.nAllowMinDiffMaxHeight = 1100000;
-        consensus.nNormalizedNameForkHeight = 993380;   // targeting, 21 Feb 2019
+        consensus.nExtendedClaimExpirationForkHeight = 1;
+        consensus.nAllowMinDiffMinHeight = 1;
+        consensus.nAllowMinDiffMaxHeight = 2;
+        consensus.nNormalizedNameForkHeight = 1;   // targeting, 21 Feb 2019
         consensus.nMinRemovalWorkaroundHeight = 99;
-        consensus.nMaxRemovalWorkaroundHeight = 100000000;
-        consensus.nWitnessForkHeight = 1198600;
-        consensus.nAllClaimsInMerkleForkHeight = 1198560; // targeting 30 Sep 2019
+        consensus.nMaxRemovalWorkaroundHeight = 100;
+        consensus.nWitnessForkHeight = 120;
+        consensus.nAllClaimsInMerkleForkHeight = 110; // targeting 30 Sep 2019
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1512; // 75% for testchains
@@ -284,10 +287,10 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].nTimeout = 1493596800; // May 1st 2017
 
         // The best chain should have at least this much work.
-        consensus.nMinimumChainWork = uint256S("0x000000000000000000000000000000000000000000000000000a0c3931735170");
+        consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000000000000004f6bb06a9");
 
         // By default assume that the signatures in ancestors of this block are valid.
-        consensus.defaultAssumeValid = uint256S("9812b0bcb7e889e58d999c897e9eaddb2dab98122ff1cfb238ebeef5351bd48c"); // 1
+        consensus.defaultAssumeValid = uint256S("0x079557d16edcd640c4057c9fddb81257263014fe384c4aa348c5b9d190650a46"); // 14
 
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xe4;
@@ -308,8 +311,8 @@ public:
 
         vFixedSeeds.clear();
         vSeeds.clear();
-        vSeeds.emplace_back("testdnsseed1.lbry.io");
-        vSeeds.emplace_back("testdnsseed2.lbry.io");
+        vSeeds.emplace_back("testdnsseed1.lbry.com");
+        vSeeds.emplace_back("testdnsseed2.lbry.com");
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,111);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,196);
