@@ -198,7 +198,7 @@ bool CClaimTrieCacheBase::haveSupportInQueue(const std::string& name, const COut
     return false;
 }
 
-bool emptyNodeShouldExistAt(sqlite::database& db, const std::string& name, int nNextHeight) {
+bool emptyNodeShouldExistAt(sqlite::database& db, const std::string& name, int nNextHeight, int requiredChildren) {
     auto end = name + std::string(256, std::numeric_limits<char>::max()); // 256 == MAX_CLAIM_NAME_SIZE + 1
     auto query = db << "SELECT DISTINCT nodeName FROM claim "
                         "WHERE nodeName BETWEEN ?1 AND ?2 "
@@ -213,7 +213,7 @@ bool emptyNodeShouldExistAt(sqlite::database& db, const std::string& name, int n
             return false;
         assert(nn.size() > name.size());
         ss.insert(nn[name.size()]);
-        if (ss.size() > 1)
+        if (ss.size() >= requiredChildren)
             return true;
     }
     return false;
@@ -699,7 +699,7 @@ bool CClaimTrieCacheBase::removeClaim(const uint160& claimId, const COutPoint& o
     if (nNextHeight >= base->nMinRemovalWorkaroundHeight
         && nNextHeight < base->nMaxRemovalWorkaroundHeight
         ) {
-        if (emptyNodeShouldExistAt(db, nodeName, nNextHeight))
+        if (emptyNodeShouldExistAt(db, nodeName, nNextHeight, 1))
             removalWorkaround.insert(nodeName);
     }
     return true;
@@ -857,14 +857,14 @@ int CClaimTrieCacheBase::getDelayForName(const std::string& name, const uint160&
         return 0;
     }
 
-    if (!hasCurrentWinner)
-        return 0;
-
     if (nNextHeight > base->nMaxRemovalWorkaroundHeight) {
+        if (!hasCurrentWinner)
+            return 0;
+
         // TODO: hard fork this out! It's wrong but kept for backwards compatibility
         // Plan: if we have no claims for this node but we do have multiple children
         // such that we have an implicit node here then return a 0
-        if (emptyNodeShouldExistAt(db, name, nNextHeight))
+        if (emptyNodeShouldExistAt(db, name, nNextHeight, 2))
             return 0;
     }
     else {
@@ -876,6 +876,9 @@ int CClaimTrieCacheBase::getDelayForName(const std::string& name, const uint160&
             return 0;
         }
     }
+
+    if (!hasCurrentWinner)
+        return 0;
 
     return std::min((nNextHeight - winningTakeoverHeight) / base->nProportionalDelayFactor, 4032);
 }
