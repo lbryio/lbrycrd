@@ -144,7 +144,7 @@ public:
         consensus.nAllowMinDiffMaxHeight = -1;
         consensus.nNormalizedNameForkHeight = 539940; // targeting 21 March 2019
         consensus.nMinRemovalWorkaroundHeight = 297706;
-        consensus.nMaxRemovalWorkaroundHeight = 100000000;
+        consensus.nMaxRemovalWorkaroundHeight = 658300;
         consensus.nWitnessForkHeight = 680770; // targeting 11 Dec 2019
         consensus.nAllClaimsInMerkleForkHeight = 658310; // targeting 30 Oct 2019
         consensus.fPowAllowMinDifficultyBlocks = false;
@@ -371,8 +371,8 @@ public:
         consensus.nAllowMinDiffMinHeight = -1;
         consensus.nAllowMinDiffMaxHeight = -1;
         consensus.nNormalizedNameForkHeight = 250; // SDK depends upon this number
-        consensus.nMinRemovalWorkaroundHeight = -1;
-        consensus.nMaxRemovalWorkaroundHeight = -1;
+        consensus.nMinRemovalWorkaroundHeight = 0;
+        consensus.nMaxRemovalWorkaroundHeight = 1000;
         consensus.nWitnessForkHeight = 150;
         consensus.nAllClaimsInMerkleForkHeight = 350;
         consensus.fPowAllowMinDifficultyBlocks = false;
