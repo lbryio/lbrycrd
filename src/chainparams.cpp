@@ -144,7 +144,7 @@ public:
         consensus.nAllowMinDiffMaxHeight = -1;
         consensus.nNormalizedNameForkHeight = 539940; // targeting 21 March 2019
         consensus.nMinRemovalWorkaroundHeight = 297706;
-        consensus.nMaxRemovalWorkaroundHeight = 100000000;
+        consensus.nMaxRemovalWorkaroundHeight = 658300;
         consensus.nWitnessForkHeight = 680770; // targeting 11 Dec 2019
         consensus.nAllClaimsInMerkleForkHeight = 658310; // targeting 30 Oct 2019
         consensus.fPowAllowMinDifficultyBlocks = false;
@@ -166,10 +166,10 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].nTimeout = 1548288000; // Jan 24, 2019
 
         // The best chain should have at least this much work.
-        consensus.nMinimumChainWork = uint256S("0000000000000000000000000000000000000000000002bfdb5232f364d6774e"); //700k
+        consensus.nMinimumChainWork = uint256S("0000000000000000000000000000000000000000000003253077412df5b49766"); //749k
 
         // By default assume that the signatures in ancestors of this block are valid.
-        consensus.defaultAssumeValid = uint256S("beaf6432c9a7be3ea8c333bd7a90d4b3e07b0f20c86aa2e5dfebc9eba340201c"); //700k
+        consensus.defaultAssumeValid = uint256S("b9676f45be594438a2011407c93bb530d817fa365846e7a6ecdf2790e4a0ad6b"); //749k
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -287,10 +287,10 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].nTimeout = 1585849000; // Apr 2nd 2020
 
         // The best chain should have at least this much work.
-        consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000000000000004f6bb06a9");
+        consensus.nMinimumChainWork = uint256S("00000000000000000000000000000000000000000000000000000054b7d280af"); // 8400
 
         // By default assume that the signatures in ancestors of this block are valid.
-        consensus.defaultAssumeValid = uint256S("0x079557d16edcd640c4057c9fddb81257263014fe384c4aa348c5b9d190650a46"); // 14
+        consensus.defaultAssumeValid = uint256S("50b68b892f4e0f2ef649df37ef10b702e826c8913cc785c5e8ec16dd6be83f8b"); // 8400
 
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xe4;
