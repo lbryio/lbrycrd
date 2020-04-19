@@ -369,6 +369,7 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
     UniValue lpval = NullUniValue;
     std::set<std::string> setClientRules;
     int64_t nMaxVersionPreVB = -1;
+    UniValue aMutable(UniValue::VARR);
     if (!request.params[0].isNull())
     {
         const UniValue& oparam = request.params[0].get_obj();
@@ -382,6 +383,13 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
         else
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid mode");
         lpval = find_value(oparam, "longpollid");
+
+        const UniValue& capval = find_value(oparam, "capabilities");
+        if (capval.isArray()) {
+            for (std::size_t i = 0; i < capval.size(); ++i)
+                if (capval[i].get_str().rfind("coinbase/", 0) == 0) // we don't care what they do to the coinbase
+                    aMutable.push_back(capval[i]);
+        }
 
         if (strMode == "proposal")
         {
@@ -573,7 +581,6 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
 
     arith_uint256 hashTarget = arith_uint256().SetCompact(pblock->nBits);
 
-    UniValue aMutable(UniValue::VARR);
     aMutable.push_back("time");
     aMutable.push_back("transactions");
     aMutable.push_back("prevblock");
@@ -623,6 +630,10 @@ static UniValue getblocktemplate(const JSONRPCRequest& request)
             }
         }
     }
+    if (pindexPrev->nHeight + 1 >= consensusParams.CSVHeight)
+        aRules.push_back("csv");
+    if (pindexPrev->nHeight + 1 >= consensusParams.SegwitHeight)
+        aRules.push_back("segwit");
     result.pushKV("version", pblock->nVersion);
     result.pushKV("rules", aRules);
     result.pushKV("vbavailable", vbavailable);
