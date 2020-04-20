@@ -824,11 +824,12 @@ BOOST_AUTO_TEST_CASE(removal_workaround_functions)
     fixture.IncrementBlocks(1);
     BOOST_CHECK(fixture.is_best_claim("a", tx3a));
 
-    fixture.IncrementBlocks(7);
-    CMutableTransaction tx4a = fixture.MakeUpdate(tx2a, "b", "b", ClaimIdHash(tx2a.GetHash(), 0), 4);
-    CMutableTransaction tx4b = fixture.MakeUpdate(tx2b, "b", "b", ClaimIdHash(tx2b.GetHash(), 0), 5); // trigger a takeover
-    fixture.IncrementBlocks(1);
-    BOOST_CHECK(fixture.is_best_claim("b", tx4b));
+    // TODO: bring this back after we hard fork out the removal workaround part 2!
+//    fixture.IncrementBlocks(7);
+//    CMutableTransaction tx4a = fixture.MakeUpdate(tx2a, "b", "b", ClaimIdHash(tx2a.GetHash(), 0), 4);
+//    CMutableTransaction tx4b = fixture.MakeUpdate(tx2b, "b", "b", ClaimIdHash(tx2b.GetHash(), 0), 5); // trigger a takeover
+//    fixture.IncrementBlocks(1);
+//    BOOST_CHECK(fixture.is_best_claim("b", tx4b));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -24,6 +24,32 @@ BOOST_AUTO_TEST_CASE(claim_replace_test) {
     BOOST_CHECK(fixture.is_best_claim("bassfisher", tx2));
 }
 
+BOOST_AUTO_TEST_CASE(triple_update_test)
+{
+    ClaimTrieChainFixture fixture;
+    CMutableTransaction tx1 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 10);
+    fixture.IncrementBlocks(1);
+    CMutableTransaction tx1a = fixture.MakeClaim(fixture.GetCoinbase(), "tester", "one", 3);
+    CMutableTransaction tx2 = fixture.MakeClaim(fixture.GetCoinbase(), "test", "one", 5);
+    auto height = ::ChainActive().Tip()->nHeight;
+    fixture.IncrementBlocks(9);
+
+    CMutableTransaction tx3 = fixture.MakeUpdate(tx1, "test", "two", ClaimIdHash(tx1.GetHash(), 0), 10);
+    CMutableTransaction tx4 = fixture.MakeUpdate(tx2, "test", "two", ClaimIdHash(tx2.GetHash(), 0), 15);
+    CMutableTransaction tx5 = fixture.MakeUpdate(tx4, "test", "two", ClaimIdHash(tx2.GetHash(), 0), 5);
+
+    fixture.IncrementBlocks(1);
+    BOOST_CHECK(fixture.is_best_claim("test", tx3));
+    uint160 id; int takeover;
+    BOOST_REQUIRE(fixture.getLastTakeoverForName("test", id, takeover));
+    BOOST_CHECK_EQUAL(takeover, height);
+    id = ClaimIdHash(tx2.GetHash(), 0);
+    std::string name;
+    CClaimValue value;
+    BOOST_REQUIRE(fixture.getClaimById(id, name, value));
+    BOOST_CHECK_EQUAL(value.nValidAtHeight, height+20);
+}
+
 BOOST_AUTO_TEST_CASE(takeover_stability_test) {
     // no competing bids
     ClaimTrieChainFixture fixture;
