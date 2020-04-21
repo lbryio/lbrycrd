@@ -24,28 +24,10 @@ private:
     std::string m_name;
     std::unique_ptr<BaseIndex::DB> m_db;
 
-    FlatFilePos m_next_filter_pos;
-    std::unique_ptr<FlatFileSeq> m_filter_fileseq;
-
-    bool ReadFilterFromDisk(const FlatFilePos& pos, BlockFilter& filter) const;
-    size_t WriteFilterToDisk(FlatFilePos& pos, const BlockFilter& filter);
-
 protected:
-    bool Init() override;
-
-    bool CommitInternal() override;
-
     bool WriteBlock(const CBlock& block, const CBlockIndex* pindex) override;
-
-    bool Rewind(const CBlockIndex* current_tip, const CBlockIndex* new_tip) override;
-
     BaseIndex::DB& GetDB() const override { return *m_db; }
-
     const char* GetName() const override { return m_name.c_str(); }
-
-    bool ReadFilePos(FlatFilePos& file) const;
-
-    bool WriteFilePos(const FlatFilePos& file);
 
 public:
     /** Constructs the index, which becomes available to be queried. */

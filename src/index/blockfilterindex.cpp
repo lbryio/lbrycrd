@@ -6,7 +6,6 @@
 
 #include <clientversion.h>
 #include <index/blockfilterindex.h>
-#include <streams.h>
 #include <sqlite.h>
 #include <util/system.h>
 #include <validation.h>
@@ -18,29 +17,6 @@
  * active chain can always be retrieved, alleviating timing concerns.
  */
 
-constexpr unsigned int MAX_FLTR_FILE_SIZE = 0x1000000; // 16 MiB
-/** The pre-allocation chunk size for fltr?????.dat files */
-constexpr unsigned int FLTR_FILE_CHUNK_SIZE = 0x100000; // 1 MiB
-
-namespace {
-
-struct DBVal {
-    uint256 hash;
-    uint256 header;
-    FlatFilePos pos;
-
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(hash);
-        READWRITE(header);
-        READWRITE(pos);
-    }
-};
-
-} // namespace
-
 static std::map<BlockFilterType, BlockFilterIndex> g_filter_indexes;
 
 BlockFilterIndex::BlockFilterIndex(BlockFilterType filter_type,
@@ -50,134 +26,21 @@ BlockFilterIndex::BlockFilterIndex(BlockFilterType filter_type,
     const std::string& filter_name = BlockFilterTypeName(filter_type);
     if (filter_name.empty()) throw std::invalid_argument("unknown filter_type");
 
-    fs::path path = GetDataDir() / "filter" / filter_name;
+    fs::path path = GetDataDir() / "filter";
     fs::create_directories(path);
+    path /= filter_name;
 
     m_name = filter_name + " block filter index";
     m_db = MakeUnique<BaseIndex::DB>(path, n_cache_size, f_memory, f_wipe);
-    m_filter_fileseq = MakeUnique<FlatFileSeq>(std::move(path), "fltr", FLTR_FILE_CHUNK_SIZE);
 
-    (*m_db) << "CREATE TABLE IF NOT EXISTS block (height INTEGER, hash BLOB NOT NULL COLLATE BINARY, "
+    (*m_db) << "CREATE TABLE IF NOT EXISTS block (height INTEGER NOT NULL, hash BLOB NOT NULL COLLATE BINARY, "
                "filter_hash BLOB NOT NULL COLLATE BINARY, header BLOB NOT NULL COLLATE BINARY, "
-               "file INTEGER NOT NULL, pos INTEGER NOT NULL, "
+               "filter_data BLOB NOT NULL COLLATE BINARY, "
                "PRIMARY KEY(height, hash));";
 
-    (*m_db) << "CREATE TABLE IF NOT EXISTS file_pos (file INTEGER NOT NULL, pos INTEGER NOT NULL);";
-
     if (f_wipe) {
-        (*m_db) << "DELETE FROM file_pos";
         (*m_db) << "DELETE FROM block";
     }
-}
-
-bool BlockFilterIndex::Init()
-{
-    if (!ReadFilePos(m_next_filter_pos)) {
-        m_next_filter_pos.nFile = 0;
-        m_next_filter_pos.nPos = 0;
-    }
-    return BaseIndex::Init();
-}
-
-bool BlockFilterIndex::ReadFilePos(FlatFilePos& file) const
-{
-    file.SetNull();
-    bool success = false;
-    for (auto&& row : (*m_db) << "SELECT file, pos FROM file_pos") {
-        row >> file.nFile >> file.nPos;
-        success = true;
-    }
-    return success;
-}
-
-bool BlockFilterIndex::WriteFilePos(const FlatFilePos& file)
-{
-    (*m_db) << "DELETE FROM file_pos";
-    (*m_db) << "INSERT INTO file_pos VALUES(?, ?)" << file.nFile << file.nPos;
-    return m_db->rows_modified() > 0;
-}
-
-
-bool BlockFilterIndex::CommitInternal()
-{
-    const FlatFilePos& pos = m_next_filter_pos;
-
-    // Flush current filter file to disk.
-    CAutoFile file(m_filter_fileseq->Open(pos), SER_DISK, CLIENT_VERSION);
-    if (file.IsNull()) {
-        return error("%s: Failed to open filter file %d", __func__, pos.nFile);
-    }
-    if (!FileCommit(file.Get())) {
-        return error("%s: Failed to commit filter file %d", __func__, pos.nFile);
-    }
-
-    return BaseIndex::CommitInternal();
-}
-
-bool BlockFilterIndex::ReadFilterFromDisk(const FlatFilePos& pos, BlockFilter& filter) const
-{
-    CAutoFile filein(m_filter_fileseq->Open(pos, true), SER_DISK, CLIENT_VERSION);
-    if (filein.IsNull()) {
-        return false;
-    }
-
-    uint256 block_hash;
-    std::vector<unsigned char> encoded_filter;
-    try {
-        filein >> block_hash >> encoded_filter;
-        filter = BlockFilter(GetFilterType(), block_hash, std::move(encoded_filter));
-    }
-    catch (const std::exception& e) {
-        return error("%s: Failed to deserialize block filter from disk: %s", __func__, e.what());
-    }
-
-    return true;
-}
-
-size_t BlockFilterIndex::WriteFilterToDisk(FlatFilePos& pos, const BlockFilter& filter)
-{
-    assert(filter.GetFilterType() == GetFilterType());
-
-    size_t data_size =
-        GetSerializeSize(filter.GetBlockHash(), CLIENT_VERSION) +
-        GetSerializeSize(filter.GetEncodedFilter(), CLIENT_VERSION);
-
-    // If writing the filter would overflow the file, flush and move to the next one.
-    if (pos.nPos + data_size > MAX_FLTR_FILE_SIZE) {
-        CAutoFile last_file(m_filter_fileseq->Open(pos), SER_DISK, CLIENT_VERSION);
-        if (last_file.IsNull()) {
-            LogPrintf("%s: Failed to open filter file %d\n", __func__, pos.nFile);
-            return 0;
-        }
-        if (!TruncateFile(last_file.Get(), pos.nPos)) {
-            LogPrintf("%s: Failed to truncate filter file %d\n", __func__, pos.nFile);
-            return 0;
-        }
-        if (!FileCommit(last_file.Get())) {
-            LogPrintf("%s: Failed to commit filter file %d\n", __func__, pos.nFile);
-            return 0;
-        }
-
-        pos.nFile++;
-        pos.nPos = 0;
-    }
-
-    // Pre-allocate sufficient space for filter data.
-    bool out_of_space;
-    m_filter_fileseq->Allocate(pos, data_size, out_of_space);
-    if (out_of_space) {
-        LogPrintf("%s: out of disk space\n", __func__);
-        return 0;
-    }
-
-    CAutoFile fileout(m_filter_fileseq->Open(pos), SER_DISK, CLIENT_VERSION);
-    if (fileout.IsNull()) {
-        LogPrintf("%s: Failed to open filter file %d\n", __func__, pos.nFile);
-        return 0;
-    }
-
-    fileout << filter.GetBlockHash() << filter.GetEncodedFilter();
-    return data_size;
 }
 
 bool BlockFilterIndex::WriteBlock(const CBlock& block, const CBlockIndex* pindex)
@@ -186,177 +49,97 @@ bool BlockFilterIndex::WriteBlock(const CBlock& block, const CBlockIndex* pindex
     uint256 prev_header;
 
     if (pindex->nHeight > 0) {
-        if (!UndoReadFromDisk(block_undo, pindex)) {
-            return false;
-        }
-
-        uint256 block_hash;
-        auto query = (*m_db) << "SELECT hash, header FROM block WHERE height = ?"
-                             << pindex->nHeight - 1;
-        auto it = query.begin();
-        if (it == query.end())
+        if (!UndoReadFromDisk(block_undo, pindex))
             return false;
 
-        *it >> block_hash >> prev_header;
-
-        uint256 expected_block_hash = pindex->pprev->GetBlockHash();
-        if (block_hash != expected_block_hash) {
-            return error("%s: previous block header belongs to unexpected block %s; expected %s",
-                         __func__, block_hash.ToString(), expected_block_hash.ToString());
-        }
+        if (!LookupFilterHeader(pindex->pprev, prev_header))
+            return false;
     }
 
     BlockFilter filter(m_filter_type, block, block_undo);
 
-    size_t bytes_written = WriteFilterToDisk(m_next_filter_pos, filter);
-    if (bytes_written == 0)
-        return false;
-
     const auto filterHash = filter.GetHash(); // trying to avoid temps
     const auto filterHeader = filter.ComputeHeader(prev_header);
-    (*m_db) << "INSERT OR REPLACE INTO block VALUES(?, ?, ?, ?, ?, ?)"
+    (*m_db) << "INSERT OR REPLACE INTO block VALUES(?, ?, ?, ?, ?)"
             << pindex->nHeight
             << pindex->hash
             << filterHash
             << filterHeader
-            << m_next_filter_pos.nFile
-            << m_next_filter_pos.nPos;
+            << filter.GetEncodedFilter();
 
-    if (m_db->rows_modified() <= 0) {
-        return false;
-    }
-
-    m_next_filter_pos.nPos += bytes_written;
-    return true;
-}
-
-static bool CopyHeightIndexToHashIndex(sqlite::database& db, int start_height, int stop_height)
-{
-    if (start_height > stop_height)
-        return true;
-    db << "UPDATE block SET height = NULL WHERE height BETWEEN ? AND ?"
-        << start_height << stop_height;
-    return db.rows_modified() > 0;
-}
-
-bool BlockFilterIndex::Rewind(const CBlockIndex* current_tip, const CBlockIndex* new_tip)
-{
-    assert(current_tip->GetAncestor(new_tip->nHeight) == new_tip);
-
-    // During a reorg, we need to copy all filters for blocks that are getting disconnected from the
-    // height index to the hash index so we can still find them when the height index entries are
-    // overwritten.
-    if (!CopyHeightIndexToHashIndex(*m_db, new_tip->nHeight + 1, current_tip->nHeight)) {
-        return false;
-    }
-
-    // The latest filter position gets written in Commit by the call to the BaseIndex::Rewind.
-    // But since this creates new references to the filter, the position should get updated here
-    // atomically as well in case Commit fails.
-    if (!WriteFilePos(m_next_filter_pos)) return false;
-
-    return BaseIndex::Rewind(current_tip, new_tip);
-}
-
-static bool LookupOne(sqlite::database& db, const CBlockIndex* block_index, DBVal& result)
-{
-    // First check if the result is stored under the height index and the value there matches the
-    // block hash. This should be the case if the block is on the active chain.
-    auto query = db << "SELECT filter_hash, header, file, pos FROM block WHERE (height = ? "
-                        "OR height IS NULL) AND hash = ? LIMIT 1"
-                    << block_index->nHeight << block_index->GetBlockHash();
-
-    for (auto&& row : query) {
-        row >> result.hash >> result.header >> result.pos.nFile >> result.pos.nPos;
-        return true;
-    }
-    return false;
-}
-
-static bool LookupRange(sqlite::database& db, const std::string& index_name, int start_height,
-                        const CBlockIndex* stop_index, std::vector<DBVal>& results)
-{
-    if (start_height < 0) {
-        return error("%s: start height (%d) is negative", __func__, start_height);
-    }
-    if (start_height > stop_index->nHeight) {
-        return error("%s: start height (%d) is greater than stop height (%d)",
-                     __func__, start_height, stop_index->nHeight);
-    }
-
-    size_t results_size = static_cast<size_t>(stop_index->nHeight - start_height + 1);
-    results.resize(results_size);
-
-    // Iterate backwards through block indexes collecting results in order to access the block hash
-    // of each entry in case we need to look it up in the hash index.
-    for (const CBlockIndex* block_index = stop_index;
-         block_index && block_index->nHeight >= start_height;
-         block_index = block_index->pprev) {
-        size_t i = static_cast<size_t>(block_index->nHeight - start_height);
-        if (!LookupOne(db, block_index, results[i])) {
-            return error("%s: unable to read value in %s at key %s", __func__,
-                         index_name, block_index->GetBlockHash().ToString());
-        }
-    }
-
-    return true;
+    return m_db->rows_modified() > 0;
 }
 
 bool BlockFilterIndex::LookupFilter(const CBlockIndex* block_index, BlockFilter& filter_out) const
 {
-    DBVal entry;
-    if (!LookupOne(*m_db, block_index, entry)) {
-        return false;
+    auto query = *m_db << "SELECT filter_data FROM block WHERE height = ? and hash = ?"
+            << block_index->nHeight << block_index->hash;
+
+    for (auto&& row: query) {
+        std::vector<uint8_t> data;
+        row >> data;
+        filter_out = BlockFilter(m_filter_type, block_index->hash, data);
+        return true;
     }
 
-    return ReadFilterFromDisk(entry.pos, filter_out);
+    return false;
 }
 
 bool BlockFilterIndex::LookupFilterHeader(const CBlockIndex* block_index, uint256& header_out) const
 {
-    DBVal entry;
-    if (!LookupOne(*m_db, block_index, entry)) {
-        return false;
+    auto query = *m_db << "SELECT header FROM block WHERE height = ? and hash = ?"
+                       << block_index->nHeight << block_index->hash;
+
+    for (auto&& row: query) {
+        row >> header_out;
+        return true;
     }
 
-    header_out = entry.header;
-    return true;
+    return false;
 }
 
 bool BlockFilterIndex::LookupFilterRange(int start_height, const CBlockIndex* stop_index,
                                          std::vector<BlockFilter>& filters_out) const
 {
-    std::vector<DBVal> entries;
-    if (!LookupRange(*m_db, m_name, start_height, stop_index, entries)) {
-        return false;
-    }
-
-    filters_out.resize(entries.size());
-    auto filter_pos_it = filters_out.begin();
-    for (const auto& entry : entries) {
-        if (!ReadFilterFromDisk(entry.pos, *filter_pos_it)) {
+    assert(start_height >= 0);
+    assert(stop_index->nHeight >= start_height);
+    filters_out.reserve(stop_index->nHeight - start_height + 1);
+    while(stop_index && stop_index->nHeight >= start_height) {
+        filters_out.emplace_back();
+        if (!LookupFilter(stop_index, filters_out.back()))
             return false;
-        }
-        ++filter_pos_it;
+        stop_index = stop_index->pprev;
+    }
+    std::reverse(filters_out.begin(), filters_out.end());
+    return true;
+}
+
+bool LookupFilterHash(sqlite::database& db, const CBlockIndex* block_index, uint256& hash_out)
+{
+    auto query = db << "SELECT filter_hash FROM block WHERE height = ? and hash = ?"
+                       << block_index->nHeight << block_index->hash;
+
+    for (auto&& row: query) {
+        row >> hash_out;
+        return true;
     }
 
-    return true;
+    return false;
 }
 
 bool BlockFilterIndex::LookupFilterHashRange(int start_height, const CBlockIndex* stop_index,
                                              std::vector<uint256>& hashes_out) const
-
 {
-    std::vector<DBVal> entries;
-    if (!LookupRange(*m_db, m_name, start_height, stop_index, entries)) {
-        return false;
+    assert(start_height >= 0);
+    assert(stop_index->nHeight >= start_height);
+    hashes_out.reserve(stop_index->nHeight - start_height + 1);
+    while(stop_index && stop_index->nHeight >= start_height) {
+        hashes_out.emplace_back();
+        if (!LookupFilterHash(*m_db, stop_index, hashes_out.back()))
+            return false;
+        stop_index = stop_index->pprev;
     }
-
-    hashes_out.clear();
-    hashes_out.reserve(entries.size());
-    for (const auto& entry : entries) {
-        hashes_out.push_back(entry.hash);
-    }
+    std::reverse(hashes_out.begin(), hashes_out.end());
     return true;
 }
 
