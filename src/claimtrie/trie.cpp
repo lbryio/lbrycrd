@@ -117,7 +117,7 @@ CClaimTrie::CClaimTrie(std::size_t cacheBytes, bool fWipe, int height,
 CClaimTrieCacheBase::~CClaimTrieCacheBase()
 {
     if (transacting) {
-        db << "rollback";
+        db << "ROLLBACK";
         transacting = false;
     }
     claimHashQuery.used(true);
@@ -438,14 +438,6 @@ void completeHash(uint256& partialHash, const std::string& key, int to)
         partialHash = Hash(it, it + 1, partialHash.begin(), partialHash.end());
 }
 
-uint256 verifyEmptyTrie(const std::string& name)
-{
-    if (!name.empty())
-        logPrint << "Corrupt trie near: " << name << Clog::endl;
-    assert(name.empty());
-    return emptyTrieHash;
-}
-
 uint256 CClaimTrieCacheBase::computeNodeHash(const std::string& name, int takeoverHeight)
 {
     const auto pos = name.size();
@@ -466,7 +458,7 @@ uint256 CClaimTrieCacheBase::computeNodeHash(const std::string& name, int takeov
         }
     }
 
-    return vchToHash.empty() ? verifyEmptyTrie(name) : Hash(vchToHash.begin(), vchToHash.end());
+    return vchToHash.empty() ? emptyTrieHash : Hash(vchToHash.begin(), vchToHash.end());
 }
 
 bool CClaimTrieCacheBase::checkConsistency()
@@ -696,22 +688,24 @@ bool CClaimTrieCacheBase::addSupport(const std::string& name, const COutPoint& o
 bool CClaimTrieCacheBase::removeClaim(const uint160& claimId, const COutPoint& outPoint, std::string& nodeName,
         int& validHeight, int& originalHeight)
 {
-    ensureTransacting();
-
     // this gets tricky in that we may be removing an update
     // when going forward we spend a claim (aka, call removeClaim) before updating it (aka, call addClaim)
     // when going backwards we first remove the update by calling removeClaim
     // we then undo the spend of the previous one by calling addClaim with the original data
     // in order to maintain the proper takeover height the updater will need to use our height returned here
 
-    auto query = db << "SELECT nodeName, activationHeight, originalHeight FROM claim WHERE claimID = ? AND txID = ? AND txN = ? AND expirationHeight >= ?"
+    auto query = db << "SELECT nodeName, activationHeight, originalHeight FROM claim "
+                       "WHERE claimID = ? AND txID = ? AND txN = ? AND expirationHeight >= ?"
                     << claimId << outPoint.hash << outPoint.n << nNextHeight;
     auto it = query.begin();
     if (it == query.end())
         return false;
 
     *it >> nodeName >> validHeight >> originalHeight;
-    db  << "DELETE FROM claim WHERE claimID = ? AND txID = ? and txN = ?" << claimId << outPoint.hash << outPoint.n;
+
+    ensureTransacting();
+    db  << "DELETE FROM claim WHERE claimID = ? AND txID = ? AND txN = ?"
+        << claimId << outPoint.hash << outPoint.n;
     if (!db.rows_modified())
         return false;
 

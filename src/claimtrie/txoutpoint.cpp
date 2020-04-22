@@ -6,7 +6,6 @@
 
 COutPoint::COutPoint() noexcept : n(std::numeric_limits<uint32_t>::max())
 {
-
 }
 
 COutPoint::COutPoint(uint256 hashIn, uint32_t nIn) : hash(std::move(hashIn)), n(nIn)

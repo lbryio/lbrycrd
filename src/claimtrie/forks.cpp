@@ -227,7 +227,7 @@ CClaimTrieCacheHashFork::CClaimTrieCacheHashFork(CClaimTrie* base) : CClaimTrieC
 {
 }
 
-extern uint256 verifyEmptyTrie(const std::string&);
+static const auto emptyTrieHash = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
 static const auto leafHash = uint256S("0000000000000000000000000000000000000000000000000000000000000002");
 static const auto emptyHash = uint256S("0000000000000000000000000000000000000000000000000000000000000003");
 
@@ -264,8 +264,9 @@ uint256 CClaimTrieCacheHashFork::computeNodeHash(const std::string& name, int ta
         claimHashQuery++;
     }
 
-    if (childHashes.empty() && claimHashes.empty())
-        return verifyEmptyTrie(name);
+    if (name.empty() && childHashes.empty() && claimHashes.empty()
+        && base->nMaxRemovalWorkaroundHeight < 0) // detecting regtest, but maybe all on next hard-fork?
+        return emptyTrieHash; // here for compatibility with the functional tests
 
     auto left = childHashes.empty() ? leafHash : ComputeMerkleRoot(std::move(childHashes));
     auto right = claimHashes.empty() ? emptyHash : ComputeMerkleRoot(std::move(claimHashes));
