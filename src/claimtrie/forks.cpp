@@ -139,10 +139,10 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary()
 
     // make the new nodes
     db << "INSERT INTO node(name) SELECT NORMALIZED(name) AS nn FROM claim WHERE nn != nodeName "
-          "AND activationHeight <= ?1 AND expirationHeight > ?1 ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
+          "AND activationHeight <= ?1 AND expirationHeight > ?1 ON CONFLICT(name) DO UPDATE SET hash = NULL, claimsHash = NULL" << nNextHeight;
 
     // there's a subtlety here: names in supports don't make new nodes
-    db << "UPDATE node SET hash = NULL WHERE name IN "
+    db << "UPDATE node SET hash = NULL, claimsHash = NULL WHERE name IN "
           "(SELECT NORMALIZED(name) AS nn FROM support WHERE nn != nodeName "
           "AND activationHeight <= ?1 AND expirationHeight > ?1)" << nNextHeight;
 
@@ -151,7 +151,7 @@ bool CClaimTrieCacheNormalizationFork::normalizeAllNamesInTrieIfNecessary()
     db << "UPDATE support SET nodeName = NORMALIZED(name) WHERE activationHeight <= ?1 AND expirationHeight > ?1" << nNextHeight;
 
     // remove the old nodes
-    db << "UPDATE node SET hash = NULL WHERE name NOT IN "
+    db << "UPDATE node SET hash = NULL, claimsHash = NULL WHERE name NOT IN "
           "(SELECT nodeName FROM claim WHERE activationHeight <= ?1 AND expirationHeight > ?1 "
           "UNION SELECT nodeName FROM support WHERE activationHeight <= ?1 AND expirationHeight > ?1)" << nNextHeight;
 
@@ -167,9 +167,9 @@ bool CClaimTrieCacheNormalizationFork::unnormalizeAllNamesInTrieIfNecessary()
     ensureTransacting();
 
     db << "INSERT INTO node(name) SELECT name FROM claim WHERE name != nodeName "
-          "AND activationHeight < ?1 AND expirationHeight > ?1 ON CONFLICT(name) DO UPDATE SET hash = NULL" << nNextHeight;
+          "AND activationHeight < ?1 AND expirationHeight > ?1 ON CONFLICT(name) DO UPDATE SET hash = NULL, claimsHash = NULL" << nNextHeight;
 
-    db << "UPDATE node SET hash = NULL WHERE name IN "
+    db << "UPDATE node SET hash = NULL, claimsHash = NULL WHERE name IN "
           "(SELECT nodeName FROM support WHERE name != nodeName "
           "UNION SELECT nodeName FROM claim WHERE name != nodeName)";
 
@@ -177,7 +177,7 @@ bool CClaimTrieCacheNormalizationFork::unnormalizeAllNamesInTrieIfNecessary()
     db << "UPDATE support SET nodeName = name";
 
     // we need to let the tree structure method do the actual node delete
-    db << "UPDATE node SET hash = NULL WHERE name NOT IN "
+    db << "UPDATE node SET hash = NULL, claimsHash = NULL WHERE name NOT IN "
           "(SELECT DISTINCT name FROM claim)";
 
     return true;
@@ -243,10 +243,10 @@ uint256 ComputeMerkleRoot(std::vector<uint256> hashes)
     return hashes.empty() ? uint256{} : hashes[0];
 }
 
-uint256 CClaimTrieCacheHashFork::computeNodeHash(const std::string& name, int takeoverHeight)
+uint256 CClaimTrieCacheHashFork::computeNodeHash(const std::string& name, uint256& claimsHash, int takeoverHeight)
 {
     if (nNextHeight < base->nAllClaimsInMerkleForkHeight)
-        return CClaimTrieCacheNormalizationFork::computeNodeHash(name, takeoverHeight);
+        return CClaimTrieCacheNormalizationFork::computeNodeHash(name, claimsHash, takeoverHeight);
 
     std::vector<uint256> childHashes;
     childHashQuery << name >> [&childHashes](std::string, uint256 hash) {
@@ -254,24 +254,28 @@ uint256 CClaimTrieCacheHashFork::computeNodeHash(const std::string& name, int ta
     };
     childHashQuery++;
 
-    std::vector<uint256> claimHashes;
     if (takeoverHeight > 0) {
-        COutPoint p;
-        for (auto &&row: claimHashQuery << nNextHeight << name) {
-            row >> p.hash >> p.n;
-            claimHashes.push_back(getValueHash(p, takeoverHeight));
+        if (claimsHash.IsNull()) {
+            COutPoint p;
+            std::vector<uint256> hashes;
+            for (auto&& row: claimHashQuery << nNextHeight << name) {
+                row >> p.hash >> p.n;
+                hashes.push_back(getValueHash(p, takeoverHeight));
+            }
+            claimHashQuery++;
+            claimsHash = hashes.empty() ? emptyHash : ComputeMerkleRoot(std::move(hashes));
         }
-        claimHashQuery++;
+    } else {
+        claimsHash = emptyHash;
     }
 
-    if (name.empty() && childHashes.empty() && claimHashes.empty()
+    if (name.empty() && childHashes.empty() && claimsHash == emptyHash
         && base->nMaxRemovalWorkaroundHeight < 0) // detecting regtest, but maybe all on next hard-fork?
         return emptyTrieHash; // here for compatibility with the functional tests
 
-    auto left = childHashes.empty() ? leafHash : ComputeMerkleRoot(std::move(childHashes));
-    auto right = claimHashes.empty() ? emptyHash : ComputeMerkleRoot(std::move(claimHashes));
+    const auto& childrenHash = childHashes.empty() ? leafHash : ComputeMerkleRoot(std::move(childHashes));
 
-    return Hash(left.begin(), left.end(), right.begin(), right.end());
+    return Hash(childrenHash.begin(), childrenHash.end(), claimsHash.begin(), claimsHash.end());
 }
 
 std::vector<uint256> ComputeMerklePath(const std::vector<uint256>& hashes, uint32_t idx)
@@ -402,7 +406,7 @@ void CClaimTrieCacheHashFork::initializeIncrement()
     // we could do this in the constructor, but that would not allow for multiple increments in a row (as done in unit tests)
     if (nNextHeight == base->nAllClaimsInMerkleForkHeight - 1) {
         ensureTransacting();
-        db << "UPDATE node SET hash = NULL";
+        db << "UPDATE node SET hash = NULL, claimsHash = NULL";
     }
 }
 
@@ -411,7 +415,7 @@ bool CClaimTrieCacheHashFork::finalizeDecrement()
     auto ret = CClaimTrieCacheNormalizationFork::finalizeDecrement();
     if (ret && nNextHeight == base->nAllClaimsInMerkleForkHeight - 1) {
         ensureTransacting();
-        db << "UPDATE node SET hash = NULL";
+        db << "UPDATE node SET hash = NULL, claimsHash = NULL";
     }
     return ret;
 }
