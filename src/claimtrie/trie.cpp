@@ -155,6 +155,7 @@ CClaimTrieCacheBase::~CClaimTrieCacheBase()
 
 bool CClaimTrie::SyncToDisk()
 {
+    db << "PRAGMA optimize";
     // alternatively, switch to full sync after we are caught up on the chain
     return sqlite::sync(db) == SQLITE_OK;
 }
