@@ -49,6 +49,7 @@ protected:
     std::size_t dbCacheBytes;
     const std::string dbFile;
     sqlite::database db;
+    bool isNodeMigrationStart;
     const int nProportionalDelayFactor;
 
     const int nNormalizedNameForkHeight;
@@ -57,6 +58,9 @@ protected:
     const int64_t nExtendedClaimExpirationTime;
     const int64_t nExtendedClaimExpirationForkHeight;
     const int64_t nAllClaimsInMerkleForkHeight;
+
+private:
+    void doNodeTableMigration();
 };
 
 class CClaimTrieCacheBase
@@ -119,7 +123,7 @@ protected:
 
     mutable sqlite::database_binder claimHashQuery, childHashQuery, claimHashQueryLimit;
 
-    virtual uint256 computeNodeHash(const std::string& name, int takeoverHeight);
+    virtual uint256 computeNodeHash(const std::string& name, uint256& claimsHash, int takeoverHeight);
     supportEntryType getSupportsForName(const std::string& name) const;
 
     virtual int getDelayForName(const std::string& name, const uint160& claimId) const;
