@@ -126,7 +126,7 @@ void CClaimTrie::doNodeTableMigration()
         for (auto&& row : db << "SELECT claimsHash FROM node WHERE name = x''")
             break;
     } catch (const sqlite::sqlite_exception&) {
-
+        logPrint << "Running one-time upgrade of node table to cache the hash of claims..." << Clog::endl;
         isNodeMigrationStart = true;
 
         // new node schema
@@ -391,7 +391,7 @@ int64_t CClaimTrieCacheBase::getTotalValueOfClaimsInTrie(bool fControllingOnly) 
     int64_t ret = 0;
     const std::string query = fControllingOnly ?
         "SELECT SUM(amount) FROM (SELECT c.amount as amount, "
-        "(SELECT(SELECT IFNULL(SUM(s.amount),0)+c.amount FROM support s "
+        "(SELECT(SELECT IFNULL(SUM(s.amount),0)+c.amount FROM support s INDEXED BY support_supportedClaimID "
         "WHERE s.supportedClaimID = c.claimID AND c.nodeName = s.nodeName "
         "AND s.activationHeight < ?1 AND s.expirationHeight >= ?1) as effective "
         "ORDER BY effective DESC LIMIT 1) as winner FROM claim c "
@@ -581,7 +581,7 @@ const std::string childHashQuery_s = "SELECT name, hash FROM node WHERE parent =
 
 const std::string claimHashQuery_s =
     "SELECT c.txID, c.txN, c.claimID, c.updateHeight, c.activationHeight, c.amount, "
-    "(SELECT IFNULL(SUM(s.amount),0)+c.amount FROM support s "
+    "(SELECT IFNULL(SUM(s.amount),0)+c.amount FROM support s INDEXED BY support_supportedClaimID "
     "WHERE s.supportedClaimID = c.claimID AND s.nodeName = c.nodeName "
     "AND s.activationHeight < ?1 AND s.expirationHeight >= ?1) as effectiveAmount "
     "FROM claim c WHERE c.nodeName = ?2 AND c.activationHeight < ?1 AND c.expirationHeight >= ?1 "
