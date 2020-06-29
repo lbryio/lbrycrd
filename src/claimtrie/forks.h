@@ -66,7 +66,7 @@ public:
     bool allowSupportMetadata() const;
 
 protected:
-    uint256 computeNodeHash(const std::string& name, int takeoverHeight) override;
+    uint256 computeNodeHash(const std::string& name, uint256& claimsHash, int takeoverHeight) override;
 };
 
 typedef CClaimTrieCacheHashFork CClaimTrieCache;
