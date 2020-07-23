@@ -2600,8 +2600,8 @@ bool CChainState::ActivateBestChainStep(CValidationState& state, const CChainPar
 {
     AssertLockHeld(cs_main);
 
-    const CBlockIndex *pindexOldTip = chainActive.Tip();
-    const CBlockIndex *pindexFork = chainActive.FindFork(pindexMostWork);
+    auto pindexOldTip = chainActive.Tip();
+    auto pindexFork = chainActive.FindFork(pindexMostWork);
 
     // Disconnect active blocks which are no longer in the best chain.
     bool fBlocksDisconnected = false;
@@ -2614,6 +2614,23 @@ bool CChainState::ActivateBestChainStep(CValidationState& state, const CChainPar
             return false;
         }
         fBlocksDisconnected = true;
+    }
+
+    // Now mark the blocks we just disconnected as descendants invalid
+    // (note this may not be all descendants).
+    if (fBlocksDisconnected) {
+        auto invalid_walk_tip = pindexOldTip;
+        while (invalid_walk_tip != pindexFork) {
+            auto prev = invalid_walk_tip->pprev;
+            if (prev == pindexFork) {
+                InvalidBlockFound(invalid_walk_tip, state);
+                break;
+            }
+            invalid_walk_tip->nStatus |= BLOCK_FAILED_CHILD;
+            setDirtyBlockIndex.insert(invalid_walk_tip);
+            setBlockIndexCandidates.erase(invalid_walk_tip);
+            invalid_walk_tip = prev;
+        }
     }
 
     // Build list of new blocks to connect.

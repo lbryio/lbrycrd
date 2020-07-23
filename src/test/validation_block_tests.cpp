@@ -165,8 +165,8 @@ BOOST_AUTO_TEST_CASE(processnewblock_signals_ordering)
             // to make sure that eventually we process the full chain - do it here
             for (auto block : blocks) {
                 if (block->vtx.size() == 1) {
-                    bool processed = ProcessNewBlock(Params(), block, true, &ignored, false);
-                    assert(processed);
+                    ProcessNewBlock(Params(), block, true, &ignored, false);
+                    assert(!ignored);
                 }
             }
         });
