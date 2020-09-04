@@ -510,6 +510,15 @@ public:
 
     void UnloadBlockIndex();
 
+    /**
+     ** Mark a single block as invalid, updating its status in `mapBlockIndex`.
+     ** Perform other index-related bookkeeping.
+     **
+     ** See also: InvalidateBlock, which should be called instead of this if the
+     ** block being invalidated is on the active chain.
+     **/
+    void InvalidBlockFound(CBlockIndex *pindex, const CValidationState &state);
+
 private:
     bool ActivateBestChainStep(CValidationState& state, const CChainParams& chainparams, CBlockIndex* pindexMostWork, const std::shared_ptr<const CBlock>& pblock, bool& fInvalidFound, ConnectTrace& connectTrace);
     bool ConnectTip(CValidationState& state, const CChainParams& chainparams, CBlockIndex* pindexNew, const std::shared_ptr<const CBlock>& pblock, ConnectTrace& connectTrace, DisconnectedBlockTransactions &disconnectpool);
@@ -524,7 +533,6 @@ private:
      */
     void CheckBlockIndex(const Consensus::Params& consensusParams);
 
-    void InvalidBlockFound(CBlockIndex *pindex, const CValidationState &state);
     CBlockIndex* FindMostWorkChain() EXCLUSIVE_LOCKS_REQUIRED(cs_main);
     void ReceivedBlockTransactions(const CBlock& block, CBlockIndex* pindexNew, const CDiskBlockPos& pos, const Consensus::Params& consensusParams) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 

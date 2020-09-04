@@ -1224,13 +1224,18 @@ void static InvalidChainFound(CBlockIndex* pindexNew)
 }
 
 void CChainState::InvalidBlockFound(CBlockIndex *pindex, const CValidationState &state) {
-    if (!state.CorruptionPossible()) {
-        pindex->nStatus |= BLOCK_FAILED_VALID;
-        m_failed_blocks.insert(pindex);
-        setDirtyBlockIndex.insert(pindex);
-        setBlockIndexCandidates.erase(pindex);
-        InvalidChainFound(pindex);
+    AssertLockHeld(cs_main);
+
+    if (state.CorruptionPossible()) {
+        // No updates should happen if corruption is possible.
+        return;
     }
+
+    pindex->nStatus |= BLOCK_FAILED_VALID;
+    m_failed_blocks.insert(pindex);
+    setDirtyBlockIndex.insert(pindex);
+    setBlockIndexCandidates.erase(pindex);
+    InvalidChainFound(pindex);
 }
 
 void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txundo, int nHeight)
@@ -2889,10 +2894,7 @@ bool CChainState::InvalidateBlock(CValidationState& state, const CChainParams& c
     }
 
     // Mark the block itself as invalid.
-    pindex->nStatus |= BLOCK_FAILED_VALID;
-    setDirtyBlockIndex.insert(pindex);
-    setBlockIndexCandidates.erase(pindex);
-    m_failed_blocks.insert(pindex);
+    InvalidBlockFound(pindex, state);
 
     // DisconnectTip will add transactions to disconnectpool; try to add these
     // back to the mempool.
@@ -2907,8 +2909,6 @@ bool CChainState::InvalidateBlock(CValidationState& state, const CChainParams& c
         }
         ++it;
     }
-
-    InvalidChainFound(pindex);
 
     // Only notify about a new block tip if the active chain was modified.
     if (pindex_was_in_chain) {
@@ -3553,9 +3553,8 @@ bool CChainState::AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CVali
 
     if (!CheckBlock(block, state, chainparams.GetConsensus()) ||
         !ContextualCheckBlock(block, state, chainparams.GetConsensus(), pindex->pprev)) {
-        if (state.IsInvalid() && !state.CorruptionPossible()) {
-            pindex->nStatus |= BLOCK_FAILED_VALID;
-            setDirtyBlockIndex.insert(pindex);
+        if (state.IsInvalid()) {
+            InvalidBlockFound(pindex, state);
         }
         return error("%s: %s", __func__, FormatStateMessage(state));
     }
@@ -3599,7 +3598,16 @@ bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<cons
 
         LOCK(cs_main);
 
-        if (ret) {
+        if (!ret) {
+            // Mark the block as invalid if we recognize it in mapBlockIndex.
+            // This doesn't happen within CheckBlock so we have to include a call
+            // here. It *does* happen within AcceptBlock below.
+            auto it = g_chainstate.mapBlockIndex.find(pblock->GetHash());
+
+            if (it != g_chainstate.mapBlockIndex.end()) {
+                g_chainstate.InvalidBlockFound(*it, state);
+            }
+        } else {
             // Store to disk
             ret = g_chainstate.AcceptBlock(pblock, state, chainparams, &pindex, fForceProcessing, nullptr, fNewBlock);
         }
