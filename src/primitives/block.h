@@ -6,6 +6,8 @@
 #ifndef BITCOIN_PRIMITIVES_BLOCK_H
 #define BITCOIN_PRIMITIVES_BLOCK_H
 
+#include <auxpow.h>
+#include <primitives/pureheader.h>
 #include <primitives/transaction.h>
 #include <serialize.h>
 #include <uint256.h>
@@ -17,62 +19,73 @@
  * in the block is a special one that creates a new coin owned by the creator
  * of the block.
  */
-class CBlockHeader
+class CBlockHeader : public CPureBlockHeader
 {
 public:
-    // header
-    int32_t nVersion;
-    uint256 hashPrevBlock;
-    uint256 hashMerkleRoot;
+    /* Modifiers to the version.  */
+    static const int32_t VERSION_AUXPOW = (1 << 8);
+
     uint256 hashClaimTrie;
-    uint32_t nTime;
-    uint32_t nBits;
-    uint32_t nNonce;
+    std::shared_ptr<CAuxPow> auxpow; // (if this is a merge-minded block)
 
-    CBlockHeader()
-    {
-        SetNull();
-    }
-
+    CBlockHeader() = default;
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(this->nVersion);
+        READWRITE(nVersion);
         READWRITE(hashPrevBlock);
         READWRITE(hashMerkleRoot);
         READWRITE(hashClaimTrie);
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
+
+        if (IsAuxpow())
+        {
+            if (ser_action.ForRead())
+                auxpow.reset(new CAuxPow());
+            assert(auxpow);
+            READWRITE(*auxpow);
+        } else if (ser_action.ForRead())
+            auxpow.reset();
     }
 
     void SetNull()
     {
-        nVersion = 0;
-        hashPrevBlock.SetNull();
-        hashMerkleRoot.SetNull();
+        CPureBlockHeader::SetNull();
         hashClaimTrie.SetNull();
-        nTime = 0;
-        nBits = 0;
-        nNonce = 0;
+        auxpow.reset();
     }
-
-    bool IsNull() const
-    {
-        return (nBits == 0);
-    }
-
-    uint256 GetHash() const;
 
     uint256 GetPoWHash() const;
 
-    int64_t GetBlockTime() const
-    {
-        return (int64_t)nTime;
+    /**
+     * Set the block's auxpow (or unset it).  This takes care of updating
+     * the version accordingly.
+     * @param apow Pointer to the auxpow to use or NULL.
+     */
+    void SetAuxpow(CAuxPow* apow);
+
+    /**
+ * Check if the auxpow flag is set in the version.
+ * @return True iff this block version is marked as auxpow.
+ */
+    inline bool IsAuxpow() const {
+        return nVersion & VERSION_AUXPOW;
+    }
+
+    /**
+     * Set the auxpow flag.  This is used for testing.
+     * @param auxpow Whether to mark auxpow as true.
+     */
+    inline void SetAuxpowFlag(bool auxpow) {
+        if (auxpow)
+            nVersion |= VERSION_AUXPOW;
+        else
+            nVersion &= ~VERSION_AUXPOW;
     }
 };
-
 
 class CBlock : public CBlockHeader
 {
@@ -83,22 +96,20 @@ public:
     // memory only
     mutable bool fChecked;
 
-    CBlock()
+    CBlock() : fChecked(false)
     {
-        SetNull();
     }
 
-    CBlock(const CBlockHeader &header)
+    CBlock(const CBlockHeader &header) : fChecked(false)
     {
-        SetNull();
-        *(static_cast<CBlockHeader*>(this)) = header;
+        *((CBlockHeader*)this) = header;
     }
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITEAS(CBlockHeader, *this);
+        READWRITE(*(CBlockHeader*)this);
         READWRITE(vtx);
     }
 
@@ -119,6 +130,7 @@ public:
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
+        block.auxpow         = auxpow;
         return block;
     }
 
@@ -157,5 +169,8 @@ struct CBlockLocator
         return vHave.empty();
     }
 };
+
+/** Compute the consensus-critical block weight (see BIP 141). */
+int64_t GetBlockWeight(const CBlock& tx);
 
 #endif // BITCOIN_PRIMITIVES_BLOCK_H

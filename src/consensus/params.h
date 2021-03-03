@@ -82,6 +82,8 @@ struct Params {
     int nMaxTakeoverWorkaroundHeight;
 
     int nWitnessForkHeight;
+    int nAuxPoWStartHeight;
+    uint32_t nAuxPoWChainID;
 
     int64_t nPowTargetSpacing;
     int64_t nPowTargetTimespan;

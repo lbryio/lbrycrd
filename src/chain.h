@@ -7,6 +7,7 @@
 #define BITCOIN_CHAIN_H
 
 #include <arith_uint256.h>
+#include <chainparams.h>
 #include <consensus/params.h>
 #include <primitives/block.h>
 #include <tinyformat.h>
@@ -279,18 +280,15 @@ public:
         return ret;
     }
 
-    CBlockHeader GetBlockHeader() const
+    CBlockHeader GetBlockHeader(const Consensus::Params& consensusParams) const;
+
+    /**
+     * Check if the auxpow flag is set in the version.
+     * @return True if this block version is marked as auxpow.
+     */
+    inline bool IsAuxpow() const
     {
-        CBlockHeader block;
-        block.nVersion       = nVersion;
-        if (pprev)
-            block.hashPrevBlock = pprev->GetBlockHash();
-        block.hashMerkleRoot = hashMerkleRoot;
-        block.hashClaimTrie  = hashClaimTrie;
-        block.nTime          = nTime;
-        block.nBits          = nBits;
-        block.nNonce         = nNonce;
-        return block;
+        return nVersion & CPureBlockHeader::VERSION_AUXPOW;
     }
 
     uint256 GetBlockHash() const
@@ -300,7 +298,7 @@ public:
 
     uint256 GetBlockPoWHash() const
     {
-        return GetBlockHeader().GetPoWHash();
+        return GetBlockHeader(Params().GetConsensus()).GetPoWHash();
     }
 
     int64_t GetBlockTime() const

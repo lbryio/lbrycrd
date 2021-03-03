@@ -15,4 +15,6 @@ UniValue SignTransaction(CMutableTransaction& mtx, const UniValue& prevTxs, CBas
 /** Create a transaction from univalue parameters */
 CMutableTransaction ConstructTransaction(const UniValue& inputs_in, const UniValue& outputs_in, const UniValue& locktime, const UniValue& rbf);
 
+void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry);
+
 #endif // BITCOIN_RPC_RAWTRANSACTION_H

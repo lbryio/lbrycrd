@@ -71,7 +71,8 @@ std::shared_ptr<CBlock> FinalizeBlock(std::shared_ptr<CBlock> pblock)
 {
     pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
 
-    while (!CheckProofOfWork(pblock->GetPoWHash(), pblock->nBits, Params().GetConsensus())) {
+    auto& miningHeader = CAuxPow::initAuxPow(*pblock);
+    while (!CheckProofOfWork(miningHeader->GetPoWHash(), pblock->nBits, Params().GetConsensus())) {
         ++(pblock->nNonce);
     }
 

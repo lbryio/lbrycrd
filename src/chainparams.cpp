@@ -147,6 +147,8 @@ public:
         consensus.nMaxTakeoverWorkaroundHeight = 658300; // targeting 30 Oct 2019
         consensus.nWitnessForkHeight = 680770; // targeting 11 Dec 2019
         consensus.nAllClaimsInMerkleForkHeight = 658310; // targeting 30 Oct 2019
+        consensus.nAuxPoWStartHeight = 1000000;
+        consensus.nAuxPoWChainID = 0x4C425259; // LBRY
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1916; // 95% of a  half week
@@ -265,6 +267,8 @@ public:
         consensus.nMaxTakeoverWorkaroundHeight = 1198550; // targeting 30 Sep 2019
         consensus.nWitnessForkHeight = 1198600;
         consensus.nAllClaimsInMerkleForkHeight = 1198560; // targeting 30 Sep 2019
+        consensus.nAuxPoWStartHeight = 2000000;
+        consensus.nAuxPoWChainID = 0x4C424374; // LBCt
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1512; // 75% for testchains
@@ -372,6 +376,8 @@ public:
         consensus.nMaxTakeoverWorkaroundHeight = -1;
         consensus.nWitnessForkHeight = 150;
         consensus.nAllClaimsInMerkleForkHeight = 350;
+        consensus.nAuxPoWStartHeight = 450;
+        consensus.nAuxPoWChainID = 0x4C424372; // LBCr
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 108; // 75% for testchains

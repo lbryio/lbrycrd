@@ -4,6 +4,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <chain.h>
+#include <streams.h>
 
 /**
  * CChain implementation
@@ -116,6 +117,73 @@ void CBlockIndex::BuildSkip()
 {
     if (pprev)
         pskip = pprev->GetAncestor(GetSkipHeight(nHeight));
+}
+
+/* Generic implementation of block reading that can handle
+   both a block and its header.  */
+
+template<typename T>
+static bool ReadBlockOrHeader(T& block, const CDiskBlockPos& pos, const Consensus::Params& consensusParams, bool fCheckPOW)
+{
+    block.SetNull();
+
+    // Open history file to read
+    CAutoFile filein(   OpenBlockFile(pos, true), SER_DISK, CLIENT_VERSION);
+    if (filein.IsNull())
+        return error("ReadBlockFromDisk: OpenBlockFile failed for %s", pos.ToString());
+
+    // Read block
+    try {
+        filein >> block;
+    }
+    catch (const std::exception& e) {
+        return error("%s: Deserialize or I/O error - %s at %s", __func__, e.what(), pos.ToString());
+    }
+
+    // Check the header
+    if (fCheckPOW && !CheckAuxPowProofOfWork(block, consensusParams))
+        return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
+
+    return true;
+}
+
+template<typename T>
+static bool ReadBlockOrHeader(T& block, const CBlockIndex* pindex, const Consensus::Params& consensusParams, bool fCheckPOW)
+{
+    if (!ReadBlockOrHeader(block, pindex->GetBlockPos(), consensusParams, fCheckPOW))
+        return false;
+    if (block.GetHash() != pindex->GetBlockHash())
+        return error("ReadBlockOrHeader(CBlock&, CBlockIndex*): GetHash() doesn't match index for %s at %s",
+                     pindex->ToString(), pindex->GetBlockPos().ToString());
+    return true;
+}
+
+bool ReadBlockHeaderFromDisk(CBlockHeader& block, const CBlockIndex* pindex, const Consensus::Params& consensusParams, bool fCheckPOW=false)
+{
+    return ReadBlockOrHeader(block, pindex, consensusParams, fCheckPOW);
+}
+
+CBlockHeader CBlockIndex::GetBlockHeader(const Consensus::Params& consensusParams) const {
+    CBlockHeader block;
+    block.nVersion       = nVersion;
+    if (pprev)
+        block.hashPrevBlock = pprev->GetBlockHash();
+
+    /* The CBlockIndex object's block header is missing the auxpow.
+       So if this is an auxpow block, read it from disk instead.  We only
+       have to read the actual *header*, not the full block.  */
+    if (block.IsAuxpow())
+    {
+        ReadBlockHeaderFromDisk(block, this, consensusParams);
+        return block;
+    }
+
+    block.hashMerkleRoot = hashMerkleRoot;
+    block.hashClaimTrie  = hashClaimTrie;
+    block.nTime          = nTime;
+    block.nBits          = nBits;
+    block.nNonce         = nNonce;
+    return block;
 }
 
 arith_uint256 GetBlockProof(const CBlockIndex& block)
