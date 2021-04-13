@@ -195,17 +195,17 @@ public:
         vSeeds.clear();
         vFixedSeeds.clear();
 
-        vSeeds.emplace_back("dnsseed1.lbry.io"); // lbry.io
-        vSeeds.emplace_back("dnsseed2.lbry.io"); // lbry.io
-        vSeeds.emplace_back("dnsseed3.lbry.io"); // lbry.io
+        vSeeds.emplace_back("dnsseed1.lbry.io"); // LBRY Inc
+        vSeeds.emplace_back("dnsseed2.lbry.io"); // LBRY Inc
+        vSeeds.emplace_back("dnsseed3.lbry.io"); // LBRY Inc
+        vSeeds.emplace_back("seed.lbry.grin.io"); // Grin
+        vSeeds.emplace_back("seed.allaboutlbc.com"); // Madiator2011
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 0x55);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 0x7a);
         base58Prefixes[SECRET_KEY] =     std::vector<unsigned char>(1, 0x1c);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x88, 0xB2, 0x1E};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x88, 0xAD, 0xE4};
-
-        vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_main, pnSeed6_main + ARRAYLEN(pnSeed6_main));
 
         bech32_hrp = "lbc";
 
