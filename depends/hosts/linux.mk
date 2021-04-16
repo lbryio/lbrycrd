@@ -1,7 +1,10 @@
 linux_CFLAGS=-pipe
-linux_CXXFLAGS=$(linux_CFLAGS)
+linux_CXXFLAGS=$(linux_CFLAGS) -std=c++11
 
-linux_release_CFLAGS=-O3 -g -include $(BASEDIR)/glibc_version_header/force_link_glibc_2.19.h
+linux_release_CFLAGS=-O3 -g
+ifeq (1,$(shell ldd --version | head -1 | awk '{print $$NF < 2.28}'))
+linux_release_CFLAGS+= -include $(BASEDIR)/glibc_version_header/force_link_glibc_2.19.h
+endif
 linux_release_CXXFLAGS=$(linux_release_CFLAGS)
 
 linux_debug_CFLAGS=-O1 -g
