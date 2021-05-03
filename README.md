@@ -232,7 +232,7 @@ This project is MIT licensed. For the full license, see [LICENSE](LICENSE).
 ## Security
 
 We take security seriously. Please contact [security@lbry.com](mailto:security@lbry.com) regarding any security issues.
-Our PGP key is [here](https://keybase.io/lbry/key.asc) if you need it.
+Our PGP key is [here](https://lbry.com/faq/pgp-key) if you need it.
 
 ## Contact
 
