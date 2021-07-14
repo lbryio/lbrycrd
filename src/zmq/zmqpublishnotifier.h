@@ -34,6 +34,12 @@ public:
     bool NotifyBlock(const CBlockIndex *pindex) override;
 };
 
+class CZMQPublishHashBlockHeaderNotifier : public CZMQAbstractPublishNotifier
+{
+public:
+    bool NotifyBlock(const CBlockIndex *pindex) override;
+};
+
 class CZMQPublishHashTransactionNotifier : public CZMQAbstractPublishNotifier
 {
 public:

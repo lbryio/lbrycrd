@@ -13,6 +13,7 @@
 static std::multimap<std::string, CZMQAbstractPublishNotifier*> mapPublishNotifiers;
 
 static const char *MSG_HASHBLOCK = "hashblock";
+static const char *MSG_HASHBLOCKHEIGHT = "hashblockheader";
 static const char *MSG_HASHTX    = "hashtx";
 static const char *MSG_RAWBLOCK  = "rawblock";
 static const char *MSG_RAWTX     = "rawtx";
@@ -154,6 +155,18 @@ bool CZMQPublishHashBlockNotifier::NotifyBlock(const CBlockIndex *pindex)
     for (unsigned int i = 0; i < 32; i++)
         data[31 - i] = hash.begin()[i];
     return SendMessage(MSG_HASHBLOCK, data, 32);
+}
+
+bool CZMQPublishHashBlockHeaderNotifier::NotifyBlock(const CBlockIndex *pindex)
+{
+    uint256 hash = pindex->GetBlockHash();
+    uint32_t height = pindex->nHeight;
+    LogPrint(BCLog::ZMQ, "zmq: Publish hashblock %s\n", hash.GetHex());
+    char data[36];
+    for (unsigned int i = 0; i < 32; i++)
+        data[31 - i] = hash.begin()[i];
+    memcpy(data + 32, (char *)&height, 4);
+    return SendMessage(MSG_HASHBLOCKHEIGHT, data, 36);
 }
 
 bool CZMQPublishHashTransactionNotifier::NotifyTransaction(const CTransaction &transaction)

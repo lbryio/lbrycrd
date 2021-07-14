@@ -45,6 +45,7 @@ CZMQNotificationInterface* CZMQNotificationInterface::Create()
     std::list<CZMQAbstractNotifier*> notifiers;
 
     factories["pubhashblock"] = CZMQAbstractNotifier::Create<CZMQPublishHashBlockNotifier>;
+    factories["pubhashblockheader"] = CZMQAbstractNotifier::Create<CZMQPublishHashBlockHeaderNotifier>;
     factories["pubhashtx"] = CZMQAbstractNotifier::Create<CZMQPublishHashTransactionNotifier>;
     factories["pubrawblock"] = CZMQAbstractNotifier::Create<CZMQPublishRawBlockNotifier>;
     factories["pubrawtx"] = CZMQAbstractNotifier::Create<CZMQPublishRawTransactionNotifier>;
