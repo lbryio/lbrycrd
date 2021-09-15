@@ -442,8 +442,17 @@ uint256 recursiveMerkleHash(TIterator& it, const iCbType<TIterator>& process)
 bool CClaimTrieCacheBase::recursiveCheckConsistency(CClaimTrie::const_iterator& it, std::string& failed) const
 {
     struct CRecursiveBreak {};
+    int nodesVisited = 0;
+    int reportDone = 0;
     using iterator = CClaimTrie::const_iterator;
-    iCbType<iterator> process = [&failed, &process](iterator& it) {
+    iCbType<iterator> process = [this, &reportDone, &nodesVisited, &failed, &process](iterator& it) {
+        int percentageDone = std::max(1, std::min(99, (int)((double)nodesVisited / (double)base->height() * 100)));
+        if (reportDone < percentageDone/10) {
+            // report every 10% step
+            LogPrintf("[%d%%]...", percentageDone); /* Continued */
+            reportDone = percentageDone/10;
+        }
+        nodesVisited++;
         if (it->hash.IsNull() || it->hash != recursiveMerkleHash(it, process)) {
             failed = it.key();
             throw CRecursiveBreak();
@@ -451,6 +460,7 @@ bool CClaimTrieCacheBase::recursiveCheckConsistency(CClaimTrie::const_iterator& 
     };
 
     try {
+        LogPrintf("[0%%]..."); /* Continued */
         process(it);
     } catch (const CRecursiveBreak&) {
         return false;
@@ -576,10 +586,27 @@ bool CClaimTrieCacheBase::ReadFromDisk(const CBlockIndex* tip)
     base->clear();
     boost::scoped_ptr<CDBIterator> pcursor(base->db->NewIterator());
 
+    LogPrintf("[0%%]..."); /* Continued */
+    int totalRecords = 0;
     for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next()) {
+        totalRecords++;
+    }
+
+    int reportDone = 0;
+    int recordsDone = 0;
+    int totalNodes = 0;
+    for (pcursor->SeekToFirst(); pcursor->Valid(); recordsDone++, pcursor->Next()) {
+        int percentageDone = std::max(1, std::min(99, (int)((double)recordsDone / (double)totalRecords * 50)));
+        if (reportDone < percentageDone/10) {
+            // report every 10% step
+            LogPrintf("[%d%%]...", percentageDone); /* Continued */
+            reportDone = percentageDone/10;
+        }
         std::pair<uint8_t, std::string> key;
         if (!pcursor->GetKey(key) || key.first != TRIE_NODE)
             continue;
+
+        totalNodes++;
 
         CClaimTrieData data;
         if (pcursor->GetValue(data)) {
@@ -599,7 +626,16 @@ bool CClaimTrieCacheBase::ReadFromDisk(const CBlockIndex* tip)
         }
     }
 
-    for (pcursor->SeekToFirst(); pcursor->Valid(); pcursor->Next()) {
+    reportDone = 0;
+    recordsDone = 0;
+    LogPrintf("[50%%]..."); /* Continued */
+    for (pcursor->SeekToFirst(); pcursor->Valid(); recordsDone++, pcursor->Next()) {
+        int percentageDone = std::max(1, std::min(99, (int)((double)recordsDone / (double)totalRecords * 50)));
+        if (reportDone < percentageDone/10) {
+            // report every 10% step
+            LogPrintf("[%d%%]...", 50+percentageDone); /* Continued */
+            reportDone = percentageDone/10;
+        }
         std::pair<uint8_t, std::string> key;
         if (!pcursor->GetKey(key) || key.first != TRIE_NODE)
             continue;
@@ -613,8 +649,9 @@ bool CClaimTrieCacheBase::ReadFromDisk(const CBlockIndex* tip)
             base->db->Erase(key); // this uses a lot of memory and it's 1-time upgrade from 12.4 so we aren't going to batch it
         }
     }
+    LogPrintf("[Done].\n");
 
-    LogPrintf("Checking claim trie consistency... ");
+    LogPrintf("Checking claim trie consistency... \n");
     if (checkConsistency()) {
         LogPrintf("consistent\n");
         if (tip && tip->hashClaimTrie != getMerkleHash())
