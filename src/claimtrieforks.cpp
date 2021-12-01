@@ -312,8 +312,17 @@ bool CClaimTrieCacheHashFork::recursiveCheckConsistency(CClaimTrie::const_iterat
         return CClaimTrieCacheNormalizationFork::recursiveCheckConsistency(it, failed);
 
     struct CRecursiveBreak {};
+    int nodesVisited = 0;
+    int reportDone = 0;
     using iterator = CClaimTrie::const_iterator;
-    iCbType<iterator> process = [&failed, &process](iterator& it) -> uint256 {
+    iCbType<iterator> process = [this, &reportDone, &nodesVisited, &failed, &process](iterator& it) -> uint256 {
+        int percentageDone = std::max(1, std::min(99, (int)((double)nodesVisited / (double)base->height() * 100)));
+        if (reportDone < percentageDone/10) {
+            // report every 10% step
+            LogPrintf("[%d%%]...", percentageDone); /* Continued */
+            reportDone = percentageDone/10;
+        }
+        nodesVisited++;
         if (it->hash.IsNull() || it->hash != recursiveBinaryTreeHash(it, process)) {
             failed = it.key();
             throw CRecursiveBreak();
@@ -322,6 +331,7 @@ bool CClaimTrieCacheHashFork::recursiveCheckConsistency(CClaimTrie::const_iterat
     };
 
     try {
+        LogPrintf("[0%%]..."); /* Continued */
         process(it);
     } catch (const CRecursiveBreak&) {
         return false;
