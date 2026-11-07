@@ -85,6 +85,8 @@ struct CNodeStateStats {
     int nSyncHeight = -1;
     int nCommonHeight = -1;
     std::vector<int> vHeightInFlight;
+    uint32_t shard_segment_size = 0;
+    std::vector<uint32_t> shard_segments;
 };
 
 /** Get statistics from node state */

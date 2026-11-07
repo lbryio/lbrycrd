@@ -44,6 +44,7 @@ from test_framework.messages import (
     msg_reject,
     msg_sendcmpct,
     msg_sendheaders,
+    msg_shardinfo,
     msg_tx,
     MSG_TX,
     MSG_TYPE_MASK,
@@ -77,6 +78,7 @@ MESSAGEMAP = {
     b"reject": msg_reject,
     b"sendcmpct": msg_sendcmpct,
     b"sendheaders": msg_sendheaders,
+    b"shardinfo": msg_shardinfo,
     b"tx": msg_tx,
     b"verack": msg_verack,
     b"version": msg_version,
@@ -332,6 +334,7 @@ class P2PInterface(P2PConnection):
     def on_reject(self, message): pass
     def on_sendcmpct(self, message): pass
     def on_sendheaders(self, message): pass
+    def on_shardinfo(self, message): pass
     def on_tx(self, message): pass
 
     def on_inv(self, message):

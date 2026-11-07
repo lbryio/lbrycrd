@@ -1735,6 +1735,7 @@ void CConnman::ThreadOpenConnections(const std::vector<std::string> connect)
         // Only connect out to one peer per network group (/16 for IPv4).
         int nOutboundFullRelay = 0;
         int nOutboundBlockRelay = 0;
+        int nOutboundShard = 0;
         std::set<std::vector<unsigned char> > setConnected;
         {
             LOCK(cs_vNodes);
@@ -1750,6 +1751,9 @@ void CConnman::ThreadOpenConnections(const std::vector<std::string> connect)
                         nOutboundBlockRelay++;
                     } else if (!pnode->fFeeler) {
                         nOutboundFullRelay++;
+                    }
+                    if (!pnode->fFeeler && IsShardPeer(pnode->nServices)) {
+                        nOutboundShard++;
                     }
                 }
             }
@@ -1820,7 +1824,12 @@ void CConnman::ThreadOpenConnections(const std::vector<std::string> connect)
             // for feelers, only require they be a full node (only because most
             // SPV clients don't have a good address DB available)
             if (!fFeeler && !HasAllDesirableServiceFlags(addr.nServices)) {
-                continue;
+                // While we still need the full chain we also connect to sharded peers,
+                // which keep only parts of it, but for at most half of the outbound
+                // slots, so that we stay connected to peers that have every block.
+                if (!IsShardPeer(addr.nServices) || nOutboundShard >= (m_max_outbound_full_relay + m_max_outbound_block_relay) / 2) {
+                    continue;
+                }
             } else if (fFeeler && !MayHaveUsefulAddressDB(addr.nServices)) {
                 continue;
             }

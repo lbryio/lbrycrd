@@ -84,6 +84,9 @@ static const unsigned int DEFAULT_MAX_BLOCKFILE_SIZE = 0x8000000; // 128 MiB
 static const unsigned int BLOCKFILE_CHUNK_SIZE = 0x800000; // 8 MiB
 /** The pre-allocation chunk size for rev?????.dat files (since 0.8) */
 static const unsigned int UNDOFILE_CHUNK_SIZE = 0x100000; // 1 MiB
+/** The maximum blk?????.dat file size and pre-allocation chunk size with -fastprune (for tests) */
+static const unsigned int FASTPRUNE_BLOCKFILE_SIZE = 0x10000; // 64 KiB
+static const unsigned int FASTPRUNE_BLOCKFILE_CHUNK_SIZE = 0x4000; // 16 KiB
 
 /** Maximum number of script-checking threads allowed */
 static const int MAX_SCRIPTCHECK_THREADS = 16;

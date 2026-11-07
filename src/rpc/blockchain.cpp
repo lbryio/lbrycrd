@@ -22,6 +22,7 @@
 #include <rpc/server.h>
 #include <rpc/util.h>
 #include <script/descriptor.h>
+#include <shard.h>
 #include <streams.h>
 #include <sync.h>
 #include <txdb.h>
@@ -1211,6 +1212,12 @@ UniValue getblockchaininfo(const JSONRPCRequest& request)
             "  \"pruneheight\": xxxxxx,        (numeric) lowest-height complete block stored (only present if pruning is enabled)\n"
             "  \"automatic_pruning\": xx,      (boolean) whether automatic pruning is enabled (only present if pruning is enabled)\n"
             "  \"prune_target_size\": xxxxxx,  (numeric) the target size used by pruning (only present if automatic pruning is enabled)\n"
+            "  \"shard\": {                    (json object) block segments kept for other nodes (only present if sharding is enabled)\n"
+            "     \"segment_size\": xxxxxx,     (numeric) blocks per segment\n"
+            "     \"percent\": xx,              (numeric) percentage of segments kept at random (-shard)\n"
+            "     \"segments\": [ n, ... ],      (array) segments kept explicitly (-shardsegment)\n"
+            "     \"held_segments\": [ n, ... ]  (array) kept segments that are stored in full, up to the tip; these are advertised and served\n"
+            "  },\n"
             "  \"softforks\": {                (object) status of softforks\n"
             "     \"xxxx\" : {                 (string) name of the softfork\n"
             "        \"type\": \"xxxx\",         (string) one of \"buried\", \"bip9\"\n"
@@ -1270,6 +1277,20 @@ UniValue getblockchaininfo(const JSONRPCRequest& request)
         obj.pushKV("automatic_pruning",  automatic_pruning);
         if (automatic_pruning) {
             obj.pushKV("prune_target_size",  nPruneTarget);
+        }
+
+        if (ShardingEnabled()) {
+            const ShardConfig config = GetShardConfig();
+            UniValue shard(UniValue::VOBJ);
+            shard.pushKV("segment_size", (uint64_t)config.segment_size);
+            shard.pushKV("percent", config.percent);
+            UniValue segments(UniValue::VARR);
+            for (uint32_t segment : config.segments) segments.push_back((uint64_t)segment);
+            shard.pushKV("segments", segments);
+            UniValue held(UniValue::VARR);
+            for (uint32_t segment : GetHeldShardSegments(::ChainActive())) held.push_back((uint64_t)segment);
+            shard.pushKV("held_segments", held);
+            obj.pushKV("shard", shard);
         }
     }
 
