@@ -44,6 +44,7 @@
 #include <sqlite/hdr/sqlite_modern_cpp/log.h>
 #include <scheduler.h>
 #include <script/sigcache.h>
+#include <shard.h>
 #include <script/standard.h>
 #include <shutdown.h>
 #include <timedata.h>
@@ -395,6 +396,9 @@ void SetupServerArgs()
             "Warning: Reverting this setting requires re-downloading the entire blockchain. "
             "(default: 0 = disable pruning blocks, 1 = allow manual pruning via RPC, >=%u = automatically prune block files to stay under the specified target size in MiB)", MIN_DISK_SPACE_FOR_BLOCK_FILES / 1024 / 1024), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     gArgs.AddArg("-reindex", "Rebuild chain state and block index from the blk*.dat files on disk", ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
+    gArgs.AddArg("-shard=<n>", strprintf("With -prune, also keep about <n> percent of the historical block chain, chosen at random in segments of %u blocks, and serve it to peers so that pruned nodes together can provide the whole chain to syncing nodes. "
+            "Segments are kept in addition to the -prune target. The choice is stored in the data directory and kept across restarts; blocks already pruned are not downloaded again. (0 to 100, default: 0)", DEFAULT_SHARD_SEGMENT_SIZE), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
+    gArgs.AddArg("-shardsegment=<n>", strprintf("With -prune, keep and serve block segment <n> (heights <n>*%u to (<n>+1)*%u-1). Can be specified multiple times, and combined with -shard.", DEFAULT_SHARD_SEGMENT_SIZE, DEFAULT_SHARD_SEGMENT_SIZE), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     gArgs.AddArg("-reindex-chainstate", "Rebuild chain state from the currently indexed blocks. When in pruning mode or if blocks on disk might be corrupted, use full -reindex instead.", ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
 #ifndef WIN32
     gArgs.AddArg("-sysperms", "Create new files with system default permissions, instead of umask 077 (only effective with disabled wallet functionality)", ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
@@ -494,6 +498,8 @@ void SetupServerArgs()
     gArgs.AddArg("-deprecatedrpc=<method>", "Allows deprecated RPC method(s) to be used", ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
     gArgs.AddArg("-dropmessagestest=<n>", "Randomly drop 1 of every <n> network messages", ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
     gArgs.AddArg("-stopafterblockimport", strprintf("Stop running after importing blocks from disk (default: %u)", DEFAULT_STOPAFTERBLOCKIMPORT), ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
+    gArgs.AddArg("-fastprune", "Use small block files (64 KiB) so pruning can be tested on short chains", ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
+    gArgs.AddArg("-shardsegmentsize=<n>", strprintf("Number of blocks per shard segment, regtest only (default: %u)", DEFAULT_SHARD_SEGMENT_SIZE), ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
     gArgs.AddArg("-stopatheight", strprintf("Stop running after reaching the given height in the main chain (default: %u)", DEFAULT_STOPATHEIGHT), ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
     gArgs.AddArg("-limitancestorcount=<n>", strprintf("Do not accept transactions if number of in-mempool ancestors is <n> or more (default: %u)", DEFAULT_ANCESTOR_LIMIT), ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
     gArgs.AddArg("-limitancestorsize=<n>", strprintf("Do not accept transactions whose size with all in-mempool ancestors exceeds <n> kilobytes (default: %u)", DEFAULT_ANCESTOR_SIZE_LIMIT), ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
@@ -1435,6 +1441,13 @@ bool AppInitMain(InitInterfaces& interfaces)
 
     // ********************************************************* Step 7: load block chain
 
+    {
+        std::string shard_error;
+        if (!InitSharding(shard_error)) {
+            return InitError(shard_error);
+        }
+    }
+
     fReindex = gArgs.GetBoolArg("-reindex", false);
     bool fReindexChainState = gArgs.GetBoolArg("-reindex-chainstate", false);
 
@@ -1707,6 +1720,10 @@ bool AppInitMain(InitInterfaces& interfaces)
     if (fPruneMode) {
         LogPrintf("Unsetting NODE_NETWORK on prune mode\n");
         nLocalServices = ServiceFlags(nLocalServices & ~NODE_NETWORK);
+        if (ShardingEnabled()) {
+            LogPrintf("Setting NODE_SHARD: serving shard segments of the block chain\n");
+            nLocalServices = ServiceFlags(nLocalServices | NODE_SHARD);
+        }
         if (!fReindex) {
             uiInterface.InitMessage(_("Pruning blockstore...").translated);
             ::ChainstateActive().PruneAndFlush();

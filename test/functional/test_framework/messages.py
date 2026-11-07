@@ -47,6 +47,7 @@ NODE_GETUTXO = (1 << 1)
 NODE_BLOOM = (1 << 2)
 NODE_WITNESS = (1 << 3)
 NODE_NETWORK_LIMITED = (1 << 10)
+NODE_SHARD = (1 << 24)
 
 MSG_TX = 1
 MSG_BLOCK = 2
@@ -1280,6 +1281,31 @@ class msg_sendheaders:
 
     def __repr__(self):
         return "msg_sendheaders()"
+
+
+class msg_shardinfo:
+    """Block segments a sharded (NODE_SHARD) node keeps: segment size and a vector of segment numbers."""
+    __slots__ = ("segment_size", "segments")
+    command = b"shardinfo"
+
+    def __init__(self, segment_size=0, segments=None):
+        self.segment_size = segment_size
+        self.segments = segments if segments is not None else []
+
+    def deserialize(self, f):
+        self.segment_size = struct.unpack("<I", f.read(4))[0]
+        count = deser_compact_size(f)
+        self.segments = [struct.unpack("<I", f.read(4))[0] for _ in range(count)]
+
+    def serialize(self):
+        r = struct.pack("<I", self.segment_size)
+        r += ser_compact_size(len(self.segments))
+        for segment in self.segments:
+            r += struct.pack("<I", segment)
+        return r
+
+    def __repr__(self):
+        return "msg_shardinfo(segment_size=%i segments=%s)" % (self.segment_size, repr(self.segments))
 
 
 # getheaders message has

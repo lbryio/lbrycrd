@@ -108,6 +108,8 @@ static UniValue getpeerinfo(const JSONRPCRequest& request)
             "       n,                        (numeric) The heights of blocks we're currently asking from this peer\n"
             "       ...\n"
             "    ],\n"
+            "    \"shard_segment_size\": n,    (numeric) Blocks per segment, if the peer is a sharded node that sent its segment list\n"
+            "    \"shard_segments\": [ n, ... ], (array) The block segments the peer keeps and serves, if it sent them\n"
             "    \"whitelisted\": true|false, (boolean) Whether the peer is whitelisted\n"
             "    \"minfeefilter\": n,         (numeric) The minimum fee rate for transactions this peer accepts\n"
             "    \"bytessent_per_msg\": {\n"
@@ -182,6 +184,12 @@ static UniValue getpeerinfo(const JSONRPCRequest& request)
                 heights.push_back(height);
             }
             obj.pushKV("inflight", heights);
+            if (statestats.shard_segment_size != 0) {
+                obj.pushKV("shard_segment_size", (uint64_t)statestats.shard_segment_size);
+                UniValue segments(UniValue::VARR);
+                for (uint32_t segment : statestats.shard_segments) segments.push_back((uint64_t)segment);
+                obj.pushKV("shard_segments", segments);
+            }
         }
         obj.pushKV("whitelisted", stats.m_legacyWhitelisted);
         UniValue permissions(UniValue::VARR);

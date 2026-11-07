@@ -32,6 +32,7 @@
 #include <reverse_iterator.h>
 #include <script/script.h>
 #include <script/sigcache.h>
+#include <shard.h>
 #include <script/standard.h>
 #include <streams.h>
 #include <shutdown.h>
@@ -3407,7 +3408,10 @@ static bool FindBlockPos(FlatFilePos &pos, unsigned int nAddSize, unsigned int n
     }
 
     if (!fKnown) {
-        const static int64_t maxBlockfileSize = std::max<int64_t>(BLOCKFILE_CHUNK_SIZE, gArgs.GetArg("-maxblockfilesize", DEFAULT_MAX_BLOCKFILE_SIZE >> 20U) << 20U);
+        const static int64_t configuredMaxBlockfileSize = gArgs.GetBoolArg("-fastprune", false) ? FASTPRUNE_BLOCKFILE_SIZE :
+            std::max<int64_t>(BLOCKFILE_CHUNK_SIZE, gArgs.GetArg("-maxblockfilesize", DEFAULT_MAX_BLOCKFILE_SIZE >> 20U) << 20U);
+        // A block must fit in a single file, even if it is larger than the configured file size
+        const int64_t maxBlockfileSize = std::max<int64_t>(configuredMaxBlockfileSize, (int64_t)nAddSize + 1);
         while (vinfoBlockFile[nFile].nSize + nAddSize >= maxBlockfileSize) {
             nFile++;
             if (vinfoBlockFile.size() <= nFile) {
@@ -4096,14 +4100,19 @@ static void FindFilesToPruneManual(std::set<int>& setFilesToPrune, int nManualPr
     // last block to prune is the lesser of (user-specified height, MIN_BLOCKS_TO_KEEP from the tip)
     unsigned int nLastBlockWeCanPrune = std::min((unsigned)nManualPruneHeight, ::ChainActive().Tip()->nHeight - MIN_BLOCKS_TO_KEEP);
     int count=0;
+    int shard_kept=0;
     for (int fileNumber = 0; fileNumber < nLastBlockFile; fileNumber++) {
         if (vinfoBlockFile[fileNumber].nSize == 0 || vinfoBlockFile[fileNumber].nHeightLast > nLastBlockWeCanPrune)
             continue;
+        if (ShardKeepsBlockFile(vinfoBlockFile[fileNumber])) {
+            shard_kept++;
+            continue;
+        }
         PruneOneBlockFile(fileNumber);
         setFilesToPrune.insert(fileNumber);
         count++;
     }
-    LogPrintf("Prune (Manual): prune_height=%d removed %d blk/rev pairs\n", nLastBlockWeCanPrune, count);
+    LogPrintf("Prune (Manual): prune_height=%d removed %d blk/rev pairs, kept %d for shard segments\n", nLastBlockWeCanPrune, count, shard_kept);
 }
 
 /* This function is called from the RPC code for pruneblockchain */
@@ -4144,6 +4153,17 @@ static void FindFilesToPrune(std::set<int>& setFilesToPrune, uint64_t nPruneAfte
 
     unsigned int nLastBlockWeCanPrune = ::ChainActive().Tip()->nHeight - MIN_BLOCKS_TO_KEEP;
     uint64_t nCurrentUsage = CalculateCurrentUsage();
+    // Files holding selected shard segments are never pruned, so they don't count
+    // against the prune target: -prune limits the space used by everything else.
+    uint64_t nShardUsage = 0;
+    if (ShardingEnabled()) {
+        for (const CBlockFileInfo& file : vinfoBlockFile) {
+            if (file.nSize != 0 && ShardKeepsBlockFile(file)) {
+                nShardUsage += file.nSize + file.nUndoSize;
+            }
+        }
+        nCurrentUsage -= nShardUsage;
+    }
     // We don't check to prune until after we've allocated new space for files
     // So we should leave a buffer under our target to account for another allocation
     // before the next pruning.
@@ -4174,6 +4194,9 @@ static void FindFilesToPrune(std::set<int>& setFilesToPrune, uint64_t nPruneAfte
             if (vinfoBlockFile[fileNumber].nHeightLast > nLastBlockWeCanPrune)
                 continue;
 
+            if (ShardKeepsBlockFile(vinfoBlockFile[fileNumber]))
+                continue;
+
             PruneOneBlockFile(fileNumber);
             // Queue up the files for removal
             setFilesToPrune.insert(fileNumber);
@@ -4182,15 +4205,16 @@ static void FindFilesToPrune(std::set<int>& setFilesToPrune, uint64_t nPruneAfte
         }
     }
 
-    LogPrint(BCLog::PRUNE, "Prune: target=%dMiB actual=%dMiB diff=%dMiB max_prune_height=%d removed %d blk/rev pairs\n",
+    LogPrint(BCLog::PRUNE, "Prune: target=%dMiB actual=%dMiB diff=%dMiB max_prune_height=%d removed %d blk/rev pairs, shard segments use %dMiB\n",
            nPruneTarget/1024/1024, nCurrentUsage/1024/1024,
            ((int64_t)nPruneTarget - (int64_t)nCurrentUsage)/1024/1024,
-           nLastBlockWeCanPrune, count);
+           nLastBlockWeCanPrune, count, nShardUsage/1024/1024);
 }
 
 static FlatFileSeq BlockFileSeq()
 {
-    return FlatFileSeq(GetBlocksDir(), "blk", BLOCKFILE_CHUNK_SIZE);
+    static const bool fast_prune = gArgs.GetBoolArg("-fastprune", false);
+    return FlatFileSeq(GetBlocksDir(), "blk", fast_prune ? FASTPRUNE_BLOCKFILE_CHUNK_SIZE : BLOCKFILE_CHUNK_SIZE);
 }
 
 static FlatFileSeq UndoFileSeq()

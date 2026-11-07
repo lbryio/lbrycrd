@@ -196,6 +196,7 @@ BITCOIN_CORE_H = \
   script/sign.h \
   script/signingprovider.h \
   script/standard.h \
+  shard.h \
   shutdown.h \
   streams.h \
   support/allocators/secure.h \
@@ -306,6 +307,7 @@ libbitcoin_server_a_SOURCES = \
   rpc/rawtransaction.cpp \
   rpc/server.cpp \
   script/sigcache.cpp \
+  shard.cpp \
   shutdown.cpp \
   timedata.cpp \
   torcontrol.cpp \

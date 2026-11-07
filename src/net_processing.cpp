@@ -23,6 +23,7 @@
 #include <random.h>
 #include <reverse_iterator.h>
 #include <scheduler.h>
+#include <shard.h>
 #include <tinyformat.h>
 #include <txmempool.h>
 #include <util/system.h>
@@ -361,6 +362,14 @@ struct CNodeState {
     //! Whether this peer is a manual connection
     bool m_is_manual_connection;
 
+    //! Whether this peer keeps only part of the block chain (NODE_NETWORK_LIMITED without NODE_NETWORK).
+    bool m_limited_history{false};
+    //! For a sharded peer: its segment size and the segments it told us it serves (sorted). 0 until it has.
+    uint32_t m_shard_segment_size{0};
+    std::vector<uint32_t> m_shard_segments;
+    //! Which version of our own segment list (g_shard_info_version) we last sent this peer. 0 if none.
+    uint64_t m_shard_info_sent_version{0};
+
     CNodeState(CAddress addrIn, std::string addrNameIn, bool is_inbound, bool is_manual) :
         address(addrIn), name(std::move(addrNameIn)), m_is_inbound(is_inbound),
         m_is_manual_connection (is_manual)
@@ -396,6 +405,41 @@ limitedmap<uint256, std::chrono::microseconds> g_already_asked_for GUARDED_BY(cs
 
 /** Map maintaining per-node state. */
 static std::map<NodeId, CNodeState> mapNodeState GUARDED_BY(cs_main);
+
+/** The shard segments we advertise and serve (see shard.h), sorted. */
+static std::vector<uint32_t> g_held_shard_segments GUARDED_BY(cs_main);
+/** The segment our tip was in when g_held_shard_segments was computed. */
+static int64_t g_held_shard_segments_tip_segment GUARDED_BY(cs_main) = -1;
+/** Increased whenever g_held_shard_segments changes, so each peer is sent the new list once. */
+static uint64_t g_shard_info_version GUARDED_BY(cs_main) = 0;
+
+/**
+ * Recompute the segments we hold when our tip has moved to a different segment.
+ * Within a segment the result can't change: blocks up to the tip are only removed
+ * by pruning, which never removes blocks of a selected segment.
+ */
+static void UpdateHeldShardSegments() EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+{
+    const int height = ::ChainActive().Height();
+    const int64_t tip_segment = height < 0 ? -1 : height / ShardSegmentSize();
+    if (g_shard_info_version != 0 && tip_segment == g_held_shard_segments_tip_segment) return;
+    g_held_shard_segments_tip_segment = tip_segment;
+    std::vector<uint32_t> held = GetHeldShardSegments(::ChainActive());
+    if (g_shard_info_version == 0 || held != g_held_shard_segments) {
+        g_held_shard_segments = std::move(held);
+        ++g_shard_info_version;
+        LogPrint(BCLog::NET, "Now serving %u shard segments\n", g_held_shard_segments.size());
+    }
+}
+
+/** Whether we serve this block to peers as part of a shard segment we advertise. */
+static bool IsServedShardBlock(const CBlockIndex* pindex) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+{
+    if (!ShardingEnabled() || !::ChainActive().Contains(pindex)) return false;
+    UpdateHeldShardSegments();
+    const uint32_t segment = pindex->nHeight / ShardSegmentSize();
+    return std::binary_search(g_held_shard_segments.begin(), g_held_shard_segments.end(), segment);
+}
 
 static CNodeState *State(NodeId pnode) EXCLUSIVE_LOCKS_REQUIRED(cs_main) {
     std::map<NodeId, CNodeState>::iterator it = mapNodeState.find(pnode);
@@ -584,6 +628,19 @@ static bool TipMayBeStale(const Consensus::Params &consensusParams) EXCLUSIVE_LO
     return g_last_tip_update < GetTime() - consensusParams.nPowTargetSpacing * 3 && mapBlocksInFlight.empty();
 }
 
+/**
+ * Whether a peer should have a block we want. Sharded peers keep their most
+ * recent blocks (like other pruned peers) plus the segments they advertised.
+ * Other peers are assumed to have it, as before sharding.
+ */
+static bool PeerMayHaveBlock(const CNodeState& state, const CBlockIndex* pindex) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+{
+    if (!state.m_limited_history || state.m_shard_segment_size == 0) return true;
+    if (state.pindexBestKnownBlock && state.pindexBestKnownBlock->nHeight - pindex->nHeight < (int)NODE_NETWORK_LIMITED_MIN_BLOCKS) return true;
+    const uint32_t segment = pindex->nHeight / state.m_shard_segment_size;
+    return std::binary_search(state.m_shard_segments.begin(), state.m_shard_segments.end(), segment);
+}
+
 static bool CanDirectFetch(const Consensus::Params &consensusParams) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 {
     return ::ChainActive().Tip()->GetBlockTime() > GetAdjustedTime() - consensusParams.nPowTargetSpacing * 20;
@@ -675,12 +732,18 @@ static void FindNextBlocksToDownload(NodeId nodeid, unsigned int count, std::vec
                     }
                     return;
                 }
+                if (!PeerMayHaveBlock(*state, pindex)) {
+                    // A sharded peer that doesn't keep this block; another peer has to provide it.
+                    continue;
+                }
                 vBlocks.push_back(pindex);
                 if (vBlocks.size() == count) {
                     return;
                 }
-            } else if (waitingfor == -1) {
-                // This is the first already-in-flight block.
+            } else if (waitingfor == -1 && PeerMayHaveBlock(*state, pindex)) {
+                // This is the first already-in-flight block that this peer could have provided
+                // instead. (If it couldn't, the peer we wait for may be the only one that can, so
+                // disconnecting it for stalling would not help.)
                 waitingfor = mapBlocksInFlight[pindex->GetBlockHash()].first;
             }
         }
@@ -826,6 +889,8 @@ bool GetNodeStateStats(NodeId nodeid, CNodeStateStats &stats) {
         if (queue.pindex)
             stats.vHeightInFlight.push_back(queue.pindex->nHeight);
     }
+    stats.shard_segment_size = state->m_shard_segment_size;
+    stats.shard_segments = state->m_shard_segments;
     return true;
 }
 
@@ -1414,7 +1479,8 @@ void static ProcessGetBlockData(CNode* pfrom, const CChainParams& chainparams, c
     }
     // Avoid leaking prune-height by never sending blocks below the NODE_NETWORK_LIMITED threshold
     if (send && !pfrom->HasPermission(PF_NOBAN) && (
-            (((pfrom->GetLocalServices() & NODE_NETWORK_LIMITED) == NODE_NETWORK_LIMITED) && ((pfrom->GetLocalServices() & NODE_NETWORK) != NODE_NETWORK) && (::ChainActive().Tip()->nHeight - pindex->nHeight > (int)NODE_NETWORK_LIMITED_MIN_BLOCKS + 2 /* add two blocks buffer extension for possible races */) )
+            (((pfrom->GetLocalServices() & NODE_NETWORK_LIMITED) == NODE_NETWORK_LIMITED) && ((pfrom->GetLocalServices() & NODE_NETWORK) != NODE_NETWORK) && (::ChainActive().Tip()->nHeight - pindex->nHeight > (int)NODE_NETWORK_LIMITED_MIN_BLOCKS + 2 /* add two blocks buffer extension for possible races */) &&
+             !IsServedShardBlock(pindex))
        )) {
         LogPrint(BCLog::NET, "Ignore block request below NODE_NETWORK_LIMITED threshold from peer=%d\n", pfrom->GetId());
 
@@ -1941,7 +2007,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         {
             connman->SetServices(pfrom->addr, nServices);
         }
-        if (!pfrom->fInbound && !pfrom->fFeeler && !pfrom->m_manual_connection && !HasAllDesirableServiceFlags(nServices))
+        if (!pfrom->fInbound && !pfrom->fFeeler && !pfrom->m_manual_connection && !HasAllDesirableServiceFlags(nServices) && !IsShardPeer(nServices))
         {
             LogPrint(BCLog::NET, "peer=%d does not offer the expected services (%08x offered, %08x expected); disconnecting\n", pfrom->GetId(), nServices, GetDesirableServiceFlags(nServices));
             if (enable_bip61) {
@@ -2027,6 +2093,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         {
         LOCK(cs_main);
         UpdatePreferredDownload(pfrom, State(pfrom->GetId()));
+        State(pfrom->GetId())->m_limited_history = pfrom->m_limited_node;
         }
 
         if (!pfrom->fInbound && pfrom->IsAddrRelayPeer())
@@ -2195,6 +2262,28 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
     if (strCommand == NetMsgType::SENDHEADERS) {
         LOCK(cs_main);
         State(pfrom->GetId())->fPreferHeaders = true;
+        return true;
+    }
+
+    if (strCommand == NetMsgType::SHARDINFO) {
+        uint32_t segment_size;
+        std::vector<uint32_t> segments;
+        vRecv >> segment_size >> segments;
+        LOCK(cs_main);
+        if (segment_size == 0 || segments.size() > MAX_SHARDINFO_SEGMENTS) {
+            Misbehaving(pfrom->GetId(), 20, strprintf("invalid shardinfo: segment size %u, %u segments", segment_size, segments.size()));
+            return false;
+        }
+        if (!IsShardPeer(pfrom->nServices)) {
+            LogPrint(BCLog::NET, "ignoring shardinfo from peer=%d that does not advertise NODE_SHARD\n", pfrom->GetId());
+            return true;
+        }
+        std::sort(segments.begin(), segments.end());
+        segments.erase(std::unique(segments.begin(), segments.end()), segments.end());
+        CNodeState* state = State(pfrom->GetId());
+        state->m_shard_segment_size = segment_size;
+        state->m_shard_segments = std::move(segments);
+        LogPrint(BCLog::NET, "peer=%d serves %u shard segments of %u blocks\n", pfrom->GetId(), state->m_shard_segments.size(), segment_size);
         return true;
     }
 
@@ -3582,6 +3671,17 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
         if (SendRejectsAndCheckIfBanned(pto, m_enable_bip61)) return true;
         CNodeState &state = *State(pto->GetId());
 
+        //
+        // Message: shardinfo
+        //
+        if (pto->GetLocalServices() & NODE_SHARD) {
+            UpdateHeldShardSegments();
+            if (state.m_shard_info_sent_version != g_shard_info_version) {
+                connman->PushMessage(pto, msgMaker.Make(NetMsgType::SHARDINFO, ShardSegmentSize(), g_held_shard_segments));
+                state.m_shard_info_sent_version = g_shard_info_version;
+            }
+        }
+
         // Address refresh broadcast
         int64_t nNow = GetTimeMicros();
         if (pto->IsAddrRelayPeer() && !::ChainstateActive().IsInitialBlockDownload() && pto->nNextLocalAddrSend < nNow) {
@@ -3992,7 +4092,10 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
         // Message: getdata (blocks)
         //
         std::vector<CInv> vGetData;
-        if (!pto->fClient && ((fFetch && !pto->m_limited_node) || !::ChainstateActive().IsInitialBlockDownload()) && state.nBlocksInFlight < MAX_BLOCKS_IN_TRANSIT_PER_PEER) {
+        // During initial sync, peers that keep only recent blocks are not used,
+        // except sharded peers that have told us which segments they keep.
+        const bool fServesHistory = !pto->m_limited_node || state.m_shard_segment_size != 0;
+        if (!pto->fClient && ((fFetch && fServesHistory) || !::ChainstateActive().IsInitialBlockDownload()) && state.nBlocksInFlight < MAX_BLOCKS_IN_TRANSIT_PER_PEER) {
             std::vector<const CBlockIndex*> vToDownload;
             NodeId staller = -1;
             FindNextBlocksToDownload(pto->GetId(), MAX_BLOCKS_IN_TRANSIT_PER_PEER - state.nBlocksInFlight, vToDownload, staller, consensusParams);

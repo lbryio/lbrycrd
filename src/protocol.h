@@ -238,6 +238,13 @@ extern const char *GETBLOCKTXN;
  * @since protocol version 70014 as described by BIP 152
  */
 extern const char *BLOCKTXN;
+/**
+ * Contains the block segment size and the list of block segments (height
+ * ranges of that size) the sending node keeps and will serve.
+ * Sent by nodes advertising NODE_SHARD after the version handshake, and again
+ * whenever that list changes.
+ */
+extern const char *SHARDINFO;
 };
 
 /* Get a vector of all valid message types (see above) */
@@ -265,6 +272,11 @@ enum ServiceFlags : uint64_t {
     // serving the last 288 (2 day) blocks
     // See BIP159 for details on how this is implemented.
     NODE_NETWORK_LIMITED = (1 << 10),
+    // NODE_SHARD means the node is a pruned (NODE_NETWORK_LIMITED) node that also
+    // keeps some segments of the historical block chain. It sends a "shardinfo"
+    // message listing them after the version handshake. See shard.h.
+    // This uses a bit from the experimental range below.
+    NODE_SHARD = (1 << 24),
 
     // Bits 24-31 are reserved for temporary experiments. Just pick a bit that
     // isn't getting used, or one not being used much, and notify the
@@ -319,6 +331,14 @@ static inline bool HasAllDesirableServiceFlags(ServiceFlags services) {
  */
 static inline bool MayHaveUsefulAddressDB(ServiceFlags services) {
     return (services & NODE_NETWORK) || (services & NODE_NETWORK_LIMITED);
+}
+
+/**
+ * Whether a peer with these service flags is a sharded node: it does not keep
+ * the full block chain, but keeps (and advertises) part of its history.
+ */
+static inline bool IsShardPeer(ServiceFlags services) {
+    return (services & NODE_SHARD) && (services & NODE_NETWORK_LIMITED) && !(services & NODE_NETWORK);
 }
 
 /** A CService with information about it as peer */
